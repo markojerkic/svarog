@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
@@ -11,9 +13,83 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func main() {
-	println("Hello, World!")
+type DumbLogLine struct {
+	Message   string
+	Level     rpc.LogLevel
+	timestamp *timestamppb.Timestamp
+}
 
+func readStdin(input chan DumbLogLine, done chan bool) {
+	defer close(input)
+
+	stdErrScanner := bufio.NewScanner(os.Stderr)
+	stdInScanner := bufio.NewScanner(os.Stdin)
+
+	var inputLine string
+
+	go func() {
+		for stdInScanner.Scan() {
+
+			if stdInScanner.Err() != nil {
+				done <- true
+				return
+			}
+
+			inputLine = stdInScanner.Text()
+
+			input <- DumbLogLine{
+				Message:   inputLine,
+				Level:     rpc.LogLevel_INFO,
+				timestamp: timestamppb.New(time.Now()),
+			}
+		}
+	}()
+
+	go func() {
+		for stdErrScanner.Scan() {
+
+			if stdErrScanner.Err() != nil {
+				done <- true
+				return
+			}
+
+			inputLine = stdErrScanner.Text()
+
+			_, err := fmt.Printf("Error: %s\n", inputLine)
+			if err != nil {
+				done <- true
+				return
+			}
+
+			input <- DumbLogLine{
+				Message:   inputLine,
+				Level:     rpc.LogLevel_ERROR,
+				timestamp: timestamppb.New(time.Now()),
+			}
+		}
+	}()
+
+	<-done
+
+}
+
+func sendLog(stream rpc.LoggAggregator_LogClient, input chan DumbLogLine) {
+	var logLine DumbLogLine
+	for {
+		logLine = <-input
+
+		err := stream.Send(&rpc.LogLine{
+			Message:   logLine.Message,
+			Level:     logLine.Level,
+			Timestamp: logLine.timestamp,
+		})
+		if err != nil {
+			return
+		}
+	}
+}
+
+func main() {
 	var opts []grpc.DialOption = []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
@@ -26,32 +102,17 @@ func main() {
 	client := rpc.NewLoggAggregatorClient(conn)
 
 	stream, err := client.Log(context.Background(), grpc.EmptyCallOption{})
+	defer stream.CloseSend()
 
 	if err != nil {
 		panic(err)
 	}
 
-	logCount := 0
+	inputQueue := make(chan DumbLogLine, 1024*100)
+	done := make(chan bool)
 
-	for {
-		err = stream.Send(&rpc.LogLine{
-			Message:   fmt.Sprintf("Log message %d", logCount),
-			Level:     *rpc.LogLevel_INFO.Enum(),
-			Timestamp: timestamppb.New(time.Now()),
-		})
+	go readStdin(inputQueue, done)
+	go sendLog(stream, inputQueue)
 
-		if err != nil {
-			panic(err)
-		}
-
-		// set a delay to simulate a real-world scenario
-		// make the delay be random 100 to 300 ms
-		time.Sleep(time.Duration(10+logCount%200) * time.Millisecond)
-
-		logCount++
-
-		if logCount == 100 {
-			break
-		}
-	}
+	<-done
 }

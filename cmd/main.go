@@ -26,11 +26,11 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 			fmt.Printf("Failed to receive a log line: %v", err)
 			return err
 		}
-		peer, ok := peer.FromContext(stream.Context())
+		_, ok := peer.FromContext(stream.Context())
 		if !ok {
 			return err
 		}
-		fmt.Printf("Received log line: %v from %v\n", logLine, peer.Addr)
+		// fmt.Printf("Received log line: %v from %v\n", logLine, peer.Addr)
 
 		logs = append(logs, logLine)
 
