@@ -33,48 +33,48 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	RouteGuide_Log_FullMethodName = "/svarog.RouteGuide/Log"
+	LoggAggregator_Log_FullMethodName = "/svarog.LoggAggregator/Log"
 )
 
-// RouteGuideClient is the client API for RouteGuide service.
+// LoggAggregatorClient is the client API for LoggAggregator service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type RouteGuideClient interface {
-	Log(ctx context.Context, opts ...grpc.CallOption) (RouteGuide_LogClient, error)
+type LoggAggregatorClient interface {
+	Log(ctx context.Context, opts ...grpc.CallOption) (LoggAggregator_LogClient, error)
 }
 
-type routeGuideClient struct {
+type loggAggregatorClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewRouteGuideClient(cc grpc.ClientConnInterface) RouteGuideClient {
-	return &routeGuideClient{cc}
+func NewLoggAggregatorClient(cc grpc.ClientConnInterface) LoggAggregatorClient {
+	return &loggAggregatorClient{cc}
 }
 
-func (c *routeGuideClient) Log(ctx context.Context, opts ...grpc.CallOption) (RouteGuide_LogClient, error) {
-	stream, err := c.cc.NewStream(ctx, &RouteGuide_ServiceDesc.Streams[0], RouteGuide_Log_FullMethodName, opts...)
+func (c *loggAggregatorClient) Log(ctx context.Context, opts ...grpc.CallOption) (LoggAggregator_LogClient, error) {
+	stream, err := c.cc.NewStream(ctx, &LoggAggregator_ServiceDesc.Streams[0], LoggAggregator_Log_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &routeGuideLogClient{stream}
+	x := &loggAggregatorLogClient{stream}
 	return x, nil
 }
 
-type RouteGuide_LogClient interface {
+type LoggAggregator_LogClient interface {
 	Send(*LogLine) error
 	CloseAndRecv() (*Void, error)
 	grpc.ClientStream
 }
 
-type routeGuideLogClient struct {
+type loggAggregatorLogClient struct {
 	grpc.ClientStream
 }
 
-func (x *routeGuideLogClient) Send(m *LogLine) error {
+func (x *loggAggregatorLogClient) Send(m *LogLine) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *routeGuideLogClient) CloseAndRecv() (*Void, error) {
+func (x *loggAggregatorLogClient) CloseAndRecv() (*Void, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -85,53 +85,53 @@ func (x *routeGuideLogClient) CloseAndRecv() (*Void, error) {
 	return m, nil
 }
 
-// RouteGuideServer is the server API for RouteGuide service.
-// All implementations must embed UnimplementedRouteGuideServer
+// LoggAggregatorServer is the server API for LoggAggregator service.
+// All implementations must embed UnimplementedLoggAggregatorServer
 // for forward compatibility
-type RouteGuideServer interface {
-	Log(RouteGuide_LogServer) error
-	mustEmbedUnimplementedRouteGuideServer()
+type LoggAggregatorServer interface {
+	Log(LoggAggregator_LogServer) error
+	mustEmbedUnimplementedLoggAggregatorServer()
 }
 
-// UnimplementedRouteGuideServer must be embedded to have forward compatible implementations.
-type UnimplementedRouteGuideServer struct {
+// UnimplementedLoggAggregatorServer must be embedded to have forward compatible implementations.
+type UnimplementedLoggAggregatorServer struct {
 }
 
-func (UnimplementedRouteGuideServer) Log(RouteGuide_LogServer) error {
+func (UnimplementedLoggAggregatorServer) Log(LoggAggregator_LogServer) error {
 	return status.Errorf(codes.Unimplemented, "method Log not implemented")
 }
-func (UnimplementedRouteGuideServer) mustEmbedUnimplementedRouteGuideServer() {}
+func (UnimplementedLoggAggregatorServer) mustEmbedUnimplementedLoggAggregatorServer() {}
 
-// UnsafeRouteGuideServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to RouteGuideServer will
+// UnsafeLoggAggregatorServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LoggAggregatorServer will
 // result in compilation errors.
-type UnsafeRouteGuideServer interface {
-	mustEmbedUnimplementedRouteGuideServer()
+type UnsafeLoggAggregatorServer interface {
+	mustEmbedUnimplementedLoggAggregatorServer()
 }
 
-func RegisterRouteGuideServer(s grpc.ServiceRegistrar, srv RouteGuideServer) {
-	s.RegisterService(&RouteGuide_ServiceDesc, srv)
+func RegisterLoggAggregatorServer(s grpc.ServiceRegistrar, srv LoggAggregatorServer) {
+	s.RegisterService(&LoggAggregator_ServiceDesc, srv)
 }
 
-func _RouteGuide_Log_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(RouteGuideServer).Log(&routeGuideLogServer{stream})
+func _LoggAggregator_Log_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(LoggAggregatorServer).Log(&loggAggregatorLogServer{stream})
 }
 
-type RouteGuide_LogServer interface {
+type LoggAggregator_LogServer interface {
 	SendAndClose(*Void) error
 	Recv() (*LogLine, error)
 	grpc.ServerStream
 }
 
-type routeGuideLogServer struct {
+type loggAggregatorLogServer struct {
 	grpc.ServerStream
 }
 
-func (x *routeGuideLogServer) SendAndClose(m *Void) error {
+func (x *loggAggregatorLogServer) SendAndClose(m *Void) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *routeGuideLogServer) Recv() (*LogLine, error) {
+func (x *loggAggregatorLogServer) Recv() (*LogLine, error) {
 	m := new(LogLine)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -139,17 +139,17 @@ func (x *routeGuideLogServer) Recv() (*LogLine, error) {
 	return m, nil
 }
 
-// RouteGuide_ServiceDesc is the grpc.ServiceDesc for RouteGuide service.
+// LoggAggregator_ServiceDesc is the grpc.ServiceDesc for LoggAggregator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var RouteGuide_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "svarog.RouteGuide",
-	HandlerType: (*RouteGuideServer)(nil),
+var LoggAggregator_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "svarog.LoggAggregator",
+	HandlerType: (*LoggAggregatorServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Log",
-			Handler:       _RouteGuide_Log_Handler,
+			Handler:       _LoggAggregator_Log_Handler,
 			ClientStreams: true,
 		},
 	},

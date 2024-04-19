@@ -1,62 +1,64 @@
 package main
 
 import (
-	"bufio"
-	"context"
 	"fmt"
-	"os"
+	"log"
+	"net"
 
 	rpc "github.com/markojerkic/svarog/proto"
-	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 )
 
-type ImplementedServer struct{}
-
-// GetFeature implements rpc.RouteGuideServer.
-func (i *ImplementedServer) GetFeature(context.Context, *rpc.Point) (*rpc.Feature, error) {
-	return &rpc.Feature{}, nil
+type ImplementedServer struct {
+	rpc.UnimplementedLoggAggregatorServer
 }
 
-// ListFeatures implements rpc.RouteGuideServer.
-func (i *ImplementedServer) ListFeatures(rect *rpc.Rectangle, stream rpc.RouteGuide_ListFeaturesServer) error {
-	stream.Send(&rpc.Feature{})
+var logs []*rpc.LogLine
 
-	return nil
+// Log implements rpc.LoggAggregatorServer.
+func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
+	fmt.Println("Log called")
+
+	for {
+		logLine, err := stream.Recv()
+		if err != nil {
+			fmt.Printf("Failed to receive a log line: %v", err)
+			return err
+		}
+		peer, ok := peer.FromContext(stream.Context())
+		if !ok {
+			return err
+		}
+		fmt.Printf("Received log line: %v from %v\n", logLine, peer.Addr)
+
+		logs = append(logs, logLine)
+
+		fmt.Printf("Received log line: %v\n", logLine)
+	}
 }
 
-// RecordRoute implements rpc.RouteGuideServer.
-func (i *ImplementedServer) RecordRoute(rpc.RouteGuide_RecordRouteServer) error {
-	panic("unimplemented")
-}
+// mustEmbedUnimplementedLoggAggregatorServer implements rpc.LoggAggregatorServer.
+func (i *ImplementedServer) mustEmbedUnimplementedLoggAggregatorServer() {}
 
-// RouteChat implements rpc.RouteGuideServer.
-func (i *ImplementedServer) RouteChat(rpc.RouteGuide_RouteChatServer) error {
-	panic("unimplemented")
+func newServer() rpc.LoggAggregatorServer {
+	return &ImplementedServer{}
 }
-
-// mustEmbedUnimplementedRouteGuideServer implements rpc.RouteGuideServer.
-func (i *ImplementedServer) mustEmbedUnimplementedRouteGuideServer() {
-	panic("unimplemented")
-}
-
-var server rpc.RouteGuideServer
 
 func main() {
 	println("Hello, World!")
 
-	scanner := bufio.NewScanner(os.Stdin)
-	// rpc.RegisterRouteGuideServer(grpc.ServiceRegistrar, )
+	port := 50051
 
-    credentials.NewClientTLSFromCert(nil, "")
-
-	nurLines := 0
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		fmt.Printf("[%d] Line entered: '%s'\n", nurLines, line)
-		nurLines++
-
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
 	}
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+
+	rpc.RegisterLoggAggregatorServer(grpcServer, newServer())
+
+	grpcServer.Serve(lis)
 
 }

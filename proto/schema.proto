@@ -20,7 +20,7 @@ import "google/protobuf/timestamp.proto";
 package svarog;
 
 // Interface exported by the server.
-service RouteGuide {
+service LoggAggregator {
   rpc Log(stream LogLine) returns (Void) {}
 }
 
