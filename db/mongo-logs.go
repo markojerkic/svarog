@@ -13,13 +13,30 @@ type MongoLogRepository struct {
 	logCollection *mongo.Collection
 }
 
+var _ LogRepository = &MongoLogRepository{}
+
+// GetLogs implements LogRepository.
+func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
+	cursor, err := self.logCollection.Find(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var logs []StoredLog
+	if err = cursor.All(context.Background(), &logs); err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}
+
 func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 	saved, err := self.logCollection.InsertMany(context.Background(), logs)
 	if err != nil {
 		return err
 	}
 
-    log.Printf("Saved %d log lines\n", len(saved.InsertedIDs))
+	log.Printf("Saved %d log lines\n", len(saved.InsertedIDs))
 
 	return nil
 }

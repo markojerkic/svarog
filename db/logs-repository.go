@@ -8,6 +8,7 @@ import (
 
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
+	GetLogs() ([]StoredLog, error)
 }
 
 type LogServer struct {

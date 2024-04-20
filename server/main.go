@@ -4,15 +4,20 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"strconv"
 
-	dotenv "github.com/joho/godotenv"
+	envParser "github.com/caarlos0/env/v11"
 	"github.com/markojerkic/svarog/db"
 	rpc "github.com/markojerkic/svarog/proto"
+	"github.com/markojerkic/svarog/server/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
+
+type Env struct {
+	MongoUrl       string `env:"MONGO_URL"`
+	GrpcServerPort int    `env:"GPRC_PORT"`
+	HttpServerPort int    `env:"HTTP_SERVER_PORT"`
+}
 
 type ImplementedServer struct {
 	rpc.UnimplementedLoggAggregatorServer
@@ -42,40 +47,29 @@ func newServer() rpc.LoggAggregatorServer {
 }
 
 func main() {
-	err := dotenv.Load()
+	env := Env{}
 
-	if err != nil {
-		log.Fatalf("Error loading .env file. %v", err)
+	if err := envParser.Parse(env); err != nil {
+		log.Fatalf("%+v\n", err)
 	}
 
-	grpcServerPortEnv, ok := os.LookupEnv("GPRC_PORT")
-	if !ok {
-		log.Fatalf("GRPC_PORT is not set.")
-	}
-
-	grpcServerPort, err := strconv.Atoi(grpcServerPortEnv)
-	if err != nil {
-		log.Fatalf("Error converting GRPC_PORT to int. %v", err)
-	}
+	grpcServerPort := env.GrpcServerPort
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", grpcServerPort))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatalf("Failed to listen: %v", err)
 	}
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
-
 	rpc.RegisterLoggAggregatorServer(grpcServer, newServer())
 
-	mongoUrl, ok := os.LookupEnv("MONGO_URL")
-	if !ok {
-		log.Fatal("MONGO_URL is not set")
-	}
+	mongoRepository := db.NewMongoClient(env.MongoUrl)
+	mongoServer := db.NewLogServer(mongoRepository)
 
-	mongoServer := db.NewLogServer(db.NewMongoClient(mongoUrl))
-
-	go mongoServer.Run(logs)
+	httpServer := http.NewServer(mongoRepository)
 
 	log.Printf("Starting gRPC server on port %d\n", grpcServerPort)
+	go mongoServer.Run(logs)
+	go httpServer.Start(env.HttpServerPort)
 	grpcServer.Serve(lis)
 }
