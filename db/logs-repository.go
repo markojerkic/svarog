@@ -1,18 +1,17 @@
 package db
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type LogRepository interface {
+	SaveLogs(logs []interface{}) error
+}
+
 type LogServer struct {
-	mongoClient   *mongo.Client
-	logCollection *mongo.Collection
+	repository LogRepository
 
 	logs chan *StoredLog
 }
@@ -23,18 +22,10 @@ type StoredLog struct {
 	Timestamp time.Time    `bson:"timestamp"`
 }
 
-func NewLogServer() *LogServer {
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://user:pass@localhost:27017"))
-
-	if err != nil {
-		panic(err)
-	}
-	collection := client.Database("logs").Collection("log_lines")
-
+func NewLogServer(dbClient LogRepository) *LogServer {
 	return &LogServer{
-		mongoClient:   client,
-		logCollection: collection,
-		logs:          make(chan *StoredLog, 1024*1024),
+		logs:       make(chan *StoredLog, 1024*1024),
+		repository: dbClient,
 	}
 }
 
@@ -43,11 +34,7 @@ func (self *LogServer) dumpBacklog(backlog []interface{}) {
 		return
 	}
 
-	saved, err := self.logCollection.InsertMany(context.Background(), backlog)
-	if err != nil {
-		panic(err)
-	}
-    fmt.Printf("Saved %d log lines\n", len(saved.InsertedIDs))
+	self.repository.SaveLogs(backlog)
 }
 
 var backlogLimit = 1000

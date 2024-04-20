@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strconv"
 
-	rpc "github.com/markojerkic/svarog/proto"
+	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/db"
+	rpc "github.com/markojerkic/svarog/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -28,7 +31,7 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 		if !ok {
 			return err
 		}
-        logs <- logLine
+		logs <- logLine
 	}
 }
 
@@ -39,11 +42,23 @@ func newServer() rpc.LoggAggregatorServer {
 }
 
 func main() {
-	println("Hello, World!")
+	err := dotenv.Load()
 
-	port := 50051
+	if err != nil {
+		log.Fatalf("Error loading .env file. %v", err)
+	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	grpcServerPortEnv, ok := os.LookupEnv("GPRC_PORT")
+	if !ok {
+		log.Fatalf("GRPC_PORT is not set.")
+	}
+
+	grpcServerPort, err := strconv.Atoi(grpcServerPortEnv)
+	if err != nil {
+		log.Fatalf("Error converting GRPC_PORT to int. %v", err)
+	}
+
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", grpcServerPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -52,10 +67,15 @@ func main() {
 
 	rpc.RegisterLoggAggregatorServer(grpcServer, newServer())
 
-    mongoServer := db.NewLogServer()
+	mongoUrl, ok := os.LookupEnv("MONGO_URL")
+	if !ok {
+		log.Fatal("MONGO_URL is not set")
+	}
 
-    go mongoServer.Run(logs)
+	mongoServer := db.NewLogServer(db.NewMongoClient(mongoUrl))
 
+	go mongoServer.Run(logs)
+
+	log.Printf("Starting gRPC server on port %d\n", grpcServerPort)
 	grpcServer.Serve(lis)
-
 }
