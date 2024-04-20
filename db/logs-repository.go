@@ -29,30 +29,61 @@ func NewLogServer(dbClient LogRepository) *LogServer {
 	}
 }
 
-func (self *LogServer) dumpBacklog(backlog []interface{}) {
-	if len(backlog) == 0 {
+func (self *LogServer) dumpBacklog(backlog *Backlog) {
+	if !backlog.isNotEmpty() {
 		return
 	}
 
-	self.repository.SaveLogs(backlog)
+	self.repository.SaveLogs(backlog.getLogs())
 }
 
 var backlogLimit = 1000
 
+type Backlog struct {
+	logs  []interface{}
+	index int
+}
+
+func (self *Backlog) getLogs() []interface{} {
+	logs := self.logs[:self.index]
+
+	self.index = 0
+
+	return logs
+}
+
+func (self *Backlog) add(log interface{}) {
+	self.logs[self.index] = log
+	self.index = (self.index + 1) % backlogLimit
+}
+
+func (self *Backlog) isNotEmpty() bool {
+	return self.index > 0
+}
+
+func (self *Backlog) isFull() bool {
+	return self.index == backlogLimit-1
+}
+
+func newBacklog() *Backlog {
+	return &Backlog{
+		logs:  make([]interface{}, backlogLimit),
+		index: 0,
+	}
+}
+
 func (self *LogServer) runBacklog() {
-	backlog := make([]interface{}, 0, backlogLimit)
+	backlog := newBacklog()
 
 	for {
 		select {
 		case log := <-self.logs:
-			backlog = append(backlog, log)
-			if len(backlog) == backlogLimit {
+			backlog.add(log)
+			if backlog.isFull() {
 				self.dumpBacklog(backlog)
-				backlog = backlog[:0]
 			}
 		case <-time.After(5 * time.Second):
 			self.dumpBacklog(backlog)
-			backlog = backlog[:0]
 		}
 	}
 }
