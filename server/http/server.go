@@ -21,7 +21,11 @@ func NewServer(logRepository db.LogRepository) *HttpServer {
 func (self *HttpServer) Start(port int) {
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
+		logs, err := self.logRepository.GetLogs()
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+		return c.JSON(http.StatusOK, logs)
 	})
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }

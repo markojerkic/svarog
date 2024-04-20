@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -15,10 +16,14 @@ type MongoLogRepository struct {
 
 var _ LogRepository = &MongoLogRepository{}
 
+var projection = options.Find().SetProjection(bson.D{{"log_line", 1}})
+
 // GetLogs implements LogRepository.
 func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
-	cursor, err := self.logCollection.Find(context.Background(), nil)
+
+	cursor, err := self.logCollection.Find(context.Background(), bson.D{}, projection)
 	if err != nil {
+		log.Printf("Error getting logs: %v\n", err)
 		return nil, err
 	}
 

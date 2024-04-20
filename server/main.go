@@ -6,6 +6,7 @@ import (
 	"net"
 
 	envParser "github.com/caarlos0/env/v11"
+	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/db"
 	rpc "github.com/markojerkic/svarog/proto"
 	"github.com/markojerkic/svarog/server/http"
@@ -46,12 +47,24 @@ func newServer() rpc.LoggAggregatorServer {
 	return &ImplementedServer{}
 }
 
-func main() {
+func loadEnv() Env {
 	env := Env{}
+	err := dotenv.Load()
 
-	if err := envParser.Parse(env); err != nil {
-		log.Fatalf("%+v\n", err)
+	if err != nil {
+		log.Fatalf("Error loading .env file. %v", err)
 	}
+
+	if err := envParser.Parse(&env); err != nil {
+		log.Fatalf("Error parsing env: %+v\n", err)
+	}
+
+	return env
+}
+
+func main() {
+
+	env := loadEnv()
 
 	grpcServerPort := env.GrpcServerPort
 
