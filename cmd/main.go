@@ -15,27 +15,20 @@ type ImplementedServer struct {
 	rpc.UnimplementedLoggAggregatorServer
 }
 
-var logs = make(chan *rpc.LogLine, 1024)
+var logs = make(chan *rpc.LogLine, 1024*1024)
 
 // Log implements rpc.LoggAggregatorServer.
 func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
-	fmt.Println("Log called")
-
 	for {
 		logLine, err := stream.Recv()
 		if err != nil {
-			fmt.Printf("Failed to receive a log line: %v", err)
 			return err
 		}
 		_, ok := peer.FromContext(stream.Context())
 		if !ok {
 			return err
 		}
-		// fmt.Printf("Received log line: %v from %v\n", logLine, peer.Addr)
-
         logs <- logLine
-
-		fmt.Printf("Received log line: %v\n", logLine)
 	}
 }
 
