@@ -1,87 +1,64 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"fmt"
 	"os"
-	"time"
 
+	"github.com/markojerkic/svarog/client/reader"
 	rpc "github.com/markojerkic/svarog/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type DumbLogLine struct {
-	Message   string
-	Level     rpc.LogLevel
-	timestamp *timestamppb.Timestamp
-}
+func readStdin(input chan *reader.Line, done chan bool) {
+	readers := []reader.Reader{
+		reader.NewReader(os.Stdin, input),
+		reader.NewReader(os.Stderr, input),
+	}
 
-func readStdin(input chan DumbLogLine, done chan bool) {
-	defer close(input)
+	numClosed := 0
+	closed := make(chan bool)
 
-	stdErrScanner := bufio.NewScanner(os.Stderr)
-	stdInScanner := bufio.NewScanner(os.Stdin)
-
-	var inputLine string
+	for _, reader := range readers {
+		go reader.Run(closed)
+	}
 
 	go func() {
-		for stdInScanner.Scan() {
-
-			if stdInScanner.Err() != nil {
-				done <- true
+		for {
+			<-done
+			numClosed++
+			if numClosed == len(readers) {
+				close(done)
 				return
-			}
-
-			inputLine = stdInScanner.Text()
-
-			input <- DumbLogLine{
-				Message:   inputLine,
-				Level:     rpc.LogLevel_INFO,
-				timestamp: timestamppb.New(time.Now()),
 			}
 		}
 	}()
 
-	go func() {
-		for stdErrScanner.Scan() {
-
-			if stdErrScanner.Err() != nil {
-				done <- true
-				return
-			}
-
-			inputLine = stdErrScanner.Text()
-
-			_, err := fmt.Printf("Error: %s\n", inputLine)
-			if err != nil {
-				done <- true
-				return
-			}
-
-			input <- DumbLogLine{
-				Message:   inputLine,
-				Level:     rpc.LogLevel_ERROR,
-				timestamp: timestamppb.New(time.Now()),
-			}
-		}
-	}()
-
-	<-done
+	<-closed
 
 }
 
-func sendLog(stream rpc.LoggAggregator_LogClient, input chan DumbLogLine) {
-	var logLine DumbLogLine
+func sendLog(stream rpc.LoggAggregator_LogClient, input chan *reader.Line) {
+	var logLine *reader.Line
+	var logLevel rpc.LogLevel
 	for {
 		logLine = <-input
 
+		if logLine == nil {
+			break
+		}
+
+		if logLine.IsError {
+			logLevel = rpc.LogLevel_ERROR
+		} else {
+			logLevel = rpc.LogLevel_INFO
+		}
+
 		err := stream.Send(&rpc.LogLine{
-			Message:   logLine.Message,
-			Level:     logLine.Level,
-			Timestamp: logLine.timestamp,
+			Message:   logLine.LogLine,
+			Level:     logLevel,
+			Timestamp: timestamppb.New(logLine.Timestamp),
 		})
 		if err != nil {
 			return
@@ -108,7 +85,7 @@ func main() {
 		panic(err)
 	}
 
-	inputQueue := make(chan DumbLogLine, 1024*100)
+	inputQueue := make(chan *reader.Line, 1024*100)
 	done := make(chan bool)
 
 	go readStdin(inputQueue, done)
