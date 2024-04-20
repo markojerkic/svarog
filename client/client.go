@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/markojerkic/svarog/client/reader"
@@ -48,6 +49,8 @@ func sendLog(stream rpc.LoggAggregator_LogClient, input chan *reader.Line) {
 		if logLine == nil {
 			break
 		}
+
+        fmt.Println(logLine.LogLine)
 
 		if logLine.IsError {
 			logLevel = rpc.LogLevel_ERROR

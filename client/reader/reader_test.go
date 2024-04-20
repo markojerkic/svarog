@@ -47,7 +47,6 @@ func TestReaderRun(t *testing.T) {
 		}
 
 		receivedLines = append(receivedLines, line.LogLine)
-
 	}
 
 	if len(receivedLines) != len(expectedLines) {
