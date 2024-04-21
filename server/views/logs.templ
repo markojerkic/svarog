@@ -1,17 +1,20 @@
 package views
 
 import "github.com/markojerkic/svarog/db"
-import "fmt"
 
 templ Logs(logs []db.StoredLog) {
-	<div>
-		<h1>Logs</h1>
+	<html>
+		<head>
+			<title>Logs</title>
+		</head>
 		<div>
-			for i, log := range logs {
-				<p>
-					{ fmt.Sprintf("%d: %s", i, log.LogLine) }
-				</p>
-			}
+			<ol>
+				for _, log := range logs {
+					<li>
+						{ log.LogLine }
+					</li>
+				}
+			</ol>
 		</div>
-	</div>
+	</html>
 }
