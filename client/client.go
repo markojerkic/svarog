@@ -19,24 +19,21 @@ func readStdin(input chan *reader.Line, done chan bool) {
 	}
 
 	numClosed := 0
-	closed := make(chan bool)
+	closed := make(chan string, len(readers))
 
 	for _, reader := range readers {
 		go reader.Run(closed)
 	}
 
-	go func() {
-		for {
-			<-done
-			numClosed++
-			if numClosed == len(readers) {
-				close(done)
-				return
-			}
+	for {
+		closedFile := <-closed
+        fmt.Println("Closed file: ", closedFile)
+		numClosed++
+		if closedFile == os.Stdin.Name() || numClosed == len(readers) {
+			done <- true
+			return
 		}
-	}()
-
-	<-closed
+	}
 
 }
 
@@ -50,7 +47,7 @@ func sendLog(stream rpc.LoggAggregator_LogClient, input chan *reader.Line) {
 			break
 		}
 
-        fmt.Println(logLine.LogLine)
+		fmt.Println(logLine.LogLine)
 
 		if logLine.IsError {
 			logLevel = rpc.LogLevel_ERROR

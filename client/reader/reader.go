@@ -9,7 +9,7 @@ import (
 type Reader interface {
 	hasNext() bool
 	next() (string, error)
-	Run(chan bool)
+	Run(chan string)
 }
 
 type Line struct {
@@ -19,12 +19,13 @@ type Line struct {
 }
 
 type ReaderImpl struct {
-	input  *bufio.Scanner
-	output chan *Line
+	input    *bufio.Scanner
+	file     *os.File
+	output   chan *Line
+	fileName string
 }
 
-func (r *ReaderImpl) Run(stopSignal chan bool) {
-	defer close(r.output)
+func (r *ReaderImpl) Run(stopSignal chan string) {
 	for r.hasNext() {
 		line, err := r.next()
 		timestamp := time.Now()
@@ -35,7 +36,7 @@ func (r *ReaderImpl) Run(stopSignal chan bool) {
 		}
 	}
 
-	stopSignal <- true
+	stopSignal <- r.fileName
 }
 
 // hasNext implements Reader.
@@ -52,5 +53,5 @@ func (r *ReaderImpl) next() (string, error) {
 }
 
 func NewReader(input *os.File, output chan *Line) Reader {
-	return &ReaderImpl{bufio.NewScanner(input), output}
+	return &ReaderImpl{bufio.NewScanner(input), input, output, input.Name()}
 }

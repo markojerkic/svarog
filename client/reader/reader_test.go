@@ -3,6 +3,7 @@ package reader
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestReaderImplementation(t *testing.T) {
@@ -29,7 +30,7 @@ func TestReaderRun(t *testing.T) {
 	}
 
 	r := NewReader(input, output)
-	stopSignal := make(chan bool)
+	stopSignal := make(chan string)
 
 	go r.Run(stopSignal)
 
@@ -38,15 +39,21 @@ func TestReaderRun(t *testing.T) {
 	receivedLines := make([]string, 0, 2)
 
 	// Wait for Run to finish
+	t.Log("Waiting for Run to finish")
 	<-stopSignal
 
+loop:
 	for {
-		line := <-output
-		if line == nil {
-			break
-		}
+		select {
+		case line := <-output:
+			if line == nil {
+				break
+			}
 
-		receivedLines = append(receivedLines, line.LogLine)
+			receivedLines = append(receivedLines, line.LogLine)
+		case <-time.After(1 * time.Second):
+			break loop
+		}
 	}
 
 	if len(receivedLines) != len(expectedLines) {
