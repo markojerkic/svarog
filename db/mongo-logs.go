@@ -21,7 +21,8 @@ var projection = options.Find().SetProjection(bson.D{{"log_line", 1}})
 // GetLogs implements LogRepository.
 func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
 
-	cursor, err := self.logCollection.Find(context.Background(), bson.D{}, projection)
+	cursor, err := self.logCollection.Find(context.Background(), bson.D{}, projection.SetLimit(1000))
+	defer cursor.Close(context.Background())
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
 		return nil, err
@@ -31,6 +32,8 @@ func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
 	if err = cursor.All(context.Background(), &logs); err != nil {
 		return nil, err
 	}
+
+    log.Printf("Found %d log lines\n", len(logs))
 
 	return logs, nil
 }

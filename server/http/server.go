@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/db"
+	"github.com/markojerkic/svarog/server/views"
 )
 
 type HttpServer struct {
@@ -25,7 +26,9 @@ func (self *HttpServer) Start(port int) {
 		if err != nil {
 			return c.String(http.StatusInternalServerError, err.Error())
 		}
-		return c.JSON(http.StatusOK, logs)
+
+		return views.Logs(logs).Render(c.Request().Context(), c.Response().Writer)
+
 	})
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }

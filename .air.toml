@@ -1,0 +1,7 @@
+tmp_dir = "build"
+rum_cmd = "build/server"
+
+[build]
+    cmd = "make build"
+    bin = "./build/server"
+    exclude_regex = ["_test.go", ".*_templ.go", "build/.*"]
