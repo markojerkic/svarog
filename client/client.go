@@ -59,6 +59,7 @@ func sendLog(stream rpc.LoggAggregator_LogClient, input chan *reader.Line) {
 			Message:   logLine.LogLine,
 			Level:     logLevel,
 			Timestamp: timestamppb.New(logLine.Timestamp),
+            Client:   "client",
 		})
 		if err != nil {
 			return
