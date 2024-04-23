@@ -21,7 +21,6 @@ var _ Backlog[any] = (*BacklogImpl[any])(nil)
 // addToBacklog implements Backlog.
 func (b *BacklogImpl[T]) addToBacklog(item T) {
 	b.backlog = append(b.backlog, item)
-
 	if !b.dumpIsRunning {
 		go b.dumpBacklog()
 	}
@@ -31,6 +30,7 @@ func (b *BacklogImpl[T]) attemptDumpBacklog() {
 	if b.dumpIsRunning {
 		return
 	}
+
 	b.dumpIsRunning = true
 	defer func() {
 		b.dumpIsRunning = false
@@ -55,11 +55,14 @@ func (b *BacklogImpl[T]) attemptDumpBacklog() {
 
 // dumpBacklog implements Backlog.
 func (b *BacklogImpl[T]) dumpBacklog() {
+	b.attemptDumpBacklog()
 }
 
 func NewBacklog[T any](dump func([]T) error) *BacklogImpl[T] {
 	return &BacklogImpl[T]{
 		dump:    dump,
 		backlog: make([]T, 0),
+
+		dumpIsRunning: false,
 	}
 }

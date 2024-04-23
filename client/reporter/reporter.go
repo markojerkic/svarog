@@ -18,6 +18,7 @@ type Reporter interface {
 	ReportLogLine(line *rpc.LogLine)
 	// Used to send the backlog to the server.
 	ReportBacklogOfLogLines(lines []*rpc.LogLine) error
+	IsSafeToClose() bool
 }
 
 type GprcReporter struct {
@@ -28,13 +29,24 @@ type GprcReporter struct {
 	logStream rpc.LoggAggregator_LogClient
 	backlog   Backlog[*rpc.LogLine]
 
-	mutex sync.Mutex
+	mutex         sync.Mutex
+	isSafeToClose bool
+}
+
+// IsSafeToClose implements Reporter.
+func (self *GprcReporter) IsSafeToClose() bool {
+	return self.isSafeToClose
 }
 
 var _ Reporter = (*GprcReporter)(nil)
 
 // ReportLogLine implements Reporter.
 func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
+	self.isSafeToClose = false
+	defer func() {
+		self.isSafeToClose = true
+	}()
+
 	if self.logStream == nil {
 		log.Printf("Log stream is nil, adding to backlog\n")
 		self.backlog.addToBacklog(line)
@@ -70,6 +82,10 @@ func (self *GprcReporter) ReportBacklogOfLogLines(lines []*rpc.LogLine) error {
 func (self *GprcReporter) createStream() {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
+	self.isSafeToClose = false
+	defer func() {
+		self.isSafeToClose = true
+	}()
 
 	client := rpc.NewLoggAggregatorClient(self.connection)
 
@@ -83,8 +99,7 @@ func (self *GprcReporter) createStream() {
 		}
 
 		stream, err := client.Log(context.Background(), grpc.EmptyCallOption{})
-		if err != nil {
-
+		if err == nil {
 			self.logStream = stream
 			break
 		}
@@ -97,6 +112,10 @@ func (self *GprcReporter) createStream() {
 func (self *GprcReporter) connect() {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
+	self.isSafeToClose = false
+	defer func() {
+		self.isSafeToClose = true
+	}()
 
 	var opts []grpc.DialOption = []grpc.DialOption{
 		grpc.WithTransportCredentials(self.credentials),
@@ -105,7 +124,7 @@ func (self *GprcReporter) connect() {
 	for {
 		conn, err := grpc.Dial(self.serverAddr, opts...)
 
-		if err != nil {
+		if err == nil {
 			self.connection = conn
 			break
 		}
@@ -119,9 +138,10 @@ func (self *GprcReporter) connect() {
 
 func NewGrpcReporter(serverAddr string, credentials credentials.TransportCredentials) *GprcReporter {
 	reporter := &GprcReporter{
-		serverAddr:  serverAddr,
-		credentials: credentials,
-		mutex:       sync.Mutex{},
+		serverAddr:    serverAddr,
+		credentials:   credentials,
+		mutex:         sync.Mutex{},
+		isSafeToClose: false,
 	}
 
 	reporter.backlog = NewBacklog(func(lines []*rpc.LogLine) error {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -24,7 +25,18 @@ type ImplementedServer struct {
 	rpc.UnimplementedLoggAggregatorServer
 }
 
+var _ rpc.LoggAggregatorServer = &ImplementedServer{}
+
 var logs = make(chan *rpc.LogLine, 1024*1024)
+
+func (i *ImplementedServer) BatchLog(_ context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
+	log.Printf("BatchLog: %d logs\n", len(batchLogs.Logs))
+
+	for _, logLine := range batchLogs.Logs {
+		logs <- logLine
+	}
+	return &rpc.Void{}, nil
+}
 
 // Log implements rpc.LoggAggregatorServer.
 func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {

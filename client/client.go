@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/markojerkic/svarog/client/reader"
 	"github.com/markojerkic/svarog/client/reporter"
@@ -70,8 +71,12 @@ func main() {
 
 	reporter := reporter.NewGrpcReporter(":50051", insecure.NewCredentials())
 
-	go readStdin(inputQueue, done)
 	go sendLog(reporter, inputQueue)
+	go readStdin(inputQueue, done)
 
-	<-done
+	for {
+		if !reporter.IsSafeToClose() {
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
