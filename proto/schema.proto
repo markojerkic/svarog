@@ -22,6 +22,7 @@ package svarog;
 // Interface exported by the server.
 service LoggAggregator {
   rpc Log(stream LogLine) returns (Void) {}
+  rpc BatchLog(Backlog) returns (Void) {}
 }
 
 message Void {}
@@ -39,3 +40,5 @@ message LogLine {
   LogLevel level = 3;
   google.protobuf.Timestamp timestamp = 4;
 }
+
+message Backlog { repeated LogLine logs = 1; }

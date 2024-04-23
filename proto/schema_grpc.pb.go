@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	LoggAggregator_Log_FullMethodName = "/svarog.LoggAggregator/Log"
+	LoggAggregator_Log_FullMethodName      = "/svarog.LoggAggregator/Log"
+	LoggAggregator_BatchLog_FullMethodName = "/svarog.LoggAggregator/BatchLog"
 )
 
 // LoggAggregatorClient is the client API for LoggAggregator service.
@@ -41,6 +42,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LoggAggregatorClient interface {
 	Log(ctx context.Context, opts ...grpc.CallOption) (LoggAggregator_LogClient, error)
+	BatchLog(ctx context.Context, in *Backlog, opts ...grpc.CallOption) (*Void, error)
 }
 
 type loggAggregatorClient struct {
@@ -85,11 +87,21 @@ func (x *loggAggregatorLogClient) CloseAndRecv() (*Void, error) {
 	return m, nil
 }
 
+func (c *loggAggregatorClient) BatchLog(ctx context.Context, in *Backlog, opts ...grpc.CallOption) (*Void, error) {
+	out := new(Void)
+	err := c.cc.Invoke(ctx, LoggAggregator_BatchLog_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LoggAggregatorServer is the server API for LoggAggregator service.
 // All implementations must embed UnimplementedLoggAggregatorServer
 // for forward compatibility
 type LoggAggregatorServer interface {
 	Log(LoggAggregator_LogServer) error
+	BatchLog(context.Context, *Backlog) (*Void, error)
 	mustEmbedUnimplementedLoggAggregatorServer()
 }
 
@@ -99,6 +111,9 @@ type UnimplementedLoggAggregatorServer struct {
 
 func (UnimplementedLoggAggregatorServer) Log(LoggAggregator_LogServer) error {
 	return status.Errorf(codes.Unimplemented, "method Log not implemented")
+}
+func (UnimplementedLoggAggregatorServer) BatchLog(context.Context, *Backlog) (*Void, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchLog not implemented")
 }
 func (UnimplementedLoggAggregatorServer) mustEmbedUnimplementedLoggAggregatorServer() {}
 
@@ -139,13 +154,36 @@ func (x *loggAggregatorLogServer) Recv() (*LogLine, error) {
 	return m, nil
 }
 
+func _LoggAggregator_BatchLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Backlog)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LoggAggregatorServer).BatchLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LoggAggregator_BatchLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LoggAggregatorServer).BatchLog(ctx, req.(*Backlog))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LoggAggregator_ServiceDesc is the grpc.ServiceDesc for LoggAggregator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LoggAggregator_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "svarog.LoggAggregator",
 	HandlerType: (*LoggAggregatorServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "BatchLog",
+			Handler:    _LoggAggregator_BatchLog_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Log",
