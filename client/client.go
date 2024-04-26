@@ -1,10 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/markojerkic/svarog/client/reader"
 	"github.com/markojerkic/svarog/client/reporter"
@@ -28,7 +28,7 @@ func readStdin(input chan *reader.Line, done chan bool) {
 
 	for {
 		closedFile := <-closed
-		fmt.Println("Closed file: ", closedFile)
+		slog.Debug("Closed file", slog.String("file", closedFile))
 		numClosed++
 		if closedFile == os.Stdin.Name() || numClosed == len(readers) {
 			done <- true
@@ -49,7 +49,7 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 			break
 		}
 
-		// fmt.Println(logLine.LogLine)
+		fmt.Println(logLine.LogLine)
 
 		if logLine.IsError {
 			logLevel = rpc.LogLevel_ERROR
@@ -68,9 +68,18 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 }
 
 func main() {
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+	debugLogEnabled := flag.Bool("debug", false, "Enable debug mode")
+	serverAddr := flag.String("server", ":50051", "Server address")
+	flag.Parse()
+
+	opts := &slog.HandlerOptions{}
+
+	if *debugLogEnabled {
+		opts.Level = slog.LevelDebug
+	} else {
+		opts.Level = slog.LevelInfo
 	}
+
 	handler := slog.NewJSONHandler(os.Stdout, opts)
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
@@ -78,14 +87,10 @@ func main() {
 	inputQueue := make(chan *reader.Line, 1024*100)
 	done := make(chan bool)
 
-	reporter := reporter.NewGrpcReporter(":50051", insecure.NewCredentials())
+	reporter := reporter.NewGrpcReporter(*serverAddr, insecure.NewCredentials())
 
 	go sendLog(reporter, inputQueue)
 	go readStdin(inputQueue, done)
 
-	for {
-		if !reporter.IsSafeToClose() {
-			time.Sleep(1 * time.Second)
-		}
-	}
+	<-done
 }
