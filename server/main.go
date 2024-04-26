@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
+	"os"
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
@@ -30,7 +32,7 @@ var _ rpc.LoggAggregatorServer = &ImplementedServer{}
 var logs = make(chan *rpc.LogLine, 1024*1024)
 
 func (i *ImplementedServer) BatchLog(_ context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
-	log.Printf("BatchLog: %d logs\n", len(batchLogs.Logs))
+	slog.Debug("Received batch log of size: ", slog.Int64("size", int64(len(batchLogs.Logs))))
 
 	for _, logLine := range batchLogs.Logs {
 		logs <- logLine
@@ -49,6 +51,9 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 		if !ok {
 			return err
 		}
+
+		slog.Debug("Received log line: ", slog.String("logLine", logLine.Message),
+			slog.String("level", logLine.Level.String()))
 		logs <- logLine
 	}
 }
@@ -75,6 +80,12 @@ func loadEnv() Env {
 }
 
 func main() {
+	logOpts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, logOpts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
 	env := loadEnv()
 

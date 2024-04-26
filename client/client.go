@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -43,11 +44,12 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 	for {
 		logLine = <-input
 
+		// Channel closed, done
 		if logLine == nil {
 			break
 		}
 
-		fmt.Println(logLine.LogLine)
+		// fmt.Println(logLine.LogLine)
 
 		if logLine.IsError {
 			logLevel = rpc.LogLevel_ERROR
@@ -66,6 +68,13 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 }
 
 func main() {
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
 	inputQueue := make(chan *reader.Line, 1024*100)
 	done := make(chan bool)
 

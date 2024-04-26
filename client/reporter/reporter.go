@@ -3,10 +3,11 @@ package reporter
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/labstack/gommon/log"
 	rpc "github.com/markojerkic/svarog/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,8 +30,9 @@ type GprcReporter struct {
 	logStream rpc.LoggAggregator_LogClient
 	backlog   Backlog[*rpc.LogLine]
 
-	mutex         sync.Mutex
-	isSafeToClose bool
+	createStreamMutex   sync.Mutex
+	openConnectionMutex sync.Mutex
+	isSafeToClose       bool
 }
 
 // IsSafeToClose implements Reporter.
@@ -40,26 +42,94 @@ func (self *GprcReporter) IsSafeToClose() bool {
 
 var _ Reporter = (*GprcReporter)(nil)
 
-// ReportLogLine implements Reporter.
-func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
-	self.isSafeToClose = false
+func (self *GprcReporter) createStream() {
+	self.createStreamMutex.Lock()
 	defer func() {
-		self.isSafeToClose = true
+		slog.Debug("Releasing createStreamMutex")
+		self.createStreamMutex.Unlock()
 	}()
 
-	if self.logStream == nil {
-		log.Printf("Log stream is nil, adding to backlog\n")
-		self.backlog.addToBacklog(line)
+	client := rpc.NewLoggAggregatorClient(self.connection)
+
+	for {
+		if self.logStream != nil {
+            slog.Debug("Log stream already exists")
+			break
+		}
+
+		if self.connection == nil {
+            slog.Debug("Connection is nil, connecting...")
+			self.connect()
+		}
+
+		stream, err := client.Log(context.Background(), grpc.EmptyCallOption{})
+		if err == nil {
+			self.logStream = stream
+			break
+		}
+
+		slog.Debug("Failed to create a log stream, retrying...")
+		time.Sleep(2 * time.Second)
+	}
+
+    slog.Debug("Log stream created")
+}
+
+func (self *GprcReporter) connect() {
+	self.openConnectionMutex.Lock()
+	defer func() {
+		slog.Debug("Releasing openConnectionMutex")
+		self.openConnectionMutex.Unlock()
+	}()
+
+	if self.connection != nil {
 		return
 	}
 
+	var opts []grpc.DialOption = []grpc.DialOption{
+		grpc.WithTransportCredentials(self.credentials),
+	}
+
+	for {
+		conn, err := grpc.Dial(self.serverAddr, opts...)
+		slog.Debug("Connecting to server")
+
+		if err == nil {
+			self.connection = conn
+			break
+		}
+
+		slog.Debug("Failed to connect to server %s: %v\n", self.serverAddr, err)
+		time.Sleep(5 * time.Second)
+	}
+
+	slog.Debug("Connected to server")
+
+	self.createStream()
+}
+
+// ReportLogLine implements Reporter.
+func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
+
+    slog.Debug("Reporting log line")
+
+	if self.logStream == nil {
+		log.Debug("Log stream is nil, adding to backlog")
+		self.backlog.addToBacklog(line)
+		go self.createStream()
+		return
+	}
+
+    slog.Debug("Sending log line")
 	err := self.logStream.Send(line)
 	if err != nil {
-		log.Printf("Failed to send log line: %v\n", err)
+		slog.Debug("Failed to send log line: %v\n", err)
 		self.logStream = nil
 		go self.createStream()
 		self.backlog.addToBacklog(line)
-	}
+	} else {
+        slog.Debug("Log line sent")
+    }
 }
 
 // ReportBacklogOfLogLines implements Reporter.
@@ -79,76 +149,21 @@ func (self *GprcReporter) ReportBacklogOfLogLines(lines []*rpc.LogLine) error {
 	return err
 }
 
-func (self *GprcReporter) createStream() {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-	self.isSafeToClose = false
-	defer func() {
-		self.isSafeToClose = true
-	}()
-
-	client := rpc.NewLoggAggregatorClient(self.connection)
-
-	for {
-		if self.logStream != nil {
-			break
-		}
-
-		if self.connection == nil {
-			self.connect()
-		}
-
-		stream, err := client.Log(context.Background(), grpc.EmptyCallOption{})
-		if err == nil {
-			self.logStream = stream
-			break
-		}
-
-		log.Println("Failed to create a log stream, retrying...")
-		time.Sleep(2 * time.Second)
-	}
-}
-
-func (self *GprcReporter) connect() {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-	self.isSafeToClose = false
-	defer func() {
-		self.isSafeToClose = true
-	}()
-
-	var opts []grpc.DialOption = []grpc.DialOption{
-		grpc.WithTransportCredentials(self.credentials),
-	}
-
-	for {
-		conn, err := grpc.Dial(self.serverAddr, opts...)
-
-		if err == nil {
-			self.connection = conn
-			break
-		}
-
-		log.Printf("Failed to connect to server %s: %v\n", self.serverAddr, err)
-		time.Sleep(5 * time.Second)
-	}
-
-	self.createStream()
-}
-
 func NewGrpcReporter(serverAddr string, credentials credentials.TransportCredentials) *GprcReporter {
 	reporter := &GprcReporter{
-		serverAddr:    serverAddr,
-		credentials:   credentials,
-		mutex:         sync.Mutex{},
-		isSafeToClose: false,
+		serverAddr:  serverAddr,
+		credentials: credentials,
+
+		openConnectionMutex: sync.Mutex{},
+		createStreamMutex:   sync.Mutex{},
+		isSafeToClose:       false,
 	}
+
+	go reporter.connect()
 
 	reporter.backlog = NewBacklog(func(lines []*rpc.LogLine) error {
 		return reporter.ReportBacklogOfLogLines(lines)
 	})
-
-	go reporter.connect()
 
 	return reporter
 }
