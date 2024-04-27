@@ -22,12 +22,12 @@ func NewServer(logRepository db.LogRepository) *HttpServer {
 func (self *HttpServer) Start(port int) {
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
-		logs, err := self.logRepository.GetLogs()
+		clients, err := self.logRepository.GetClients()
 		if err != nil {
 			return c.String(http.StatusInternalServerError, err.Error())
 		}
 
-		return views.Logs(logs).Render(c.Request().Context(), c.Response().Writer)
+		return views.Logs(clients).Render(c.Request().Context(), c.Response().Writer)
 
 	})
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))

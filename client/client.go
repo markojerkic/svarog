@@ -61,7 +61,7 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 			Message:   logLine.LogLine,
 			Level:     logLevel,
 			Timestamp: timestamppb.New(logLine.Timestamp),
-			Client:    "client",
+			Client:    reporter.GetClientId(),
 		})
 
 	}
@@ -70,6 +70,7 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 func main() {
 	debugLogEnabled := flag.Bool("debug", false, "Enable debug mode")
 	serverAddr := flag.String("server", ":50051", "Server address")
+	clientId := flag.String("clientId", "client", "Client ID")
 	flag.Parse()
 
 	opts := &slog.HandlerOptions{}
@@ -87,7 +88,7 @@ func main() {
 	inputQueue := make(chan *reader.Line, 1024*100)
 	done := make(chan bool)
 
-	reporter := reporter.NewGrpcReporter(*serverAddr, insecure.NewCredentials())
+	reporter := reporter.NewGrpcReporter(*serverAddr, *clientId, insecure.NewCredentials())
 
 	go sendLog(reporter, inputQueue)
 	go readStdin(inputQueue, done)

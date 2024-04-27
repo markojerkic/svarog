@@ -52,8 +52,6 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 			return err
 		}
 
-		slog.Debug("Received log line: ", slog.String("logLine", logLine.Message),
-			slog.String("level", logLine.Level.String()))
 		logs <- logLine
 	}
 }
@@ -104,7 +102,7 @@ func main() {
 
 	httpServer := http.NewServer(mongoRepository)
 
-	log.Printf("Starting gRPC server on port %d\n", grpcServerPort)
+	slog.Info(fmt.Sprintf("Starting gRPC server on port %d\n", grpcServerPort))
 	go mongoServer.Run(logs)
 	go httpServer.Start(env.HttpServerPort)
 	grpcServer.Serve(lis)

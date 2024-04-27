@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"log/slog"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,6 +17,36 @@ type MongoLogRepository struct {
 }
 
 var _ LogRepository = &MongoLogRepository{}
+
+var clientsPipeline = mongo.Pipeline{
+	bson.D{{"$group", bson.D{{"_id", "$client.client_id"}}}},
+	bson.D{{"$project", bson.D{{"client_id", "$_id"}}}},
+}
+
+// GetClients implements LogRepository.
+func (self *MongoLogRepository) GetClients() ([]Client, error) {
+	projection, err := self.logCollection.Aggregate(context.Background(), clientsPipeline)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var results []StoredClient
+
+	if err = projection.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	clients := make([]Client, len(results))
+
+	fmt.Printf("Clients: %d\n", len(results))
+	for _, result := range results {
+		slog.Debug(fmt.Sprintf("Client: %v\n", result))
+		clients = append(clients, Client{Client: result, IsOnline: false})
+	}
+
+	return clients, nil
+}
 
 var projection = options.Find().SetProjection(bson.D{{"log_line", 1}})
 
@@ -33,7 +65,7 @@ func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
 		return nil, err
 	}
 
-    log.Printf("Found %d log lines\n", len(logs))
+	slog.Debug(fmt.Sprintf("Found %d log lines", len(logs)))
 
 	return logs, nil
 }
@@ -41,10 +73,11 @@ func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
 func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 	saved, err := self.logCollection.InsertMany(context.Background(), logs)
 	if err != nil {
+		slog.Error("Error saving logs: %v", err)
 		return err
 	}
 
-	log.Printf("Saved %d log lines\n", len(saved.InsertedIDs))
+	slog.Debug(fmt.Sprintf("Saved %d log lines\n", len(saved.InsertedIDs)))
 
 	return nil
 }

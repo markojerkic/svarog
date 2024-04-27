@@ -9,6 +9,7 @@ import (
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
 	GetLogs() ([]StoredLog, error)
+	GetClients() ([]Client, error)
 }
 
 type LogServer struct {
@@ -17,10 +18,21 @@ type LogServer struct {
 	logs chan *StoredLog
 }
 
+type Client struct {
+	Client   StoredClient
+	IsOnline bool
+}
+
+type StoredClient struct {
+	ClientId  string `bson:"client_id"`
+	IpAddress string `bson:"ip_address"`
+}
+
 type StoredLog struct {
 	LogLine   string       `bson:"log_line"`
 	LogLevel  rpc.LogLevel `bson:"log_level"`
 	Timestamp time.Time    `bson:"timestamp"`
+	Client    StoredClient `bson:"client"`
 }
 
 func NewLogServer(dbClient LogRepository) *LogServer {
@@ -76,6 +88,8 @@ func newBacklog() *Backlog {
 func (self *LogServer) runBacklog() {
 	backlog := newBacklog()
 
+	timeoutChannel := time.After(5 * time.Second)
+
 	for {
 		select {
 		case log := <-self.logs:
@@ -83,7 +97,7 @@ func (self *LogServer) runBacklog() {
 			if backlog.isFull() {
 				self.dumpBacklog(backlog)
 			}
-		case <-time.After(5 * time.Second):
+		case <-timeoutChannel:
 			self.dumpBacklog(backlog)
 		}
 	}
@@ -101,6 +115,10 @@ func (self *LogServer) Run(lines chan *rpc.LogLine) {
 			LogLine:   line.Message,
 			LogLevel:  *line.Level.Enum(),
 			Timestamp: line.Timestamp.AsTime(),
+			Client: StoredClient{
+				ClientId:  line.Client,
+				IpAddress: "::1",
+			},
 		}
 
 	}

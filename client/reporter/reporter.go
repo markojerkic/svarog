@@ -20,12 +20,14 @@ type Reporter interface {
 	// Used to send the backlog to the server.
 	ReportBacklogOfLogLines(lines []*rpc.LogLine) error
 	IsSafeToClose() bool
+	GetClientId() string
 }
 
 type GprcReporter struct {
 	serverAddr  string
 	credentials credentials.TransportCredentials
 	connection  *grpc.ClientConn
+	clientId    string
 
 	logStream rpc.LoggAggregator_LogClient
 	backlog   Backlog[*rpc.LogLine]
@@ -35,12 +37,17 @@ type GprcReporter struct {
 	isSafeToClose       bool
 }
 
+var _ Reporter = (*GprcReporter)(nil)
+
+// GetClientId implements Reporter.
+func (self *GprcReporter) GetClientId() string {
+	return self.clientId
+}
+
 // IsSafeToClose implements Reporter.
 func (self *GprcReporter) IsSafeToClose() bool {
 	return self.isSafeToClose
 }
-
-var _ Reporter = (*GprcReporter)(nil)
 
 func (self *GprcReporter) createStream() {
 	self.createStreamMutex.Lock()
@@ -53,12 +60,12 @@ func (self *GprcReporter) createStream() {
 
 	for {
 		if self.logStream != nil {
-            slog.Debug("Log stream already exists")
+			slog.Debug("Log stream already exists")
 			break
 		}
 
 		if self.connection == nil {
-            slog.Debug("Connection is nil, connecting...")
+			slog.Debug("Connection is nil, connecting...")
 			self.connect()
 		}
 
@@ -72,7 +79,7 @@ func (self *GprcReporter) createStream() {
 		time.Sleep(2 * time.Second)
 	}
 
-    slog.Debug("Log stream created")
+	slog.Debug("Log stream created")
 }
 
 func (self *GprcReporter) connect() {
@@ -111,7 +118,7 @@ func (self *GprcReporter) connect() {
 // ReportLogLine implements Reporter.
 func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
 
-    slog.Debug("Reporting log line")
+	slog.Debug("Reporting log line")
 
 	if self.logStream == nil {
 		log.Debug("Log stream is nil, adding to backlog")
@@ -120,7 +127,7 @@ func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
 		return
 	}
 
-    slog.Debug("Sending log line")
+	slog.Debug("Sending log line")
 	err := self.logStream.Send(line)
 	if err != nil {
 		slog.Debug("Failed to send log line: %v\n", err)
@@ -128,8 +135,8 @@ func (self *GprcReporter) ReportLogLine(line *rpc.LogLine) {
 		go self.createStream()
 		self.backlog.addToBacklog(line)
 	} else {
-        slog.Debug("Log line sent")
-    }
+		slog.Debug("Log line sent")
+	}
 }
 
 // ReportBacklogOfLogLines implements Reporter.
@@ -149,10 +156,11 @@ func (self *GprcReporter) ReportBacklogOfLogLines(lines []*rpc.LogLine) error {
 	return err
 }
 
-func NewGrpcReporter(serverAddr string, credentials credentials.TransportCredentials) *GprcReporter {
+func NewGrpcReporter(serverAddr string, clientId string, credentials credentials.TransportCredentials) *GprcReporter {
 	reporter := &GprcReporter{
 		serverAddr:  serverAddr,
 		credentials: credentials,
+		clientId:    clientId,
 
 		openConnectionMutex: sync.Mutex{},
 		createStreamMutex:   sync.Mutex{},

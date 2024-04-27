@@ -2,19 +2,24 @@ package views
 
 import "github.com/markojerkic/svarog/db"
 
-templ Logs(logs []db.StoredLog) {
+templ Html(title string) {
 	<html>
 		<head>
-			<title>Logs</title>
+			<title>{ title }</title>
+			<script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
 		</head>
-		<div>
-			<ol>
-				for _, log := range logs {
-					<li>
-						{ log.LogLine }
-					</li>
-				}
-			</ol>
-		</div>
+		<body>
+			{ children... }
+		</body>
 	</html>
+}
+
+templ Logs(clients []db.Client) {
+	@Html("Logs") {
+		<div>
+			for _, log := range clients {
+				<pre style="margin: 0;">{ log.Client.ClientId }</pre>
+			}
+		</div>
+	}
 }
