@@ -8,7 +8,7 @@ import (
 
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
-	GetLogs() ([]StoredLog, error)
+	GetLogs(clientId string, cursor *time.Time) ([]StoredLog, error)
 	GetClients() ([]Client, error)
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -48,12 +49,19 @@ func (self *MongoLogRepository) GetClients() ([]Client, error) {
 	return clients, nil
 }
 
-var projection = options.Find().SetProjection(bson.D{{"log_line", 1}})
+var logsByClient = bson.D{{"log_line", 1}}
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs() ([]StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *time.Time) ([]StoredLog, error) {
 
-	cursor, err := self.logCollection.Find(context.Background(), bson.D{}, projection.SetLimit(1000))
+	projection := options.Find().SetProjection(logsByClient).SetLimit(50).SetSort(bson.D{{"timestamp", -1}})
+	filter := bson.D{{"client.client_id", clientId}}
+	if lastCursor != nil {
+		filter = append(filter, bson.E{"timestamp", bson.D{{"$lt", lastCursor}}})
+	}
+
+	cursor, err := self.logCollection.Find(context.Background(), filter, projection)
+
 	defer cursor.Close(context.Background())
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)

@@ -2,7 +2,7 @@ tmp_dir = "build"
 rum_cmd = "build/server"
 
 [build]
-    cmd = "make build"
+    cmd = "make build-dev"
     bin = "./build/server"
     exclude_regex = ["_test.go", ".*_templ.go", "build/.*"]
     include_ext = ["go", "tpl", "tmpl", "templ", "html", "css"]

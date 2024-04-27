@@ -2,11 +2,10 @@ package http
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/db"
-	"github.com/markojerkic/svarog/server/views"
+	"github.com/markojerkic/svarog/server/http/handlers"
 )
 
 type HttpServer struct {
@@ -21,14 +20,10 @@ func NewServer(logRepository db.LogRepository) *HttpServer {
 
 func (self *HttpServer) Start(port int) {
 	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
-		clients, err := self.logRepository.GetClients()
-		if err != nil {
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
 
-		return views.Logs(clients).Render(c.Request().Context(), c.Response().Writer)
+	e.GET("/", handlers.HomePage(self.logRepository))
 
-	})
+	e.GET("/logs/:clientId", handlers.LogsByClient(self.logRepository))
+
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }
