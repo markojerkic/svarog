@@ -5,12 +5,18 @@ import (
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
-	GetLogs(clientId string, cursor *time.Time) ([]StoredLog, error)
+	GetLogs(clientId string, cursor *LastCursor) ([]StoredLog, error)
 	GetClients() ([]Client, error)
+}
+
+type LastCursor struct {
+	Timestamp time.Time
+	ID        string
 }
 
 type LogServer struct {
@@ -30,10 +36,11 @@ type StoredClient struct {
 }
 
 type StoredLog struct {
-	LogLine   string       `bson:"log_line"`
-	LogLevel  rpc.LogLevel `bson:"log_level"`
-	Timestamp time.Time    `bson:"timestamp"`
-	Client    StoredClient `bson:"client"`
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	LogLine   string             `bson:"log_line"`
+	LogLevel  rpc.LogLevel       `bson:"log_level"`
+	Timestamp time.Time          `bson:"timestamp"`
+	Client    StoredClient       `bson:"client"`
 }
 
 func NewLogServer(dbClient LogRepository) *LogServer {
@@ -101,7 +108,7 @@ func (self *LogServer) runBacklog() {
 	go func() {
 		for {
 			<-time.After(5 * time.Second)
-            slog.Debug("Timeout reached")
+			slog.Debug("Timeout reached")
 			self.dumpBacklog(backlog)
 		}
 	}()

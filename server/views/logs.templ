@@ -3,19 +3,6 @@ package views
 import "github.com/markojerkic/svarog/db"
 import "fmt"
 
-templ Html(title string) {
-	<html>
-		<head>
-			<title>{ title }</title>
-			<script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
-			<script src="https://cdn.tailwindcss.com"></script>
-		</head>
-		<body>
-			{ children... }
-		</body>
-	</html>
-}
-
 templ Clients(clients []db.Client) {
 	@Html("Clients") {
 		<div>
@@ -29,15 +16,57 @@ templ Clients(clients []db.Client) {
 	}
 }
 
-templ LogsByClientId(clientId string, logs []db.StoredLog) {
+templ logLine(log string, logId string, clientId string, timestamp int64, next bool) {
+	if next {
+		<pre
+			hx-get={ fmt.Sprintf("/logs/%s?cursorTime=%d&cursorId=%s", clientId, timestamp, logId) }
+			hx-trigger="intersect once"
+			hx-swap="afterend"
+		>
+			{ log }
+		</pre>
+	} else {
+		<pre>{ log }</pre>
+	}
+}
+
+templ LogBlock(clientId string, cursor *int64, logs []db.StoredLog) {
+	for i := range logs {
+		// for i := len(logs) -1; i >= 0; i-- {
+		@logLine(logs[i].LogLine, logs[i].ID.Hex(), clientId, logs[i].Timestamp.UnixMilli(), i == len(logs)-1)
+	}
+}
+
+templ LogsByClientId(clientId string, cursor *int64, logs []db.StoredLog) {
 	@Html("Logs") {
-		<div>
+		<div class="h-[100vh]">
 			<h1>Logs of client <b>{ clientId }</b></h1>
-			<div class="flex flex-col gap-2">
-				for i := len(logs) -1; i >= 0; i-- {
-					<pre>{ logs[i].LogLine }</pre>
-				}
+			<div class="h-[90%] overflow-y-auto flex flex-col-reverse gap-0 pt-5" id="logs-container">
+				@LogBlock(clientId, cursor, logs)
 			</div>
 		</div>
 	}
+}
+
+templ styles() {
+	<style>
+    pre {
+        margin: 0;
+    }
+</style>
+}
+
+templ Html(title string) {
+	<html>
+		<head>
+			<title>{ title }</title>
+			<script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script src="/index.js"></script>
+			@styles()
+		</head>
+		<body>
+			{ children... }
+		</body>
+	</html>
 }

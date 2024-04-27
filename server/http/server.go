@@ -22,6 +22,8 @@ func (self *HttpServer) Start(port int) {
 	e := echo.New()
 
 	e.GET("/", handlers.HomePage(self.logRepository))
+	e.GET("/static", handlers.HomePage(self.logRepository))
+    e.Static("/", "server/static")
 
 	e.GET("/logs/:clientId", handlers.LogsByClient(self.logRepository))
 

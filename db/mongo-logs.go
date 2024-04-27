@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -49,20 +48,34 @@ func (self *MongoLogRepository) GetClients() ([]Client, error) {
 	return clients, nil
 }
 
-var logsByClient = bson.D{{"log_line", 1}}
+var logsByClient = bson.D{{"_id", 1}, {"log_line", 1}, {"timestamp", 1}}
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *time.Time) ([]StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor) ([]StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(50).SetSort(bson.D{{"timestamp", -1}})
+	projection := options.Find().SetProjection(logsByClient).SetLimit(100).SetSort(bson.D{{"timestamp", -1}})
 
-	filter := bson.D{}
-	if lastCursor != nil {
-		filter = append(filter, bson.E{"timestamp", bson.D{{"$lt", *lastCursor}}})
+	clientIdFilter := bson.D{{"client.client_id", clientId}}
+	var filter bson.D
+
+	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
+		slog.Debug("Adding timestamp cursor", slog.Any("cursor", *lastCursor))
+		filter = bson.D{{
+			"$and",
+			bson.A{
+				clientIdFilter,
+				bson.D{{"timestamp", bson.D{{"$lt", lastCursor.Timestamp}}}},
+				// bson.D{{"_id", bson.D{{"$lt", lastCursor.ID}}}},
+			},
+		}}
+	} else {
+		filter = clientIdFilter
 	}
 
-	cursor, err := self.logCollection.Find(context.Background(), bson.D{{"client.client_id", clientId}}, projection)
+	slog.Debug(fmt.Sprintf("Filter: %v", filter))
+
+	cursor, err := self.logCollection.Find(context.Background(), filter, projection)
 	// cursor, err := self.logCollection.Find(context.Background(), filter, projection)
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
