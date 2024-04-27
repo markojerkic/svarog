@@ -53,27 +53,29 @@ var logsByClient = bson.D{{"log_line", 1}}
 
 // GetLogs implements LogRepository.
 func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *time.Time) ([]StoredLog, error) {
+	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	projection := options.Find().SetProjection(logsByClient).SetLimit(50).SetSort(bson.D{{"timestamp", -1}})
-	filter := bson.D{{"client.client_id", clientId}}
+
+	filter := bson.D{}
 	if lastCursor != nil {
-		filter = append(filter, bson.E{"timestamp", bson.D{{"$lt", lastCursor}}})
+		filter = append(filter, bson.E{"timestamp", bson.D{{"$lt", *lastCursor}}})
 	}
 
-	cursor, err := self.logCollection.Find(context.Background(), filter, projection)
-
-	defer cursor.Close(context.Background())
+	cursor, err := self.logCollection.Find(context.Background(), bson.D{{"client.client_id", clientId}}, projection)
+	// cursor, err := self.logCollection.Find(context.Background(), filter, projection)
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
 		return nil, err
 	}
+	defer cursor.Close(context.Background())
 
 	var logs []StoredLog
 	if err = cursor.All(context.Background(), &logs); err != nil {
 		return nil, err
 	}
 
-	slog.Debug(fmt.Sprintf("Found %d log lines", len(logs)))
+	slog.Debug(fmt.Sprintf("Found %d log lines", len(logs)), slog.String("clientId", clientId))
 
 	return logs, nil
 }

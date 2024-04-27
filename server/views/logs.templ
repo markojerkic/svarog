@@ -34,8 +34,8 @@ templ LogsByClientId(clientId string, logs []db.StoredLog) {
 		<div>
 			<h1>Logs of client <b>{ clientId }</b></h1>
 			<div class="flex flex-col gap-2">
-				for _, log := range logs {
-					<pre>{ log.LogLine }</pre>
+				for i := len(logs) -1; i >= 0; i-- {
+					<pre>{ logs[i].LogLine }</pre>
 				}
 			</div>
 		</div>

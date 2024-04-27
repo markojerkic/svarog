@@ -16,7 +16,6 @@ type LogsByClientBinding struct {
 
 func LogsByClient(logRepository db.LogRepository) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		slog.Debug("LogsByClient request", slog.String("clientId", c.Param("clientId")), slog.Any("query", c.QueryParams()))
 		var params LogsByClientBinding
 
 		err := c.Bind(&params)
@@ -24,8 +23,6 @@ func LogsByClient(logRepository db.LogRepository) echo.HandlerFunc {
 			slog.Error("Bindings for logs by client not correct", err)
 			return c.String(400, "<h1>400 Bad Request</h1>")
 		}
-
-		slog.Debug("LogsByClientBinding", slog.Any("params", params))
 
 		var nextCursor time.Time
 		if params.Cursor != nil {
@@ -37,8 +34,6 @@ func LogsByClient(logRepository db.LogRepository) echo.HandlerFunc {
 		if err != nil {
 			return c.String(400, "<h1>400 Bad Request</h1>")
 		}
-
-		slog.Debug("LogsByClient", slog.Any("logs", logs))
 
 		return views.LogsByClientId(params.ClientId, logs).Render(c.Request().Context(), c.Response().Writer)
 	}

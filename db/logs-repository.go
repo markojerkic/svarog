@@ -1,6 +1,7 @@
 package db
 
 import (
+	"log/slog"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
@@ -88,19 +89,22 @@ func newBacklog() *Backlog {
 func (self *LogServer) runBacklog() {
 	backlog := newBacklog()
 
-	timeoutChannel := time.After(5 * time.Second)
-
-	for {
-		select {
-		case log := <-self.logs:
+	go func() {
+		for {
+			log := <-self.logs
 			backlog.add(log)
 			if backlog.isFull() {
 				self.dumpBacklog(backlog)
 			}
-		case <-timeoutChannel:
+		}
+	}()
+	go func() {
+		for {
+			<-time.After(5 * time.Second)
+            slog.Debug("Timeout reached")
 			self.dumpBacklog(backlog)
 		}
-	}
+	}()
 }
 
 func (self *LogServer) Run(lines chan *rpc.LogLine) {
