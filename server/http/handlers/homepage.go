@@ -11,7 +11,7 @@ import (
 type handler func(db.LogRepository) echo.HandlerFunc
 
 func HomePage(logRepository db.LogRepository) echo.HandlerFunc {
-		clients, err := logRepository.GetClients()
+	clients, err := logRepository.GetClients()
 	return func(c echo.Context) error {
 		if err != nil {
 			return c.String(http.StatusInternalServerError, err.Error())

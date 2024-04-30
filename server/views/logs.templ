@@ -41,7 +41,7 @@ templ LogsByClientId(clientId string, cursor *int64, logs []db.StoredLog) {
 	@Html("Logs") {
 		<div class="h-[100vh]">
 			<h1>Logs of client <b>{ clientId }</b></h1>
-			<div class="h-[90%] overflow-y-auto flex flex-col-reverse gap-0 pt-5" id="logs-container">
+			<div class="h-[90%] overflow-y-auto flex flex-col-reverse gap-0" id="logs-container">
 				@LogBlock(clientId, cursor, logs)
 			</div>
 		</div>
