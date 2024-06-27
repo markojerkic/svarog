@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/markojerkic/svarog/client/reader"
-	"github.com/markojerkic/svarog/client/reporter"
+	"github.com/markojerkic/svarog/cmd/client/reader"
+	"github.com/markojerkic/svarog/cmd/client/reporter"
 	rpc "github.com/markojerkic/svarog/proto"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,6 +41,8 @@ func readStdin(input chan *reader.Line, done chan bool) {
 func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 	var logLine *reader.Line
 	var logLevel rpc.LogLevel
+	var sequenceNumber int64 = 0
+
 	for {
 		logLine = <-input
 
@@ -62,8 +64,11 @@ func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
 			Level:     logLevel,
 			Timestamp: timestamppb.New(logLine.Timestamp),
 			Client:    reporter.GetClientId(),
+			Sequence:  sequenceNumber,
 		})
 
+		sequenceNumber++
+		sequenceNumber = sequenceNumber % 1000
 	}
 }
 

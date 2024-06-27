@@ -7,7 +7,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/db"
-	"github.com/markojerkic/svarog/server/views"
+	"github.com/markojerkic/svarog/cmd/server/views"
 )
 
 type LogsByClientBinding struct {

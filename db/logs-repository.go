@@ -36,11 +36,12 @@ type StoredClient struct {
 }
 
 type StoredLog struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
-	LogLine   string             `bson:"log_line"`
-	LogLevel  rpc.LogLevel       `bson:"log_level"`
-	Timestamp time.Time          `bson:"timestamp"`
-	Client    StoredClient       `bson:"client"`
+	ID             primitive.ObjectID `bson:"_id,omitempty"`
+	LogLine        string             `bson:"log_line"`
+	LogLevel       rpc.LogLevel       `bson:"log_level"`
+	Timestamp      time.Time          `bson:"timestamp"`
+	Client         StoredClient       `bson:"client"`
+	SequenceNumber int64              `bson:"sequence_number"`
 }
 
 func NewLogServer(dbClient LogRepository) *LogServer {
@@ -123,9 +124,10 @@ func (self *LogServer) Run(lines chan *rpc.LogLine) {
 		}
 
 		self.logs <- &StoredLog{
-			LogLine:   line.Message,
-			LogLevel:  *line.Level.Enum(),
-			Timestamp: line.Timestamp.AsTime(),
+			LogLine:        line.Message,
+			LogLevel:       *line.Level.Enum(),
+			Timestamp:      line.Timestamp.AsTime(),
+			SequenceNumber: line.Sequence,
 			Client: StoredClient{
 				ClientId:  line.Client,
 				IpAddress: "::1",

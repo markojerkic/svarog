@@ -39,6 +39,7 @@ message LogLine {
   string message = 2;
   LogLevel level = 3;
   google.protobuf.Timestamp timestamp = 4;
+  int64 sequence = 5;
 }
 
 message Backlog { repeated LogLine logs = 1; }

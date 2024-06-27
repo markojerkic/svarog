@@ -12,7 +12,7 @@ import (
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/db"
 	rpc "github.com/markojerkic/svarog/proto"
-	"github.com/markojerkic/svarog/server/http"
+	"github.com/markojerkic/svarog/cmd/server/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
