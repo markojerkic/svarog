@@ -8,16 +8,16 @@ build-proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/schema.proto
 
 build-client-dev:
-	go build -o build/client client/client.go
+	go build -o build/client ./cmd/client
 build-client:
-	go build -ldflags "-s -w" -o build/client client/client.go
+	go build -ldflags "-s -w" -o build/client ./cmd/client
 
 generate-server:
 	templ generate
 build-server-dev: generate-server
-	go build -o build/server server/main.go
+	go build -o build/server ./cmd/server
 build-server: generate-server
-	go build -ldflags "-s -w" -o build/server server/main.go
+	go build -ldflags "-s -w" -o build/server ./cmd/server
 run-server: build-server-dev
 	build/server
 
