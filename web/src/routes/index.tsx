@@ -1,25 +1,29 @@
-import { A } from "@solidjs/router";
-import Counter from "~/components/Counter";
+import { A, RouteDefinition, cache, createAsync } from "@solidjs/router";
+import { For, Suspense } from "solid-js";
+
+const getClients = cache(async () => {
+    const response = await fetch("http://localhost:1323/api/v1/clients");
+    return response.json() as Promise<{ Client: { ClientId: number } }[]>;
+}, "clients")
+
+export const route = {
+    load: () => getClients()
+} satisfies RouteDefinition
 
 export default function Home() {
-  return (
-    <main class="text-center mx-auto text-gray-700 p-4">
-      <h1 class="max-6-xs text-6xl text-sky-700 font-thin uppercase my-16">Hello world!</h1>
-      <Counter />
-      <p class="mt-8">
-        Visit{" "}
-        <a href="https://solidjs.com" target="_blank" class="text-sky-600 hover:underline">
-          solidjs.com
-        </a>{" "}
-        to learn how to build Solid apps.
-      </p>
-      <p class="my-4">
-        <span>Home</span>
-        {" - "}
-        <A href="/about" class="text-sky-600 hover:underline">
-          About Page
-        </A>{" "}
-      </p>
-    </main>
-  );
+    const clients = createAsync(() => getClients());
+
+    return (
+        <main class="text-center mx-auto text-gray-700 p-4">
+            <Suspense fallback={<div class="text-white animate-bounce">Loading...</div>}>
+                <For each={clients()} >
+                    {(client) => (
+                        <div>
+                            <A href={`/logs/${client.Client.ClientId}`} class="text-blue-500 hover:underline">Client {client.Client.ClientId}</A>
+                        </div>
+                    )}
+                </For>
+            </Suspense>
+        </main>
+    );
 }

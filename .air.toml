@@ -5,4 +5,5 @@ rum_cmd = "build/server"
     cmd = "make build-dev"
     bin = "./build/server"
     exclude_regex = ["_test.go", ".*_templ.go", "build/.*", "web/*"]
+    exclude_dir= ["build", "web"]
     include_ext = ["go", "tpl", "tmpl", "templ", "html", "css"]

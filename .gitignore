@@ -1,3 +1,4 @@
 build
 **/*_templ.go
 **/*_templ.txt
+**/tmp/
