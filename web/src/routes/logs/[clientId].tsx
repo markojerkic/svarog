@@ -1,6 +1,7 @@
-import { RouteDefinition, cache, createAsync, useParams } from "@solidjs/router"
+import { RouteDefinition, useParams } from "@solidjs/router"
+import { FetchInfiniteQueryOptions, createInfiniteQuery, useQueryClient } from "@tanstack/solid-query"
 import { createVirtualizer } from "@tanstack/solid-virtual"
-import { For, Match, Switch, createEffect, onMount } from "solid-js"
+import { For, createEffect } from "solid-js"
 
 type LogLine = {
     ID: string
@@ -14,16 +15,29 @@ type LogLine = {
     SequenceNumber: number
 }
 
-const getLogsPage = cache(async (clientId: string, cursorTime: number, cursorId: string) => {
-    const response = await fetch(`http://localhost:1323/api/v1/logs/${clientId}`)
-    return response.json() as Promise<LogLine[]>
-}, "logs")
+const getLogsQueryOptions = (queryClient: string) => ({
+    queryKey: ["logs", queryClient],
+    queryFn: async (params) => {
+        const response = await fetch(`http://localhost:1323/api/v1/logs/${queryClient}`)
+        return response.json() as Promise<LogLine[]>
+    },
+    initialPageParam: "",
+}) satisfies FetchInfiniteQueryOptions
+
+const getLogsPage = (queryClient: string) => createInfiniteQuery(() => ({
+    ...getLogsQueryOptions(queryClient),
+    getNextPageParam: (lastPage) => {
+        return lastPage[lastPage.length - 1].ID
+    },
+    staleTime: 1000,
+}))
 
 export const route = {
     load: ({ params }) => {
         const clientId = params.clientId
         console.log("Loading logs for client", clientId)
-        return getLogsPage(clientId, 0, "")
+        const queryClient = useQueryClient()
+        return queryClient.fetchInfiniteQuery(getLogsQueryOptions(clientId))
     }
 } satisfies RouteDefinition
 
@@ -31,20 +45,23 @@ export default () => {
     let logsRef: HTMLDivElement | undefined = undefined
 
     const clientId = useParams<{ clientId: string }>().clientId
-    const logs = createAsync(() => getLogsPage(clientId, 0, ""))
-    const logsOrEmpty = () => logs() ?? []
+    const logs = getLogsPage(clientId)
+    const logsOrEmpty = () => logs.data?.pages.flat() ?? []
+    const logCount = () => logsOrEmpty().length
 
     const virtualizer = createVirtualizer({
         get count() {
-            return logs()?.length ?? 0
+            return logCount()
         },
         estimateSize: () => 25,
         getScrollElement: () => logsRef
     })
 
 
-    onMount(() => {
-        logsRef?.scrollTo(0, logsRef.scrollHeight)
+    createEffect(() => {
+        if (logs.data?.pages.length === 1) {
+            logsRef?.scrollTo(0, logsRef.scrollHeight)
+        }
     })
 
     return (
@@ -66,7 +83,6 @@ export default () => {
                 >
                     <For each={virtualizer.getVirtualItems()}>
                         {(virtualItem) => {
-                            console.log("Tu sam ");
                             return (
                                 <div
                                     style={{
