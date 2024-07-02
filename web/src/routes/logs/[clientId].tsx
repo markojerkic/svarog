@@ -5,7 +5,17 @@ import {
 	useQueryClient,
 } from "@tanstack/solid-query";
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { For, onMount } from "solid-js";
+import {
+	Accessor,
+	For,
+	Show,
+	Signal,
+	createEffect,
+	createSignal,
+	onCleanup,
+	onMount,
+} from "solid-js";
+import h from "solid-js/h";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 
 type LogLine = {
@@ -45,10 +55,8 @@ const getLogsPage = (queryClient: string) =>
 		getNextPageParam: (lastPage) => {
 			const last = lastPage[lastPage.length - 1];
 			if (!last) {
-				console.log("No next page");
 				return null;
 			}
-			console.log("Fetcing next page");
 			return buildUrl(queryClient, {
 				cursorId: last.id,
 				cursorTime: last.timestamp,
@@ -58,10 +66,8 @@ const getLogsPage = (queryClient: string) =>
 		getPreviousPageParam: (lastPage) => {
 			const first = lastPage[0];
 			if (!first) {
-				console.log("No previous page");
 				return null;
 			}
-			console.log("Fetcing previous page");
 			return buildUrl(queryClient, {
 				cursorId: first.id,
 				cursorTime: first.timestamp,
@@ -91,7 +97,6 @@ export default () => {
 	const logs = getLogsPage(clientId);
 	const logsOrEmpty = () => logs.data?.pages.flat() ?? [];
 	const logCount = () => logsOrEmpty().length;
-	createInfiniteScrollObserver(logs, topRef, bottomRef);
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -100,20 +105,63 @@ export default () => {
 		estimateSize: () => 25,
 		getScrollElement: () => logsRef ?? null,
 	});
-
 	onMount(() => {
-		const offset = (logs.data?.pages ?? [[]])[0].length * 25;
-		virtualizer.scrollOffset = offset;
-		virtualizer.calculateRange();
-		virtualizer.scrollToOffset(offset, { align: "start" });
+		let hasScrolledToBottom = false;
+		if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
+			console.log("Mounting to end");
+			hasScrolledToBottom = true;
+			// scroll to bottom
+			//logsRef?.scrollTo(0, logsRef.scrollHeight);
+			virtualizer.scrollToIndex(logCount(), { align: "end" });
+		}
+	});
+
+	const observer = createInfiniteScrollObserver(logs);
+	onMount(() => {
+		if (topRef) {
+			observer.observe(topRef);
+		}
+		if (bottomRef) {
+			observer.observe(bottomRef);
+		}
+	});
+	onCleanup(() => {
+		observer.disconnect();
+	});
+
+	let wasFetchingPreviousPage = false;
+	createEffect(() => {
+		if (logs.isFetchingPreviousPage) {
+			wasFetchingPreviousPage = true;
+		} else if (wasFetchingPreviousPage && logs.data) {
+			wasFetchingPreviousPage = false;
+			// if virtulizer is currently at the top, scroll to the top
+			const offset = logs.data.pages[0].length;
+			console.log("Scrolling to", offset);
+			virtualizer.scrollToIndex(offset, { align: "start" });
+		}
 	});
 
 	return (
-		<>
+		<div>
+			<button
+				class="bg-green-500 p-1 rounded-md text-white"
+				onClick={() => logs.fetchPreviousPage()}
+				type="button"
+				disabled={!logs.hasPreviousPage && !logs.isFetchingPreviousPage}
+			>
+				<Show
+					when={logs.isFetchingPreviousPage}
+					fallback={"Fetch previous page"}
+				>
+					<span class="animate-bounce">...</span>
+				</Show>
+			</button>
+
 			<div
 				ref={logsRef}
 				style={{
-					height: "90vh",
+					height: "50vh",
 					width: "100%",
 					overflow: "auto",
 				}}
@@ -137,7 +185,7 @@ export default () => {
 										left: 0,
 										width: "100%",
 										height: `${virtualItem.size}px`,
-										transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
+										transform: `translateY(${virtualItem.start}px)`,
 									}}
 								>
 									<pre class="text-white">{item()}</pre>
@@ -148,6 +196,15 @@ export default () => {
 					<div id="bottom" ref={bottomRef} />
 				</div>
 			</div>
-		</>
+
+			<button
+				class="bg-blue-500 p-1 rounded-md text-white"
+				onClick={() => logs.fetchNextPage()}
+				type="button"
+				disabled={!logs.hasNextPage}
+			>
+				Fetch next
+			</button>
+		</div>
 	);
 };

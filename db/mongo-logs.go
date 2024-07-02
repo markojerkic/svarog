@@ -55,7 +55,9 @@ var logsByClient = bson.D{{"_id", 1}, {"log_line", 1}, {"timestamp", 1}}
 func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor) ([]StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(100).SetSort(bson.D{{"timestamp", -1}, {"sequence_number", -1}})
+    sortDirection := -1
+
+	projection := options.Find().SetProjection(logsByClient).SetLimit(100).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
 
 	clientIdFilter := bson.D{{"client.client_id", clientId}}
 	var filter bson.D
@@ -79,8 +81,8 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 
 		filter = bson.D{
 			{"client.client_id", clientId},
-			{"_id", bson.D{{direction, objectId}}},
 			{"timestamp", bson.D{{direction, timestamp}}},
+			{"_id", bson.D{{direction, objectId}}},
 		}
 
 	} else {

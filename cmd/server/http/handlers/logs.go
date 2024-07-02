@@ -41,9 +41,9 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	var nextCursor db.LastCursor
 	if params.CursorTime != nil && params.CursorId != nil {
 		nextCursor = db.LastCursor{
-			Timestamp: time.UnixMilli(*params.CursorTime),
-			ID:        *params.CursorId,
-            IsBackward: *params.Direction == "backward",
+			Timestamp:  time.UnixMilli(*params.CursorTime),
+			ID:         *params.CursorId,
+			IsBackward: *params.Direction == "backward",
 		}
 	}
 
@@ -51,12 +51,13 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	logs, err := self.logRepository.GetLogs(params.ClientId, &nextCursor)
 
 	if err != nil {
-        return err
+		return err
 	}
 
-	mappedLogs := make([]LogLine, len(logs))
+	logsLen := len(logs)
+	mappedLogs := make([]LogLine, logsLen)
 	for i, log := range logs {
-		mappedLogs[i] = LogLine{
+		mappedLogs[logsLen-i-1] = LogLine{
 			log.ID.Hex(),
 			log.Timestamp.UnixMilli(),
 			log.LogLine,

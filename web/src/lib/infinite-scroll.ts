@@ -1,10 +1,7 @@
 import type { CreateInfiniteQueryResult } from "@tanstack/solid-query";
-import { onCleanup, onMount } from "solid-js";
 
-export const createInfiniteScrollObserver  = (
+export const createInfiniteScrollObserver = (
 	query: CreateInfiniteQueryResult,
-	topRef: HTMLElement | undefined,
-	bottomRef: HTMLElement | undefined,
 ) => {
 	const observer = new IntersectionObserver((entries) => {
 		for (const entry of entries) {
@@ -25,17 +22,5 @@ export const createInfiniteScrollObserver  = (
 			}
 		}
 	});
-
-	onMount(() => {
-		if (topRef) {
-			observer.observe(topRef);
-		}
-		if (bottomRef) {
-			observer.observe(bottomRef);
-		}
-	});
-
-	onCleanup(() => {
-		observer.disconnect();
-	});
+	return observer;
 };
