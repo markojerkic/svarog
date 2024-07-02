@@ -5,17 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/solid-query";
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import {
-	Accessor,
-	For,
-	Show,
-	Signal,
-	createEffect,
-	createSignal,
-	onCleanup,
-	onMount,
-} from "solid-js";
-import h from "solid-js/h";
+import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 
 type LogLine = {
@@ -24,25 +14,30 @@ type LogLine = {
 	content: string;
 };
 
-const getLogsQueryOptions = (queryClient: string) =>
+const getLogsQueryOptions = (clientId: string) =>
 	({
-		queryKey: ["logs", queryClient],
+		queryKey: ["logs", clientId],
 		queryFn: async (params) => {
 			const response = await fetch(params.pageParam as string);
-			return response.json() as Promise<LogLine[]>;
+			const data = response.json() as Promise<LogLine[]>;
+
+			return data;
 		},
-		initialPageParam: buildUrl(queryClient),
+		initialPageParam: buildUrl(clientId),
 	}) satisfies FetchInfiniteQueryOptions;
 
+const buildBaseUrl = (clientId: string) =>
+	`http://localhost:1323/api/v1/logs/${clientId}`;
+
 const buildUrl = (
-	clieentId: string,
+	clientId: string,
 	params?: {
 		cursorId: string;
 		cursorTime: number;
 		direction: "forward" | "backward";
 	},
 ) => {
-	let url = `http://localhost:1323/api/v1/logs/${clieentId}`;
+	let url = buildBaseUrl(clientId);
 	if (params) {
 		url += `?cursorId=${params.cursorId}&cursorTime=${params.cursorTime}&direction=${params.direction}`;
 	}
@@ -74,13 +69,36 @@ const getLogsPage = (queryClient: string) =>
 				direction: "backward",
 			});
 		},
-		staleTime: 1000,
 	}));
 
 export const route = {
 	load: ({ params }) => {
 		const clientId = params.clientId;
 		const queryClient = useQueryClient();
+
+		queryClient.setQueryData(
+			["logs", clientId],
+			(data: { pages: unknown[][]; pageParams: string[] }) => {
+				if (!data || data.pages.length === 0) {
+					return {
+						pages: [],
+						pageParams: [],
+					};
+				}
+
+				const flattened = data.pages.flat() as LogLine[];
+				const lastPageParam = buildUrl(clientId, {
+					cursorId: flattened[0].id,
+					cursorTime: flattened[0].timestamp,
+					direction: "backward",
+				});
+				return {
+					pages: [flattened, []],
+					pageParams: [buildBaseUrl(clientId), lastPageParam],
+				};
+			},
+		);
+
 		return queryClient.fetchInfiniteQuery(getLogsQueryOptions(clientId));
 	},
 } satisfies RouteDefinition;
@@ -105,16 +123,8 @@ export default () => {
 		estimateSize: () => 25,
 		getScrollElement: () => logsRef ?? null,
 	});
-	onMount(() => {
-		let hasScrolledToBottom = false;
-		if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
-			console.log("Mounting to end");
-			hasScrolledToBottom = true;
-			// scroll to bottom
-			//logsRef?.scrollTo(0, logsRef.scrollHeight);
-			virtualizer.scrollToIndex(logCount(), { align: "end" });
-		}
-	});
+
+	let hasScrolledToBottom = false;
 
 	const observer = createInfiniteScrollObserver(logs);
 	onMount(() => {
@@ -133,12 +143,25 @@ export default () => {
 	createEffect(() => {
 		if (logs.isFetchingPreviousPage) {
 			wasFetchingPreviousPage = true;
-		} else if (wasFetchingPreviousPage && logs.data) {
+		} else if (
+			wasFetchingPreviousPage &&
+			logs.data &&
+			virtualizer.isScrolling
+		) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
 			const offset = logs.data.pages[0].length;
 			console.log("Scrolling to", offset);
 			virtualizer.scrollToIndex(offset, { align: "start" });
+		}
+	});
+
+	onMount(() => {
+		if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
+			console.log("Mounting to end");
+			hasScrolledToBottom = true;
+			// scroll to bottom
+			virtualizer.scrollToIndex(logCount() - 3, { align: "end" });
 		}
 	});
 
@@ -157,6 +180,8 @@ export default () => {
 					<span class="animate-bounce">...</span>
 				</Show>
 			</button>
+
+			<pre>Total: {logCount()}</pre>
 
 			<div
 				ref={logsRef}
