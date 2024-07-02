@@ -5,41 +5,64 @@ import {
     useQueryClient,
 } from "@tanstack/solid-query";
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { For, createEffect, onCleanup, onMount, untrack } from "solid-js";
+import { For, createEffect, onCleanup, onMount } from "solid-js";
 
 type LogLine = {
-    ID: string;
-    LogLine: string;
-    LogLevel: number;
-    Timestamp: string;
-    Client: {
-        ClientId: string;
-        IpAddress: string;
-    };
-    SequenceNumber: number;
+    id: string;
+    timestamp: number;
+    content: string;
 };
 
 const getLogsQueryOptions = (queryClient: string) =>
     ({
         queryKey: ["logs", queryClient],
         queryFn: async (params) => {
-            console.log("Received params", params);
-            const response = await fetch(
-                `http://localhost:1323/api/v1/logs/${queryClient}`,
-            );
+            console.log("Received params", params.pageParam);
+            const response = await fetch(params.pageParam as string);
             return response.json() as Promise<LogLine[]>;
         },
-        initialPageParam: "",
+        initialPageParam: buildUrl(queryClient),
     }) satisfies FetchInfiniteQueryOptions;
+
+const buildUrl = (
+    clieentId: string,
+    params?: {
+        cursorId: string;
+        cursorTime: number;
+        direction: "forward" | "backward";
+    },
+) => {
+    let url = `http://localhost:1323/api/v1/logs/${clieentId}`;
+    if (params) {
+        url += `?cursorId=${params.cursorId}&cursorTime=${params.cursorTime}&direction=${params.direction}`;
+    }
+    return url;
+};
 
 const getLogsPage = (queryClient: string) =>
     createInfiniteQuery(() => ({
         ...getLogsQueryOptions(queryClient),
         getNextPageParam: (lastPage) => {
-            return lastPage[lastPage.length - 1].ID;
+            const last = lastPage[lastPage.length - 1];
+            if (!last) {
+                return null;
+            }
+            return buildUrl(queryClient, {
+                cursorId: last.id,
+                cursorTime: last.timestamp,
+                direction: "forward",
+            });
         },
         getPreviousPageParam: (lastPage) => {
-            return lastPage[0].ID;
+            const first = lastPage[0];
+            if (!first) {
+                return null;
+            }
+            return buildUrl(queryClient, {
+                cursorId: first.id,
+                cursorTime: first.timestamp,
+                direction: "backward",
+            });
         },
         staleTime: 1000,
     }));
@@ -88,6 +111,7 @@ export default () => {
     const observer = new IntersectionObserver((entries) => {
         for (const entry of entries) {
             if (entry.isIntersecting) {
+                console.log("Intersecting", logs.hasNextPage, logs.hasPreviousPage);
                 if (
                     entry.target.id === "top" &&
                     logs.hasNextPage &&
@@ -141,6 +165,7 @@ export default () => {
                         position: "relative",
                     }}
                 >
+                    <div id="top" ref={topRef} />
                     <For each={virtualizer.getVirtualItems()}>
                         {(virtualItem) => {
                             return (
@@ -155,12 +180,13 @@ export default () => {
                                     }}
                                 >
                                     <pre class="text-white">
-                                        {logsOrEmpty()[virtualItem.index].LogLine}
+                                        {logsOrEmpty()[virtualItem.index].content}
                                     </pre>
                                 </div>
                             );
                         }}
                     </For>
+                    <div id="bottom" ref={bottomRef} />
                 </div>
             </div>
         </>

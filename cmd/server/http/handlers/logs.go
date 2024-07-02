@@ -9,9 +9,16 @@ import (
 )
 
 type LogsByClientBinding struct {
-    ClientId   string  `param:"clientId"`
+	ClientId   string  `param:"clientId"`
 	CursorTime *int64  `query:"cursorTime"`
 	CursorId   *string `query:"cursorId"`
+	Direction  *string `query:"direction"`
+}
+
+type LogLine struct {
+	ID        string `json:"id"`
+	Timestamp int64  `json:"timestamp"`
+	Content   string `json:"content"`
 }
 
 type LogsRouter struct {
@@ -29,13 +36,14 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		return c.String(400, "<h1>400 Bad Request</h1>")
 	}
 
-    slog.Debug("params", slog.Any("params", params))
+	slog.Debug("params", slog.Any("params", params))
 
 	var nextCursor db.LastCursor
 	if params.CursorTime != nil && params.CursorId != nil {
 		nextCursor = db.LastCursor{
 			Timestamp: time.UnixMilli(*params.CursorTime),
 			ID:        *params.CursorId,
+            IsBackward: *params.Direction == "backward",
 		}
 	}
 
@@ -46,7 +54,16 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		return c.String(400, "<h1>400 Bad Request</h1>")
 	}
 
-	return c.JSON(200, logs)
+	mappedLogs := make([]LogLine, len(logs))
+	for i, log := range logs {
+		mappedLogs[i] = LogLine{
+			log.ID.Hex(),
+			log.Timestamp.UnixMilli(),
+			log.LogLine,
+		}
+	}
+
+	return c.JSON(200, mappedLogs)
 }
 
 func NewLogsRouter(logRepository db.LogRepository, e *echo.Group) *LogsRouter {

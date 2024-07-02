@@ -14,13 +14,13 @@ build-client:
 
 generate-server:
 	templ generate
-build-server-dev: generate-server
+build-server-dev:
 	go build -o build/server ./cmd/server
-build-server: generate-server
+build-server:
 	go build -ldflags "-s -w" -o build/server ./cmd/server
 run-server: build-server-dev
 	build/server
 
 
-build-dev: build-client-dev build-server-dev
+build-dev: build-server-dev
 build: build-client build-server

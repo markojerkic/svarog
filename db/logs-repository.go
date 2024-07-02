@@ -1,7 +1,6 @@
 package db
 
 import (
-	"log/slog"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
@@ -15,8 +14,9 @@ type LogRepository interface {
 }
 
 type LastCursor struct {
-	Timestamp time.Time
-	ID        string
+	Timestamp  time.Time
+	ID         string
+	IsBackward bool
 }
 
 type LogServer struct {
@@ -109,7 +109,6 @@ func (self *LogServer) runBacklog() {
 	go func() {
 		for {
 			<-time.After(5 * time.Second)
-			slog.Debug("Timeout reached")
 			self.dumpBacklog(backlog)
 		}
 	}()

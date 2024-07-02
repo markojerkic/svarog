@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -61,14 +62,19 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 
 	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
 		slog.Debug("Adding timestamp cursor", slog.Any("cursor", *lastCursor))
-		filter = bson.D{{
-			"$and",
-			bson.A{
-				clientIdFilter,
-				bson.D{{"timestamp", bson.D{{"$lt", lastCursor.Timestamp}}}},
-				// bson.D{{"_id", bson.D{{"$lt", lastCursor.ID}}}},
-			},
-		}}
+
+		objectId, err := primitive.ObjectIDFromHex(lastCursor.ID)
+		if err != nil {
+			return nil, err
+		}
+		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
+
+		filter = bson.D{
+			{"client.client_id", clientId},
+			{"_id", bson.D{{"$lt", objectId}}},
+			{"timestamp", bson.D{{"$lt", timestamp}}},
+		}
+
 	} else {
 		filter = clientIdFilter
 	}
