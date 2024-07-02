@@ -51,7 +51,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	logs, err := self.logRepository.GetLogs(params.ClientId, &nextCursor)
 
 	if err != nil {
-		return c.String(400, "<h1>400 Bad Request</h1>")
+        return err
 	}
 
 	mappedLogs := make([]LogLine, len(logs))

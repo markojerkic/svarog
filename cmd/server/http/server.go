@@ -39,7 +39,5 @@ func (self *HttpServer) Start(port int) {
 
 	handlers.NewLogsRouter(self.logRepository, api)
 
-	api.GET("/", handlers.HomePage(self.logRepository))
-
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }

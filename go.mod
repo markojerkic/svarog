@@ -3,7 +3,6 @@ module github.com/markojerkic/svarog
 go 1.22.0
 
 require (
-	github.com/a-h/templ v0.2.663
 	github.com/caarlos0/env/v11 v11.0.0
 	github.com/golang/protobuf v1.5.4
 	github.com/joho/godotenv v1.5.1
