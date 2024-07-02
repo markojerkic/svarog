@@ -69,10 +69,18 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 		}
 		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
 
+		var direction string
+
+		if lastCursor.IsBackward {
+			direction = "$lt"
+		} else {
+			direction = "$gt"
+		}
+
 		filter = bson.D{
 			{"client.client_id", clientId},
-			{"_id", bson.D{{"$lt", objectId}}},
-			{"timestamp", bson.D{{"$lt", timestamp}}},
+			{"_id", bson.D{{direction, objectId}}},
+			{"timestamp", bson.D{{direction, timestamp}}},
 		}
 
 	} else {
