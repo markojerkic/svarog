@@ -47,7 +47,6 @@ func (suite *MongoDbSTestSuite) SetupSuite() {
 	}
 }
 
-// Before each, clear the database
 func (suite *MongoDbSTestSuite) SetupTest() {
 	log.Println("Setting up test")
 	err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(suite.ctx)
@@ -95,10 +94,9 @@ func (s *MongoDbSTestSuite) TestAddClient() {
 
 	assert.Equal(t, 1, len(clients), fmt.Sprintf("Expected 1 client, got %+v", clients))
 
-	assert.Equal(t, client.IpAddress, clients[0].Client.IpAddress)
+	assert.Equal(t, client.ClientId, clients[0].Client.ClientId)
 }
 
 func TestMongoDbSuite(t *testing.T) {
-	log.Println("Running test")
 	suite.Run(t, new(MongoDbSTestSuite))
 }

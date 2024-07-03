@@ -192,7 +192,7 @@ export default () => {
 
 			<div
 				ref={logsRef}
-				style={{ height: "400px", width: "400px", "overflow-y": "auto" }}
+				style={{ height: "80vh", width: "100%", "overflow-y": "auto" }}
 			>
 				<div
 					style={{
@@ -213,8 +213,7 @@ export default () => {
 						<div id="top" ref={topRef} />
 						<For each={virtualizer.getVirtualItems()}>
 							{(virtualItem) => {
-								const item = () =>
-									`${logsOrEmpty()[virtualItem.index].content} ${logsOrEmpty()[virtualItem.index].id}`;
+								const item = () => logsOrEmpty()[virtualItem.index].content;
 
 								return (
 									<div
@@ -223,10 +222,7 @@ export default () => {
 											queueMicrotask(() => virtualizer.measureElement(el))
 										}
 									>
-										<pre class="text-white">
-											{`${virtualItem.index} `}
-											{item()}
-										</pre>
+										<pre class="text-white">{item()}</pre>
 									</div>
 								);
 							}}

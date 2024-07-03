@@ -26,24 +26,21 @@ var clientsPipeline = mongo.Pipeline{
 
 // GetClients implements LogRepository.
 func (self *MongoLogRepository) GetClients() ([]Client, error) {
-	projection, err := self.logCollection.Aggregate(context.Background(), clientsPipeline)
+	results, err := self.logCollection.Distinct(context.Background(), "client.client_id", bson.D{})
 
 	if err != nil {
 		return nil, err
 	}
+	clients := make([]Client, 0, len(results))
 
-	var results []StoredClient
-
-	if err = projection.All(context.Background(), &results); err != nil {
-		return nil, err
-	}
-
-	clients := make([]Client, len(results))
-
-	fmt.Printf("Clients: %d\n", len(results))
 	for _, result := range results {
-		slog.Debug("Client", result)
-		clients = append(clients, Client{Client: result, IsOnline: false})
+		mappedClient := Client{
+			Client: StoredClient{
+				ClientId: result.(string),
+			},
+		}
+
+		clients = append(clients, mappedClient)
 	}
 
 	return clients, nil
@@ -55,7 +52,7 @@ var logsByClient = bson.D{{"_id", 1}, {"log_line", 1}, {"timestamp", 1}}
 func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor) ([]StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
-    sortDirection := -1
+	sortDirection := -1
 
 	projection := options.Find().SetProjection(logsByClient).SetLimit(300).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
 
