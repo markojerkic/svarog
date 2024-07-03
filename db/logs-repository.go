@@ -1,6 +1,8 @@
 package db
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/proto"
@@ -20,9 +22,11 @@ type LastCursor struct {
 }
 
 type LogServer struct {
+	ctx        context.Context
 	repository LogRepository
 
-	logs chan *StoredLog
+	logs    chan *StoredLog
+	backlog *Backlog
 }
 
 type Client struct {
@@ -44,19 +48,21 @@ type StoredLog struct {
 	SequenceNumber int64              `bson:"sequence_number"`
 }
 
-func NewLogServer(dbClient LogRepository) *LogServer {
+func NewLogServer(ctx context.Context, dbClient LogRepository) *LogServer {
 	return &LogServer{
-		logs:       make(chan *StoredLog, 1024*1024),
+		ctx:        ctx,
 		repository: dbClient,
+		logs:       make(chan *StoredLog, 1024*1024),
+		backlog:    newBacklog(),
 	}
 }
 
-func (self *LogServer) dumpBacklog(backlog *Backlog) {
-	if !backlog.isNotEmpty() {
+func (self *LogServer) dumpBacklog() {
+	if !self.backlog.isNotEmpty() {
 		return
 	}
 
-	self.repository.SaveLogs(backlog.getLogs())
+	self.repository.SaveLogs(self.backlog.getLogs())
 }
 
 var backlogLimit = 1000
@@ -94,44 +100,33 @@ func newBacklog() *Backlog {
 	}
 }
 
-func (self *LogServer) runBacklog() {
-	backlog := newBacklog()
-
-	go func() {
-		for {
-			log := <-self.logs
-			backlog.add(log)
-			if backlog.isFull() {
-				self.dumpBacklog(backlog)
-			}
-		}
-	}()
-	go func() {
-		for {
-			<-time.After(5 * time.Second)
-			self.dumpBacklog(backlog)
-		}
-	}()
-}
-
 func (self *LogServer) Run(lines chan *rpc.LogLine) {
-	go self.runBacklog()
 	for {
-		line := <-lines
-		if line == nil {
+		select {
+		case line := <-lines:
+			logLine := &StoredLog{
+				LogLine:        line.Message,
+				LogLevel:       *line.Level.Enum(),
+				Timestamp:      line.Timestamp.AsTime(),
+				SequenceNumber: line.Sequence,
+				Client: StoredClient{
+					ClientId:  line.Client,
+					IpAddress: "::1",
+				},
+			}
+			self.backlog.add(logLine)
+
+			if self.backlog.isFull() {
+				self.dumpBacklog()
+			}
+
+		case <-time.After(5 * time.Second):
+			slog.Debug("Dumping backlog after timeout")
+			self.dumpBacklog()
+
+		case <-self.ctx.Done():
+			slog.Debug("Context done")
 			return
 		}
-
-		self.logs <- &StoredLog{
-			LogLine:        line.Message,
-			LogLevel:       *line.Level.Enum(),
-			Timestamp:      line.Timestamp.AsTime(),
-			SequenceNumber: line.Sequence,
-			Client: StoredClient{
-				ClientId:  line.Client,
-				IpAddress: "::1",
-			},
-		}
-
 	}
 }

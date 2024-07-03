@@ -10,9 +10,9 @@ import (
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
+	"github.com/markojerkic/svarog/cmd/server/http"
 	"github.com/markojerkic/svarog/db"
 	rpc "github.com/markojerkic/svarog/proto"
-	"github.com/markojerkic/svarog/cmd/server/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -98,7 +98,8 @@ func main() {
 	rpc.RegisterLoggAggregatorServer(grpcServer, newServer())
 
 	mongoRepository := db.NewMongoClient(env.MongoUrl)
-	mongoServer := db.NewLogServer(mongoRepository)
+
+	mongoServer := db.NewLogServer(context.Background(), mongoRepository)
 
 	httpServer := http.NewServer(mongoRepository)
 
