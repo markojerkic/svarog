@@ -24,3 +24,6 @@ run-server: build-server-dev
 
 build-dev: build-server-dev
 build: build-client build-server
+
+test:
+	go test ./tests/... -v
