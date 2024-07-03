@@ -4,7 +4,7 @@ import {
 	createInfiniteQuery,
 	useQueryClient,
 } from "@tanstack/solid-query";
-import { createVirtualizer } from "@tanstack/solid-virtual";
+import { VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
 import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 
@@ -48,6 +48,7 @@ const getLogsPage = (queryClient: string) =>
 	createInfiniteQuery(() => ({
 		...getLogsQueryOptions(queryClient),
 		getNextPageParam: (lastPage) => {
+            if (!lastPage) return null;
 			const last = lastPage[lastPage.length - 1];
 			if (!last) {
 				return null;
@@ -59,6 +60,7 @@ const getLogsPage = (queryClient: string) =>
 			});
 		},
 		getPreviousPageParam: (lastPage) => {
+            if (!lastPage) return null;
 			const first = lastPage[0];
 			if (!first) {
 				return null;
@@ -92,8 +94,15 @@ export const route = {
 					cursorTime: flattened[0].timestamp,
 					direction: "backward",
 				});
+				//const nextPageParam = buildUrl(clientId, {
+				//    cursorId: flattened[flattened.length - 1].id,
+				//    cursorTime: flattened[flattened.length - 1].timestamp,
+				//    direction: "forward",
+				//})
+				const next = flattened.pop();
+
 				return {
-					pages: [flattened, []],
+					pages: [flattened, [next]],
 					pageParams: [buildBaseUrl(clientId), lastPageParam],
 				};
 			},
@@ -113,7 +122,7 @@ export default () => {
 
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const logs = getLogsPage(clientId);
-	const logsOrEmpty = () => logs.data?.pages.flat() ?? [];
+	const logsOrEmpty = () => logs.data?.pages.flat().toReversed() ?? [];
 	const logCount = () => logsOrEmpty().length;
 
 	const virtualizer = createVirtualizer({
@@ -122,9 +131,10 @@ export default () => {
 		},
 		estimateSize: () => 25,
 		getScrollElement: () => logsRef ?? null,
+		overscan: 5,
 	});
 
-	let hasScrolledToBottom = false;
+	//let hasScrolledToBottom = false;
 
 	const observer = createInfiniteScrollObserver(logs);
 	onMount(() => {
@@ -156,13 +166,31 @@ export default () => {
 		}
 	});
 
-	onMount(() => {
-		if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
-			console.log("Mounting to end");
-			hasScrolledToBottom = true;
-			// scroll to bottom
-			virtualizer.scrollToIndex(logCount() - 3, { align: "end" });
+	//onMount(() => {
+	//	if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
+	//		console.log("Mounting to end");
+	//		hasScrolledToBottom = true;
+	//		// scroll to bottom
+	//		virtualizer.scrollToIndex(logCount() - 3, { align: "end" });
+	//	}
+	//});
+
+	const handleScroll = (e: WheelEvent) => {
+		e.preventDefault();
+		console.log("dude");
+		const currentTarget = e.currentTarget as HTMLElement;
+
+		if (currentTarget) {
+			currentTarget.scrollTop -= e.deltaY;
 		}
+	};
+	onMount(() => {
+		logsRef?.addEventListener("wheel", handleScroll, {
+			passive: false,
+		});
+	});
+	onCleanup(() => {
+		logsRef?.removeEventListener("wheel", handleScroll);
 	});
 
 	return (
@@ -186,9 +214,10 @@ export default () => {
 			<div
 				ref={logsRef}
 				style={{
-					height: "50vh",
-					width: "100%",
+					height: `500px`,
+					width: `100%`,
 					overflow: "auto",
+					transform: "scaleY(-1)",
 				}}
 			>
 				<div
@@ -198,7 +227,7 @@ export default () => {
 						position: "relative",
 					}}
 				>
-					<div id="top" ref={topRef} />
+					<div id="bottom" ref={bottomRef} />
 					<For each={virtualizer.getVirtualItems()}>
 						{(virtualItem) => {
 							const item = () => logsOrEmpty()[virtualItem.index].content;
@@ -210,15 +239,18 @@ export default () => {
 										left: 0,
 										width: "100%",
 										height: `${virtualItem.size}px`,
-										transform: `translateY(${virtualItem.start}px)`,
+										transform: `translateY(${virtualItem.start}px) scaleY(-1)`,
 									}}
 								>
-									<pre class="text-white">{item()}</pre>
+									<pre class="text-white">
+										{`${virtualItem.index} `}
+										{item()}
+									</pre>
 								</div>
 							);
 						}}
 					</For>
-					<div id="bottom" ref={bottomRef} />
+					<div id="top" ref={topRef} />
 				</div>
 			</div>
 
