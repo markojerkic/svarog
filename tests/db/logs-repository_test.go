@@ -72,17 +72,25 @@ func (s *MongoDbSTestSuite) TestNoClients() {
 func (s *MongoDbSTestSuite) TestAddClient() {
 	t := s.T()
 
-	client := db.StoredClient{
-		ClientId:  "123",
-		IpAddress: "::1",
-	}
-
-	var mockLogLines = make([]interface{}, 1)
-	mockLogLines[0] = db.StoredLog{
-		Client:    client,
-		LogLevel:  rpc.LogLevel_INFO,
-		Timestamp: time.Now(),
-		LogLine:   "marko",
+	mockLogLines := []interface{}{
+		db.StoredLog{
+			Client: db.StoredClient{
+				ClientId:  "marko",
+				IpAddress: "::1",
+			},
+			LogLevel:  rpc.LogLevel_INFO,
+			Timestamp: time.Now(),
+			LogLine:   "marko",
+		},
+		db.StoredLog{
+			Client: db.StoredClient{
+				ClientId:  "jerkić",
+				IpAddress: "::1",
+			},
+			LogLevel:  rpc.LogLevel_INFO,
+			Timestamp: time.Now(),
+			LogLine:   "jerkić",
+		},
 	}
 
 	err := s.mongoRepository.SaveLogs(mockLogLines)
@@ -92,9 +100,16 @@ func (s *MongoDbSTestSuite) TestAddClient() {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, 1, len(clients), fmt.Sprintf("Expected 1 client, got %+v", clients))
+	assert.Equal(t, 2, len(clients), fmt.Sprintf("Expected 2 client, got %+v", clients))
 
-	assert.Equal(t, client.ClientId, clients[0].Client.ClientId)
+	clientIdsSet := make(map[string]bool)
+	for _, client := range clients {
+		clientIdsSet[client.Client.ClientId] = true
+	}
+
+	assert.Equal(t, 2, len(clientIdsSet), fmt.Sprintf("Expected 2 client, got %+v", clientIdsSet))
+	assert.Equal(t, true, clientIdsSet["marko"])
+	assert.Equal(t, true, clientIdsSet["jerkić"])
 }
 
 func TestMongoDbSuite(t *testing.T) {
