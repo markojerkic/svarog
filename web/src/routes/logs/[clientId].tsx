@@ -4,7 +4,7 @@ import {
 	createInfiniteQuery,
 	useQueryClient,
 } from "@tanstack/solid-query";
-import { VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
+import { createVirtualizer } from "@tanstack/solid-virtual";
 import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 
@@ -48,7 +48,7 @@ const getLogsPage = (queryClient: string) =>
 	createInfiniteQuery(() => ({
 		...getLogsQueryOptions(queryClient),
 		getNextPageParam: (lastPage) => {
-            if (!lastPage) return null;
+			if (!lastPage) return null;
 			const last = lastPage[lastPage.length - 1];
 			if (!last) {
 				return null;
@@ -60,7 +60,7 @@ const getLogsPage = (queryClient: string) =>
 			});
 		},
 		getPreviousPageParam: (lastPage) => {
-            if (!lastPage) return null;
+			if (!lastPage) return null;
 			const first = lastPage[0];
 			if (!first) {
 				return null;
@@ -122,7 +122,7 @@ export default () => {
 
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const logs = getLogsPage(clientId);
-	const logsOrEmpty = () => logs.data?.pages.flat().toReversed() ?? [];
+	const logsOrEmpty = () => logs.data?.pages.flat() ?? [];
 	const logCount = () => logsOrEmpty().length;
 
 	const virtualizer = createVirtualizer({
@@ -166,32 +166,11 @@ export default () => {
 		}
 	});
 
-	//onMount(() => {
-	//	if (logs.data && logs.data.pages.length === 1 && !hasScrolledToBottom) {
-	//		console.log("Mounting to end");
-	//		hasScrolledToBottom = true;
-	//		// scroll to bottom
-	//		virtualizer.scrollToIndex(logCount() - 3, { align: "end" });
-	//	}
-	//});
-
-	const handleScroll = (e: WheelEvent) => {
-		e.preventDefault();
-		console.log("dude");
-		const currentTarget = e.currentTarget as HTMLElement;
-
-		if (currentTarget) {
-			currentTarget.scrollTop -= e.deltaY;
-		}
-	};
 	onMount(() => {
-		logsRef?.addEventListener("wheel", handleScroll, {
-			passive: false,
-		});
+		virtualizer.scrollToIndex(logCount(), { align: "end" });
 	});
-	onCleanup(() => {
-		logsRef?.removeEventListener("wheel", handleScroll);
-	});
+
+	const items = virtualizer.getVirtualItems();
 
 	return (
 		<div>
@@ -213,12 +192,7 @@ export default () => {
 
 			<div
 				ref={logsRef}
-				style={{
-					height: `500px`,
-					width: `100%`,
-					overflow: "auto",
-					transform: "scaleY(-1)",
-				}}
+				style={{ height: "400px", width: "400px", "overflow-y": "auto" }}
 			>
 				<div
 					style={{
@@ -227,30 +201,38 @@ export default () => {
 						position: "relative",
 					}}
 				>
-					<div id="bottom" ref={bottomRef} />
-					<For each={virtualizer.getVirtualItems()}>
-						{(virtualItem) => {
-							const item = () => logsOrEmpty()[virtualItem.index].content;
-							return (
-								<div
-									style={{
-										position: "absolute",
-										top: 0,
-										left: 0,
-										width: "100%",
-										height: `${virtualItem.size}px`,
-										transform: `translateY(${virtualItem.start}px) scaleY(-1)`,
-									}}
-								>
-									<pre class="text-white">
-										{`${virtualItem.index} `}
-										{item()}
-									</pre>
-								</div>
-							);
+					<div
+						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							width: "100%",
+							transform: `translateY(${items.length ? items[0].start : 0}px)`,
 						}}
-					</For>
-					<div id="top" ref={topRef} />
+					>
+						<div id="top" ref={topRef} />
+						<For each={virtualizer.getVirtualItems()}>
+							{(virtualItem) => {
+								const item = () =>
+									`${logsOrEmpty()[virtualItem.index].content} ${logsOrEmpty()[virtualItem.index].id}`;
+
+								return (
+									<div
+										data-index={virtualItem.index}
+										ref={(el) =>
+											queueMicrotask(() => virtualizer.measureElement(el))
+										}
+									>
+										<pre class="text-white">
+											{`${virtualItem.index} `}
+											{item()}
+										</pre>
+									</div>
+								);
+							}}
+						</For>
+						<div id="bottom" ref={bottomRef} />
+					</div>
 				</div>
 			</div>
 
