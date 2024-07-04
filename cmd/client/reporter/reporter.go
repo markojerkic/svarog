@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/labstack/gommon/log"
-	rpc "github.com/markojerkic/svarog/proto"
+	rpc "github.com/markojerkic/svarog/internal/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

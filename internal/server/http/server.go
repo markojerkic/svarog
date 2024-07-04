@@ -5,8 +5,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/markojerkic/svarog/cmd/server/http/handlers"
-	"github.com/markojerkic/svarog/db"
+	"github.com/markojerkic/svarog/internal/server/http/handlers"
+	"github.com/markojerkic/svarog/internal/server/db"
 )
 
 type HttpServer struct {

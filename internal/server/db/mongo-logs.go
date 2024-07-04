@@ -25,16 +25,16 @@ var clientsPipeline = mongo.Pipeline{
 }
 
 // GetClients implements LogRepository.
-func (self *MongoLogRepository) GetClients() ([]Client, error) {
+func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 	results, err := self.logCollection.Distinct(context.Background(), "client.client_id", bson.D{})
 
 	if err != nil {
 		return nil, err
 	}
-	clients := make([]Client, 0, len(results))
+	clients := make([]AvailableClient, 0, len(results))
 
 	for _, result := range results {
-		mappedClient := Client{
+		mappedClient := AvailableClient{
 			Client: StoredClient{
 				ClientId: result.(string),
 			},

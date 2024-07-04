@@ -8,7 +8,7 @@ import (
 
 	"github.com/markojerkic/svarog/cmd/client/reader"
 	"github.com/markojerkic/svarog/cmd/client/reporter"
-	rpc "github.com/markojerkic/svarog/proto"
+	rpc "github.com/markojerkic/svarog/internal/proto"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

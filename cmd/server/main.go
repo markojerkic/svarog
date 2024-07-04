@@ -10,9 +10,9 @@ import (
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
-	"github.com/markojerkic/svarog/cmd/server/http"
-	"github.com/markojerkic/svarog/db"
-	rpc "github.com/markojerkic/svarog/proto"
+	"github.com/markojerkic/svarog/internal/server/http"
+	"github.com/markojerkic/svarog/internal/server/db"
+	rpc "github.com/markojerkic/svarog/internal/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )

@@ -5,20 +5,24 @@ import (
 	"log/slog"
 	"time"
 
-	rpc "github.com/markojerkic/svarog/proto"
+	rpc "github.com/markojerkic/svarog/internal/proto"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
 	GetLogs(clientId string, cursor *LastCursor) ([]StoredLog, error)
-	GetClients() ([]Client, error)
+	GetClients() ([]AvailableClient, error)
 }
 
 type LastCursor struct {
 	Timestamp  time.Time
 	ID         string
 	IsBackward bool
+}
+
+type AggregatingLogServer interface {
+	Run(lines chan *rpc.LogLine)
 }
 
 type LogServer struct {
@@ -29,7 +33,9 @@ type LogServer struct {
 	backlog *Backlog
 }
 
-type Client struct {
+var _ AggregatingLogServer = &LogServer{}
+
+type AvailableClient struct {
 	Client   StoredClient
 	IsOnline bool
 }
@@ -48,7 +54,7 @@ type StoredLog struct {
 	SequenceNumber int64              `bson:"sequence_number"`
 }
 
-func NewLogServer(ctx context.Context, dbClient LogRepository) *LogServer {
+func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogServer {
 	return &LogServer{
 		ctx:        ctx,
 		repository: dbClient,

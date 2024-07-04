@@ -5,7 +5,7 @@ dependencies:
 		go install github.com/a-h/templ/cmd/templ@latest
 
 build-proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/schema.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/proto/schema.proto
 
 build-client-dev:
 	go build -o build/client ./cmd/client
