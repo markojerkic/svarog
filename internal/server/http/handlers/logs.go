@@ -32,8 +32,8 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 
 	err := c.Bind(&params)
 	if err != nil {
-		slog.Error("Bindings for logs by client not correct", err)
-		return c.String(400, "<h1>400 Bad Request</h1>")
+		slog.Error("Bindings for logs by client not correct", slog.Any("error", err))
+		return c.JSON(400, "Bad request")
 	}
 
 	slog.Debug("params", slog.Any("params", params))

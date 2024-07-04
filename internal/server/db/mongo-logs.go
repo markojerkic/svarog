@@ -121,7 +121,7 @@ func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(connectionUrl))
 	if err != nil {
-		panic(err)
+        log.Fatalf("Error connecting to mongo: %v", err)
 	}
 	collection := client.Database("logs").Collection("log_lines")
 

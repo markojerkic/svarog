@@ -5,27 +5,32 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/http/handlers"
 )
 
 type HttpServer struct {
 	logRepository db.LogRepository
+
+	allowedOrigins []string
+	serverPort     int
 }
 
-func NewServer(logRepository db.LogRepository) *HttpServer {
-	return &HttpServer{
-		logRepository: logRepository,
-	}
+type HttpServerOptions struct {
+	AllowedOrigins []string
+	ServerPort     int
 }
 
-func (self *HttpServer) Start(port int) {
+func (self *HttpServer) Start() {
 	e := echo.New()
 
 	api := e.Group("/api/v1")
-	api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:3000"},
-	}))
+
+	if len(self.allowedOrigins) > 0 {
+		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins: self.allowedOrigins,
+		}))
+	}
 
 	api.GET("/clients", func(c echo.Context) error {
 		clients, err := self.logRepository.GetClients()
@@ -39,5 +44,16 @@ func (self *HttpServer) Start(port int) {
 
 	handlers.NewLogsRouter(self.logRepository, api)
 
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
+	serverAddr := fmt.Sprintf(":%d", self.serverPort)
+	e.Logger.Fatal(e.Start(serverAddr))
+}
+
+func NewServer(logRepository db.LogRepository, options HttpServerOptions) *HttpServer {
+	server := &HttpServer{
+		logRepository:  logRepository,
+		allowedOrigins: options.AllowedOrigins,
+		serverPort:     options.ServerPort,
+	}
+
+	return server
 }

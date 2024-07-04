@@ -10,17 +10,18 @@ import (
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
-	"github.com/markojerkic/svarog/internal/server/http"
-	"github.com/markojerkic/svarog/internal/server/db"
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
 
 type Env struct {
-	MongoUrl       string `env:"MONGO_URL"`
-	GrpcServerPort int    `env:"GPRC_PORT"`
-	HttpServerPort int    `env:"HTTP_SERVER_PORT"`
+	MongoUrl                 string   `env:"MONGO_URL"`
+	GrpcServerPort           int      `env:"GPRC_PORT"`
+	HttpServerPort           int      `env:"HTTP_SERVER_PORT"`
+	HttpServerAllowedOrigins []string `env:"HTTP_SERVER_ALLOWED_ORIGINS"`
 }
 
 type ImplementedServer struct {
@@ -29,13 +30,13 @@ type ImplementedServer struct {
 
 var _ rpc.LoggAggregatorServer = &ImplementedServer{}
 
-var logs = make(chan *rpc.LogLine, 1024*1024)
+var logIngestChannel = make(chan *rpc.LogLine, 1024*1024)
 
 func (i *ImplementedServer) BatchLog(_ context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
 	slog.Debug("Received batch log of size: ", slog.Int64("size", int64(len(batchLogs.Logs))))
 
 	for _, logLine := range batchLogs.Logs {
-		logs <- logLine
+		logIngestChannel <- logLine
 	}
 	return &rpc.Void{}, nil
 }
@@ -52,7 +53,7 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 			return err
 		}
 
-		logs <- logLine
+		logIngestChannel <- logLine
 	}
 }
 
@@ -77,19 +78,8 @@ func loadEnv() Env {
 	return env
 }
 
-func main() {
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-
-	env := loadEnv()
-
-	grpcServerPort := env.GrpcServerPort
-
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", grpcServerPort))
+func startGrpcServer(env Env) {
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", env.GrpcServerPort))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
@@ -97,14 +87,32 @@ func main() {
 	grpcServer := grpc.NewServer(opts...)
 	rpc.RegisterLoggAggregatorServer(grpcServer, newServer())
 
-	mongoRepository := db.NewMongoClient(env.MongoUrl)
-
-	mongoServer := db.NewLogServer(context.Background(), mongoRepository)
-
-	httpServer := http.NewServer(mongoRepository)
-
-	slog.Info(fmt.Sprintf("Starting gRPC server on port %d\n", grpcServerPort))
-	go mongoServer.Run(logs)
-	go httpServer.Start(env.HttpServerPort)
 	grpcServer.Serve(lis)
+}
+
+func setupLogger() {
+	logOpts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, logOpts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+}
+
+func main() {
+	setupLogger()
+	env := loadEnv()
+
+	mongoRepository := db.NewMongoClient(env.MongoUrl)
+	logServer := db.NewLogServer(context.Background(), mongoRepository)
+	httpServer := http.NewServer(mongoRepository, http.HttpServerOptions{
+		AllowedOrigins: env.HttpServerAllowedOrigins,
+		ServerPort:     env.HttpServerPort,
+	})
+
+	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
+
+	go logServer.Run(logIngestChannel)
+	go httpServer.Start()
+	startGrpcServer(env)
 }
