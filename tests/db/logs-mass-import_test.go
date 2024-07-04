@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"math"
 	"os"
 	"testing"
 	"time"
@@ -30,27 +29,31 @@ type MassImportTestSuite struct {
 	logServer       db.AggregatingLogServer
 
 	mongoClient *mongo.Client
-	ctx         context.Context
+
+	testContainerContext context.Context
+	logServerContext     context.Context
 }
 
 func (suite *MassImportTestSuite) SetupSuite() {
-	suite.ctx = context.Background()
-	container, err := mongodb.RunContainer(context.Background(), testcontainers.WithImage("mongo:6"))
+	suite.logServerContext = context.Background()
+	suite.testContainerContext = context.Background()
+
+	container, err := mongodb.RunContainer(suite.testContainerContext, testcontainers.WithImage("mongo:6"))
 	if err != nil {
 		log.Fatalf("Could not start container: %s", err)
 	}
 
 	suite.container = container
-	suite.connectionString, err = container.ConnectionString(suite.ctx)
+	suite.connectionString, err = container.ConnectionString(context.Background())
 	if err != nil {
 		log.Fatalf("Could not get connection string: %s", err)
 	}
 
 	suite.mongoRepository = db.NewMongoClient(suite.connectionString)
-	suite.logServer = db.NewLogServer(context.Background(), suite.mongoRepository)
+	suite.logServer = db.NewLogServer(suite.logServerContext, suite.mongoRepository)
 
 	connectionUrl := suite.connectionString
-	suite.mongoClient, err = mongo.Connect(suite.ctx, options.Client().ApplyURI(connectionUrl))
+	suite.mongoClient, err = mongo.Connect(context.Background(), options.Client().ApplyURI(connectionUrl))
 	if err != nil {
 		log.Fatalf("Could not connect to mongo: %s", err)
 	}
@@ -63,14 +66,15 @@ func (suite *MassImportTestSuite) SetupSuite() {
 	slog.SetDefault(logger)
 }
 
-func (suite *MassImportTestSuite) SetupTest() {
-	log.Println("Setting up test")
-	err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(suite.ctx)
-	assert.NoError(suite.T(), err)
-}
+// func (suite *MassImportTestSuite) SetupTest() {
+// 	log.Println("Setting up test")
+// 	// err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(suite.ctx)
+// 	// assert.NoError(suite.T(), err)
+// }
 
 func (suite *MassImportTestSuite) TearDownSuite() {
-	if err := suite.container.Terminate(suite.ctx); err != nil {
+	log.Println("Tearing down suite")
+	if err := suite.container.Terminate(suite.testContainerContext); err != nil {
 		log.Fatalf("failed to terminate container: %s", err)
 	}
 }
@@ -95,7 +99,8 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 }
 
 func (suite *MassImportTestSuite) countNumberOfLogsInDb() int64 {
-	count, err := suite.mongoClient.Database("logs").Collection("log_lines").CountDocuments(suite.ctx, bson.D{})
+	collection := suite.mongoClient.Database("logs").Collection("log_lines")
+	count, err := collection.CountDocuments(context.Background(), bson.D{})
 
 	if err != nil {
 		log.Fatalf("Could not count documents: %v", err)
@@ -113,7 +118,6 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 
 	go suite.logServer.Run(logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
-	suite.ctx.Done()
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
@@ -121,10 +125,17 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 			<-time.After(5 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
+			<-time.After(5 * time.Second)
 			break
 		}
 	}
+	suite.logServerContext.Done()
+
+	clients, err := suite.mongoRepository.GetClients()
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(clients))
 
 	count := suite.countNumberOfLogsInDb()
-	assert.Equal(t, math.MaxInt64, count)
+	assert.Equal(t, numberOfImportedLogs, count)
 }

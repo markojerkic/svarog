@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"time"
 
@@ -70,7 +71,12 @@ func (self *LogServer) dumpBacklog() {
 		return
 	}
 
-	self.repository.SaveLogs(self.backlog.getLogs())
+	logsToSave := self.backlog.getLogs()
+	err := self.repository.SaveLogs(logsToSave)
+	slog.Debug("Saved logs", slog.Any("logs", len(logsToSave)))
+	if err != nil {
+		log.Fatalf("Could not save logs: %v", err)
+	}
 }
 
 func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
@@ -100,7 +106,7 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 
 		case <-self.ctx.Done():
 			slog.Debug("Context done")
-            break;
+			break
 		}
 	}
 }
