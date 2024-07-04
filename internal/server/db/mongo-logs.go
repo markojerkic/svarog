@@ -107,12 +107,12 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 }
 
 func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
-	savedCount, err := self.logCollection.InsertMany(context.Background(), logs)
+	_, err := self.logCollection.InsertMany(context.Background(), logs)
 	if err != nil {
 		slog.Error("Error saving logs", slog.Any("error", err))
 		return err
 	}
-	slog.Debug(fmt.Sprintf("Saved %d logs", len(savedCount.InsertedIDs)))
+	// slog.Debug(fmt.Sprintf("Saved %d logs", len(savedCount.InsertedIDs)))
 
 	return nil
 }

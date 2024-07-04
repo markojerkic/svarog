@@ -91,7 +91,7 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 			self.backlog.addToBacklog(logLine)
 
 		case logsToSave := <-self.backlog.getLogs():
-			self.dumpBacklog(logsToSave)
+			go self.dumpBacklog(logsToSave)
 
 		case <-time.After(5 * time.Second):
 			slog.Debug("Dumping backlog after timeout")

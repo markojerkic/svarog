@@ -107,6 +107,7 @@ var numberOfImportedLogs = int64(3e6)
 func (suite *MassImportTestSuite) TestSaveLogs() {
 	t := suite.T()
 	defer suite.logServerContext.Done()
+	start := time.Now()
 
 	logIngestChannel := make(chan *rpc.LogLine, 1024)
 
@@ -130,4 +131,7 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 	count := suite.countNumberOfLogsInDb()
 	slog.Info(fmt.Sprintf("Number of logs in db: %d", count))
 	assert.Equal(t, numberOfImportedLogs, count)
+
+	elapsed := time.Since(start)
+	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
 }
