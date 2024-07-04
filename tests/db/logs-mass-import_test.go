@@ -6,6 +6,8 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MassImportTestSuite struct {
@@ -77,20 +80,6 @@ func TestMassImportSuite(t *testing.T) {
 	suite.Run(t, new(MassImportTestSuite))
 }
 
-func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs int64) {
-	for i := 0; i < int(numberOfImportedLogs); i++ {
-		logIngestChannel <- &rpc.LogLine{
-			Message: fmt.Sprintf("Log line %d", i),
-			Level:   rpc.LogLevel_INFO,
-			Client:  "marko",
-		}
-
-		if i%500_000 == 0 {
-			log.Printf("Generated %d log lines", i)
-		}
-	}
-}
-
 func (suite *MassImportTestSuite) countNumberOfLogsInDb() int64 {
 	collection := suite.mongoClient.Database("logs").Collection("log_lines")
 
@@ -102,11 +91,26 @@ func (suite *MassImportTestSuite) countNumberOfLogsInDb() int64 {
 	return count
 }
 
+func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs int64) {
+	for i := 0; i < int(numberOfImportedLogs); i++ {
+		logIngestChannel <- &rpc.LogLine{
+			Message:   fmt.Sprintf("Log line %d", i),
+			Timestamp: timestamppb.New(time.Now()),
+			Sequence:  int64(i) % 1000,
+			Level:     rpc.LogLevel_INFO,
+			Client:    "marko",
+		}
+
+		if i%500_000 == 0 {
+			log.Printf("Generated %d log lines", i)
+		}
+	}
+}
+
 var numberOfImportedLogs = int64(3e6)
 
 func (suite *MassImportTestSuite) TestSaveLogs() {
 	t := suite.T()
-	defer suite.logServerContext.Done()
 	start := time.Now()
 
 	logIngestChannel := make(chan *rpc.LogLine, 1024)
@@ -134,4 +138,42 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 
 	elapsed := time.Since(start)
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
+	suite.logServerContext.Done()
+
+	// Check all logs if they're in correct order
+	logPage, err := suite.mongoRepository.GetLogs("marko", nil)
+	assert.NoError(t, err)
+	index := int(numberOfImportedLogs)
+	lastCursor := validateLogListIsRightOrder(logPage, index, t)
+	index -= 300
+
+	for {
+		if index <= 0 {
+			break
+		}
+
+		logPage, err = suite.mongoRepository.GetLogs("marko", &lastCursor)
+		validateLogListIsRightOrder(logPage, index, t)
+		index -= 300
+	}
+
+}
+
+func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) db.LastCursor {
+	for _, log := range logPage {
+		if ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine); !ok {
+			i, _ = strconv.Atoi(regexp.MustCompile(`\d+`).FindString(log.LogLine))
+			i++
+		}
+
+		i--
+	}
+
+	lastLogLine := logPage[len(logPage)-1]
+
+	return db.LastCursor{
+		ID:         lastLogLine.ID.Hex(),
+		Timestamp:  lastLogLine.Timestamp,
+		IsBackward: true,
+	}
 }
