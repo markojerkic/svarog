@@ -66,12 +66,6 @@ func (suite *MassImportTestSuite) SetupSuite() {
 	slog.SetDefault(logger)
 }
 
-// func (suite *MassImportTestSuite) SetupTest() {
-// 	log.Println("Setting up test")
-// 	// err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(suite.ctx)
-// 	// assert.NoError(suite.T(), err)
-// }
-
 func (suite *MassImportTestSuite) TearDownSuite() {
 	log.Println("Tearing down suite")
 	if err := suite.container.Terminate(suite.testContainerContext); err != nil {
@@ -84,7 +78,6 @@ func TestMassImportSuite(t *testing.T) {
 }
 
 func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs int64) {
-
 	for i := 0; i < int(numberOfImportedLogs); i++ {
 		logIngestChannel <- &rpc.LogLine{
 			Message: fmt.Sprintf("Log line %d", i),
@@ -92,7 +85,7 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 			Client:  "marko",
 		}
 
-		if i%100_000 == 0 {
+		if i%500_000 == 0 {
 			log.Printf("Generated %d log lines", i)
 		}
 	}
@@ -100,12 +93,12 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 
 func (suite *MassImportTestSuite) countNumberOfLogsInDb() int64 {
 	collection := suite.mongoClient.Database("logs").Collection("log_lines")
-	count, err := collection.CountDocuments(context.Background(), bson.D{})
 
+	count, err := collection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
 		log.Fatalf("Could not count documents: %v", err)
+		panic(err)
 	}
-
 	return count
 }
 
@@ -113,29 +106,28 @@ var numberOfImportedLogs = int64(3e6)
 
 func (suite *MassImportTestSuite) TestSaveLogs() {
 	t := suite.T()
+	defer suite.logServerContext.Done()
 
-	logIngestChannel := make(chan *rpc.LogLine, 10*1024*1024)
+	logIngestChannel := make(chan *rpc.LogLine, 1024)
 
 	go suite.logServer.Run(logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 5s", suite.logServer.BacklogCount()))
-			<-time.After(5 * time.Second)
+			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount()))
+			time.Sleep(8 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
-			<-time.After(5 * time.Second)
 			break
 		}
 	}
-	suite.logServerContext.Done()
 
 	clients, err := suite.mongoRepository.GetClients()
-
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients))
 
 	count := suite.countNumberOfLogsInDb()
+	slog.Info(fmt.Sprintf("Number of logs in db: %d", count))
 	assert.Equal(t, numberOfImportedLogs, count)
 }
