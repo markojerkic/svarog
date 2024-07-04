@@ -107,13 +107,11 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 }
 
 func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
-	saved, err := self.logCollection.InsertMany(context.Background(), logs)
+	_, err := self.logCollection.InsertMany(context.Background(), logs)
 	if err != nil {
 		slog.Error("Error saving logs: %v", err)
 		return err
 	}
-
-	slog.Debug(fmt.Sprintf("Saved %d log lines\n", len(saved.InsertedIDs)))
 
 	return nil
 }
@@ -121,7 +119,7 @@ func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(connectionUrl))
 	if err != nil {
-        log.Fatalf("Error connecting to mongo: %v", err)
+		log.Fatalf("Error connecting to mongo: %v", err)
 	}
 	collection := client.Database("logs").Collection("log_lines")
 

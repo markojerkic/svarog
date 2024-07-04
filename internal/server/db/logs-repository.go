@@ -22,7 +22,9 @@ type LastCursor struct {
 }
 
 type AggregatingLogServer interface {
-	Run(lines chan *rpc.LogLine)
+	Run(logIngestChannel <-chan *rpc.LogLine)
+	IsBacklogEmpty() bool
+	BacklogCount() int
 }
 
 type LogServer struct {
@@ -64,52 +66,18 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 }
 
 func (self *LogServer) dumpBacklog() {
-	if !self.backlog.isNotEmpty() {
+	if self.backlog.isEmpty() {
 		return
 	}
 
 	self.repository.SaveLogs(self.backlog.getLogs())
 }
 
-var backlogLimit = 1000
-
-type Backlog struct {
-	logs  []interface{}
-	index int
-}
-
-func (self *Backlog) getLogs() []interface{} {
-	logs := self.logs[:self.index]
-
-	self.index = 0
-
-	return logs
-}
-
-func (self *Backlog) add(log interface{}) {
-	self.logs[self.index] = log
-	self.index = (self.index + 1) % backlogLimit
-}
-
-func (self *Backlog) isNotEmpty() bool {
-	return self.index > 0
-}
-
-func (self *Backlog) isFull() bool {
-	return self.index == backlogLimit-1
-}
-
-func newBacklog() *Backlog {
-	return &Backlog{
-		logs:  make([]interface{}, backlogLimit),
-		index: 0,
-	}
-}
-
-func (self *LogServer) Run(lines chan *rpc.LogLine) {
+func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
+	slog.Debug("Starting log server")
 	for {
 		select {
-		case line := <-lines:
+		case line := <-logIngestChannel:
 			logLine := &StoredLog{
 				LogLine:        line.Message,
 				LogLevel:       *line.Level.Enum(),
@@ -132,7 +100,15 @@ func (self *LogServer) Run(lines chan *rpc.LogLine) {
 
 		case <-self.ctx.Done():
 			slog.Debug("Context done")
-			return
+            break;
 		}
 	}
+}
+
+func (self *LogServer) IsBacklogEmpty() bool {
+	return self.backlog.isEmpty()
+}
+
+func (self *LogServer) BacklogCount() int {
+	return self.backlog.index
 }
