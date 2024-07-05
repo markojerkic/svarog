@@ -94,7 +94,7 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 		logIngestChannel <- &rpc.LogLine{
 			Message:   fmt.Sprintf("Log line %d", i),
 			Timestamp: timestamppb.New(time.Now()),
-			Sequence:  int64(i) % 1000,
+			Sequence:  int64(i) % 100_000,
 			Level:     rpc.LogLevel_INFO,
 			Client:    "marko",
 		}
@@ -105,7 +105,7 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 	}
 }
 
-var numberOfImportedLogs = int64(3e6)
+var numberOfImportedLogs = int64(1_000_000)
 
 func (suite *MassImportTestSuite) TestSaveLogs() {
 	t := suite.T()
