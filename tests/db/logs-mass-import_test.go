@@ -6,8 +6,6 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	"regexp"
-	"strconv"
 	"testing"
 	"time"
 
@@ -162,8 +160,7 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) db.LastCursor {
 	for _, log := range logPage {
 		if ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine); !ok {
-			i, _ = strconv.Atoi(regexp.MustCompile(`\d+`).FindString(log.LogLine))
-			i++
+            t.Fail()
 		}
 
 		i--
