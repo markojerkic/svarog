@@ -9,10 +9,10 @@ import (
 )
 
 type LogsByClientBinding struct {
-	ClientId   string  `param:"clientId"`
-	CursorTime *int64  `query:"cursorTime"`
-	CursorId   *string `query:"cursorId"`
-	Direction  *string `query:"direction"`
+	ClientId             string  `param:"clientId"`
+	CursorTime           *int64  `query:"cursorTime"`
+	CursorSequenceNumber *int    `query:"sequenceNumber"`
+	Direction            *string `query:"direction"`
 }
 
 type LogLine struct {
@@ -39,11 +39,11 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	slog.Debug("params", slog.Any("params", params))
 
 	var nextCursor db.LastCursor
-	if params.CursorTime != nil && params.CursorId != nil {
+	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
 		nextCursor = db.LastCursor{
-			Timestamp:  time.UnixMilli(*params.CursorTime),
-			ID:         *params.CursorId,
-			IsBackward: *params.Direction == "backward",
+			Timestamp:      time.UnixMilli(*params.CursorTime),
+			SequenceNumber: *params.CursorSequenceNumber,
+			IsBackward:     *params.Direction == "backward",
 		}
 	}
 

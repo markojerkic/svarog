@@ -149,10 +149,12 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= 300
-		if index <= 0 {
+		if index <= 0 || lastCursorPtr == nil {
 			break
 		}
 	}
+
+	assert.LessOrEqual(t, index, 0, "Finished checking logs prematurely")
 
 }
 
@@ -165,11 +167,15 @@ func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) *d
 		i--
 	}
 
+	if len(logPage) == 0 {
+		return nil
+	}
+
 	lastLogLine := logPage[len(logPage)-1]
 
 	return &db.LastCursor{
-		ID:         lastLogLine.ID.Hex(),
-		Timestamp:  lastLogLine.Timestamp,
-		IsBackward: true,
+		SequenceNumber: int(lastLogLine.SequenceNumber),
+		Timestamp:      lastLogLine.Timestamp,
+		IsBackward:     true,
 	}
 }

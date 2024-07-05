@@ -17,9 +17,9 @@ type LogRepository interface {
 }
 
 type LastCursor struct {
-	Timestamp  time.Time
-	ID         string
-	IsBackward bool
+	Timestamp      time.Time
+	SequenceNumber int
+	IsBackward     bool
 }
 
 type AggregatingLogServer interface {

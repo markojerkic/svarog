@@ -46,7 +46,8 @@ func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 	return clients, nil
 }
 
-var logsByClient = bson.D{{"_id", 1}, {"log_line", 1}, {"timestamp", 1}}
+// Can be useful if we want to drop clientId for some reason
+var logsByClient = bson.D{}
 
 // GetLogs implements LogRepository.
 func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor) ([]StoredLog, error) {
@@ -62,10 +63,6 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
 		slog.Debug("Adding timestamp cursor", slog.Any("cursor", *lastCursor))
 
-		objectId, err := primitive.ObjectIDFromHex(lastCursor.ID)
-		if err != nil {
-			return nil, err
-		}
 		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
 
 		var direction string
@@ -78,8 +75,15 @@ func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor)
 
 		filter = bson.D{
 			{"client.client_id", clientId},
-			{"timestamp", bson.D{{direction, timestamp}}},
-			{"_id", bson.D{{direction, objectId}}},
+			{"$or", bson.A{
+				bson.D{
+					{"timestamp", bson.D{{direction, timestamp}}},
+				},
+				bson.D{
+					{"timestamp", timestamp},
+					{"sequence_number", bson.D{{direction, lastCursor.SequenceNumber}}},
+				},
+			}},
 		}
 
 	} else {
