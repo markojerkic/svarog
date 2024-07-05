@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -94,7 +95,7 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 		logIngestChannel <- &rpc.LogLine{
 			Message:   fmt.Sprintf("Log line %d", i),
 			Timestamp: timestamppb.New(time.Now()),
-			Sequence:  int64(i) % 100_000,
+			Sequence:  int64(i) % math.MaxInt64,
 			Level:     rpc.LogLevel_INFO,
 			Client:    "marko",
 		}
@@ -142,13 +143,14 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 	// Check all logs if they're in correct order
 
 	index := int(numberOfImportedLogs)
+	pageSize := 100_000
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs("marko", lastCursorPtr)
+		logPage, err := suite.mongoRepository.GetLogs("marko", int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
-		index -= 300
+		index -= pageSize
 		if index <= 0 || lastCursorPtr == nil {
 			break
 		}

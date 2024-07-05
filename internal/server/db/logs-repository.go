@@ -12,7 +12,7 @@ import (
 
 type LogRepository interface {
 	SaveLogs(logs []interface{}) error
-	GetLogs(clientId string, cursor *LastCursor) ([]StoredLog, error)
+	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]StoredLog, error)
 	GetClients() ([]AvailableClient, error)
 }
 

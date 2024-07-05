@@ -50,12 +50,12 @@ func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 var logsByClient = bson.D{}
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(clientId string, lastCursor *LastCursor) ([]StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	sortDirection := -1
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(300).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
+	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
 
 	clientIdFilter := bson.D{{"client.client_id", clientId}}
 	var filter bson.D

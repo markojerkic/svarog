@@ -27,6 +27,8 @@ type LogsRouter struct {
 	api           *echo.Group
 }
 
+var DEFAULT_PAGE_SIZE = int64(300)
+
 func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	var params LogsByClientBinding
 
@@ -48,7 +50,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	}
 
 	slog.Debug("next", slog.Any("cursor", nextCursor))
-	logs, err := self.logRepository.GetLogs(params.ClientId, &nextCursor)
+	logs, err := self.logRepository.GetLogs(params.ClientId, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
 		return err
