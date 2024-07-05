@@ -7,6 +7,7 @@ import (
 type Backlog interface {
 	getLogs() <-chan []interface{}
 	addToBacklog(log interface{})
+	addAllToBacklog(logs []interface{})
 	forceDump()
 	isEmpty() bool
 	isFull() bool
@@ -76,6 +77,18 @@ func (self *IBacklog) addToBacklog(log interface{}) {
 
 }
 
+func (self *IBacklog) addAllToBacklog(logs []interface{}) {
+	self.Lock()
+	defer self.Unlock()
+
+	for _, log := range logs {
+		self.workingLogs[self.index] = log
+		self.index = (self.index + 1) % backlogLimit
+	}
+
+	self.forceDump()
+}
+
 func (self *IBacklog) isEmpty() bool {
 	self.Lock()
 	defer self.Unlock()
@@ -90,12 +103,12 @@ func (self *IBacklog) isFull() bool {
 	return self.index == backlogLimit-1
 }
 
-func newBacklog() Backlog {
+func newBacklog(backlogSize int) Backlog {
 	return &IBacklog{
 		sync.Mutex{},
 		sync.Mutex{},
 		make([]interface{}, backlogLimit),
-		make(chan []interface{}, 1024*1024),
+		make(chan []interface{}, backlogSize),
 		0,
 	}
 }

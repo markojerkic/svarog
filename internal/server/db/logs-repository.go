@@ -62,7 +62,7 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 		ctx:        ctx,
 		repository: dbClient,
 		logs:       make(chan *StoredLog, 1024*1024),
-		backlog:    newBacklog(),
+		backlog:    newBacklog(1024*1024),
 	}
 }
 
