@@ -41,18 +41,25 @@ func (self *IBacklog) count() int {
 	return self.index
 }
 
-func (self *IBacklog) forceDump() {
+func (self *IBacklog) dump(index int) {
 	self.dumpLock.Lock()
 	defer self.dumpLock.Unlock()
 
-	logsToBeDumped := make([]interface{}, self.index)
-	copy(logsToBeDumped, self.workingLogs[:self.index])
+	logsToBeDumped := make([]interface{}, index)
+	copy(logsToBeDumped, self.workingLogs[0:index])
 
 	if len(logsToBeDumped) == 0 {
 		return
 	}
 
 	self.backlog <- logsToBeDumped
+}
+
+func (self *IBacklog) forceDump() {
+	self.Lock()
+	defer self.Unlock()
+
+	self.dump(self.index)
 	self.index = 0
 }
 
@@ -61,11 +68,11 @@ func (self *IBacklog) addToBacklog(log interface{}) {
 	defer self.Unlock()
 
 	self.workingLogs[self.index] = log
-
-	if self.index == backlogLimit-1 {
-		self.forceDump()
-	}
 	self.index = (self.index + 1) % backlogLimit
+
+	if self.index == 0 {
+		self.dump(backlogLimit)
+	}
 
 }
 
