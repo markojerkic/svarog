@@ -138,37 +138,36 @@ func (suite *MassImportTestSuite) TestSaveLogs() {
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
 	suite.logServerContext.Done()
 
+	// SECOND PART OF THE TEST
 	// Check all logs if they're in correct order
-	logPage, err := suite.mongoRepository.GetLogs("marko", nil)
-	assert.NoError(t, err)
-	index := int(numberOfImportedLogs)
-	lastCursor := validateLogListIsRightOrder(logPage, index, t)
-	index -= 300
 
+	index := int(numberOfImportedLogs)
+
+	var lastCursorPtr *db.LastCursor
 	for {
+		logPage, err := suite.mongoRepository.GetLogs("marko", lastCursorPtr)
+		assert.NoError(t, err)
+		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
+		index -= 300
 		if index <= 0 {
 			break
 		}
-
-		logPage, err = suite.mongoRepository.GetLogs("marko", &lastCursor)
-		validateLogListIsRightOrder(logPage, index, t)
-		index -= 300
 	}
 
 }
 
-func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) db.LastCursor {
+func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) *db.LastCursor {
 	for _, log := range logPage {
-		if ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine); !ok {
-            t.Fail()
+		ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine)
+		if !ok {
+			t.FailNow()
 		}
-
 		i--
 	}
 
 	lastLogLine := logPage[len(logPage)-1]
 
-	return db.LastCursor{
+	return &db.LastCursor{
 		ID:         lastLogLine.ID.Hex(),
 		Timestamp:  lastLogLine.Timestamp,
 		IsBackward: true,
