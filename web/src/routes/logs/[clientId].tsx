@@ -114,7 +114,7 @@ export default () => {
 							{(virtualItem) => {
 								const item = () => {
 									logs.logStore.size;
-									return `${virtualItem.index} ${logs.logStore.get(virtualItem.index)?.content}`;
+									return logs.logStore.get(virtualItem.index)?.content;
 								};
 
 								return (

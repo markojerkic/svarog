@@ -88,7 +88,7 @@ func (self *GrpcClient) connect() {
 			continue
 		}
 		self.stream = stream
-        break
+		break
 
 	}
 }
