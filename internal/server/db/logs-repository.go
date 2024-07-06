@@ -33,7 +33,7 @@ type LogServer struct {
 	repository LogRepository
 
 	logs    chan *StoredLog
-	backlog Backlog
+	backlog Backlog[any]
 }
 
 var _ AggregatingLogServer = &LogServer{}
@@ -45,7 +45,7 @@ type AvailableClient struct {
 
 type StoredClient struct {
 	ClientId  string `bson:"client_id" json:"clientId"`
-	IpAddress string `bson:"ip_address" json:"ipAddress`
+	IpAddress string `bson:"ip_address" json:"ipAddress"`
 }
 
 type StoredLog struct {
@@ -62,7 +62,7 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 		ctx:        ctx,
 		repository: dbClient,
 		logs:       make(chan *StoredLog, 1024*1024),
-		backlog:    newBacklog(1024 * 1024),
+		backlog:    NewBacklog[any](1024 * 1024),
 	}
 }
 
@@ -88,14 +88,14 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 					IpAddress: "::1",
 				},
 			}
-			self.backlog.addToBacklog(logLine)
+			self.backlog.AddToBacklog(logLine)
 
-		case logsToSave := <-self.backlog.getLogs():
+		case logsToSave := <-self.backlog.GetLogs():
 			go self.dumpBacklog(logsToSave)
 
 		case <-time.After(5 * time.Second):
 			slog.Debug("Dumping backlog after timeout")
-			self.backlog.forceDump()
+			self.backlog.ForceDump()
 
 		case <-self.ctx.Done():
 			slog.Debug("Context done")
@@ -105,9 +105,9 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 }
 
 func (self *LogServer) IsBacklogEmpty() bool {
-	return self.backlog.isEmpty()
+	return self.backlog.IsEmpty()
 }
 
 func (self *LogServer) BacklogCount() int {
-	return self.backlog.count()
+	return self.backlog.Count()
 }

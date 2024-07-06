@@ -1,86 +1,57 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/markojerkic/svarog/cmd/client/reader"
-	"github.com/markojerkic/svarog/cmd/client/reporter"
+	"github.com/markojerkic/svarog/cmd/client/retry"
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/server/db"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func readStdin(input chan *reader.Line, done chan bool) {
+func readStdin(clientId string, output chan *rpc.LogLine) {
 	readers := []reader.Reader{
-		reader.NewReader(os.Stdin, input),
-		reader.NewReader(os.Stderr, input),
+		reader.NewReader(os.Stdin, clientId, output),
+		reader.NewReader(os.Stderr, clientId, output),
 	}
 
-	numClosed := 0
-	closed := make(chan string, len(readers))
+	waitGroup := &sync.WaitGroup{}
 
 	for _, reader := range readers {
-		go reader.Run(closed)
+		go reader.Run(context.Background(), waitGroup)
 	}
 
-	for {
-		closedFile := <-closed
-		slog.Debug("Closed file", slog.String("file", closedFile))
-		numClosed++
-		if closedFile == os.Stdin.Name() || numClosed == len(readers) {
-			done <- true
-			return
-		}
-	}
-
+	waitGroup.Wait()
 }
 
-func sendLog(reporter reporter.Reporter, input chan *reader.Line) {
-	var logLine *reader.Line
-	var logLevel rpc.LogLevel
-	var sequenceNumber int64 = 0
-
-	for {
-		logLine = <-input
-
-		// Channel closed, done
-		if logLine == nil {
-			break
-		}
-
-		fmt.Println(logLine.LogLine)
-
-		if logLine.IsError {
-			logLevel = rpc.LogLevel_ERROR
-		} else {
-			logLevel = rpc.LogLevel_INFO
-		}
-
-		reporter.ReportLogLine(&rpc.LogLine{
-			Message:   logLine.LogLine,
-			Level:     logLevel,
-			Timestamp: timestamppb.New(logLine.Timestamp),
-			Client:    reporter.GetClientId(),
-			Sequence:  sequenceNumber,
-		})
-
-		sequenceNumber++
-		sequenceNumber = sequenceNumber % 1000
-	}
+type Env struct {
+	debugLogEnabled bool
+	serverAddr      string
+	clientId        string
 }
 
-func main() {
+func getEnv() Env {
 	debugLogEnabled := flag.Bool("debug", false, "Enable debug mode")
 	serverAddr := flag.String("server", ":50051", "Server address")
 	clientId := flag.String("clientId", "client", "Client ID")
 	flag.Parse()
 
+	return Env{
+		debugLogEnabled: *debugLogEnabled,
+		serverAddr:      *serverAddr,
+		clientId:        *clientId,
+	}
+}
+
+func configureLogging(env Env) {
 	opts := &slog.HandlerOptions{}
 
-	if *debugLogEnabled {
+	if env.debugLogEnabled {
 		opts.Level = slog.LevelDebug
 	} else {
 		opts.Level = slog.LevelInfo
@@ -89,14 +60,26 @@ func main() {
 	handler := slog.NewJSONHandler(os.Stdout, opts)
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
+}
 
-	inputQueue := make(chan *reader.Line, 1024*100)
-	done := make(chan bool)
+func main() {
+	env := getEnv()
+	configureLogging(env)
 
-	reporter := reporter.NewGrpcReporter(*serverAddr, *clientId, insecure.NewCredentials())
+	processedLines := make(chan *rpc.LogLine, 1024*100)
 
-	go sendLog(reporter, inputQueue)
-	go readStdin(inputQueue, done)
+	backlog := db.NewBacklog[*rpc.LogLine](1024 * 1024)
+	retryService := retry.NewRetry(backlog.GetLogs(), 5)
+	grpcClient := NewClient(env.serverAddr, insecure.NewCredentials())
 
-	<-done
+	go retryService.Run(context.Background(), func(ll []*rpc.LogLine) {
+		for _, line := range ll {
+			processedLines <- line
+		}
+	})
+	go grpcClient.Run(context.Background(), processedLines, func(ll *rpc.LogLine) {
+		backlog.AddToBacklog(ll)
+	})
+
+	readStdin(env.clientId, processedLines)
 }

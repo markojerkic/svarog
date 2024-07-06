@@ -11,8 +11,9 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+type ReturnToBacklog func(*rpc.LogLine)
 type Client interface {
-	Run(context.Context, <-chan *rpc.LogLine, chan<- *rpc.LogLine)
+	Run(context.Context, <-chan *rpc.LogLine, ReturnToBacklog)
 	connect()
 }
 
@@ -28,7 +29,7 @@ type GrpcClient struct {
 var _ Client = &GrpcClient{}
 
 // Run implements Client.
-func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, returnToBacklog chan<- *rpc.LogLine) {
+func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, returnToBacklog ReturnToBacklog) {
 	go self.connect()
 	for {
 		select {
@@ -39,7 +40,7 @@ func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, retu
 			err := self.stream.Send(logLine)
 			if err != nil {
 				slog.Debug("Failed to send log line to server", slog.Any("error", err))
-				returnToBacklog <- logLine
+				returnToBacklog(logLine)
 				go self.connect()
 			}
 		}

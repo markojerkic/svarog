@@ -8,24 +8,24 @@ import (
 )
 
 type RetryService interface {
-	Run(context.Context, chan<- []rpc.LogLine)
-	RetryChan() <-chan []rpc.LogLine
+	Run(context.Context, func([]*rpc.LogLine))
+	RetryChan() <-chan []*rpc.LogLine
 }
 
 type Retry struct {
-	backlogInput <-chan []rpc.LogLine
+	backlogInput <-chan []*rpc.LogLine
 	pollInterval int
 
-	backlog []rpc.LogLine
+	backlog []*rpc.LogLine
 }
 
 var _ RetryService = &Retry{}
 
-func (r *Retry) RetryChan() <-chan []rpc.LogLine {
+func (r *Retry) RetryChan() <-chan []*rpc.LogLine {
 	return r.backlogInput
 }
 
-func (r *Retry) Run(ctx context.Context, output chan<- []rpc.LogLine) {
+func (r *Retry) Run(ctx context.Context, output func([]*rpc.LogLine)) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -33,17 +33,17 @@ func (r *Retry) Run(ctx context.Context, output chan<- []rpc.LogLine) {
 		case lines := <-r.backlogInput:
 			r.backlog = append(r.backlog, lines...)
 		case <-time.After(time.Duration(r.pollInterval) * time.Second):
-			output <- r.backlog
+			output(r.backlog)
 		}
 
 	}
 }
 
-func NewRetry(backlog <-chan []rpc.LogLine, pollInterval int) RetryService {
+func NewRetry(backlog <-chan []*rpc.LogLine, pollIntervalSec int) RetryService {
 	return &Retry{
 		backlogInput: backlog,
-		pollInterval: pollInterval,
+		pollInterval: pollIntervalSec,
 
-		backlog: make([]rpc.LogLine, 0, 1000),
+		backlog: make([]*rpc.LogLine, 0, 1000),
 	}
 }
