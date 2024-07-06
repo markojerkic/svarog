@@ -16,9 +16,11 @@ type LogsByClientBinding struct {
 }
 
 type LogLine struct {
-	ID        string `json:"id"`
-	Timestamp int64  `json:"timestamp"`
-	Content   string `json:"content"`
+	ID             string          `json:"id"`
+	Timestamp      int64           `json:"timestamp"`
+	Content        string          `json:"content"`
+	SequenceNumber int64           `json:"sequenceNumber"`
+	Client         db.StoredClient `json:"client"`
 }
 
 type LogsRouter struct {
@@ -63,6 +65,8 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 			log.ID.Hex(),
 			log.Timestamp.UnixMilli(),
 			log.LogLine,
+			log.SequenceNumber,
+			log.Client,
 		}
 	}
 

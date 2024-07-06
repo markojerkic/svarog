@@ -44,8 +44,8 @@ type AvailableClient struct {
 }
 
 type StoredClient struct {
-	ClientId  string `bson:"client_id"`
-	IpAddress string `bson:"ip_address"`
+	ClientId  string `bson:"client_id" json:"clientId"`
+	IpAddress string `bson:"ip_address" json:"ipAddress`
 }
 
 type StoredLog struct {
@@ -62,7 +62,7 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 		ctx:        ctx,
 		repository: dbClient,
 		logs:       make(chan *StoredLog, 1024*1024),
-		backlog:    newBacklog(1024*1024),
+		backlog:    newBacklog(1024 * 1024),
 	}
 }
 

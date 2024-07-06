@@ -42,4 +42,31 @@ describe("Sorted list", () => {
 
 		expect(list.size).toBe(5);
 	});
+
+	it("Has correct head and tail", () => {
+		const list = new SortedList<number>((a, b) => a - b);
+		list.insert(5);
+		list.insert(1);
+		list.insert(3);
+		list.insert(2);
+		list.insert(4);
+
+		expect(list.getHead()?.value).toBe(1);
+		expect(list.getTail()?.value).toBe(5);
+	});
+
+	it("Head and tail are equal if only one element", () => {
+		const list = new SortedList<number>((a, b) => a - b);
+		list.insert(5);
+
+		expect(list.getTail()).toBe(list.getHead());
+	});
+
+	it("Head and tail null if empty list", () => {
+		const list = new SortedList<number>((a, b) => a - b);
+
+		expect(list.size).toBe(0);
+		expect(list.getHead()).toBeNull();
+		expect(list.getTail()).toBeNull();
+	});
 });

@@ -3,7 +3,7 @@ import { For, Suspense } from "solid-js";
 
 const getClients = cache(async () => {
 	const response = await fetch("http://localhost:1323/api/v1/clients");
-	return response.json() as Promise<{ Client: { ClientId: number } }[]>;
+	return response.json() as Promise<{ Client: { clientId: number } }[]>;
 }, "clients");
 
 export const route = {
@@ -22,10 +22,10 @@ export default function Home() {
 					{(client) => (
 						<div>
 							<A
-								href={`/logs/${client.Client.ClientId}`}
+								href={`/logs/${client.Client.clientId}`}
 								class="text-blue-500 hover:underline"
 							>
-								Client {client.Client.ClientId}
+								Client {client.Client.clientId}
 							</A>
 						</div>
 					)}

@@ -25,5 +25,9 @@ run-server: build-server-dev
 build-dev: build-server-dev
 build: build-client build-server
 
-test:
+test-server:
 	go test ./tests/... -v
+test-web:
+	cd web && bun test
+
+test: test-server test-web
