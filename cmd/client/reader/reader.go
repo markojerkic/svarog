@@ -3,6 +3,7 @@ package reader
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"sync"
@@ -34,15 +35,15 @@ type ReaderImpl struct {
 }
 
 func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
-	waitGroup.Add(1)
 	defer waitGroup.Done()
 
+	var logLine *rpc.LogLine
 	i := 0
 	for r.hasNext() {
 		line, err := r.next()
 		timestamp := time.Now()
 		if err != nil {
-			r.output <- &rpc.LogLine{
+			logLine = &rpc.LogLine{
 				Client:    r.clientId,
 				Message:   err.Error(),
 				Level:     rpc.LogLevel_ERROR,
@@ -50,7 +51,7 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 				Sequence:  int64(i),
 			}
 		} else {
-			r.output <- &rpc.LogLine{
+			logLine = &rpc.LogLine{
 				Client:    r.clientId,
 				Message:   line,
 				Level:     rpc.LogLevel_INFO,
@@ -58,6 +59,8 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 				Sequence:  int64(i),
 			}
 		}
+		fmt.Println(logLine.Message)
+		r.output <- logLine
 		i = (i + 1) % math.MaxInt64
 	}
 
@@ -77,5 +80,10 @@ func (r *ReaderImpl) next() (string, error) {
 }
 
 func NewReader(input *os.File, clientId string, output chan *rpc.LogLine) Reader {
-	return &ReaderImpl{bufio.NewScanner(input), input, output, input.Name(), clientId}
+	return &ReaderImpl{bufio.NewScanner(input),
+		input,
+		output,
+		input.Name(),
+		clientId,
+	}
 }

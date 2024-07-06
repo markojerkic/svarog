@@ -23,6 +23,7 @@ func readStdin(clientId string, output chan *rpc.LogLine) {
 	waitGroup := &sync.WaitGroup{}
 
 	for _, reader := range readers {
+		waitGroup.Add(1)
 		go reader.Run(context.Background(), waitGroup)
 	}
 
