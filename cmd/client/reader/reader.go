@@ -46,7 +46,6 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 			logLine = &rpc.LogLine{
 				Client:    r.clientId,
 				Message:   err.Error(),
-				Level:     rpc.LogLevel_ERROR,
 				Timestamp: timestamppb.New(timestamp),
 				Sequence:  int64(i),
 			}
@@ -54,7 +53,6 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 			logLine = &rpc.LogLine{
 				Client:    r.clientId,
 				Message:   line,
-				Level:     rpc.LogLevel_INFO,
 				Timestamp: timestamppb.New(timestamp),
 				Sequence:  int64(i),
 			}

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -78,7 +77,6 @@ func (s *MongoDbSTestSuite) TestAddClient() {
 				ClientId:  "marko",
 				IpAddress: "::1",
 			},
-			LogLevel:  rpc.LogLevel_INFO,
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
@@ -87,7 +85,6 @@ func (s *MongoDbSTestSuite) TestAddClient() {
 				ClientId:  "jerkić",
 				IpAddress: "::1",
 			},
-			LogLevel:  rpc.LogLevel_INFO,
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
 		},

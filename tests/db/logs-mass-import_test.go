@@ -96,7 +96,6 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 			Message:   fmt.Sprintf("Log line %d", i),
 			Timestamp: timestamppb.New(time.Now()),
 			Sequence:  int64(i) % math.MaxInt64,
-			Level:     rpc.LogLevel_INFO,
 			Client:    "marko",
 		}
 

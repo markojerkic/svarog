@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v3.12.4
-// source: proto/schema.proto
+// source: internal/proto/schema.proto
 
 package rpc
 
@@ -191,5 +191,5 @@ var LoggAggregator_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/schema.proto",
+	Metadata: "internal/proto/schema.proto",
 }

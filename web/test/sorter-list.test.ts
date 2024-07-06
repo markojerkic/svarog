@@ -52,7 +52,7 @@ describe("Sorted list", () => {
 		list.insert(4);
 
 		expect(list.getHead()?.value).toBe(1);
-		expect(list.getHead()?.value).toBe(5);
+		expect(list.getTail()?.value).toBe(5);
 	});
 
 	it("Has correct head and tail with reverse sort", () => {
@@ -64,7 +64,7 @@ describe("Sorted list", () => {
 		list.insert(4);
 
 		expect(list.getHead()?.value).toBe(5);
-		expect(list.getHead()?.value).toBe(1);
+		expect(list.getTail()?.value).toBe(1);
 	});
 
 	it("Has correct head and tail with multiple input lines", () => {
@@ -74,7 +74,7 @@ describe("Sorted list", () => {
 		list.insertMany([1, 3, 2, 4]);
 
 		expect(list.getHead()?.value).toBe(5);
-		expect(list.getHead()?.value).toBe(1);
+		expect(list.getTail()?.value).toBe(1);
 	});
 
 	it("Has correct items after insert many", () => {

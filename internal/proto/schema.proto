@@ -27,19 +27,11 @@ service LoggAggregator {
 
 message Void {}
 
-enum LogLevel {
-  DEBUG = 0;
-  INFO = 1;
-  WARNING = 2;
-  ERROR = 3;
-}
-
 message LogLine {
   string client = 1;
   string message = 2;
-  LogLevel level = 3;
-  google.protobuf.Timestamp timestamp = 4;
-  int64 sequence = 5;
+  google.protobuf.Timestamp timestamp = 3;
+  int64 sequence = 4;
 }
 
 message Backlog { repeated LogLine logs = 1; }

@@ -51,7 +51,6 @@ type StoredClient struct {
 type StoredLog struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty"`
 	LogLine        string             `bson:"log_line"`
-	LogLevel       rpc.LogLevel       `bson:"log_level"`
 	Timestamp      time.Time          `bson:"timestamp"`
 	Client         StoredClient       `bson:"client"`
 	SequenceNumber int64              `bson:"sequence_number"`
@@ -80,7 +79,6 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 		case line := <-logIngestChannel:
 			logLine := &StoredLog{
 				LogLine:        line.Message,
-				LogLevel:       *line.Level.Enum(),
 				Timestamp:      line.Timestamp.AsTime(),
 				SequenceNumber: line.Sequence,
 				Client: StoredClient{

@@ -73,13 +73,15 @@ func main() {
 	retryService := retry.NewRetry(backlog.GetLogs(), 5)
 	grpcClient := NewClient(env.serverAddr, insecure.NewCredentials())
 
-	go retryService.Run(context.Background(), func(ll []*rpc.LogLine) {
-		for _, line := range ll {
-			processedLines <- line
+	go retryService.Run(context.Background(), func(logLines []*rpc.LogLine) {
+		err := grpcClient.BatchSend(logLines)
+		if err != nil {
+			slog.Info("Failed to retry batch insert. Returing to backlog")
+			backlog.AddAllToBacklog(logLines)
 		}
 	})
-	go grpcClient.Run(context.Background(), processedLines, func(ll *rpc.LogLine) {
-		backlog.AddToBacklog(ll)
+	go grpcClient.Run(context.Background(), processedLines, func(logLines *rpc.LogLine) {
+		backlog.AddToBacklog(logLines)
 	})
 
 	readStdin(env.clientId, processedLines)

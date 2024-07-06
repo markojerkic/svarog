@@ -14,6 +14,7 @@ import (
 type ReturnToBacklog func(*rpc.LogLine)
 type Client interface {
 	Run(context.Context, <-chan *rpc.LogLine, ReturnToBacklog)
+	BatchSend([]*rpc.LogLine) error
 	connect()
 }
 
@@ -22,6 +23,7 @@ type GrpcClient struct {
 	credentials   credentials.TransportCredentials
 	connection    *grpc.ClientConn
 	stream        rpc.LoggAggregator_LogClient
+	client        rpc.LoggAggregatorClient
 
 	mutex sync.Mutex
 }
@@ -46,6 +48,17 @@ func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, retu
 		}
 
 	}
+}
+
+// BatchSend implements Client.
+func (self *GrpcClient) BatchSend(lines []*rpc.LogLine) error {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+
+	_, err := self.client.BatchLog(context.Background(), &rpc.Backlog{
+		Logs: lines,
+	})
+	return err
 }
 
 // connect implements Client.
@@ -81,8 +94,8 @@ func (self *GrpcClient) connect() {
 		}
 		self.connection = conn
 
-		client := rpc.NewLoggAggregatorClient(self.connection)
-		stream, err := client.Log(context.Background(), grpc.EmptyCallOption{})
+		self.client = rpc.NewLoggAggregatorClient(self.connection)
+		stream, err := self.client.Log(context.Background(), grpc.EmptyCallOption{})
 		if err != nil {
 			slog.Debug("Failed to open stream to server", slog.Any("error", err))
 			continue
