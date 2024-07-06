@@ -15,6 +15,7 @@ import (
 
 type Reporter interface {
 	// ReportLogLine sends a log line to the server.
+	//
 	// If error occurs, it will be added to the backlog.
 	ReportLogLine(line *rpc.LogLine)
 	// Used to send the backlog to the server.
