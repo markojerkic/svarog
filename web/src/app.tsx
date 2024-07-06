@@ -9,21 +9,21 @@ import { SolidQueryDevtools } from "@tanstack/solid-query-devtools";
 const queryClient = new QueryClient();
 
 export default function App() {
-    return (
-        <QueryClientProvider client={queryClient}>
-            <Router
-                root={props => (
-                    <>
-                        <Nav />
-                        <Suspense>{props.children}</Suspense>
-                    </>
-                )}
-            >
-                <FileRoutes />
-            </Router>
-            <Show when={import.meta.env.DEV}>
-                <SolidQueryDevtools />
-            </Show>
-        </QueryClientProvider>
-    );
+	return (
+		<QueryClientProvider client={queryClient}>
+			<Router
+				root={(props) => (
+					<>
+						<Nav />
+						<Suspense>{props.children}</Suspense>
+					</>
+				)}
+			>
+				<FileRoutes />
+			</Router>
+			<Show when={import.meta.env.DEV}>
+				<SolidQueryDevtools />
+			</Show>
+		</QueryClientProvider>
+	);
 }

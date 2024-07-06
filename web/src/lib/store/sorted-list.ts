@@ -1,3 +1,5 @@
+import { createStore } from "solid-js/store";
+
 class TreeNode<T> {
 	value: T;
 	left: TreeNode<T> | null = null;
@@ -11,7 +13,7 @@ class TreeNode<T> {
 export class SortedList<T> {
 	private root: TreeNode<T> | null = null;
 	private compare: (a: T, b: T) => number;
-	private count = 0;
+	private countStore = createStore({ count: 0 });
 
 	constructor(compare: (a: T, b: T) => number) {
 		this.compare = compare;
@@ -19,15 +21,15 @@ export class SortedList<T> {
 
 	insert(value: T): void {
 		this.root = this.insertNode(this.root, value);
-		this.count++;
+		this.countStore[1]("count", (prev) => prev + 1);
 	}
 
-	get size(): number {
-		return this.count;
+	get size() {
+		return this.countStore[0].count;
 	}
 
 	get(index: number): T | undefined {
-		if (index < 0 || index >= this.count) {
+		if (index < 0 || index >= this.size) {
 			return undefined;
 		}
 
@@ -47,55 +49,6 @@ export class SortedList<T> {
 		}
 
 		return undefined;
-	}
-
-	getPage(
-		size: number,
-		cursor?: TreeNode<T>,
-	): { items: T[]; nextCursor?: TreeNode<T> } {
-		const result: T[] = [];
-		let count = 0;
-		let foundCursor = false;
-		let nextCursor: TreeNode<T> | undefined;
-
-		function traverse(node: TreeNode<T> | null): void {
-			if (node === null) {
-				return;
-			}
-
-			traverse(node.left);
-
-			if (cursor) {
-				if (!foundCursor) {
-					if (node === cursor) {
-						foundCursor = true;
-					}
-				} else {
-					if (count < size) {
-						result.push(node.value);
-						count++;
-					} else if (!nextCursor) {
-						nextCursor = node;
-					}
-				}
-			} else {
-				if (count < size) {
-					result.push(node.value);
-					count++;
-				} else if (!nextCursor) {
-					nextCursor = node;
-				}
-			}
-
-			traverse(node.right);
-		}
-
-		traverse(this.root);
-
-		return {
-			items: result,
-			nextCursor: count >= size ? nextCursor : undefined,
-		};
 	}
 
 	private countNodes(node: TreeNode<T> | null): number {
