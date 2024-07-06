@@ -25,6 +25,12 @@ run-server: build-server-dev
 build-dev: build-server-dev
 build: build-client build-server
 
+format-go:
+	go fmt ./...
+format-web:
+	cd web && bun format
+format: format-go format-web
+
 test-server:
 	go test ./tests/... -v
 test-web:

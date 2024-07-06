@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/server/db"
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"

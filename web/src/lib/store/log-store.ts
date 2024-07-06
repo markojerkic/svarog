@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/solid-query";
-import { createStore } from "solid-js/store";
+import { createSignal } from "solid-js";
 import { SortedList, treeNodeToCursor } from "~/lib/store/sorted-list";
 
 export type Client = {
@@ -9,7 +9,7 @@ export type Client = {
 export type LogLine = {
 	id: string;
 	timestamp: number;
-    sequenceNumber: number;
+	sequenceNumber: number;
 	content: string;
 	client: Client;
 };
@@ -24,12 +24,11 @@ export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
 export const createLogQuery = (clientId: string) => {
 	const queryClient = useQueryClient();
-	const [states, setStates] = createStore({
-		isPreviousPageLoading: false,
-		isPreviousPageError: false,
-		isNextPageLoading: false,
-		isNextPageError: false,
-	});
+	const [isPreviousPageLoading, setIsPreviousPageLoading] = createSignal(false);
+	const [isPreviousPageError, setIsPreviousPageError] = createSignal(false);
+	const [isNextPageLoading] = createSignal(false);
+	const [isNextPageError] = createSignal(false);
+	const [lastLoadedPageSize, setLastLoadedPageSize] = createSignal(0);
 
 	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
 		"logs",
@@ -37,21 +36,27 @@ export const createLogQuery = (clientId: string) => {
 	]);
 
 	if (!logStore) {
-		logStore = new SortedList<LogLine>((a, b) => a.timestamp - b.timestamp);
+		logStore = new SortedList<LogLine>((a, b) => {
+			const timestampDiff = a.timestamp - b.timestamp;
+			if (timestampDiff !== 0) {
+				return timestampDiff;
+			}
+			return a.sequenceNumber - b.sequenceNumber;
+		});
 		queryClient.setQueryData<SortedList<LogLine>>(["logs", clientId], logStore);
 	}
 
-    const fetchNextPage = async () => {
-        console.warn("Not implemented");
-    }
+	const fetchNextPage = async () => {
+		console.warn("Not implemented");
+	};
 
 	const fetchPreviousPage = async () => {
 		if (!logStore) {
 			throw new Error("Log store not initialized");
 		}
-		setStates("isPreviousPageLoading", true);
+		setIsPreviousPageLoading(true);
 
-		const lastLog = logStore.getTail();
+		const lastLog = logStore.getHead();
 		try {
 			const logs = await queryClient.fetchQuery({
 				queryKey: ["logs", clientId, lastLog?.value],
@@ -59,21 +64,23 @@ export const createLogQuery = (clientId: string) => {
 					return fetchLogs(clientId, treeNodeToCursor(lastLog));
 				},
 			});
+			setLastLoadedPageSize(logs.length);
 			logStore.insertMany(logs);
 		} catch (error) {
-			setStates("isPreviousPageError", true);
+			setIsPreviousPageError(true);
 		}
-		setStates("isPreviousPageLoading", false);
+		setIsPreviousPageLoading(false);
 	};
 
 	return {
 		logStore,
+		lastLoadedPageSize,
 		fetchPreviousPage,
-        fetchNextPage,
-		isPreviousPageLoading: states.isPreviousPageLoading,
-		isPreviousPageError: states.isPreviousPageError,
-		isNextPageLoading: states.isNextPageLoading,
-		isNextPageError: states.isNextPageError,
+		fetchNextPage,
+		isPreviousPageLoading,
+		isPreviousPageError,
+		isNextPageLoading,
+		isNextPageError,
 	};
 };
 

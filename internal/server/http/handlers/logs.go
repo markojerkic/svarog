@@ -11,7 +11,7 @@ import (
 type LogsByClientBinding struct {
 	ClientId             string  `param:"clientId"`
 	CursorTime           *int64  `query:"cursorTime"`
-	CursorSequenceNumber *int    `query:"sequenceNumber"`
+	CursorSequenceNumber *int    `query:"cursorSequenceNumber"`
 	Direction            *string `query:"direction"`
 }
 

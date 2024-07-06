@@ -5,10 +5,11 @@ import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 import { createLogQuery } from "~/lib/store/log-store";
 
 export const route = {
-	load: ({ params }) => {
+	load: async ({ params }) => {
 		const clientId = params.clientId;
 
-		return createLogQuery(clientId);
+		const logData = createLogQuery(clientId);
+		return await logData.fetchPreviousPage();
 	},
 } satisfies RouteDefinition;
 
@@ -50,7 +51,7 @@ export default () => {
 
 	let wasFetchingPreviousPage = false;
 	createEffect(() => {
-		if (logs.isPreviousPageLoading) {
+		if (logs.isPreviousPageLoading()) {
 			wasFetchingPreviousPage = true;
 		} else if (
 			wasFetchingPreviousPage &&
@@ -59,8 +60,7 @@ export default () => {
 		) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
-			const offset = logs.logStore.size - 1;
-			console.log("Scrolling to", offset);
+			const offset = logs.lastLoadedPageSize() - 1;
 			virtualizer.scrollToIndex(offset, { align: "start" });
 		}
 	});
@@ -77,10 +77,10 @@ export default () => {
 				class="bg-green-500 p-1 rounded-md text-white"
 				onClick={() => logs.fetchPreviousPage()}
 				type="button"
-				disabled={!logs.isPreviousPageLoading}
+				disabled={logs.isPreviousPageLoading()}
 			>
 				<Show
-					when={logs.isPreviousPageLoading}
+					when={logs.isPreviousPageLoading()}
 					fallback={"Fetch previous page"}
 				>
 					<span class="animate-bounce">...</span>
@@ -112,8 +112,10 @@ export default () => {
 						<div id="top" ref={topRef} />
 						<For each={virtualizer.getVirtualItems()}>
 							{(virtualItem) => {
-								const item = () =>
-									logs.logStore.get(virtualItem.index)?.content;
+								const item = () => {
+									logs.logStore.size;
+									return `${virtualItem.index} ${logs.logStore.get(virtualItem.index)?.content}`;
+								};
 
 								return (
 									<div
@@ -136,7 +138,7 @@ export default () => {
 				class="bg-blue-500 p-1 rounded-md text-white"
 				onClick={() => logs.fetchNextPage()}
 				type="button"
-				disabled={!logs.isNextPageLoading}
+				disabled={logs.isNextPageLoading()}
 			>
 				Fetch next
 			</button>

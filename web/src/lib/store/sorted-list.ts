@@ -1,3 +1,4 @@
+import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { LogLine, LogPageCursor } from "~/lib/store/log-store";
 
@@ -18,9 +19,9 @@ export function treeNodeToCursor(
 	}
 
 	return {
-		cursorSequenceNumber: node.value.timestamp,
+		cursorSequenceNumber: node.value.sequenceNumber,
 		cursorTime: node.value.timestamp,
-		direction: "forward",
+		direction: "backward",
 	};
 }
 
