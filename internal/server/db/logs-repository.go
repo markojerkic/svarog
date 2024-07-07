@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -33,7 +34,7 @@ type LogServer struct {
 	repository LogRepository
 
 	logs    chan *StoredLog
-	backlog Backlog[any]
+	backlog backlog.Backlog[any]
 }
 
 var _ AggregatingLogServer = &LogServer{}
@@ -61,7 +62,7 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 		ctx:        ctx,
 		repository: dbClient,
 		logs:       make(chan *StoredLog, 1024*1024),
-		backlog:    NewBacklog[any](1024 * 1024),
+		backlog:    backlog.NewBacklog[any](1024 * 1024),
 	}
 }
 

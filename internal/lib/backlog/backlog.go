@@ -1,8 +1,6 @@
-package db
+package backlog
 
-import (
-	"sync"
-)
+import "sync"
 
 type Backlog[T interface{}] interface {
 	GetLogs() <-chan []T

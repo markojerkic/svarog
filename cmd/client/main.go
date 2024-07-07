@@ -9,8 +9,8 @@ import (
 
 	"github.com/markojerkic/svarog/cmd/client/reader"
 	"github.com/markojerkic/svarog/cmd/client/retry"
+	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -67,22 +67,20 @@ func main() {
 	env := getEnv()
 	configureLogging(env)
 
-	processedLines := make(chan *rpc.LogLine, 1024*100)
+	processedLines := make(chan *rpc.LogLine, 1024*1024)
 
-	backlog := db.NewBacklog[*rpc.LogLine](1024 * 1024)
+	backlog := backlog.NewBacklog[*rpc.LogLine](1024 * 1024)
 	retryService := retry.NewRetry(backlog.GetLogs(), 5)
 	grpcClient := NewClient(env.serverAddr, insecure.NewCredentials())
 
 	go retryService.Run(context.Background(), func(logLines []*rpc.LogLine) {
 		err := grpcClient.BatchSend(logLines)
 		if err != nil {
-			slog.Info("Failed to retry batch insert. Returing to backlog")
+			slog.Info("Failed to retry batch insert. Returning to backlog")
 			backlog.AddAllToBacklog(logLines)
 		}
 	})
-	go grpcClient.Run(context.Background(), processedLines, func(logLines *rpc.LogLine) {
-		backlog.AddToBacklog(logLines)
-	})
+	go grpcClient.Run(context.Background(), processedLines, backlog.AddToBacklog)
 
 	readStdin(env.clientId, processedLines)
 }
