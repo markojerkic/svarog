@@ -44,7 +44,7 @@ func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs
 
 var numberOfImportedLogs = int64(1_000_000)
 
-func (suite *RepositorySuite) TestSaveLogs() {
+func (suite *RepositorySuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
@@ -79,7 +79,7 @@ func (suite *RepositorySuite) TestSaveLogs() {
 	// Check all logs if they're in correct order
 
 	index := int(numberOfImportedLogs)
-	pageSize := 100_000
+	pageSize := 200_000
 
 	var lastCursorPtr *db.LastCursor
 	for {

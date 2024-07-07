@@ -8,6 +8,7 @@ import (
 	"time"
 
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -29,13 +30,23 @@ func generateOddAndEvenLines(logIngestChannel chan<- *rpc.LogLine, numberOfImpor
 
 	i := 0
 	for i < int(numberOfImportedLogs) {
+		if i%1000 == 0 {
+			slog.Debug(fmt.Sprintf("Sending even line %d", i))
+		}
 		logIngestChannel <- generatedLogLines[i]
 		i += 2
 	}
 	log.Printf("Done with even lines")
 
+	if int(numberOfImportedLogs) != len(generatedLogLines) {
+		panic("Expected 1 000 000 logs")
+	}
+
 	i = 1
 	for i < int(numberOfImportedLogs) {
+		if i%1000 == 0 {
+			slog.Debug(fmt.Sprintf("Sending odd line %d", i))
+		}
 		logIngestChannel <- generatedLogLines[i]
 		i += 2
 	}
@@ -52,6 +63,16 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 	go suite.logServer.Run(logIngestChannel)
 
 	generateOddAndEvenLines(logIngestChannel, 10_000)
+	for {
+		if !suite.logServer.IsBacklogEmpty() {
+			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount()))
+			time.Sleep(6 * time.Second)
+		} else {
+			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
+			break
+		}
+	}
+
 	suite.logServerContext.Done()
 
 	elapsed := time.Since(start)
@@ -63,6 +84,21 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 
 	count := suite.countNumberOfLogsInDb()
 	slog.Info(fmt.Sprintf("Number of logs in db: %d", count))
-	assert.Equal(t, int64(20_000), count, "Expected 20 000 logs in db")
+	assert.Equal(t, int64(10_000), count, "Expected 20 000 logs in db")
 
+	index := int(10_000)
+	pageSize := 2_000
+
+	var lastCursorPtr *db.LastCursor
+	for {
+		logPage, err := suite.mongoRepository.GetLogs("marko", int64(pageSize), lastCursorPtr)
+		assert.NoError(t, err)
+		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
+		index -= pageSize
+		if index <= 0 || lastCursorPtr == nil {
+			break
+		}
+	}
+
+	assert.LessOrEqual(t, index, 0, "Finished checking logs prematurely")
 }
