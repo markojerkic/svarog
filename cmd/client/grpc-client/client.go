@@ -1,4 +1,4 @@
-package main
+package grpcclient
 
 import (
 	"context"
@@ -33,12 +33,18 @@ var _ Client = &GrpcClient{}
 // Run implements Client.
 func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, returnToBacklog ReturnToBacklog) {
 	go self.connect()
+
 	for {
 		select {
 		case <-ctx.Done():
 			slog.Debug("Client context done")
 			return
 		case logLine := <-input:
+			if self.stream == nil {
+				returnToBacklog(logLine)
+				go self.connect()
+				continue
+			}
 			err := self.stream.Send(logLine)
 			if err != nil {
 				slog.Debug("Failed to send log line to server", slog.Any("error", err))
@@ -102,7 +108,6 @@ func (self *GrpcClient) connect() {
 		}
 		self.stream = stream
 		break
-
 	}
 }
 
@@ -110,5 +115,6 @@ func NewClient(serverAddress string, credentials credentials.TransportCredential
 	return &GrpcClient{
 		serverAddress: serverAddress,
 		credentials:   credentials,
+		mutex:         sync.Mutex{},
 	}
 }

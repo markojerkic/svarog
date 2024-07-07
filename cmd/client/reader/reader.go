@@ -42,20 +42,18 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 	for r.hasNext() {
 		line, err := r.next()
 		timestamp := time.Now()
+		var message string
 		if err != nil {
-			logLine = &rpc.LogLine{
-				Client:    r.clientId,
-				Message:   err.Error(),
-				Timestamp: timestamppb.New(timestamp),
-				Sequence:  int64(i),
-			}
+			message = err.Error()
 		} else {
-			logLine = &rpc.LogLine{
-				Client:    r.clientId,
-				Message:   line,
-				Timestamp: timestamppb.New(timestamp),
-				Sequence:  int64(i),
-			}
+			message = line
+		}
+
+		logLine = &rpc.LogLine{
+			Client:    r.clientId,
+			Message:   message,
+			Timestamp: timestamppb.New(timestamp),
+			Sequence:  int64(i),
 		}
 		fmt.Println(logLine.Message)
 		r.output <- logLine

@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
 	"github.com/markojerkic/svarog/cmd/client/retry"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
@@ -71,7 +72,7 @@ func main() {
 
 	backlog := backlog.NewBacklog[*rpc.LogLine](1024 * 1024)
 	retryService := retry.NewRetry(backlog.GetLogs(), 5)
-	grpcClient := NewClient(env.serverAddr, insecure.NewCredentials())
+	grpcClient := grpcclient.NewClient(env.serverAddr, insecure.NewCredentials())
 
 	go retryService.Run(context.Background(), func(logLines []*rpc.LogLine) {
 		err := grpcClient.BatchSend(logLines)
