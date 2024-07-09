@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
+	"github.com/markojerkic/svarog/internal/lib/optional"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -46,8 +49,8 @@ func (m *MockServer) mustEmbedUnimplementedLoggAggregatorServer() {}
 
 var _ rpc.LoggAggregatorServer = &MockServer{}
 
-func createMockGrpcServer() (*grpc.Server, func() error, string) {
-	lis, err := net.Listen("tcp", "localhost:0")
+func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, string) {
+	lis, err := net.Listen("tcp", optional.GetOrDefault(serverAddress, "localhost:0"))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
@@ -89,8 +92,18 @@ func generateLogLine(index int) *rpc.LogLine {
 	}
 }
 
+func createDebugLogger() {
+	logOpts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, logOpts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+}
+
 func TestReconnectingClient(t *testing.T) {
-	server, listen, addr := createMockGrpcServer()
+	createDebugLogger()
+	server, listen, addr := createMockGrpcServer(nil)
 	log.Printf("Created server at ddress: %s", addr)
 	go listen()
 	log.Println("Server started")
@@ -100,9 +113,9 @@ func TestReconnectingClient(t *testing.T) {
 	log.Println("Created client")
 
 	input := make(chan *rpc.LogLine, 10)
-	ctx := context.Background()
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Println("Log line returned bacause no connection to the server")
+		log.Println("Log line returned because no connection to the server")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
@@ -113,7 +126,8 @@ func TestReconnectingClient(t *testing.T) {
 		log.Printf("Sent log line %d", i)
 	}
 
-	time.Sleep(5 * time.Second)
+    time.Sleep(2 * time.Second)
+
 	server.Stop()
 	log.Println("Server stopped")
 
@@ -123,6 +137,8 @@ func TestReconnectingClient(t *testing.T) {
 
 	log.Println("Sleeping for 5 seconds before restarting server")
 	time.Sleep(5 * time.Second)
+
+	server, listen, addr = createMockGrpcServer(&addr)
 	go listen()
 	log.Println("Server restarted")
 
