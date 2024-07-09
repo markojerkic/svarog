@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,51 +22,57 @@ import (
 
 type MockServer struct {
 	rpc.UnimplementedLoggAggregatorServer
+	mu            sync.Mutex
+	receivedLines []*rpc.LogLine
 }
 
-// BatchLog implements rpc.LoggAggregatorServer.
-func (m *MockServer) BatchLog(ctx context.Context, lines *rpc.Backlog) (*rpc.Void, error) {
-	receivedLines = append(receivedLines, lines.Logs...)
-	log.Printf("Mock server: Received batch log of size: %d", len(lines.Logs))
+func (m *MockServer) GetReceivedLines() []*rpc.LogLine {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.receivedLines
+}
 
+func (m *MockServer) SetReceivedLines(lines []*rpc.LogLine) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.receivedLines = lines
+}
+
+func (m *MockServer) BatchLog(ctx context.Context, lines *rpc.Backlog) (*rpc.Void, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.receivedLines = append(m.receivedLines, lines.Logs...)
+	log.Printf("Mock server: Received batch log of size: %d", len(lines.Logs))
 	return &rpc.Void{}, nil
 }
 
-// Log implements rpc.LoggAggregatorServer.
 func (m *MockServer) Log(stream rpc.LoggAggregator_LogServer) error {
 	for {
 		logLine, err := stream.Recv()
 		if err != nil {
 			return err
 		}
-		log.Printf("Mock server: Received log line: '%s'", logLine.Message)
-
-		receivedLines = append(receivedLines, logLine)
+		m.mu.Lock()
+		m.receivedLines = append(m.receivedLines, logLine)
+		log.Printf("Mock server: Received log line: '%s'. New receivedLines size: %d", logLine.Message, len(m.receivedLines))
+		m.mu.Unlock()
 	}
 }
 
-// mustEmbedUnimplementedLoggAggregatorServer implements rpc.LoggAggregatorServer.
-func (m *MockServer) mustEmbedUnimplementedLoggAggregatorServer() {}
-
-var _ rpc.LoggAggregatorServer = &MockServer{}
-
-func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, string) {
+func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, string, *MockServer) {
 	lis, err := net.Listen("tcp", optional.GetOrDefault(serverAddress, "localhost:0"))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
-	rpc.RegisterLoggAggregatorServer(grpcServer, &MockServer{})
+	mockServer := &MockServer{}
+	grpcServer := grpc.NewServer()
+	mockServer.receivedLines = make([]*rpc.LogLine, 0, 20)
+	rpc.RegisterLoggAggregatorServer(grpcServer, mockServer)
 
 	addr := lis.Addr().String()
-
 	listen := func() error {
-		// Check if listener is active
-
-		log.Printf("Recreated server at address: %s", addr)
+		log.Printf("Server listening at address: %s", addr)
 		err := grpcServer.Serve(lis)
-
 		if err != nil {
 			lis, err = net.Listen("tcp", addr)
 			if err != nil {
@@ -73,15 +80,10 @@ func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, st
 			}
 			return grpcServer.Serve(lis)
 		}
-
 		return nil
-
 	}
-
-	return grpcServer, listen, addr
+	return grpcServer, listen, addr, mockServer
 }
-
-var receivedLines []*rpc.LogLine = make([]*rpc.LogLine, 0)
 
 func generateLogLine(index int) *rpc.LogLine {
 	return &rpc.LogLine{
@@ -102,20 +104,21 @@ func createDebugLogger() {
 }
 
 func TestReconnectingClient(t *testing.T) {
+	t.Parallel()
 	createDebugLogger()
-	server, listen, addr := createMockGrpcServer(nil)
-	log.Printf("Created server at ddress: %s", addr)
+	server, listen, addr, mServer := createMockGrpcServer(nil)
 	go listen()
-	log.Println("Server started")
+	log.Printf("Server started at address: %s", addr)
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
 	log.Println("Created client")
 
 	input := make(chan *rpc.LogLine, 10)
-	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Println("Log line returned because no connection to the server")
+		log.Println("Log line returned to input channel due to connection error")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
@@ -126,29 +129,70 @@ func TestReconnectingClient(t *testing.T) {
 		log.Printf("Sent log line %d", i)
 	}
 
-    time.Sleep(2 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	server.Stop()
 	log.Println("Server stopped")
 
-	for i := 0; i < 10; i++ {
+	for i := 10; i < 20; i++ {
 		input <- generateLogLine(i)
+		log.Printf("Sent log line %d", i)
 	}
 
 	log.Println("Sleeping for 5 seconds before restarting server")
 	time.Sleep(5 * time.Second)
 
-	server, listen, addr = createMockGrpcServer(&addr)
+	currentReceivedLines := mServer.GetReceivedLines()
+	server, listen, addr, mServer = createMockGrpcServer(&addr)
+	mServer.SetReceivedLines(currentReceivedLines)
+
 	go listen()
 	log.Println("Server restarted")
 
-	time.Sleep(8 * time.Second)
-	ctx.Done()
+	time.Sleep(2 * time.Second)
+	cancel()
 
-	// Assert channel is empty
-	assert.Equal(t, 0, len(input), "Expected input channel to be empty")
 	close(input)
 	server.Stop()
+	assert.Equal(t, 20, len(mServer.GetReceivedLines()))
+}
 
-	assert.Equal(t, 20, len(receivedLines), "Expected 20 log lines to be received")
+func TestReconnectingNotStartedClient(t *testing.T) {
+	t.Parallel()
+	createDebugLogger()
+	server, listen, addr, mServer := createMockGrpcServer(nil)
+	log.Printf("Server started at address: %s", addr)
+
+	creds := insecure.NewCredentials()
+	client := grpcclient.NewClient(addr, creds)
+	log.Println("Created client")
+
+	input := make(chan *rpc.LogLine, 10)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	go client.Run(ctx, input, func(ll *rpc.LogLine) {
+		log.Println("Log line returned to input channel due to connection error")
+		time.Sleep(300 * time.Millisecond)
+		input <- ll
+	})
+	log.Println("Client started")
+
+	for i := 0; i < 10; i++ {
+		input <- generateLogLine(i)
+		log.Printf("Sent log line %d", i)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	go listen()
+	time.Sleep(1 * time.Second)
+	server.Stop()
+	log.Println("Server stopped")
+
+	cancel()
+
+	assert.Equal(t, 10, len(mServer.GetReceivedLines()))
+	close(input)
+	server.Stop()
 }

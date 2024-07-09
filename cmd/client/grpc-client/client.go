@@ -2,16 +2,14 @@ package grpcclient
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"google.golang.org/grpc"
-	// "google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 )
 
 type ReturnToBacklog func(*rpc.LogLine)
@@ -28,113 +26,84 @@ type GrpcClient struct {
 	stream        rpc.LoggAggregator_LogClient
 	client        rpc.LoggAggregatorClient
 
-	mutex        sync.Mutex
-	isConnecting bool
+	mutex sync.Mutex
 }
 
 var _ Client = &GrpcClient{}
 
-// Run implements Client.
-func (self *GrpcClient) Run(ctx context.Context, input <-chan *rpc.LogLine, returnToBacklog ReturnToBacklog) {
-	killStreamAndConnection := func() {
-		if self.connection != nil {
-			self.connection.Close()
-		}
-		if self.stream != nil {
-			self.stream.CloseSend()
-		}
-		self.connection = nil
-		self.stream = nil
-		go self.connect()
+// connect establishes a connection and creates a new stream
+func (g *GrpcClient) connect() error {
+	var err error
+	g.connection, err = grpc.Dial(g.serverAddress, grpc.WithTransportCredentials(g.credentials))
+	if err != nil {
+		return err
 	}
+	g.client = rpc.NewLoggAggregatorClient(g.connection)
+	g.stream, err = g.client.Log(context.Background())
+	return err
+}
 
-	killStreamAndConnection()
-
+// Run listens on the channel and sends messages to the gRPC stream
+func (g *GrpcClient) Run(ctx context.Context, ch <-chan *rpc.LogLine, returnToBacklog ReturnToBacklog) {
 	for {
 		select {
 		case <-ctx.Done():
 			slog.Debug("Client context done")
 			return
-		case logLine := <-input:
-			if self.stream == nil {
-				slog.Debug("Stream is nil, returning to backlog")
-				killStreamAndConnection()
-				go func() {
-					time.Sleep(1 * time.Second)
-				}()
+		case logLine := <-ch:
+			if err := g.sendLogLine(logLine); err != nil {
+				slog.Debug("Sending log line failed", slog.Any("error", err))
 				returnToBacklog(logLine)
-				continue
-			}
-
-			err := self.stream.Send(logLine)
-			if err != nil {
-				errorCode := status.Code(err)
-				slog.Error("Failed to send log line to server", slog.Any("error", err), slog.Any("code", errorCode))
-				killStreamAndConnection()
-				go func() {
-					time.Sleep(1 * time.Second)
-					returnToBacklog(logLine)
-				}()
+				g.reconnect()
 			}
 		}
 	}
 }
 
-// BatchSend implements Client.
-func (self *GrpcClient) BatchSend(lines []*rpc.LogLine) error {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
+// sendLogLine sends a single log line to the gRPC stream
+func (g *GrpcClient) sendLogLine(logLine *rpc.LogLine) error {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
-	_, err := self.client.BatchLog(context.Background(), &rpc.Backlog{
-		Logs: lines,
-	})
-	return err
+	if g.stream == nil {
+		return fmt.Errorf("gRPC stream is not initialized")
+	}
+
+	if err := g.stream.Send(logLine); err != nil {
+		return fmt.Errorf("Failed to send log line: %v", err)
+	}
+
+	return nil
 }
 
-// connect implements Client.
-func (self *GrpcClient) connect() error {
-	if self.isConnecting {
-		return nil
+// BatchSend sends a batch of log lines to the gRPC stream
+func (g *GrpcClient) BatchSend(logLines []*rpc.LogLine) error {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	for _, logLine := range logLines {
+		if err := g.stream.Send(logLine); err != nil {
+			return fmt.Errorf("Failed to send log line: %v", err)
+		}
 	}
 
-	self.isConnecting = true
-	defer func() {
-		self.isConnecting = false
-	}()
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(self.credentials),
-		// grpc.WithConnectParams(grpc.ConnectParams{
-		// 	Backoff: backoff.Config{
-		// 		BaseDelay:  1000,
-		// 		Multiplier: 2,
-		// 		Jitter:     0,
-		// 		MaxDelay:   5000,
-		// 	},
-		// 	MinConnectTimeout: 2000,
-		// }),
-	}
-
-	self.connection = nil
-	self.stream = nil
-
-	conn, err := grpc.Dial(self.serverAddress, opts...)
-	if err != nil {
-		slog.Debug("Failed to connect to server", slog.String("address", self.serverAddress), slog.Any("error", err))
-		return err
-	}
-
-	self.connection = conn
-	self.client = rpc.NewLoggAggregatorClient(self.connection)
-	stream, err := self.client.Log(context.Background(), grpc.EmptyCallOption{})
-	if err != nil {
-		log.Fatal("Unable to create stream", err)
-		return err
-	}
-	self.stream = stream
 	return nil
+}
+
+// reconnect attempts to re-establish the gRPC connection and stream
+func (g *GrpcClient) reconnect() {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	for {
+		slog.Debug("Attempting to reconnect...")
+		if err := g.connect(); err == nil {
+			slog.Debug("Reconnected successfully")
+			return
+		}
+		slog.Debug("Failed to reconnect, retrying in 5 seconds...")
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func NewClient(serverAddress string, credentials credentials.TransportCredentials) Client {
@@ -142,6 +111,5 @@ func NewClient(serverAddress string, credentials credentials.TransportCredential
 		serverAddress: serverAddress,
 		credentials:   credentials,
 		mutex:         sync.Mutex{},
-		isConnecting:  false,
 	}
 }
