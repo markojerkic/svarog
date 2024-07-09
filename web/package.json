@@ -10,6 +10,7 @@
     "test:watch": "vitest --watch"
   },
   "dependencies": {
+    "@solid-primitives/scheduled": "^1.4.3",
     "@solidjs/router": "^0.13.6",
     "@solidjs/start": "^1.0.2",
     "@tanstack/solid-query": "^5.49.1",

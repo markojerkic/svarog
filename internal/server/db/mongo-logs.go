@@ -49,10 +49,7 @@ func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 // Can be useful if we want to drop clientId for some reason
 var logsByClient = bson.D{}
 
-// GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
-	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
-
+func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
 	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
@@ -90,10 +87,11 @@ func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCur
 		filter = clientIdFilter
 	}
 
-	slog.Debug(fmt.Sprintf("Filter: %v", filter))
+	return filter, projection
+}
 
+func (self *MongoLogRepository) getAndMapLogs(filter bson.D, projection *options.FindOptions) ([]StoredLog, error) {
 	cursor, err := self.logCollection.Find(context.Background(), filter, projection)
-	// cursor, err := self.logCollection.Find(context.Background(), filter, projection)
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
 		return nil, err
@@ -105,9 +103,30 @@ func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCur
 		return nil, err
 	}
 
-	slog.Debug(fmt.Sprintf("Found %d log lines", len(logs)), slog.String("clientId", clientId))
-
 	return logs, nil
+}
+
+// GetLogs implements LogRepository.
+func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
+	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
+
+	filter, projection := createFilter(clientId, pageSize, lastCursor)
+
+	slog.Debug(fmt.Sprintf("Filter: %v", filter))
+	return self.getAndMapLogs(filter, projection)
+}
+
+func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
+	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
+
+	filter, projection := createFilter(clientId, pageSize, lastCursor)
+
+	filter = append(filter, bson.E{"$text", bson.D{{"$search", query}}})
+	// filter = bson.D{{"$text", bson.D{{"$search", query}}}}
+
+    slog.Debug("Search, tu sam")
+	slog.Debug("Search", slog.Any("filter", filter), slog.String("query", query))
+	return self.getAndMapLogs(filter, projection)
 }
 
 func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
@@ -116,9 +135,25 @@ func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 		slog.Error("Error saving logs", slog.Any("error", err))
 		return err
 	}
-	// slog.Debug(fmt.Sprintf("Saved %d logs", len(savedCount.InsertedIDs)))
 
 	return nil
+}
+
+func (self *MongoLogRepository) createIndexes() {
+	_, err := self.logCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
+		{
+			Keys: bson.D{{"client.client_id", 1}},
+		},
+		{
+			Keys: bson.D{{"client.client_id", 1}, {"timestamp", -1}, {"sequence_number", -1}},
+		},
+		{
+			Keys: bson.D{{"log_line", "text"}, {"timestamp", -1}},
+		},
+	})
+	if err != nil {
+		log.Fatalf("Error creating indexes: %v", err)
+	}
 }
 
 func NewMongoClient(connectionUrl string) *MongoLogRepository {
@@ -128,8 +163,12 @@ func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	}
 	collection := client.Database("logs").Collection("log_lines")
 
-	return &MongoLogRepository{
+	repo := &MongoLogRepository{
 		mongoClient:   client,
 		logCollection: collection,
 	}
+
+	repo.createIndexes()
+
+	return repo
 }

@@ -15,6 +15,7 @@ type LogRepository interface {
 	SaveLogs(logs []interface{}) error
 	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]StoredLog, error)
 	GetClients() ([]AvailableClient, error)
+	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error)
 }
 
 type LastCursor struct {

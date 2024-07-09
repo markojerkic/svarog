@@ -22,7 +22,7 @@ export type LogPageCursor = {
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
-export const createLogQuery = (clientId: string) => {
+export const createLogQuery = (clientId: string, search?: string) => {
 	const queryClient = useQueryClient();
 	const [isPreviousPageLoading, setIsPreviousPageLoading] = createSignal(false);
 	const [isPreviousPageError, setIsPreviousPageError] = createSignal(false);
@@ -33,6 +33,7 @@ export const createLogQuery = (clientId: string) => {
 	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
 		"logs",
 		clientId,
+		search,
 	]);
 
 	if (!logStore) {
@@ -43,7 +44,10 @@ export const createLogQuery = (clientId: string) => {
 			}
 			return a.sequenceNumber - b.sequenceNumber;
 		});
-		queryClient.setQueryData<SortedList<LogLine>>(["logs", clientId], logStore);
+		queryClient.setQueryData<SortedList<LogLine>>(
+			["logs", clientId, search],
+			logStore,
+		);
 	}
 
 	const fetchNextPage = async () => {
@@ -59,9 +63,9 @@ export const createLogQuery = (clientId: string) => {
 		const lastLog = logStore.getHead();
 		try {
 			const logs = await queryClient.fetchQuery({
-				queryKey: ["logs", clientId, lastLog?.value],
+				queryKey: ["logs", clientId, search, lastLog?.value],
 				queryFn: async () => {
-					return fetchLogs(clientId, treeNodeToCursor(lastLog));
+					return fetchLogs(clientId, search, treeNodeToCursor(lastLog));
 				},
 			});
 			setLastLoadedPageSize(logs.length);
@@ -84,18 +88,39 @@ export const createLogQuery = (clientId: string) => {
 	};
 };
 
-const fetchLogs = async (clientId: string, cursor: LogPageCursor | null) => {
-	const response = await fetch(buildUrl(clientId, cursor));
+export const fetchLogs = async (
+	clientId: string,
+	search?: string,
+	cursor?: LogPageCursor | null,
+) => {
+	const response = await fetch(buildUrl(clientId, search, cursor));
 	return response.json() as Promise<LogLine[]>;
 };
 
 const buildBaseUrl = (clientId: string) =>
 	`http://localhost:1323/api/v1/logs/${clientId}`;
 
-const buildUrl = (clientId: string, params?: LogPageCursor | null) => {
+const buildUrl = (
+	clientId: string,
+	search?: string,
+	params?: LogPageCursor | null,
+) => {
 	let url = buildBaseUrl(clientId);
+	const searchParams = new URLSearchParams();
 	if (params) {
-		url += `?cursorSequenceNumber=${params.cursorSequenceNumber}&cursorTime=${params.cursorTime}&direction=${params.direction}`;
+		searchParams.append(
+			"cursorSequenceNumber",
+			`${params.cursorSequenceNumber}`,
+		);
+		searchParams.append("cursorTime", `${params.cursorTime}`);
+		searchParams.append("direction", params.direction);
+	}
+	if (search) {
+		searchParams.append("search", search);
+		url += "/search";
+	}
+	if (searchParams.toString()) {
+		url += `?${searchParams.toString()}`;
 	}
 	return url;
 };

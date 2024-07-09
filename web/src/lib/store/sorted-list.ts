@@ -25,6 +25,28 @@ export function treeNodeToCursor(
 	};
 }
 
+export class SortedListIterator<T> implements Iterator<T> {
+	private stack: TreeNode<T>[] = [];
+	private current: TreeNode<T> | null;
+
+	constructor(private sortedList: SortedList<T>) {
+		this.current = sortedList.getHead();
+	}
+
+	next(): IteratorResult<T> {
+		while (this.current || this.stack.length > 0) {
+			while (this.current) {
+				this.stack.push(this.current);
+				this.current = this.current.left;
+			}
+			// biome-ignore lint/style/noNonNullAssertion: <explanation>
+			this.current = this.stack.pop()!;
+			return { value: this.current.value, done: false };
+		}
+		return { value: null, done: true };
+	}
+}
+
 export class SortedList<T> {
 	private root: TreeNode<T> | null = null;
 	private compare: (a: T, b: T) => number;
@@ -34,6 +56,10 @@ export class SortedList<T> {
 
 	constructor(compare: (a: T, b: T) => number) {
 		this.compare = compare;
+	}
+
+	[Symbol.iterator](): SortedListIterator<T> {
+		return new SortedListIterator(this);
 	}
 
 	insert(value: T): void {
