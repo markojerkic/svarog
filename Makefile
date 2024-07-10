@@ -28,6 +28,11 @@ build-web:
 
 build: build-client build-server build-web
 
+lint-go:
+	gofmt -l .
+lint-web:
+	cd web && bun lint && bun format:check
+
 format-go:
 	go fmt ./...
 format-web:
