@@ -1,8 +1,7 @@
 dependencies:
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
-		go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-		go install github.com/cosmtrek/air@latest && \
-		go install github.com/a-h/templ/cmd/templ@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install github.com/cosmtrek/air@latest
 
 build-proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/proto/schema.proto
@@ -41,3 +40,5 @@ test-web:
 	cd web && bun test
 
 test: test-server test-web
+test-no-log: test-web
+	go test ./tests/...
