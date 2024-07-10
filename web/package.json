@@ -6,7 +6,7 @@
         "build": "vinxi build",
         "start": "vinxi start",
         "lint": "biome lint ./{src,test}",
-        "format:check": "biome format --check ./{src,test}",
+        "format:check": "biome format ./{src,test}",
         "format": "biome format --write ./{src,test}",
         "test": "vitest",
         "test:watch": "vitest --watch"

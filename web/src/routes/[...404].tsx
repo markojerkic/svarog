@@ -12,6 +12,7 @@ export default function NotFound() {
 					href="https://solidjs.com"
 					target="_blank"
 					class="text-sky-600 hover:underline"
+					rel="noreferrer"
 				>
 					solidjs.com
 				</a>{" "}
