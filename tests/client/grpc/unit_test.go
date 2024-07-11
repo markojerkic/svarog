@@ -107,6 +107,7 @@ func TestReconnectingClient(t *testing.T) {
 	t.Parallel()
 	createDebugLogger()
 	server, listen, addr, mServer := createMockGrpcServer(nil)
+	mServer.receivedLines = make([]*rpc.LogLine, 0, 20)
 	go listen()
 	log.Printf("Server started at address: %s", addr)
 
@@ -142,19 +143,19 @@ func TestReconnectingClient(t *testing.T) {
 	log.Println("Sleeping for 5 seconds before restarting server")
 	time.Sleep(5 * time.Second)
 
-	currentReceivedLines := mServer.GetReceivedLines()
+	roundOneLines := mServer.GetReceivedLines()
 	server, listen, addr, mServer = createMockGrpcServer(&addr)
-	mServer.SetReceivedLines(currentReceivedLines)
+	mServer.receivedLines = make([]*rpc.LogLine, 0, 20)
 
 	go listen()
 	log.Println("Server restarted")
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(20 * time.Second)
 	cancel()
 
-	close(input)
 	server.Stop()
-	assert.Equal(t, 20, len(mServer.GetReceivedLines()))
+	assert.Equal(t, 10, len(roundOneLines))
+	assert.Equal(t, 10, len(mServer.receivedLines))
 }
 
 func TestReconnectingNotStartedClient(t *testing.T) {
