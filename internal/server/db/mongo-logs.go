@@ -124,7 +124,7 @@ func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSi
 	filter = append(filter, bson.E{"$text", bson.D{{"$search", query}}})
 	// filter = bson.D{{"$text", bson.D{{"$search", query}}}}
 
-    slog.Debug("Search, tu sam")
+	slog.Debug("Search, tu sam")
 	slog.Debug("Search", slog.Any("filter", filter), slog.String("query", query))
 	return self.getAndMapLogs(filter, projection)
 }
@@ -169,6 +169,9 @@ func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	}
 
 	repo.createIndexes()
+
+	watchService := NewWatchService(client, collection)
+	go watchService.Watch(context.Background(), "spring-chat-test")
 
 	return repo
 }
