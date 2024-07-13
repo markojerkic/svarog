@@ -20,27 +20,27 @@ type MongoLogRepository struct {
 var _ LogRepository = &MongoLogRepository{}
 
 var clientsPipeline = mongo.Pipeline{
-	bson.D{{"$group", bson.D{{"_id", "$client.client_id"}}}},
-	bson.D{{"$project", bson.D{{"client_id", "$_id"}}}},
+	bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$client.client_id"}}}},
+	bson.D{{Key: "$project", Value: bson.D{{Key: "client_id", Value: "$_id"}}}},
 }
 
 // GetClients implements LogRepository.
 func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 	results, err := self.logCollection.Distinct(context.Background(), "client.client_id", bson.D{})
-
 	if err != nil {
 		return nil, err
 	}
-	clients := make([]AvailableClient, 0, len(results))
 
-	for _, result := range results {
+	clients := make([]AvailableClient, len(results))
+
+	for i, result := range results {
 		mappedClient := AvailableClient{
 			Client: StoredClient{
 				ClientId: result.(string),
 			},
 		}
 
-		clients = append(clients, mappedClient)
+		clients[i] = mappedClient
 	}
 
 	return clients, nil
@@ -52,9 +52,9 @@ var logsByClient = bson.D{}
 func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{"timestamp", sortDirection}, {"sequence_number", sortDirection}})
+	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
 
-	clientIdFilter := bson.D{{"client.client_id", clientId}}
+	clientIdFilter := bson.D{{Key: "client.client_id", Value: clientId}}
 	var filter bson.D
 
 	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
@@ -71,14 +71,14 @@ func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson
 		}
 
 		filter = bson.D{
-			{"client.client_id", clientId},
-			{"$or", bson.A{
+			{Key: "client.client_id", Value: clientId},
+			{Key: "$or", Value: bson.A{
 				bson.D{
-					{"timestamp", bson.D{{direction, timestamp}}},
+					{Key: "timestamp", Value: bson.D{{Key: direction, Value: timestamp}}},
 				},
 				bson.D{
-					{"timestamp", timestamp},
-					{"sequence_number", bson.D{{direction, lastCursor.SequenceNumber}}},
+					{Key: "timestamp", Value: timestamp},
+					{Key: "sequence_number", Value: bson.D{{Key: direction, Value: lastCursor.SequenceNumber}}},
 				},
 			}},
 		}
@@ -121,7 +121,7 @@ func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSi
 
 	filter, projection := createFilter(clientId, pageSize, lastCursor)
 
-	filter = append(filter, bson.E{"$text", bson.D{{"$search", query}}})
+	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
 	// filter = bson.D{{"$text", bson.D{{"$search", query}}}}
 
 	slog.Debug("Search, tu sam")
@@ -142,13 +142,13 @@ func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
 func (self *MongoLogRepository) createIndexes() {
 	_, err := self.logCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
 		{
-			Keys: bson.D{{"client.client_id", 1}},
+			Keys: bson.D{{Key: "client.client_id", Value: 1}},
 		},
 		{
-			Keys: bson.D{{"client.client_id", 1}, {"timestamp", -1}, {"sequence_number", -1}},
+			Keys: bson.D{{Key: "client.client_id", Value: 1}, {Key: "timestamp", Value: -1}, {Key: "sequence_number", Value: -1}},
 		},
 		{
-			Keys: bson.D{{"log_line", "text"}, {"timestamp", -1}},
+			Keys: bson.D{{Key: "log_line", Value: "text"}, {Key: "timestamp", Value: -1}},
 		},
 	})
 	if err != nil {
