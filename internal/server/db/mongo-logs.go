@@ -170,8 +170,5 @@ func NewMongoClient(connectionUrl string) *MongoLogRepository {
 
 	repo.createIndexes()
 
-	watchService := NewWatchService(client, collection)
-	go watchService.Watch(context.Background(), "spring-chat-test")
-
 	return repo
 }
