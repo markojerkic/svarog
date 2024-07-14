@@ -6,11 +6,11 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 )
 
-type WatchHub interface {
-	Subscribe(clientId string) *Subscription[db.StoredLog]
-	Unsubscribe(*Subscription[db.StoredLog])
-	NotifyInsert(db.StoredLog)
-	NotifyInsertMultiple([]db.StoredLog)
+type WatchHub[T any] interface {
+	Subscribe(clientId string) *Subscription[T]
+	Unsubscribe(*Subscription[T])
+	NotifyInsert(T)
+	NotifyInsertMultiple([]T)
 }
 
 type subscriptions map[*Subscription[db.StoredLog]]bool
@@ -37,12 +37,13 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[db.StoredLog]) 
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
-	clientId := (*subscription).getClientId()
+	clientId := (*subscription).GetClientId()
 	if self.channels[clientId] == nil {
 		return
 	}
 	subscriptions := self.channels[clientId]
 	delete(subscriptions, subscription)
+    (*subscription).Close()
 }
 
 // NotifyInsert implements WatchHub.
@@ -56,7 +57,7 @@ func (self *LogsWatchHub) NotifyInsert(logLine db.StoredLog) {
 	}
 	subscriptions := self.channels[clientId]
 	for subscription := range subscriptions {
-		(*subscription).notify(logLine)
+		(*subscription).Notify(logLine)
 	}
 }
 
@@ -68,7 +69,7 @@ func (self *LogsWatchHub) notify(logLine db.StoredLog) {
 	}
 	subscriptions := self.channels[clientId]
 	for subscription := range subscriptions {
-		(*subscription).notify(logLine)
+		(*subscription).Notify(logLine)
 	}
 }
 
@@ -82,7 +83,7 @@ func (self *LogsWatchHub) NotifyInsertMultiple(lines []db.StoredLog) {
 	}
 }
 
-var LogsHub WatchHub = &LogsWatchHub{
+var LogsHub WatchHub[db.StoredLog] = &LogsWatchHub{
 	mutex:    sync.Mutex{},
 	channels: make(map[string]subscriptions),
 }
