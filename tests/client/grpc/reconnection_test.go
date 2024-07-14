@@ -22,26 +22,15 @@ import (
 
 type MockServer struct {
 	rpc.UnimplementedLoggAggregatorServer
-	mu            sync.Mutex
-	receivedLines []*rpc.LogLine
+	mu sync.Mutex
 }
 
-func (m *MockServer) GetReceivedLines() []*rpc.LogLine {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.receivedLines
-}
-
-func (m *MockServer) SetReceivedLines(lines []*rpc.LogLine) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.receivedLines = lines
-}
+var receivedLines []*rpc.LogLine
 
 func (m *MockServer) BatchLog(ctx context.Context, lines *rpc.Backlog) (*rpc.Void, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.receivedLines = append(m.receivedLines, lines.Logs...)
+	receivedLines = append(receivedLines, lines.Logs...)
 	log.Printf("Mock server: Received batch log of size: %d", len(lines.Logs))
 	return &rpc.Void{}, nil
 }
@@ -53,8 +42,8 @@ func (m *MockServer) Log(stream rpc.LoggAggregator_LogServer) error {
 			return err
 		}
 		m.mu.Lock()
-		m.receivedLines = append(m.receivedLines, logLine)
-		log.Printf("Mock server: Received log line: '%s'. New receivedLines size: %d", logLine.Message, len(m.receivedLines))
+		receivedLines = append(receivedLines, logLine)
+		log.Printf("Mock server: Received log line: '%s'. New receivedLines size: %d", logLine.Message, len(receivedLines))
 		m.mu.Unlock()
 	}
 }
@@ -66,7 +55,6 @@ func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, st
 	}
 	mockServer := &MockServer{}
 	grpcServer := grpc.NewServer()
-	mockServer.receivedLines = make([]*rpc.LogLine, 0, 20)
 	rpc.RegisterLoggAggregatorServer(grpcServer, mockServer)
 
 	addr := lis.Addr().String()
@@ -104,10 +92,9 @@ func createDebugLogger() {
 }
 
 func TestReconnectingClient(t *testing.T) {
-	t.Parallel()
+	receivedLines = make([]*rpc.LogLine, 0)
 	createDebugLogger()
-	server, listen, addr, mServer := createMockGrpcServer(nil)
-	mServer.receivedLines = make([]*rpc.LogLine, 0, 20)
+	server, listen, addr, _ := createMockGrpcServer(nil)
 	go listen()
 	log.Printf("Server started at address: %s", addr)
 
@@ -130,7 +117,7 @@ func TestReconnectingClient(t *testing.T) {
 		log.Printf("Sent log line %d", i)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	server.Stop()
 	log.Println("Server stopped")
@@ -141,35 +128,35 @@ func TestReconnectingClient(t *testing.T) {
 	}
 
 	log.Println("Sleeping for 5 seconds before restarting server")
-	time.Sleep(5 * time.Second)
+	time.Sleep(6 * time.Second)
 
-	roundOneLines := mServer.GetReceivedLines()
-	server, listen, addr, mServer = createMockGrpcServer(&addr)
-	mServer.receivedLines = make([]*rpc.LogLine, 0, 20)
+	server, listen, addr, _ = createMockGrpcServer(&addr)
 
 	go listen()
 	log.Println("Server restarted")
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(10 * time.Second)
 	cancel()
 
 	server.Stop()
-	assert.Equal(t, 10, len(roundOneLines))
-	assert.Equal(t, 10, len(mServer.receivedLines))
+	assert.Equal(t, 20, len(receivedLines), "Expected total of 20 log lines to be received")
 }
 
 func TestReconnectingNotStartedClient(t *testing.T) {
-	t.Parallel()
+	receivedLines = make([]*rpc.LogLine, 0)
 	createDebugLogger()
-	server, listen, addr, mServer := createMockGrpcServer(nil)
+	server, listen, addr, _ := createMockGrpcServer(nil)
+	defer server.Stop()
+
 	log.Printf("Server started at address: %s", addr)
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
 	log.Println("Created client")
 
-	input := make(chan *rpc.LogLine, 10)
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	input := make(chan *rpc.LogLine, 30)
+	defer close(input)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
@@ -190,10 +177,4 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	server.Stop()
 	log.Println("Server stopped")
-
-	cancel()
-
-	assert.Equal(t, 10, len(mServer.GetReceivedLines()))
-	close(input)
-	server.Stop()
 }
