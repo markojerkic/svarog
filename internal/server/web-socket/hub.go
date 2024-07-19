@@ -19,6 +19,8 @@ type LogsWatchHub struct {
 	channels map[string]subscriptions
 }
 
+var _ WatchHub[db.StoredLog] = &LogsWatchHub{}
+
 // Subscribe implements WatchHub.
 func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[db.StoredLog] {
 	self.mutex.Lock()
@@ -43,7 +45,7 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[db.StoredLog]) 
 	}
 	subscriptions := self.channels[clientId]
 	delete(subscriptions, subscription)
-    (*subscription).Close()
+	(*subscription).Close()
 }
 
 // NotifyInsert implements WatchHub.
