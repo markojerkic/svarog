@@ -27,9 +27,7 @@ export const createLogSubscription = (
 	clientId: string,
 	logStore: SortedList<LogLine>,
 ) => {
-	const ws = createReconnectingWS(
-		`ws://localhost:1323/api/v1/ws/${clientId}`,
-	);
+	const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
