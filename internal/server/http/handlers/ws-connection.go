@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log/slog"
+	"net/http"
 
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -18,6 +19,7 @@ type WsRouter struct {
 type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
+	pingPong     chan bool
 	subscription websocket.Subscription[db.StoredLog]
 }
 
@@ -27,11 +29,13 @@ const (
 	NewLine                    WsMessageType = "newLine"
 	AddSubscriptionInstance    WsMessageType = "addSubscriptionInstance"
 	RemoveSubscriptionInstance WsMessageType = "removeSubscriptionInstance"
+	Ping                       WsMessageType = "ping"
+	Pong                       WsMessageType = "pong"
 )
 
 type WsMessage struct {
-	Type WsMessageType
-	Data interface{}
+	Type WsMessageType `json:"type"`
+	Data interface{}   `json:"data"`
 }
 
 func (self *WsConnection) readPipe() {
@@ -44,7 +48,7 @@ func (self *WsConnection) readPipe() {
 	for {
 		err := self.wsConnection.ReadJSON(&message)
 		if err != nil {
-			slog.Error("Error reading WS message", err)
+			slog.Error("Error reading WS message", slog.Any("error", err))
 			continue
 		}
 
@@ -63,8 +67,10 @@ func (self *WsConnection) readPipe() {
 				continue
 			}
 			self.subscription.RemoveInstance(instance)
+		case Ping:
+			self.pingPong <- true
 		default:
-			slog.Error("Unknown message type", message.Type)
+			slog.Error("Unknown message type", slog.Any("error", message.Type))
 		}
 
 	}
@@ -84,11 +90,27 @@ func (self *WsConnection) writePipe() {
 				Client:         storedLogLine.Client,
 			}
 
-			err := self.wsConnection.WriteJSON(logLine)
+			message := WsMessage{
+				Type: NewLine,
+				Data: logLine,
+			}
+
+			err := self.wsConnection.WriteJSON(message)
 			if err != nil {
-				slog.Error("Error writing WS message", err)
+				slog.Error("Error writing WS message", slog.Any("error", err))
 				return
 			}
+
+		case <-self.pingPong:
+			message := WsMessage{
+				Type: Pong,
+			}
+			err := self.wsConnection.WriteJSON(message)
+			if err != nil {
+				slog.Error("Error writing WS message", slog.Any("error", err))
+				return
+			}
+
 		}
 	}
 }
@@ -96,6 +118,9 @@ func (self *WsConnection) writePipe() {
 var wsUpgrader = gorillaWs.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func (self *WsRouter) connectionHandler(c echo.Context) error {
@@ -108,10 +133,13 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		return err
 	}
 
+	slog.Debug("New WS connection", slog.Any("clientId", clientId))
+
 	wsConnection := &WsConnection{
 		clientId:     clientId,
 		wsConnection: conn,
 		subscription: *subscription,
+		pingPong:     make(chan bool),
 	}
 
 	go wsConnection.readPipe()
@@ -129,6 +157,7 @@ func NewWsConnectionRouter(hub websocket.WatchHub[db.StoredLog], parentRouter *e
 	}
 
 	api.GET("/:clientId", router.connectionHandler)
+	slog.Info("Created WS connection router")
 
 	return router
 }

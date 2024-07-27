@@ -8,11 +8,12 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/server/db"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type LogRepository interface {
-	SaveLogs(logs []interface{}) error
+	SaveLogs(logs []StoredLog) error
 	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]StoredLog, error)
 	GetClients() ([]AvailableClient, error)
 	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error)
@@ -67,7 +68,7 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 	}
 }
 
-func (self *LogServer) dumpBacklog(logsToSave []interface{}) {
+func (self *LogServer) dumpBacklog(logsToSave []db.StoredLog) {
 	err := self.repository.SaveLogs(logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)

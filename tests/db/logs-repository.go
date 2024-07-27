@@ -21,7 +21,7 @@ func (s *RepositorySuite) TestNoClients() {
 func (s *RepositorySuite) TestAddClient() {
 	t := s.T()
 
-	mockLogLines := []interface{}{
+	mockLogLines := []db.StoredLog{
 		db.StoredLog{
 			Client: db.StoredClient{
 				ClientId:  "marko",

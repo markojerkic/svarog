@@ -129,12 +129,18 @@ func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSi
 	return self.getAndMapLogs(filter, projection)
 }
 
-func (self *MongoLogRepository) SaveLogs(logs []interface{}) error {
-	_, err := self.logCollection.InsertMany(context.Background(), logs)
+func (self *MongoLogRepository) SaveLogs(logs []StoredLog) error {
+	insertedLines, err := self.logCollection.InsertMany(context.Background(), []any{logs})
 	if err != nil {
 		slog.Error("Error saving logs", slog.Any("error", err))
 		return err
 	}
+
+	for i := range logs {
+		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
+	}
+
+	// websocket.LogsHub.NotifyInsertMultiple(storedLogLines)
 
 	return nil
 }

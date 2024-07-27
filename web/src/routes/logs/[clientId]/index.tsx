@@ -2,7 +2,7 @@ import { type RouteDefinition, useParams } from "@solidjs/router";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
-import { createLogQuery } from "~/lib/store/log-store";
+import { createLogQuery, createLogSubscription } from "~/lib/store/log-store";
 
 export const route = {
 	load: async ({ params }) => {
@@ -24,6 +24,8 @@ export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const logs = createLogQuery(clientId);
 	const logCount = () => logs.logStore.size;
+
+	createLogSubscription(clientId, logs.logStore);
 
 	const virtualizer = createVirtualizer({
 		get count() {
