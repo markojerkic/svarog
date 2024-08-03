@@ -3,7 +3,7 @@ package websocket
 import (
 	"sync"
 
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type WatchHub[T any] interface {
@@ -13,16 +13,16 @@ type WatchHub[T any] interface {
 	NotifyInsertMultiple([]T)
 }
 
-type subscriptions map[*Subscription[db.StoredLog]]bool
+type subscriptions map[*Subscription[*types.StoredLog]]bool
 type LogsWatchHub struct {
 	mutex    sync.Mutex
 	channels map[string]subscriptions
 }
 
-var _ WatchHub[db.StoredLog] = &LogsWatchHub{}
+var _ WatchHub[*types.StoredLog] = &LogsWatchHub{}
 
 // Subscribe implements WatchHub.
-func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[db.StoredLog] {
+func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[*types.StoredLog] {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
@@ -35,7 +35,7 @@ func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[db.StoredLog]
 }
 
 // Unsubscribe implements WatchHub.
-func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[db.StoredLog]) {
+func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[*types.StoredLog]) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
@@ -49,7 +49,7 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[db.StoredLog]) 
 }
 
 // NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) NotifyInsert(logLine db.StoredLog) {
+func (self *LogsWatchHub) NotifyInsert(logLine *types.StoredLog) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
@@ -64,7 +64,7 @@ func (self *LogsWatchHub) NotifyInsert(logLine db.StoredLog) {
 }
 
 // NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) notify(logLine db.StoredLog) {
+func (self *LogsWatchHub) notify(logLine *types.StoredLog) {
 	clientId := logLine.Client.ClientId
 	if self.channels[clientId] == nil {
 		return
@@ -76,7 +76,7 @@ func (self *LogsWatchHub) notify(logLine db.StoredLog) {
 }
 
 // NotifyInsertMultiple implements WatchHub.
-func (self *LogsWatchHub) NotifyInsertMultiple(lines []db.StoredLog) {
+func (self *LogsWatchHub) NotifyInsertMultiple(lines []*types.StoredLog) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
@@ -85,7 +85,7 @@ func (self *LogsWatchHub) NotifyInsertMultiple(lines []db.StoredLog) {
 	}
 }
 
-var LogsHub WatchHub[db.StoredLog] = &LogsWatchHub{
+var LogsHub WatchHub[*types.StoredLog] = &LogsWatchHub{
 	mutex:    sync.Mutex{},
 	channels: make(map[string]subscriptions),
 }

@@ -8,15 +8,14 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
-	"github.com/markojerkic/svarog/internal/server/db"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type LogRepository interface {
-	SaveLogs(logs []StoredLog) error
-	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]StoredLog, error)
+	SaveLogs(logs []*types.StoredLog) error
+	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
 	GetClients() ([]AvailableClient, error)
-	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error)
+	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 }
 
 type LastCursor struct {
@@ -35,40 +34,27 @@ type LogServer struct {
 	ctx        context.Context
 	repository LogRepository
 
-	logs    chan *StoredLog
-	backlog backlog.Backlog[any]
+	logs    chan *types.StoredLog
+	backlog backlog.Backlog[*types.StoredLog]
 }
 
 var _ AggregatingLogServer = &LogServer{}
 
 type AvailableClient struct {
-	Client   StoredClient
+	Client   types.StoredClient
 	IsOnline bool
-}
-
-type StoredClient struct {
-	ClientId  string `bson:"client_id" json:"clientId"`
-	IpAddress string `bson:"ip_address" json:"ipAddress"`
-}
-
-type StoredLog struct {
-	ID             primitive.ObjectID `bson:"_id,omitempty"`
-	LogLine        string             `bson:"log_line"`
-	Timestamp      time.Time          `bson:"timestamp"`
-	Client         StoredClient       `bson:"client"`
-	SequenceNumber int64              `bson:"sequence_number"`
 }
 
 func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogServer {
 	return &LogServer{
 		ctx:        ctx,
 		repository: dbClient,
-		logs:       make(chan *StoredLog, 1024*1024),
-		backlog:    backlog.NewBacklog[any](1024 * 1024),
+		logs:       make(chan *types.StoredLog, 1024*1024),
+		backlog:    backlog.NewBacklog[*types.StoredLog](1024 * 1024),
 	}
 }
 
-func (self *LogServer) dumpBacklog(logsToSave []db.StoredLog) {
+func (self *LogServer) dumpBacklog(logsToSave []*types.StoredLog) {
 	err := self.repository.SaveLogs(logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)
@@ -77,14 +63,17 @@ func (self *LogServer) dumpBacklog(logsToSave []db.StoredLog) {
 
 func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 	slog.Debug("Starting log server")
+	interval := time.NewTicker(5 * time.Second)
+	defer interval.Stop()
+
 	for {
 		select {
 		case line := <-logIngestChannel:
-			logLine := &StoredLog{
+			logLine := &types.StoredLog{
 				LogLine:        line.Message,
 				Timestamp:      line.Timestamp.AsTime(),
 				SequenceNumber: line.Sequence,
-				Client: StoredClient{
+				Client: types.StoredClient{
 					ClientId:  line.Client,
 					IpAddress: "::1",
 				},
@@ -94,7 +83,7 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 		case logsToSave := <-self.backlog.GetLogs():
 			go self.dumpBacklog(logsToSave)
 
-		case <-time.After(5 * time.Second):
+		case <-interval.C:
 			slog.Debug("Dumping backlog after timeout")
 			self.backlog.ForceDump()
 

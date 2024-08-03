@@ -6,12 +6,12 @@ import (
 
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type WsRouter struct {
-	wsHub        websocket.WatchHub[db.StoredLog]
+	wsHub        websocket.WatchHub[*types.StoredLog]
 	parentRouter *echo.Group
 	api          *echo.Group
 }
@@ -20,7 +20,7 @@ type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
 	pingPong     chan bool
-	subscription websocket.Subscription[db.StoredLog]
+	subscription websocket.Subscription[*types.StoredLog]
 }
 
 type WsMessageType string
@@ -39,17 +39,15 @@ type WsMessage struct {
 }
 
 func (self *WsConnection) readPipe() {
-	defer func() {
-		self.wsConnection.Close()
-		self.subscription.Close()
-	}()
+	defer self.wsConnection.Close()
+	defer self.subscription.Close()
 
 	var message WsMessage
 	for {
 		err := self.wsConnection.ReadJSON(&message)
 		if err != nil {
 			slog.Error("Error reading WS message", slog.Any("error", err))
-			continue
+			return
 		}
 
 		switch message.Type {
@@ -81,6 +79,8 @@ func (self *WsConnection) writePipe() {
 	for {
 		select {
 		case storedLogLine := <-self.subscription.GetUpdates():
+
+			slog.Info("Sending new log line to WS client", slog.Any("clientId", self.clientId))
 
 			logLine := LogLine{
 				ID:             storedLogLine.ID.Hex(),
@@ -148,7 +148,7 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 	return nil
 }
 
-func NewWsConnectionRouter(hub websocket.WatchHub[db.StoredLog], parentRouter *echo.Group) *WsRouter {
+func NewWsConnectionRouter(hub websocket.WatchHub[*types.StoredLog], parentRouter *echo.Group) *WsRouter {
 	api := parentRouter.Group("/ws")
 	router := &WsRouter{
 		wsHub:        hub,

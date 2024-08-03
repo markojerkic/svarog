@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type Subscription[T interface{}] interface {
@@ -14,9 +14,9 @@ type Subscription[T interface{}] interface {
 }
 
 type LogSubscription struct {
-	hub             *WatchHub[db.StoredLog]
+	hub             *WatchHub[*types.StoredLog]
 	clientId        string
-	updates         chan db.StoredLog
+	updates         chan *types.StoredLog
 	clientInstances map[string]bool
 }
 
@@ -31,7 +31,7 @@ func (l *LogSubscription) RemoveInstance(instanceId string) {
 }
 
 // GetUpdates implements Subscription.
-func (self *LogSubscription) GetUpdates() <-chan db.StoredLog {
+func (self *LogSubscription) GetUpdates() <-chan *types.StoredLog {
 	return self.updates
 }
 
@@ -39,7 +39,7 @@ func (self *LogSubscription) GetClientId() string {
 	return self.clientId
 }
 
-func (self *LogSubscription) Notify(log db.StoredLog) {
+func (self *LogSubscription) Notify(log *types.StoredLog) {
 	self.updates <- log
 }
 
@@ -47,13 +47,13 @@ func (self *LogSubscription) Close() {
 	close(self.updates)
 }
 
-var _ Subscription[db.StoredLog] = &LogSubscription{}
+var _ Subscription[*types.StoredLog] = &LogSubscription{}
 
-func Subscribe(clientId string) Subscription[db.StoredLog] {
+func Subscribe(clientId string) Subscription[*types.StoredLog] {
 	return &LogSubscription{
 		hub:             &LogsHub,
 		clientId:        clientId,
-		updates:         make(chan db.StoredLog, 100),
+		updates:         make(chan *types.StoredLog, 100),
 		clientInstances: make(map[string]bool),
 	}
 }

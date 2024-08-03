@@ -96,7 +96,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 }
 
-func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) *db.LastCursor {
+func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *types.LastCursor {
 	for _, log := range logPage {
 		ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine)
 		if !ok {

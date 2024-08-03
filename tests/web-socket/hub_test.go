@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -15,29 +16,29 @@ func TestSubscribe(t *testing.T) {
 	markoSubscription := ws.LogsHub.Subscribe("marko")
 	jerkicSubscription := ws.LogsHub.Subscribe("jerkic")
 
-	ws.LogsHub.NotifyInsert(db.StoredLog{
+	ws.LogsHub.NotifyInsert(types.StoredLog{
 		ID:        primitive.NewObjectID(),
 		LogLine:   "marko",
 		Timestamp: time.Now(),
-		Client: db.StoredClient{
+		Client: types.StoredClient{
 			ClientId:  "marko",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
 	})
 
-	ws.LogsHub.NotifyInsert(db.StoredLog{
+	ws.LogsHub.NotifyInsert(types.StoredLog{
 		ID:        primitive.NewObjectID(),
 		LogLine:   "jerkic",
 		Timestamp: time.Now(),
-		Client: db.StoredClient{
+		Client: types.StoredClient{
 			ClientId:  "jerkic",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
 	})
 
-	markoUpdates := make([]db.StoredLog, 0, 10)
+	markoUpdates := make([]types.StoredLog, 0, 10)
 	timeout, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	for {
@@ -54,7 +55,7 @@ func TestSubscribe(t *testing.T) {
 		}
 	}
 
-	jerkicUpdates := make([]db.StoredLog, 0, 10)
+	jerkicUpdates := make([]types.StoredLog, 0, 10)
 	timeout, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	for {

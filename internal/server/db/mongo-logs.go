@@ -6,6 +6,8 @@ import (
 	"log"
 	"log/slog"
 
+	"github.com/markojerkic/svarog/internal/server/types"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -35,7 +37,7 @@ func (self *MongoLogRepository) GetClients() ([]AvailableClient, error) {
 
 	for i, result := range results {
 		mappedClient := AvailableClient{
-			Client: StoredClient{
+			Client: types.StoredClient{
 				ClientId: result.(string),
 			},
 		}
@@ -90,7 +92,7 @@ func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson
 	return filter, projection
 }
 
-func (self *MongoLogRepository) getAndMapLogs(filter bson.D, projection *options.FindOptions) ([]StoredLog, error) {
+func (self *MongoLogRepository) getAndMapLogs(filter bson.D, projection *options.FindOptions) ([]types.StoredLog, error) {
 	cursor, err := self.logCollection.Find(context.Background(), filter, projection)
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
@@ -98,7 +100,7 @@ func (self *MongoLogRepository) getAndMapLogs(filter bson.D, projection *options
 	}
 	defer cursor.Close(context.Background())
 
-	var logs []StoredLog
+	var logs []types.StoredLog
 	if err = cursor.All(context.Background(), &logs); err != nil {
 		return nil, err
 	}
@@ -107,7 +109,7 @@ func (self *MongoLogRepository) getAndMapLogs(filter bson.D, projection *options
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	filter, projection := createFilter(clientId, pageSize, lastCursor)
@@ -116,7 +118,7 @@ func (self *MongoLogRepository) GetLogs(clientId string, pageSize int64, lastCur
 	return self.getAndMapLogs(filter, projection)
 }
 
-func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]StoredLog, error) {
+func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	filter, projection := createFilter(clientId, pageSize, lastCursor)
@@ -129,8 +131,12 @@ func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSi
 	return self.getAndMapLogs(filter, projection)
 }
 
-func (self *MongoLogRepository) SaveLogs(logs []StoredLog) error {
-	insertedLines, err := self.logCollection.InsertMany(context.Background(), []any{logs})
+func (self *MongoLogRepository) SaveLogs(logs []*types.StoredLog) error {
+	saveableLogs := make([]interface{}, len(logs))
+	for i, log := range logs {
+		saveableLogs[i] = log
+	}
+	insertedLines, err := self.logCollection.InsertMany(context.Background(), saveableLogs)
 	if err != nil {
 		slog.Error("Error saving logs", slog.Any("error", err))
 		return err
@@ -140,7 +146,7 @@ func (self *MongoLogRepository) SaveLogs(logs []StoredLog) error {
 		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
 	}
 
-	// websocket.LogsHub.NotifyInsertMultiple(storedLogLines)
+	websocket.LogsHub.NotifyInsertMultiple(logs)
 
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type LogLine struct {
@@ -13,7 +14,7 @@ type LogLine struct {
 	Timestamp      int64           `json:"timestamp"`
 	Content        string          `json:"content"`
 	SequenceNumber int64           `json:"sequenceNumber"`
-	Client         db.StoredClient `json:"client"`
+	Client         types.StoredClient `json:"client"`
 }
 
 type LogsRouter struct {
