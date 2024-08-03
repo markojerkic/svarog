@@ -1,4 +1,3 @@
-import { createReconnectingWS } from "@solid-primitives/websocket";
 import { useQueryClient } from "@tanstack/solid-query";
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { SortedList, treeNodeToCursor } from "~/lib/store/sorted-list";
@@ -22,24 +21,6 @@ export type LogPageCursor = {
 };
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
-
-export const createLogSubscription = (
-	clientId: string,
-	logStore: SortedList<LogLine>,
-) => {
-	const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
-
-	onMount(() => {
-		ws.addEventListener("message", (e) => {
-			const message = e.data;
-			console.log("Message", message);
-		});
-	});
-
-	onCleanup(() => {
-		ws.close();
-	});
-};
 
 export const createLogQuery = (clientId: string, search?: string) => {
 	const queryClient = useQueryClient();

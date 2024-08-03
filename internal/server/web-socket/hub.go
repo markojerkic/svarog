@@ -44,8 +44,8 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[*types.StoredLo
 		return
 	}
 	subscriptions := self.channels[clientId]
-	delete(subscriptions, subscription)
 	(*subscription).Close()
+	delete(subscriptions, subscription)
 }
 
 // NotifyInsert implements WatchHub.

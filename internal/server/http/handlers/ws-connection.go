@@ -20,6 +20,7 @@ type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
 	pingPong     chan bool
+	wsHub        websocket.WatchHub[*types.StoredLog]
 	subscription websocket.Subscription[*types.StoredLog]
 }
 
@@ -38,9 +39,13 @@ type WsMessage struct {
 	Data interface{}   `json:"data"`
 }
 
+func (self *WsConnection) closeSubscription() {
+	self.wsConnection.Close()
+	self.wsHub.Unsubscribe(&self.subscription)
+}
+
 func (self *WsConnection) readPipe() {
-	defer self.wsConnection.Close()
-	defer self.subscription.Close()
+	defer self.closeSubscription()
 
 	var message WsMessage
 	for {
@@ -75,10 +80,16 @@ func (self *WsConnection) readPipe() {
 }
 
 func (self *WsConnection) writePipe() {
-	defer self.wsConnection.Close()
+	defer self.closeSubscription()
+
 	for {
 		select {
 		case storedLogLine := <-self.subscription.GetUpdates():
+
+			if storedLogLine == nil {
+				slog.Error("Received nil log line")
+				return
+			}
 
 			slog.Info("Sending new log line to WS client", slog.Any("clientId", self.clientId))
 
@@ -139,6 +150,7 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		clientId:     clientId,
 		wsConnection: conn,
 		subscription: *subscription,
+		wsHub:        self.wsHub,
 		pingPong:     make(chan bool),
 	}
 

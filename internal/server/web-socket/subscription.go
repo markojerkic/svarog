@@ -44,7 +44,10 @@ func (self *LogSubscription) Notify(log *types.StoredLog) {
 }
 
 func (self *LogSubscription) Close() {
-	close(self.updates)
+	_, ok := <-self.updates
+	if ok {
+		close(self.updates)
+	}
 }
 
 var _ Subscription[*types.StoredLog] = &LogSubscription{}
