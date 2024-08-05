@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/assert"

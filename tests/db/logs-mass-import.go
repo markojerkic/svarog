@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/server/types"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
@@ -96,7 +97,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 }
 
-func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *types.LastCursor {
+func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *db.LastCursor {
 	for _, log := range logPage {
 		ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine)
 		if !ok {
