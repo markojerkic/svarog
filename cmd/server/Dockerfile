@@ -64,6 +64,7 @@ ENV DOCKER=true
 
 # Expose the port the server will run on
 EXPOSE 1323
+EXPOSE 50051
 
 # Command to run the server
 USER 1000
