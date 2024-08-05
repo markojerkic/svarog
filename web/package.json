@@ -14,6 +14,7 @@
     "dependencies": {
         "@solid-primitives/scheduled": "^1.4.3",
         "@solid-primitives/websocket": "^1.2.2",
+        "@solidjs/meta": "^0.29.4",
         "@solidjs/router": "^0.13.6",
         "@solidjs/start": "^1.0.4",
         "@tanstack/solid-query": "^5.51.2",

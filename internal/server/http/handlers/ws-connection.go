@@ -86,7 +86,6 @@ func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
 	for {
 		select {
 		case storedLogLine := <-self.subscription.GetUpdates():
-			slog.Info("Sending new log line to WS client", slog.Any("clientId", self.clientId))
 
 			logLine := LogLine{
 				ID:             storedLogLine.ID.Hex(),
