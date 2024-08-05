@@ -11,16 +11,16 @@ import "./app.css";
 const queryClient = new QueryClient();
 
 export default function App() {
-    return (
-        <QueryClientProvider client={queryClient}>
-            <MetaProvider>
-                <Router root={Layout}>
-                    <FileRoutes />
-                </Router>
-            </MetaProvider>
-            <Show when={import.meta.env.DEV}>
-                <SolidQueryDevtools buttonPosition="top-right" />
-            </Show>
-        </QueryClientProvider>
-    );
+	return (
+		<QueryClientProvider client={queryClient}>
+			<MetaProvider>
+				<Router root={Layout}>
+					<FileRoutes />
+				</Router>
+			</MetaProvider>
+			<Show when={import.meta.env.DEV}>
+				<SolidQueryDevtools buttonPosition="top-right" />
+			</Show>
+		</QueryClientProvider>
+	);
 }
