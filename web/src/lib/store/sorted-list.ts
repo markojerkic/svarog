@@ -47,6 +47,8 @@ export class SortedListIterator<T> implements Iterator<T> {
 	}
 }
 
+export type SortFn<T> = (a: T, b: T) => number;
+
 export class SortedList<T> {
 	private root: TreeNode<T> | null = null;
 	private compare: (a: T, b: T) => number;
@@ -54,7 +56,7 @@ export class SortedList<T> {
 	private head: TreeNode<T> | null = null;
 	private tail: TreeNode<T> | null = null;
 
-	constructor(compare: (a: T, b: T) => number) {
+	constructor(compare: SortFn<T>) {
 		this.compare = compare;
 	}
 

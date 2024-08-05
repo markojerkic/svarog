@@ -1,6 +1,10 @@
-import { useQueryClient } from "@tanstack/solid-query";
+import { type QueryClient, useQueryClient } from "@tanstack/solid-query";
 import { createStore } from "solid-js/store";
-import { SortedList, treeNodeToCursor } from "~/lib/store/sorted-list";
+import {
+	type SortFn,
+	SortedList,
+	treeNodeToCursor,
+} from "~/lib/store/sorted-list";
 
 export type Client = {
 	clientId: string;
@@ -22,41 +26,51 @@ export type LogPageCursor = {
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
-const defaultQueryState = {
-	isPreviousPageLoading: false,
-	isPreviousPageError: false,
-	isNextPageLoading: false,
-	isNextPageError: false,
-	lastLoadedPageSize: 0,
+const createDefaultState = (
+	queryClient: QueryClient,
+	clientId: string,
+	search?: string,
+) => {
+	const defaultQueryState = {
+		isPreviousPageLoading: false,
+		isPreviousPageError: false,
+		isNextPageLoading: false,
+		isNextPageError: false,
+		lastLoadedPageSize: 0,
+	};
+	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
+		"logs",
+		clientId,
+		search,
+	]);
+
+	if (!logStore) {
+		logStore = new SortedList<LogLine>(sortFn);
+		queryClient.setQueryData<SortedList<LogLine>>(
+			["logs", clientId, search],
+			logStore,
+		);
+	}
+
+	return {
+		...defaultQueryState,
+		logStore,
+	};
+};
+
+const sortFn: SortFn<LogLine> = (a, b) => {
+	const timestampDiff = a.timestamp - b.timestamp;
+	if (timestampDiff !== 0) {
+		return timestampDiff;
+	}
+	return a.sequenceNumber - b.sequenceNumber;
 };
 
 export const createLogQuery = (clientId: string, search?: string) => {
 	const queryClient = useQueryClient();
-	const [state, setState] = createStore({
-		...defaultQueryState,
-		logStore: queryClient.getQueryData<SortedList<LogLine>>([
-			"logs",
-			clientId,
-			search,
-		]),
-	});
-
-	if (!state.logStore) {
-		setState(
-			"logStore",
-			new SortedList<LogLine>((a, b) => {
-				const timestampDiff = a.timestamp - b.timestamp;
-				if (timestampDiff !== 0) {
-					return timestampDiff;
-				}
-				return a.sequenceNumber - b.sequenceNumber;
-			}),
-		);
-		queryClient.setQueryData<SortedList<LogLine>>(
-			["logs", clientId, search],
-			state.logStore,
-		);
-	}
+	const [state, setState] = createStore(
+		createDefaultState(queryClient, clientId, search),
+	);
 
 	const fetchNextPage = async () => {
 		console.warn("Not implemented");
