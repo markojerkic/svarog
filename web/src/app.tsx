@@ -22,7 +22,7 @@ export default function App() {
 				<FileRoutes />
 			</Router>
 			<Show when={import.meta.env.DEV}>
-				<SolidQueryDevtools />
+				<SolidQueryDevtools buttonPosition="top-right" />
 			</Show>
 		</QueryClientProvider>
 	);

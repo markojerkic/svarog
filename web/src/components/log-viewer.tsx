@@ -1,5 +1,6 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { For, createEffect, onMount } from "solid-js";
+import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
+import { b } from "vitest/dist/suite-IbNSsUWN.js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 import type { CreateLogQueryResult } from "~/lib/store/log-store";
 
@@ -26,7 +27,8 @@ const LogViewer = (props: LogViewerProps) => {
 		overscan: 5,
 	});
 
-	const [observer, isLockedInBottom] = createInfiniteScrollObserver(logs);
+	const [observer, isLockedInBottom, setIsOnBottom] =
+		createInfiniteScrollObserver(logs);
 	onMount(() => {
 		if (topRef) {
 			observer.observe(topRef);
@@ -52,30 +54,35 @@ const LogViewer = (props: LogViewerProps) => {
 		}
 	});
 
+	const scrollToBottom = () => {
+		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
+		setIsOnBottom();
+	};
+	const scrollToBottomIfLocked = () => {
+		if (isLockedInBottom()) {
+			scrollToBottom();
+		}
+	};
+
 	onMount(() => {
 		scrollToBottom();
 	});
 
 	const items = virtualizer.getVirtualItems();
 
-	const scrollToBottom = () => {
-		if (isLockedInBottom()) {
-			virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
-		}
-	};
-	onMount(() => {
-		addEventListener("scroll-to-bottom", scrollToBottom);
-
-		return () => {
-			removeEventListener("scroll-to-bottom", scrollToBottom);
-		};
-	});
+	addEventListener("scroll-to-bottom", scrollToBottomIfLocked);
+	onCleanup(() =>
+		removeEventListener("scroll-to-bottom", scrollToBottomIfLocked),
+	);
 
 	return (
 		<div>
+			<pre class="text-white p-4">
+				Log Viewer is locked in bottom: {isLockedInBottom() ? "Je" : "Nije"}
+			</pre>
 			<div
 				ref={logsRef}
-				style={{ height: "80vh", width: "100%", "overflow-y": "auto" }}
+				style={{ height: "70vh", width: "100%", "overflow-y": "auto" }}
 			>
 				<div
 					style={{
@@ -84,6 +91,10 @@ const LogViewer = (props: LogViewerProps) => {
 						position: "relative",
 					}}
 				>
+					<ScrollToBottomButton
+						scrollToBottom={scrollToBottom}
+						isLockedInBottom={isLockedInBottom()}
+					/>
 					<div
 						style={{
 							position: "absolute",
@@ -118,6 +129,36 @@ const LogViewer = (props: LogViewerProps) => {
 				</div>
 			</div>
 		</div>
+	);
+};
+
+const ScrollToBottomButton = (props: {
+	isLockedInBottom: boolean;
+	scrollToBottom: () => void;
+}) => {
+	return (
+		<Show when={!props.isLockedInBottom}>
+			<button
+				type="button"
+				id="scroll-to-bottom"
+				class="size-10 rounded-full bg-red-800 flex fixed bottom-4 right-4 cursor-pointer hover:bg-red-700"
+				onClick={props.scrollToBottom}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="2.5"
+					class="size-6 m-auto stroke-white"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"
+					/>
+				</svg>
+			</button>
+		</Show>
 	);
 };
 

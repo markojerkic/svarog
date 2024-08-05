@@ -3,13 +3,15 @@ import type { CreateLogQueryResult } from "~/lib/store/log-store";
 
 export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
+    const setIsOnBottom = () => setIsLockedInBottom(true)
+
 	const observer = new IntersectionObserver((entries) => {
+		let isBottomIntersecting = false;
+
 		for (const entry of entries) {
 			if (entry.isIntersecting) {
 				if (entry.target.id === "bottom") {
-					setIsLockedInBottom(true);
-				} else {
-					setIsLockedInBottom(false);
+					isBottomIntersecting = true;
 				}
 
 				if (entry.target.id === "bottom" && !query.isNextPageLoading()) {
@@ -22,6 +24,8 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 				}
 			}
 		}
+
+		setIsLockedInBottom(isBottomIntersecting);
 	});
-	return [observer, isLockedInBottom] as const;
+	return [observer, isLockedInBottom, setIsOnBottom] as const;
 };

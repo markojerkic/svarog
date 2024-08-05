@@ -31,7 +31,6 @@ export const createLogSubscription = (
 			try {
 				const message: WsMessage = JSON.parse(e.data);
 				if (message.type === "newLine") {
-					console.log("Message", message.data.content);
 					logStore.insert(message.data);
 					scrollToBottom();
 				}
