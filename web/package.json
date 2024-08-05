@@ -3,9 +3,10 @@
     "type": "module",
     "scripts": {
         "dev": "vinxi dev",
-        "build": "vinxi build",
+        "build": "vinxi build --mode production",
         "start": "vinxi start",
-        "lint": "biome lint ./{src,test}",
+        "lint": "biome lint --error-on-warnings ./{src,test}",
+        "lint:fix": "biome lint --write --unsafe ./{src,test}",
         "format:check": "biome format ./{src,test}",
         "format": "biome format --write ./{src,test}",
         "test": "vitest",
@@ -13,22 +14,25 @@
     },
     "dependencies": {
         "@solid-primitives/scheduled": "^1.4.3",
+        "@solid-primitives/websocket": "^1.2.2",
+        "@solidjs/meta": "^0.29.4",
         "@solidjs/router": "^0.13.6",
-        "@solidjs/start": "^1.0.2",
-        "@tanstack/solid-query": "^5.49.1",
-        "@tanstack/solid-query-devtools": "^5.49.1",
+        "@solidjs/start": "^1.0.4",
+        "@tanstack/solid-query": "^5.51.2",
+        "@tanstack/solid-query-devtools": "^5.51.2",
         "@tanstack/solid-virtual": "3.8.1",
         "autoprefixer": "^10.4.19",
         "postcss": "^8.4.39",
         "solid-js": "^1.8.18",
-        "tailwindcss": "^3.4.4",
-        "vinxi": "^0.3.12"
+        "tailwindcss": "^3.4.5",
+        "vinxi": "^0.3.14"
     },
     "engines": {
         "node": ">=18"
     },
     "devDependencies": {
         "@biomejs/biome": "^1.8.3",
+        "tailwind-scrollbar": "^3.1.0",
         "vitest": "^1.6.0"
     }
 }

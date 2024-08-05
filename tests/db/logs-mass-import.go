@@ -11,6 +11,7 @@ import (
 
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -96,7 +97,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 }
 
-func validateLogListIsRightOrder(logPage []db.StoredLog, i int, t *testing.T) *db.LastCursor {
+func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *db.LastCursor {
 	for _, log := range logPage {
 		ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine)
 		if !ok {

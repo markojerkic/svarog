@@ -1,35 +1,29 @@
 import { debounce } from "@solid-primitives/scheduled";
 import { useParams, useSearchParams } from "@solidjs/router";
-import { createQuery } from "@tanstack/solid-query";
-import { For, Show, createEffect, createSignal } from "solid-js";
-import { fetchLogs } from "~/lib/store/log-store";
+import { Show, createEffect, createSignal, on } from "solid-js";
+import { createLogViewer } from "~/components/log-viewer";
+import { createLogQuery } from "~/lib/store/log-store";
 
 export default () => {
 	const clientId = useParams().clientId;
-	const [searchParams, setSearchParams] = useSearchParams<{
-		search?: string;
-	}>();
-	const [search, setSearch] = createSignal(searchParams.search ?? "");
+	const [search, setSearch] = createDebouncedSearch();
 
-	const trigger = debounce((value: string) => {
-		console.log("trigger", value);
-		setSearchParams({ search: value });
-	}, 500);
-
-	createEffect(() => {
-		trigger(search());
-	});
-
-	const logs = createQuery(() => ({
-		queryKey: ["logs", clientId, searchParams.search],
-		queryFn: async () => {
-			return await fetchLogs(clientId, searchParams.search);
-		},
+	const l = createLogQuery(() => ({
+		clientId,
+		search: search(),
 	}));
 
 	const logsStringified = () => {
-		return logs.data?.map((log) => JSON.stringify(log.content)) ?? [];
+		return l.state.logStore.size;
 	};
+	const [LogViewer, scrollToBottom] = createLogViewer();
+
+	createEffect(
+		on(createDebouncedSearch, () => {
+			l.fetchPreviousPage();
+			scrollToBottom();
+		}),
+	);
 
 	return (
 		<div class="rounded-md border-white p-2">
@@ -46,11 +40,32 @@ export default () => {
 			</div>
 
 			<div class="border-red p-2">
-				<Show when={logs.isFetching}>
-					<p class="animate-bounce">Loading...</p>
+				<Show when={l.state.isNextPageLoading}>
+					<p class="animate-bounce">Loading next...</p>
 				</Show>
-				<For each={logsStringified()}>{(log) => <div>{log}</div>}</For>
+				<Show when={l.state.isPreviousPageLoading}>
+					<p class="animate-bounce">Loading prev...</p>
+				</Show>
+				<div>Logs Num: {logsStringified()}</div>
+				<LogViewer logsQuery={l} />
 			</div>
 		</div>
 	);
+};
+
+const createDebouncedSearch = () => {
+	const [searchParams, setSearchParams] = useSearchParams<{
+		search?: string;
+	}>();
+	const [search, setSearch] = createSignal(searchParams.search ?? "");
+	const trigger = debounce((value: string) => {
+		setSearchParams({ search: value });
+	}, 500);
+
+	createEffect(() => {
+		trigger(search());
+	});
+	const debouncedSearch = () => searchParams.search;
+
+	return [debouncedSearch, setSearch] as const;
 };

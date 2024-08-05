@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,17 +21,17 @@ func (s *RepositorySuite) TestNoClients() {
 func (s *RepositorySuite) TestAddClient() {
 	t := s.T()
 
-	mockLogLines := []interface{}{
-		db.StoredLog{
-			Client: db.StoredClient{
+	mockLogLines := []types.StoredLog{
+		types.StoredLog{
+			Client: types.StoredClient{
 				ClientId:  "marko",
 				IpAddress: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
-		db.StoredLog{
-			Client: db.StoredClient{
+		types.StoredLog{
+			Client: types.StoredClient{
 				ClientId:  "jerkić",
 				IpAddress: "::1",
 			},

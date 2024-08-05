@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type HttpServer struct {
@@ -43,6 +44,7 @@ func (self *HttpServer) Start() {
 	})
 
 	handlers.NewLogsRouter(self.logRepository, api)
+	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
 
 	serverAddr := fmt.Sprintf(":%d", self.serverPort)
 	e.Logger.Fatal(e.Start(serverAddr))
