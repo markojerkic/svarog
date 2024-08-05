@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"sync"
+
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
@@ -21,6 +23,8 @@ type LogSubscription struct {
 	clientId        string
 	updates         chan types.StoredLog
 	clientInstances map[string]bool
+	isClosed        bool
+	mutex           *sync.Mutex
 }
 
 // AddInstance implements Subscription.
@@ -47,10 +51,14 @@ func (self *LogSubscription) Notify(log types.StoredLog) {
 }
 
 func (self *LogSubscription) Close() {
-	_, ok := <-self.updates
-	if ok {
-		close(self.updates)
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+
+	if self.isClosed {
+		return
 	}
+	close(self.updates)
+	self.isClosed = true
 }
 
 func (self *LogSubscription) GetSubscriptionId() string {
@@ -66,5 +74,7 @@ func createSubscription(clientId string) Subscription[types.StoredLog] {
 		clientId:        clientId,
 		updates:         make(chan types.StoredLog, 100),
 		clientInstances: make(map[string]bool),
+		isClosed:        false,
+		mutex:           &sync.Mutex{},
 	}
 }

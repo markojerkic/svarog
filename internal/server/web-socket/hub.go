@@ -37,10 +37,10 @@ func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[types.StoredL
 
 // Unsubscribe implements WatchHub.
 func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[types.StoredLog]) {
-	clientId := (*subscription).GetClientId()
-
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
+
+	clientId := (*subscription).GetClientId()
 
 	if self.channels[clientId] == nil {
 		return

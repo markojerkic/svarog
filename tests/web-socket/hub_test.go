@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"log"
 	"testing"
 	"time"
 
@@ -76,4 +77,64 @@ func TestSubscribe(t *testing.T) {
 
 	assert.Equal(t, "marko", markoUpdates[0].LogLine, "Expected log line to be marko")
 	assert.Equal(t, "jerkic", jerkicUpdates[0].LogLine, "Expected log line to be jerkic")
+}
+
+func TestUnsubscribe(t *testing.T) {
+	subscription := ws.LogsHub.Subscribe("marko")
+	ws.LogsHub.NotifyInsert(types.StoredLog{
+		ID:        primitive.NewObjectID(),
+		LogLine:   "marko",
+		Timestamp: time.Now(),
+		Client: types.StoredClient{
+			ClientId:  "marko",
+			IpAddress: "::1",
+		},
+		SequenceNumber: 0,
+	})
+
+	markoUpdates := make([]types.StoredLog, 0, 10)
+
+	timeout, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	for {
+		isDone := false
+		select {
+		case log, ok := <-(*subscription).GetUpdates():
+			isDone = !ok
+			if ok {
+				markoUpdates = append(markoUpdates, log)
+			}
+		case <-timeout.Done():
+			isDone = true
+		}
+		if isDone {
+			break
+		}
+	}
+	assert.Equal(t, 1, len(markoUpdates), "Expected 1 log line for marko")
+
+	log.Print("Unsubscribing")
+	ws.LogsHub.Unsubscribe(subscription)
+	log.Print("Unsubscribing again")
+	ws.LogsHub.Unsubscribe(subscription)
+
+	timeout, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	for {
+		isDone := false
+		select {
+		case log, ok := <-(*subscription).GetUpdates():
+			isDone = !ok
+			if ok {
+				markoUpdates = append(markoUpdates, log)
+			}
+		case <-timeout.Done():
+			isDone = true
+		}
+		if isDone {
+			break
+		}
+	}
+	assert.Equal(t, 1, len(markoUpdates), "Expected 1 log line for marko after unsubscribing")
+
 }
