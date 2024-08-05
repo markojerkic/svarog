@@ -28,6 +28,7 @@ const LogViewer = (props: LogViewerProps) => {
 
 	const [observer, isLockedInBottom, setIsOnBottom] =
 		createInfiniteScrollObserver(props.logsQuery);
+
 	onMount(() => {
 		if (topRef) {
 			observer.observe(topRef);
@@ -41,11 +42,7 @@ const LogViewer = (props: LogViewerProps) => {
 	createEffect(() => {
 		if (logs.isPreviousPageLoading) {
 			wasFetchingPreviousPage = true;
-		} else if (
-			wasFetchingPreviousPage &&
-			logs.logStore &&
-			virtualizer.isScrolling
-		) {
+		} else if (wasFetchingPreviousPage && virtualizer.isScrolling) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
 			const offset = logs.lastLoadedPageSize - 1;
@@ -54,6 +51,7 @@ const LogViewer = (props: LogViewerProps) => {
 	});
 
 	const scrollToBottom = () => {
+		console.log("Is invoked");
 		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
 		setIsOnBottom();
 	};
@@ -137,7 +135,7 @@ const ScrollToBottomButton = (props: {
 			<button
 				type="button"
 				id="scroll-to-bottom"
-				class="size-10 rounded-full bg-red-800 flex fixed bottom-4 right-4 cursor-pointer hover:bg-red-700"
+				class="size-10 rounded-full bg-red-800 flex fixed bottom-4 right-4 cursor-pointer hover:bg-red-700 z-[1000]"
 				onClick={props.scrollToBottom}
 			>
 				<svg

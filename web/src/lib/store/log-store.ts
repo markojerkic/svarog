@@ -47,6 +47,8 @@ export const createLogQuery = (
 					latestParams.search,
 				),
 			);
+
+			dispatchEvent(new Event("scroll-to-bottom"));
 		}),
 	);
 
