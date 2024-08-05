@@ -1,9 +1,17 @@
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import type { CreateLogQueryResult } from "~/lib/store/log-store";
 
 export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
-    const setIsOnBottom = () => setIsLockedInBottom(true)
+
+	const setIsOnBottom = () => {
+		console.log("Setting is on bottom");
+		setIsLockedInBottom(true);
+	};
+
+	createEffect(() => {
+		console.log("Netko je prominuio locking", isLockedInBottom());
+	});
 
 	const observer = new IntersectionObserver((entries) => {
 		let isBottomIntersecting = false;
@@ -27,5 +35,6 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 
 		setIsLockedInBottom(isBottomIntersecting);
 	});
+
 	return [observer, isLockedInBottom, setIsOnBottom] as const;
 };

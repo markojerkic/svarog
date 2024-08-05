@@ -58,6 +58,7 @@ const LogViewer = (props: LogViewerProps) => {
 		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
 		setIsOnBottom();
 	};
+
 	const scrollToBottomIfLocked = () => {
 		if (isLockedInBottom()) {
 			scrollToBottom();
@@ -124,7 +125,7 @@ const LogViewer = (props: LogViewerProps) => {
 								);
 							}}
 						</For>
-						<div id="bottom" ref={bottomRef} />
+						<div id="bottom" class="my-[-2rem]" ref={bottomRef} />
 					</div>
 				</div>
 			</div>
