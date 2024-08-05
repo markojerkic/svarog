@@ -81,7 +81,7 @@ func loadEnv() Env {
 }
 
 func startGrpcServer(env Env) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", env.GrpcServerPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", env.GrpcServerPort))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
