@@ -3,44 +3,49 @@ import { onCleanup, onMount } from "solid-js";
 import type { SortedList } from "./sorted-list";
 import type { LogLine } from "./log-store";
 
-type MessageType =
-	| "addSubscriptionInstance"
-	| "removeSubscriptionInstance"
-	| "ping"
-	| "pong";
+type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
 
 type WsMessage =
-	| {
-			type: "newLine";
-			data: LogLine;
-	  }
-	| {
-			type: MessageType;
-			data: unknown;
-	  };
+    | {
+        type: "newLine";
+        data: LogLine;
+    }
+    | {
+        type: "ping" | "pong";
+        data?: undefined;
+    }
+    | {
+        type: MessageType;
+        data: unknown;
+    };
 
 export const createLogSubscription = (
-	clientId: string,
-	logStore: SortedList<LogLine>,
-	scrollToBottom: () => void,
+    clientId: string,
+    logStore: SortedList<LogLine>,
+    scrollToBottom: () => void,
 ) => {
-	const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
+    const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
 
-	onMount(() => {
-		ws.addEventListener("message", (e) => {
-			try {
-				const message: WsMessage = JSON.parse(e.data);
-				if (message.type === "newLine") {
-					logStore.insert(message.data);
-					scrollToBottom();
-				}
-			} catch (e) {
-				console.error("Error parsing WS message", e);
-			}
-		});
-	});
+    onMount(() => {
+        ws.addEventListener("message", (e) => {
+            try {
+                const message: WsMessage = JSON.parse(e.data);
+                if (message.type === "newLine") {
+                    logStore.insert(message.data);
+                    scrollToBottom();
+                }
+            } catch (e) {
+                console.error("Error parsing WS message", e);
+            }
+        });
+    });
 
-	onCleanup(() => {
-		ws.close();
-	});
+    const pingPongInterval = setInterval(() => {
+        ws.send(JSON.stringify({ type: "ping" } satisfies WsMessage));
+    }, 10_000);
+
+    onCleanup(() => {
+        ws.close();
+        clearInterval(pingPongInterval)
+    });
 };
