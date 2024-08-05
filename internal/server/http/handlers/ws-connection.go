@@ -3,6 +3,7 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"sync"
 
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -40,12 +41,12 @@ type WsMessage struct {
 }
 
 func (self *WsConnection) closeSubscription() {
-	self.wsConnection.Close()
 	self.wsHub.Unsubscribe(&self.subscription)
+	self.wsConnection.Close()
 }
 
-func (self *WsConnection) readPipe() {
-	defer self.closeSubscription()
+func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
+	defer wsWaitGroup.Done()
 
 	var message WsMessage
 	for {
@@ -79,8 +80,8 @@ func (self *WsConnection) readPipe() {
 	}
 }
 
-func (self *WsConnection) writePipe() {
-	defer self.closeSubscription()
+func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
+	defer wsWaitGroup.Done()
 
 	for {
 		select {
@@ -150,8 +151,17 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		pingPong:     make(chan bool),
 	}
 
-	go wsConnection.readPipe()
-	go wsConnection.writePipe()
+	wsWaitGroup := &sync.WaitGroup{}
+	wsWaitGroup.Add(2)
+
+	go wsConnection.readPipe(wsWaitGroup)
+	go wsConnection.writePipe(wsWaitGroup)
+
+	go func() {
+		// wait until read and write pipes are done and then close the subscription
+		wsWaitGroup.Wait()
+		wsConnection.closeSubscription()
+	}()
 
 	return nil
 }

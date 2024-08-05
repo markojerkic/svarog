@@ -1,10 +1,12 @@
 package websocket
 
 import (
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type Subscription[T interface{}] interface {
+	GetSubscriptionId() string
 	GetUpdates() <-chan T
 	RemoveInstance(instanceId string)
 	AddInstance(instanceId string)
@@ -14,6 +16,7 @@ type Subscription[T interface{}] interface {
 }
 
 type LogSubscription struct {
+	id              string
 	hub             *WatchHub[types.StoredLog]
 	clientId        string
 	updates         chan types.StoredLog
@@ -50,10 +53,15 @@ func (self *LogSubscription) Close() {
 	}
 }
 
+func (self *LogSubscription) GetSubscriptionId() string {
+	return self.id
+}
+
 var _ Subscription[types.StoredLog] = &LogSubscription{}
 
 func createSubscription(clientId string) Subscription[types.StoredLog] {
 	return &LogSubscription{
+		id:              uuid.New().String(),
 		hub:             &LogsHub,
 		clientId:        clientId,
 		updates:         make(chan types.StoredLog, 100),
