@@ -83,6 +83,7 @@ const LogViewer = (props: LogViewerProps) => {
 			</pre>
 			<div
 				ref={logsRef}
+				class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700"
 				style={{ height: "70vh", width: "100%", "overflow-y": "auto" }}
 			>
 				<div
