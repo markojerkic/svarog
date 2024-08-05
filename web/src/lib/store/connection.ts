@@ -22,6 +22,7 @@ type WsMessage =
 export const createLogSubscription = (
 	clientId: string,
 	logStore: SortedList<LogLine>,
+	scrollToBottom: () => void,
 ) => {
 	const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
 
@@ -32,6 +33,7 @@ export const createLogSubscription = (
 				if (message.type === "newLine") {
 					console.log("Message", message.data.content);
 					logStore.insert(message.data);
+					scrollToBottom();
 				}
 			} catch (e) {
 				console.error("Error parsing WS message", e);
