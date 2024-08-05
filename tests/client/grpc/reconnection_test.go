@@ -92,7 +92,7 @@ func createDebugLogger() {
 }
 
 func TestReconnectingClient(t *testing.T) {
-    t.Skip("Skipping flaky test")
+	t.Skip("Skipping flaky test")
 	receivedLines = make([]*rpc.LogLine, 0)
 	createDebugLogger()
 	server, listen, addr, _ := createMockGrpcServer(nil)
@@ -144,7 +144,7 @@ func TestReconnectingClient(t *testing.T) {
 }
 
 func TestReconnectingNotStartedClient(t *testing.T) {
-    t.Skip("Skipping flaky test")
+	t.Skip("Skipping flaky test")
 	receivedLines = make([]*rpc.LogLine, 0)
 	createDebugLogger()
 	server, listen, addr, _ := createMockGrpcServer(nil)
