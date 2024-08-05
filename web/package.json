@@ -3,7 +3,7 @@
     "type": "module",
     "scripts": {
         "dev": "vinxi dev",
-        "build": "vinxi build",
+        "build": "vinxi build --mode production",
         "start": "vinxi start",
         "lint": "biome lint ./{src,test}",
         "format:check": "biome format ./{src,test}",

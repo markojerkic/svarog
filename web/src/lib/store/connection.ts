@@ -24,7 +24,7 @@ export const createLogSubscription = (
     logStore: SortedList<LogLine>,
     scrollToBottom: () => void,
 ) => {
-    const ws = createReconnectingWS(`ws://localhost:1323/api/v1/ws/${clientId}`);
+    const ws = createReconnectingWS(`${import.meta.env.VITE_WS_URL}/v1/ws/${clientId}`);
 
     onMount(() => {
         ws.addEventListener("message", (e) => {

@@ -98,7 +98,7 @@ export const fetchLogs = async (
 };
 
 const buildBaseUrl = (clientId: string) =>
-	`http://localhost:1323/api/v1/logs/${clientId}`;
+	`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}`;
 
 const buildUrl = (
 	clientId: string,

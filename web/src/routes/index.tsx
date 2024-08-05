@@ -2,7 +2,7 @@ import { A, type RouteDefinition, cache, createAsync } from "@solidjs/router";
 import { For, Suspense } from "solid-js";
 
 const getClients = cache(async () => {
-	const response = await fetch("http://localhost:1323/api/v1/clients");
+	const response = await fetch(`${import.meta.env.VITE_API_URL}/v1/clients`);
 	return response.json() as Promise<{ Client: { clientId: number } }[]>;
 }, "clients");
 
