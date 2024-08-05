@@ -31,7 +31,7 @@ export const createLogSubscription = (
 				const message: WsMessage = JSON.parse(e.data);
 				if (message.type === "newLine") {
 					console.log("Message", message.data.content);
-                    logStore.insert(message.data);
+					logStore.insert(message.data);
 				}
 			} catch (e) {
 				console.error("Error parsing WS message", e);

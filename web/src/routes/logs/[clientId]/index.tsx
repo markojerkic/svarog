@@ -73,7 +73,7 @@ export default () => {
 	});
 
 	createEffect(() => {
-        const newLogCount = logCount()
+		const newLogCount = logCount();
 		if (isLockedInBottom()) {
 			virtualizer.scrollToIndex(newLogCount, { align: "end" });
 		}
