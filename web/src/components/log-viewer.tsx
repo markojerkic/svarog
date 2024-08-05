@@ -39,7 +39,8 @@ const LogViewer = (props: LogViewerProps) => {
 
 	let wasFetchingPreviousPage = false;
 	createEffect(() => {
-		if (logs.isPreviousPageLoading()) {
+		console.log("Prev page loading", logs.isPreviousPageLoading);
+		if (logs.isPreviousPageLoading) {
 			wasFetchingPreviousPage = true;
 		} else if (
 			wasFetchingPreviousPage &&
@@ -48,7 +49,7 @@ const LogViewer = (props: LogViewerProps) => {
 		) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
-			const offset = logs.lastLoadedPageSize() - 1;
+			const offset = logs.lastLoadedPageSize - 1;
 			virtualizer.scrollToIndex(offset, { align: "start" });
 		}
 	});
