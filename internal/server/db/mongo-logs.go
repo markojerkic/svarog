@@ -131,7 +131,7 @@ func (self *MongoLogRepository) SearchLogs(query string, clientId string, pageSi
 	return self.getAndMapLogs(filter, projection)
 }
 
-func (self *MongoLogRepository) SaveLogs(logs []*types.StoredLog) error {
+func (self *MongoLogRepository) SaveLogs(logs []types.StoredLog) error {
 	saveableLogs := make([]interface{}, len(logs))
 	for i, log := range logs {
 		saveableLogs[i] = log

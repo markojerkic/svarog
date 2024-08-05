@@ -14,9 +14,9 @@ type Subscription[T interface{}] interface {
 }
 
 type LogSubscription struct {
-	hub             *WatchHub[*types.StoredLog]
+	hub             *WatchHub[types.StoredLog]
 	clientId        string
-	updates         chan *types.StoredLog
+	updates         chan types.StoredLog
 	clientInstances map[string]bool
 }
 
@@ -31,7 +31,7 @@ func (l *LogSubscription) RemoveInstance(instanceId string) {
 }
 
 // GetUpdates implements Subscription.
-func (self *LogSubscription) GetUpdates() <-chan *types.StoredLog {
+func (self *LogSubscription) GetUpdates() <-chan types.StoredLog {
 	return self.updates
 }
 
@@ -39,7 +39,7 @@ func (self *LogSubscription) GetClientId() string {
 	return self.clientId
 }
 
-func (self *LogSubscription) Notify(log *types.StoredLog) {
+func (self *LogSubscription) Notify(log types.StoredLog) {
 	self.updates <- log
 }
 
@@ -50,13 +50,13 @@ func (self *LogSubscription) Close() {
 	}
 }
 
-var _ Subscription[*types.StoredLog] = &LogSubscription{}
+var _ Subscription[types.StoredLog] = &LogSubscription{}
 
-func createSubscription(clientId string) Subscription[*types.StoredLog] {
+func createSubscription(clientId string) Subscription[types.StoredLog] {
 	return &LogSubscription{
 		hub:             &LogsHub,
 		clientId:        clientId,
-		updates:         make(chan *types.StoredLog, 100),
+		updates:         make(chan types.StoredLog, 100),
 		clientInstances: make(map[string]bool),
 	}
 }

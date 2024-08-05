@@ -13,16 +13,16 @@ type WatchHub[T any] interface {
 	NotifyInsertMultiple([]T)
 }
 
-type subscriptions map[*Subscription[*types.StoredLog]]bool
+type subscriptions map[*Subscription[types.StoredLog]]bool
 type LogsWatchHub struct {
 	mutex    sync.Mutex
 	channels map[string]subscriptions
 }
 
-var _ WatchHub[*types.StoredLog] = &LogsWatchHub{}
+var _ WatchHub[types.StoredLog] = &LogsWatchHub{}
 
 // Subscribe implements WatchHub.
-func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[*types.StoredLog] {
+func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[types.StoredLog] {
 	subscription := createSubscription(clientId)
 
 	self.mutex.Lock()
@@ -36,7 +36,7 @@ func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[*types.Stored
 }
 
 // Unsubscribe implements WatchHub.
-func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[*types.StoredLog]) {
+func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[types.StoredLog]) {
 	clientId := (*subscription).GetClientId()
 
 	self.mutex.Lock()
@@ -50,7 +50,7 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[*types.StoredLo
 }
 
 // NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) NotifyInsert(logLine *types.StoredLog) {
+func (self *LogsWatchHub) NotifyInsert(logLine types.StoredLog) {
 	clientId := logLine.Client.ClientId
 	if self.channels[clientId] == nil {
 		return
@@ -62,7 +62,7 @@ func (self *LogsWatchHub) NotifyInsert(logLine *types.StoredLog) {
 }
 
 // NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) notify(logLine *types.StoredLog) {
+func (self *LogsWatchHub) notify(logLine types.StoredLog) {
 	clientId := logLine.Client.ClientId
 	if self.channels[clientId] == nil {
 		return
@@ -74,13 +74,13 @@ func (self *LogsWatchHub) notify(logLine *types.StoredLog) {
 }
 
 // NotifyInsertMultiple implements WatchHub.
-func (self *LogsWatchHub) NotifyInsertMultiple(lines []*types.StoredLog) {
+func (self *LogsWatchHub) NotifyInsertMultiple(lines []types.StoredLog) {
 	for _, logLine := range lines {
 		self.notify(logLine)
 	}
 }
 
-var LogsHub WatchHub[*types.StoredLog] = &LogsWatchHub{
+var LogsHub WatchHub[types.StoredLog] = &LogsWatchHub{
 	mutex:    sync.Mutex{},
 	channels: make(map[string]subscriptions),
 }

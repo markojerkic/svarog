@@ -12,7 +12,7 @@ import (
 )
 
 type LogRepository interface {
-	SaveLogs(logs []*types.StoredLog) error
+	SaveLogs(logs []types.StoredLog) error
 	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
 	GetClients() ([]AvailableClient, error)
 	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
@@ -34,8 +34,8 @@ type LogServer struct {
 	ctx        context.Context
 	repository LogRepository
 
-	logs    chan *types.StoredLog
-	backlog backlog.Backlog[*types.StoredLog]
+	logs    chan types.StoredLog
+	backlog backlog.Backlog[types.StoredLog]
 }
 
 var _ AggregatingLogServer = &LogServer{}
@@ -49,12 +49,12 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 	return &LogServer{
 		ctx:        ctx,
 		repository: dbClient,
-		logs:       make(chan *types.StoredLog, 1024*1024),
-		backlog:    backlog.NewBacklog[*types.StoredLog](1024 * 1024),
+		logs:       make(chan types.StoredLog, 1024*1024),
+		backlog:    backlog.NewBacklog[types.StoredLog](1024 * 1024),
 	}
 }
 
-func (self *LogServer) dumpBacklog(logsToSave []*types.StoredLog) {
+func (self *LogServer) dumpBacklog(logsToSave []types.StoredLog) {
 	err := self.repository.SaveLogs(logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)
@@ -69,7 +69,7 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 	for {
 		select {
 		case line := <-logIngestChannel:
-			logLine := &types.StoredLog{
+			logLine := types.StoredLog{
 				LogLine:        line.Message,
 				Timestamp:      line.Timestamp.AsTime(),
 				SequenceNumber: line.Sequence,
