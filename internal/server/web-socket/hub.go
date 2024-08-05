@@ -23,36 +23,34 @@ var _ WatchHub[*types.StoredLog] = &LogsWatchHub{}
 
 // Subscribe implements WatchHub.
 func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[*types.StoredLog] {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
+	subscription := createSubscription(clientId)
 
-	subscription := Subscribe(clientId)
+	self.mutex.Lock()
 	if self.channels[clientId] == nil {
 		self.channels[clientId] = make(subscriptions)
 	}
 	self.channels[clientId][&subscription] = true
+	self.mutex.Unlock()
+
 	return &subscription
 }
 
 // Unsubscribe implements WatchHub.
 func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[*types.StoredLog]) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
 	clientId := (*subscription).GetClientId()
+
+	self.mutex.Lock()
 	if self.channels[clientId] == nil {
 		return
 	}
 	subscriptions := self.channels[clientId]
 	(*subscription).Close()
 	delete(subscriptions, subscription)
+	self.mutex.Unlock()
 }
 
 // NotifyInsert implements WatchHub.
 func (self *LogsWatchHub) NotifyInsert(logLine *types.StoredLog) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
 	clientId := logLine.Client.ClientId
 	if self.channels[clientId] == nil {
 		return
@@ -77,9 +75,6 @@ func (self *LogsWatchHub) notify(logLine *types.StoredLog) {
 
 // NotifyInsertMultiple implements WatchHub.
 func (self *LogsWatchHub) NotifyInsertMultiple(lines []*types.StoredLog) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
 	for _, logLine := range lines {
 		self.notify(logLine)
 	}

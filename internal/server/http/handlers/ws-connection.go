@@ -137,7 +137,9 @@ var wsUpgrader = gorillaWs.Upgrader{
 func (self *WsRouter) connectionHandler(c echo.Context) error {
 	clientId := c.Param("clientId")
 
+	slog.Debug("Request made for client", slog.String("clientId", clientId))
 	subscription := self.wsHub.Subscribe(clientId)
+	slog.Debug("Created subscription", slog.Any("subscription", subscription))
 
 	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {

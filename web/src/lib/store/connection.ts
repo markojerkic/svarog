@@ -3,6 +3,18 @@ import { onCleanup, onMount } from "solid-js";
 import type { SortedList } from "./sorted-list";
 import type { LogLine } from "./log-store";
 
+type MessageType =
+	| "newLine"
+	| "addSubscriptionInstance"
+	| "removeSubscriptionInstance"
+	| "ping"
+	| "pong";
+
+type WsMessage = {
+	type: MessageType;
+	data: unknown;
+};
+
 export const createLogSubscription = (
 	clientId: string,
 	logStore: SortedList<LogLine>,
@@ -11,7 +23,7 @@ export const createLogSubscription = (
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
-			const message = e.data;
+			const message: WsMessage = JSON.parse(e.data);
 			console.log("Message", message);
 		});
 	});

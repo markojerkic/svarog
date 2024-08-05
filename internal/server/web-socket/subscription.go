@@ -52,7 +52,7 @@ func (self *LogSubscription) Close() {
 
 var _ Subscription[*types.StoredLog] = &LogSubscription{}
 
-func Subscribe(clientId string) Subscription[*types.StoredLog] {
+func createSubscription(clientId string) Subscription[*types.StoredLog] {
 	return &LogSubscription{
 		hub:             &LogsHub,
 		clientId:        clientId,
