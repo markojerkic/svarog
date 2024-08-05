@@ -33,6 +33,8 @@ func (self *HttpServer) Start() {
 		}))
 	}
 
+	e.Static("/", "public")
+
 	api.GET("/clients", func(c echo.Context) error {
 		clients, err := self.logRepository.GetClients()
 

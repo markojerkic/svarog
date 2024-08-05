@@ -3,3 +3,4 @@ build
 **/*_templ.txt
 **/tmp/
 .zed
+public

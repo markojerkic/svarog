@@ -2,6 +2,7 @@ version: '3'
 services:
   svarog:
     image: svarog:latest
+    container_name: svarog
     build:
       context: ./cmd/server
     ports:
