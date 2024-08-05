@@ -7,18 +7,18 @@ export const route = {
 	load: async ({ params }) => {
 		const clientId = params.clientId;
 
-		const logData = createLogQuery(clientId);
+		const logData = createLogQuery(() => ({ clientId }));
 		return await logData.fetchPreviousPage();
 	},
 } satisfies RouteDefinition;
 
 export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
-	const logs = createLogQuery(clientId);
+	const logs = createLogQuery(() => ({ clientId }));
 
 	const [LogViewer, scrollToBottom] = createLogViewer();
 
-	createLogSubscription(clientId, logs.logStore, scrollToBottom);
+	createLogSubscription(clientId, logs.state.logStore, scrollToBottom);
 
 	return (
 		<div class="flex justify-start gap-2">

@@ -3,7 +3,9 @@ import { Suspense } from "solid-js";
 import { Nav } from "~/components/nav";
 
 export const Layout = (props: RouteSectionProps<unknown>) => {
-	const isLogsRoute = useMatch(() => "/logs/:clientId");
+	const isLogsRoute = () =>
+		useMatch(() => "/logs/:clientId") ||
+		useMatch(() => "/logs/:clientId/search");
 
 	return (
 		<div

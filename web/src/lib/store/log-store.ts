@@ -1,5 +1,6 @@
 import { type QueryClient, useQueryClient } from "@tanstack/solid-query";
 import { createStore } from "solid-js/store";
+import { createEffect, on } from "solid-js";
 import {
 	type SortFn,
 	SortedList,
@@ -26,50 +27,27 @@ export type LogPageCursor = {
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
-const createDefaultState = (
-	queryClient: QueryClient,
-	clientId: string,
-	search?: string,
+export const createLogQuery = (
+	params: () => { clientId: string; search?: string },
 ) => {
-	const defaultQueryState = {
-		isPreviousPageLoading: false,
-		isPreviousPageError: false,
-		isNextPageLoading: false,
-		isNextPageError: false,
-		lastLoadedPageSize: 0,
-	};
-	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
-		"logs",
-		clientId,
-		search,
-	]);
+	const clientId = () => params().clientId;
+	const search = () => params().search;
 
-	if (!logStore) {
-		logStore = new SortedList<LogLine>(sortFn);
-		queryClient.setQueryData<SortedList<LogLine>>(
-			["logs", clientId, search],
-			logStore,
-		);
-	}
-
-	return {
-		...defaultQueryState,
-		logStore,
-	};
-};
-
-const sortFn: SortFn<LogLine> = (a, b) => {
-	const timestampDiff = a.timestamp - b.timestamp;
-	if (timestampDiff !== 0) {
-		return timestampDiff;
-	}
-	return a.sequenceNumber - b.sequenceNumber;
-};
-
-export const createLogQuery = (clientId: string, search?: string) => {
 	const queryClient = useQueryClient();
 	const [state, setState] = createStore(
-		createDefaultState(queryClient, clientId, search),
+		createDefaultState(queryClient, clientId(), search()),
+	);
+
+	createEffect(
+		on(params, (latestParams) => {
+			setState(
+				createDefaultState(
+					queryClient,
+					latestParams.clientId,
+					latestParams.search,
+				),
+			);
+		}),
 	);
 
 	const fetchNextPage = async () => {
@@ -87,12 +65,12 @@ export const createLogQuery = (clientId: string, search?: string) => {
 			const logs = await queryClient.fetchQuery({
 				queryKey: ["logs", clientId, search, lastLog?.value],
 				queryFn: async () => {
-					return fetchLogs(clientId, search, treeNodeToCursor(lastLog));
+					return fetchLogs(clientId(), search(), treeNodeToCursor(lastLog));
 				},
 			});
 			setState("lastLoadedPageSize", logs.length);
 			state.logStore.insertMany(logs);
-		} catch (error) {
+		} catch (_error) {
 			setState("isPreviousPageError", true);
 		}
 		setState("isPreviousPageLoading", false);
@@ -140,4 +118,44 @@ const buildUrl = (
 		url += `?${searchParams.toString()}`;
 	}
 	return url;
+};
+
+const createDefaultState = (
+	queryClient: QueryClient,
+	clientId: string,
+	search?: string,
+) => {
+	const defaultQueryState = {
+		isPreviousPageLoading: false,
+		isPreviousPageError: false,
+		isNextPageLoading: false,
+		isNextPageError: false,
+		lastLoadedPageSize: 0,
+	};
+	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
+		"logs",
+		clientId,
+		search,
+	]);
+
+	if (!logStore) {
+		logStore = new SortedList<LogLine>(sortFn);
+		queryClient.setQueryData<SortedList<LogLine>>(
+			["logs", clientId, search],
+			logStore,
+		);
+	}
+
+	return {
+		...defaultQueryState,
+		logStore,
+	};
+};
+
+const sortFn: SortFn<LogLine> = (a, b) => {
+	const timestampDiff = a.timestamp - b.timestamp;
+	if (timestampDiff !== 0) {
+		return timestampDiff;
+	}
+	return a.sequenceNumber - b.sequenceNumber;
 };

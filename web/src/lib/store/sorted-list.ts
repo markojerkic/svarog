@@ -1,4 +1,3 @@
-import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { LogLine, LogPageCursor } from "~/lib/store/log-store";
 
