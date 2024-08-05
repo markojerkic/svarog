@@ -65,10 +65,12 @@ func newServer() rpc.LoggAggregatorServer {
 
 func loadEnv() Env {
 	env := Env{}
-	err := dotenv.Load()
+	if os.Getenv("DOCKER") != "true" {
+		err := dotenv.Load()
 
-	if err != nil {
-		log.Fatalf("Error loading .env file. %v", err)
+		if err != nil {
+			log.Fatalf("Error loading .env file. %v", err)
+		}
 	}
 
 	if err := envParser.Parse(&env); err != nil {

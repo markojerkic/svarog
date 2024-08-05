@@ -32,7 +32,7 @@
 ####################################################################################
 
 # Stage 1: Build the Go server
-FROM golang:1.20 AS builder
+FROM golang:1.22 AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -44,24 +44,29 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the rest of the application code
-COPY . .
+COPY ./cmd ./cmd
+COPY ./internal ./internal
 
 # Build the server
-RUN go build -o build/server ./cmd/server
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/server ./cmd/server
 
 # Stage 3: Create the final image
+# FROM alpine:3.18
 FROM scratch
 
 # Set the working directory
 WORKDIR /app
 
 # Copy the server binary and web assets from the previous stages
-COPY --from=builder /app/build/server /app/server
+COPY --from=builder /app/build/server /app/build/server
 # COPY --from=web-build /usr/src/app/dist /app/web/dist
+
+ENV DOCKER=true
 
 # Expose the port the server will run on
 EXPOSE 1323
 
 # Command to run the server
-CMD ["/app/server"]
+USER 1000
 
+CMD ["/app/build/server"]
