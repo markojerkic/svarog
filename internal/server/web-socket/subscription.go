@@ -47,6 +47,12 @@ func (self *LogSubscription) GetClientId() string {
 }
 
 func (self *LogSubscription) Notify(log types.StoredLog) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+	if self.isClosed {
+		return
+	}
+
 	self.updates <- log
 }
 
