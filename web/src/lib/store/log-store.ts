@@ -101,12 +101,7 @@ export const createLogQuery = (clientId: string, search?: string) => {
 	return {
 		fetchPreviousPage,
 		fetchNextPage,
-		logStore: state.logStore as SortedList<LogLine>,
-		isPreviousPageLoading: state.isPreviousPageLoading,
-		isPreviousPageError: state.isPreviousPageError,
-		isNextPageLoading: state.isNextPageLoading,
-		isNextPageError: state.isNextPageError,
-		lastLoadedPageSize: state.lastLoadedPageSize,
+		state,
 	};
 };
 

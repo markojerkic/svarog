@@ -14,7 +14,7 @@ const LogViewer = (props: LogViewerProps) => {
 	// biome-ignore lint/style/useConst: Needs to be let for solidjs to be able to track it
 	let bottomRef: HTMLDivElement | undefined = undefined;
 
-	const logs = props.logsQuery;
+	const logs = props.logsQuery.state;
 	const logCount = () => logs.logStore.size;
 
 	const virtualizer = createVirtualizer({
@@ -27,7 +27,7 @@ const LogViewer = (props: LogViewerProps) => {
 	});
 
 	const [observer, isLockedInBottom, setIsOnBottom] =
-		createInfiniteScrollObserver(logs);
+		createInfiniteScrollObserver(props.logsQuery);
 	onMount(() => {
 		if (topRef) {
 			observer.observe(topRef);
@@ -39,7 +39,6 @@ const LogViewer = (props: LogViewerProps) => {
 
 	let wasFetchingPreviousPage = false;
 	createEffect(() => {
-		console.log("Prev page loading", logs.isPreviousPageLoading);
 		if (logs.isPreviousPageLoading) {
 			wasFetchingPreviousPage = true;
 		} else if (
