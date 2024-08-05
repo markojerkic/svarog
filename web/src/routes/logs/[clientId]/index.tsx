@@ -39,7 +39,7 @@ export default () => {
 
 	//let hasScrolledToBottom = false;
 
-	const observer = createInfiniteScrollObserver(logs);
+	const [observer, isLockedInBottom] = createInfiniteScrollObserver(logs);
 	onMount(() => {
 		if (topRef) {
 			observer.observe(topRef);
@@ -70,6 +70,13 @@ export default () => {
 
 	onMount(() => {
 		virtualizer.scrollToIndex(logCount(), { align: "end" });
+	});
+
+	createEffect(() => {
+        const newLogCount = logCount()
+		if (isLockedInBottom()) {
+			virtualizer.scrollToIndex(newLogCount, { align: "end" });
+		}
 	});
 
 	const items = virtualizer.getVirtualItems();
