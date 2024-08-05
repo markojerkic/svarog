@@ -4,16 +4,20 @@ import type { SortedList } from "./sorted-list";
 import type { LogLine } from "./log-store";
 
 type MessageType =
-	| "newLine"
 	| "addSubscriptionInstance"
 	| "removeSubscriptionInstance"
 	| "ping"
 	| "pong";
 
-type WsMessage = {
-	type: MessageType;
-	data: unknown;
-};
+type WsMessage =
+	| {
+			type: "newLine";
+			data: LogLine;
+	  }
+	| {
+			type: MessageType;
+			data: unknown;
+	  };
 
 export const createLogSubscription = (
 	clientId: string,
@@ -23,8 +27,15 @@ export const createLogSubscription = (
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
-			const message: WsMessage = JSON.parse(e.data);
-			console.log("Message", message);
+			try {
+				const message: WsMessage = JSON.parse(e.data);
+				if (message.type === "newLine") {
+					console.log("Message", message.data.content);
+                    logStore.insert(message.data);
+				}
+			} catch (e) {
+				console.error("Error parsing WS message", e);
+			}
 		});
 	});
 

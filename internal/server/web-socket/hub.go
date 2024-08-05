@@ -59,13 +59,13 @@ func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[types.StoredLog
 
 // NotifyInsert implements WatchHub.
 func (self *LogsWatchHub) NotifyInsert(logLine types.StoredLog) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+
 	clientId := logLine.Client.ClientId
 	if self.channels[clientId] == nil {
 		return
 	}
-
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
 
 	subscriptions := self.channels[clientId]
 	for subscription := range subscriptions {
