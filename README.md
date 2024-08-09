@@ -9,6 +9,8 @@ COPY ./echo.sh .
 COPY --from=svarog-client /svarog /svarog/
 
 CMD ["sh", "-c", "sh echo.sh | /svarog/client -SVAROG_DEBUG_ENABLED -SVAROG_CLIENT_ID=$SVAROG_CLIENT_ID -SVAROG_SERVER_ADDR=$SVAROG_SERVER_ADDR"]
+# or
+CMD ["sh", "-c", "sh echo.sh | /svarog/client"] # and set the environment variables in the docker-compose.yml
 ```
 
 ```yaml docker-compose.yml
@@ -55,19 +57,6 @@ services:
       - MONGODB_INITDB_ROOT_PASSWORD=pass
     volumes:
       - dbdata:/data/db
-  mongo-express:
-    image: mongo-express
-    container_name: mongo-express
-    restart: always
-    ports:
-      - "28081:8081"
-    environment:
-      ME_CONFIG_MONGODB_SERVER: svarog-mongodb
-      ME_CONFIG_MONGODB_ADMINUSERNAME: user
-      ME_CONFIG_MONGODB_ADMINPASSWORD: pass
-      ME_CONFIG_MONGODB_URL: mongo://user:pass@svarog-mongodb:27017/
-    depends_on:
-      - svarog-mongodb
 volumes:
   dbdata:
 ```

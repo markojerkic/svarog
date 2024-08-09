@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
 	"log/slog"
 	"os"
 	"sync"
@@ -32,16 +33,40 @@ func readStdin(clientId string, output chan *rpc.LogLine) {
 }
 
 type Env struct {
-	debugLogEnabled bool   `env:"SVAROG_DEBUG_ENABLED" flag:"debug"`
-	serverAddr      string `env:"SVAROG_SERVER_ADDR" flag:"server"`
-	clientId        string `env:"SVAROG_CLIENT_ID" flag:"client"`
+	debugLogEnabled bool
+	serverAddr      string
+	clientId        string
+}
+
+func getOsEnv() Env {
+	env := Env{
+		debugLogEnabled: os.Getenv("SVAROG_DEBUG_ENABLED") == "true",
+		serverAddr:      os.Getenv("SVAROG_SERVER_ADDR"),
+		clientId:        os.Getenv("SVAROG_CLIENT_ID"),
+	}
+
+	return env
 }
 
 func getEnv() Env {
-	debugLogEnabled := flag.Bool("SVAROG_DEBUG_ENABLED", false, "Enable debug mode")
-	serverAddr := flag.String("SVAROG_SERVER_ADDR", ":50051", "Server address")
-	clientId := flag.String("SVAROG_CLIENT_ID", "client", "Client ID")
+	osEnv := getOsEnv()
+
+	if osEnv.serverAddr != "" && osEnv.clientId != "" {
+		return osEnv
+	}
+
+	debugLogEnabled := flag.Bool("SVAROG_DEBUG_ENABLED", osEnv.debugLogEnabled, "Enable debug mode")
+	serverAddr := flag.String("SVAROG_SERVER_ADDR", osEnv.serverAddr, "Server address")
+	clientId := flag.String("SVAROG_CLIENT_ID", osEnv.clientId, "Client ID")
 	flag.Parse()
+
+	if serverAddr == nil || *serverAddr == "" {
+		log.Fatal("Server address must be provided")
+	}
+
+	if clientId == nil || *clientId == "" {
+		log.Fatal("Client ID must be provided")
+	}
 
 	return Env{
 		debugLogEnabled: *debugLogEnabled,
