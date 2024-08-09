@@ -96,7 +96,7 @@ func (g *GrpcClient) reconnect() {
 	defer g.mutex.Unlock()
 
 	for {
-		slog.Debug("Attempting to reconnect...")
+		slog.Debug("Attempting to reconnect...", slog.String("server address", g.serverAddress))
 		if err := g.connect(); err == nil {
 			slog.Debug("Reconnected successfully")
 			return

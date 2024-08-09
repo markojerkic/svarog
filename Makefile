@@ -48,3 +48,5 @@ test-no-log: test-web
 
 docker-build-server:
 	docker build -t svarog -f ./cmd/server/Dockerfile .
+docker-build-client:
+	docker build -t svarog-client -f ./cmd/client/Dockerfile .
