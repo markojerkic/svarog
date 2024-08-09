@@ -1,7 +1,10 @@
 package http
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -45,6 +48,18 @@ func (self *HttpServer) Start() {
 
 	handlers.NewLogsRouter(self.logRepository, api)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
+
+	e.GET("/*", func(c echo.Context) error {
+		// Serve requested file or fallback to index.html
+		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
+
+		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
+			slog.Error("File not found", slog.String("file", requestedFile))
+			return c.File("public/index.html")
+		}
+
+		return c.File(requestedFile)
+	})
 
 	serverAddr := fmt.Sprintf(":%d", self.serverPort)
 	e.Logger.Fatal(e.Start(serverAddr))

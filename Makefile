@@ -15,8 +15,6 @@ build-client-dev:
 build-client:
 	go build -ldflags "-s -w" -o build/client ./cmd/client
 
-generate-server:
-	templ generate
 build-server-dev:
 	go build -o build/server ./cmd/server
 build-server:
@@ -51,3 +49,8 @@ test-web:
 test: test-server test-web
 test-no-log: test-web
 	go test ./tests/...
+
+docker-build-server:
+	docker build -t svarog -f ./cmd/server/Dockerfile .
+docker-build-client:
+	docker build -t svarog-client -f ./cmd/client/Dockerfile .

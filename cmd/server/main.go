@@ -65,10 +65,12 @@ func newServer() rpc.LoggAggregatorServer {
 
 func loadEnv() Env {
 	env := Env{}
-	err := dotenv.Load()
+	if os.Getenv("DOCKER") != "true" {
+		err := dotenv.Load()
 
-	if err != nil {
-		log.Fatalf("Error loading .env file. %v", err)
+		if err != nil {
+			log.Fatalf("Error loading .env file. %v", err)
+		}
 	}
 
 	if err := envParser.Parse(&env); err != nil {
@@ -79,7 +81,7 @@ func loadEnv() Env {
 }
 
 func startGrpcServer(env Env) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", env.GrpcServerPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", env.GrpcServerPort))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}

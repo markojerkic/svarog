@@ -1,10 +1,40 @@
+# Client usage
+
+```Dockerfile
+FROM svarog-client:latest AS svarog-client
+
+FROM alpine:3.12
+
+COPY ./echo.sh .
+COPY --from=svarog-client /svarog /svarog/
+
+CMD ["sh", "-c", "sh echo.sh | /svarog/client -SVAROG_DEBUG_ENABLED -SVAROG_CLIENT_ID=$SVAROG_CLIENT_ID -SVAROG_SERVER_ADDR=$SVAROG_SERVER_ADDR"]
+```
+
+```yaml docker-compose.yml
+version: '3'
+services:
+  svarog-echo-example:
+    image: svarog-echo-example:latest
+    container_name: svarog-echo-example
+    build:
+      context: .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SVAROG_SERVER_ADDR=host.docker.internal:50051
+      - SVAROG_CLIENT_ID=svarog-echo
+      - SVAROG_DEBUG_ENABLED=true
+```
+
+# Server usage
+
+```yaml docker-compose.yml
 version: '3'
 services:
   svarog:
     image: svarog:latest
     container_name: svarog
-    build:
-      context: ./cmd/server
     ports:
       - 1323:1323
       - 50051:50051
@@ -40,3 +70,4 @@ services:
       - svarog-mongodb
 volumes:
   dbdata:
+```

@@ -32,15 +32,15 @@ func readStdin(clientId string, output chan *rpc.LogLine) {
 }
 
 type Env struct {
-	debugLogEnabled bool
-	serverAddr      string
-	clientId        string
+	debugLogEnabled bool   `env:"SVAROG_DEBUG_ENABLED" flag:"debug"`
+	serverAddr      string `env:"SVAROG_SERVER_ADDR" flag:"server"`
+	clientId        string `env:"SVAROG_CLIENT_ID" flag:"client"`
 }
 
 func getEnv() Env {
-	debugLogEnabled := flag.Bool("debug", false, "Enable debug mode")
-	serverAddr := flag.String("server", ":50051", "Server address")
-	clientId := flag.String("clientId", "client", "Client ID")
+	debugLogEnabled := flag.Bool("SVAROG_DEBUG_ENABLED", false, "Enable debug mode")
+	serverAddr := flag.String("SVAROG_SERVER_ADDR", ":50051", "Server address")
+	clientId := flag.String("SVAROG_CLIENT_ID", "client", "Client ID")
 	flag.Parse()
 
 	return Env{
