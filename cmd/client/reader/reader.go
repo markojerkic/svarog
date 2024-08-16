@@ -39,10 +39,10 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 
 	var logLine *rpc.LogLine
 	i := 0
+	var message string
 	for r.hasNext() {
 		line, err := r.next()
 		timestamp := time.Now()
-		var message string
 		if err != nil {
 			message = err.Error()
 		} else {
