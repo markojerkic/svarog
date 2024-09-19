@@ -12,10 +12,11 @@ import (
 )
 
 type LogRepository interface {
-	SaveLogs(logs []types.StoredLog) error
-	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
-	GetClients() ([]AvailableClient, error)
-	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	SaveLogs(ctx context.Context, logs []types.StoredLog) error
+	GetLogs(ctx context.Context, clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
+	GetClients(ctx context.Context) ([]AvailableClient, error)
+	GetInstances(ctx context.Context, clientId int64) ([]AvailableClient, error)
+	SearchLogs(ctx context.Context, query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 }
 
 type LastCursor struct {
@@ -54,8 +55,8 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 	}
 }
 
-func (self *LogServer) dumpBacklog(logsToSave []types.StoredLog) {
-	err := self.repository.SaveLogs(logsToSave)
+func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.StoredLog) {
+	err := self.repository.SaveLogs(ctx, logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)
 	}
@@ -81,7 +82,7 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 			self.backlog.AddToBacklog(logLine)
 
 		case logsToSave := <-self.backlog.GetLogs():
-			go self.dumpBacklog(logsToSave)
+			go self.dumpBacklog(self.ctx, logsToSave)
 
 		case <-interval.C:
 			slog.Debug("Dumping backlog after timeout")
