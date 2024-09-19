@@ -16,23 +16,23 @@
         "@solid-primitives/scheduled": "^1.4.3",
         "@solid-primitives/websocket": "^1.2.2",
         "@solidjs/meta": "^0.29.4",
-        "@solidjs/router": "^0.13.6",
+        "@solidjs/router": "^0.14.5",
         "@solidjs/start": "^1.0.6",
-        "@tanstack/solid-query": "^5.51.21",
-        "@tanstack/solid-query-devtools": "^5.51.21",
-        "@tanstack/solid-virtual": "3.8.1",
+        "@tanstack/solid-query": "^5.56.2",
+        "@tanstack/solid-query-devtools": "^5.56.2",
+        "@tanstack/solid-virtual": "3.10.8",
         "autoprefixer": "^10.4.20",
-        "postcss": "^8.4.41",
-        "solid-js": "^1.8.21",
-        "tailwindcss": "^3.4.10",
-        "vinxi": "^0.3.14"
+        "postcss": "^8.4.47",
+        "solid-js": "^1.8.22",
+        "tailwindcss": "^3.4.12",
+        "vinxi": "^0.4.3"
     },
     "engines": {
         "node": ">=18"
     },
     "devDependencies": {
-        "@biomejs/biome": "^1.8.3",
+        "@biomejs/biome": "^1.9.2",
         "tailwind-scrollbar": "^3.1.0",
-        "vitest": "^1.6.0"
+        "vitest": "^2.1.1"
     }
 }

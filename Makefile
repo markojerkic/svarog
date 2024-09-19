@@ -23,6 +23,9 @@ run-server: build-server-dev
 	build/server
 
 
+watch:
+	@go run github.com/cosmtrek/air@v1.51.0
+
 build-dev: build-server-dev
 
 build-web:

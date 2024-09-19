@@ -8,9 +8,15 @@ import { Layout } from "./components/layout";
 
 import "./app.css";
 
-const queryClient = new QueryClient();
-
 export default function App() {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				refetchOnWindowFocus: true,
+			},
+		},
+	});
+
 	return (
 		<QueryClientProvider client={queryClient}>
 			<MetaProvider>
