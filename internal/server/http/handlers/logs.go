@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"

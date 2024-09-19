@@ -41,7 +41,7 @@ lint-web:
 format-go:
 	go fmt ./...
 format-web:
-	cd web && bun format
+	cd web && bun lint:fix && bun format
 format: format-go format-web
 
 test-server:
