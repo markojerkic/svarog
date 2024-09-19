@@ -135,7 +135,7 @@ const ScrollToBottomButton = (props: {
 			<button
 				type="button"
 				id="scroll-to-bottom"
-				class="size-10 rounded-full bg-red-800 flex fixed bottom-4 right-4 cursor-pointer hover:bg-red-700 z-[1000]"
+				class="fixed right-4 bottom-4 z-[1000] flex size-10 cursor-pointer rounded-full bg-red-800 hover:bg-red-700"
 				onClick={props.scrollToBottom}
 			>
 				<svg
@@ -143,7 +143,7 @@ const ScrollToBottomButton = (props: {
 					fill="none"
 					viewBox="0 0 24 24"
 					stroke-width="2.5"
-					class="size-6 m-auto stroke-white"
+					class="m-auto size-6 stroke-white"
 				>
 					<path
 						stroke-linecap="round"
