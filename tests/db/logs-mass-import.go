@@ -64,7 +64,7 @@ func (suite *RepositorySuite) TestMassImport() {
 		}
 	}
 
-	clients, err := suite.mongoRepository.GetClients()
+	clients, err := suite.mongoRepository.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients))
 
@@ -84,7 +84,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs("marko", int64(pageSize), lastCursorPtr)
+		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

@@ -13,6 +13,9 @@
             "correctness": {
                 "noUnusedImports": "error",
                 "noUnusedVariables": "error"
+            },
+            "nursery": {
+                "useSortedClasses": "error"
             }
         }
     }

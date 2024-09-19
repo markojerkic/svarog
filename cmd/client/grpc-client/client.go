@@ -34,7 +34,7 @@ var _ Client = &GrpcClient{}
 // connect establishes a connection and creates a new stream
 func (g *GrpcClient) connect() error {
 	var err error
-	g.connection, err = grpc.Dial(g.serverAddress, grpc.WithTransportCredentials(g.credentials))
+	g.connection, err = grpc.NewClient(g.serverAddress, grpc.WithTransportCredentials(g.credentials))
 	if err != nil {
 		return err
 	}

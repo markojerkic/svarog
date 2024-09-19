@@ -33,7 +33,7 @@ export default () => {
 				<input
 					id="search"
 					type="text"
-					class="border-white p-1 rounded-md text-black"
+					class="rounded-md border-white p-1 text-black"
 					value={search()}
 					onInput={(e) => setSearch(e.currentTarget.value)}
 				/>
