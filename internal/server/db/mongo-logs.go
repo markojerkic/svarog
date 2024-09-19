@@ -27,10 +27,18 @@ var instancesPipeline = mongo.Pipeline{
 }
 
 // GetInstances implements LogRepository.
-func (self *MongoLogRepository) GetInstances(ctx context.Context, clientId int64) ([]AvailableClient, error) {
-	self.logCollection.Aggregate(ctx, instancesPipeline)
+func (self *MongoLogRepository) GetInstances(ctx context.Context, clientId string) ([]string, error) {
+	rawInstances, err := self.logCollection.Distinct(ctx, "client.ip_address", bson.D{{Key: "client.client_id", Value: clientId}})
+	if err != nil {
+		return []string{}, err
+	}
 
-	return []AvailableClient{}, nil
+	instances := make([]string, len(rawInstances))
+	for i, instance := range rawInstances {
+		instances[i] = instance.(string)
+	}
+
+	return instances, nil
 }
 
 // GetClients implements LogRepository.
@@ -56,7 +64,7 @@ func (self *MongoLogRepository) GetClients(ctx context.Context) ([]AvailableClie
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(ctx context.Context,clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	filter, projection := createFilter(clientId, pageSize, lastCursor)
@@ -65,7 +73,7 @@ func (self *MongoLogRepository) GetLogs(ctx context.Context,clientId string, pag
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
-func (self *MongoLogRepository) SearchLogs(ctx context.Context,query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	filter, projection := createFilter(clientId, pageSize, lastCursor)

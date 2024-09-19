@@ -15,7 +15,7 @@ type LogRepository interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
 	GetLogs(ctx context.Context, clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
 	GetClients(ctx context.Context) ([]AvailableClient, error)
-	GetInstances(ctx context.Context, clientId int64) ([]AvailableClient, error)
+	GetInstances(ctx context.Context, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 }
 

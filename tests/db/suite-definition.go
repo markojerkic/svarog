@@ -9,7 +9,6 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -35,7 +34,7 @@ func (suite *RepositorySuite) SetupSuite() {
 	suite.logServerContext = context.Background()
 	suite.testContainerContext = context.Background()
 
-	container, err := mongodb.RunContainer(suite.testContainerContext, testcontainers.WithImage("mongo:6"))
+	container, err := mongodb.Run(suite.testContainerContext, "mongo:6")
 	if err != nil {
 		log.Fatalf("Could not start container: %s", err)
 	}

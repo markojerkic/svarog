@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -37,11 +39,14 @@ func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
 	if clientId == "" {
 		return c.JSON(400, "No client id")
 	}
+	slog.Debug("Getting instances by client", slog.String("clientId", clientId))
 
-	self.logRepository.GetClients(c.Request().Context())
+	instances, err := self.logRepository.GetInstances(c.Request().Context(), clientId)
+	if err != nil {
+		return err
+	}
 
-	return nil
-
+	return c.JSON(200, instances)
 }
 
 func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
@@ -141,6 +146,7 @@ func NewLogsRouter(logRepository db.LogRepository, e *echo.Group) *LogsRouter {
 	}
 
 	logsRouter.api.GET("/:clientId", logsRouter.logsByClientHandler)
+	logsRouter.api.GET("/:clientId/instances", logsRouter.instancesByClientHandler)
 	logsRouter.api.GET("/:clientId/search", logsRouter.searchLogs)
 
 	return logsRouter

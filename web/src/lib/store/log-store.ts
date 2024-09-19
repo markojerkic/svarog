@@ -27,6 +27,24 @@ export type LogPageCursor = {
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
+export const getInstances = async (
+	clientId: string,
+	abortSignal?: AbortSignal,
+) => {
+	return fetch(
+		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances`,
+		{
+			signal: abortSignal,
+		},
+	).then(async (res) => {
+		if (!res.ok) {
+			throw Error(await res.text());
+		}
+
+		return res.json() as Promise<string[]>;
+	});
+};
+
 export const createLogQuery = (
 	params: () => { clientId: string; search?: string },
 ) => {
