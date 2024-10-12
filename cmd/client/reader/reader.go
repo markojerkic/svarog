@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"sync"
 	"time"
 
@@ -34,6 +35,10 @@ type ReaderImpl struct {
 	clientId string
 }
 
+const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+var ansiRegex = regexp.MustCompile(ansi)
+
 func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
@@ -49,13 +54,14 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 			message = line
 		}
 
+		fmt.Println(message)
+		message := ansiRegex.ReplaceAllString(message, "")
 		logLine = &rpc.LogLine{
 			Client:    r.clientId,
 			Message:   message,
 			Timestamp: timestamppb.New(timestamp),
 			Sequence:  int64(i),
 		}
-		fmt.Println(logLine.Message)
 		r.output <- logLine
 		i = (i + 1) % math.MaxInt64
 	}
