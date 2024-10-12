@@ -37,6 +37,7 @@ func getIp(ctx context.Context) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("failed to get peer from context")
 	}
+	return peer.Addr.String(), nil
 
 	// parse out ipv4 address from peer
 	ipv6, _, err := net.SplitHostPort(peer.Addr.String())

@@ -6,23 +6,23 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-type WatchHub[T any] interface {
-	Subscribe(clientId string) *Subscription[T]
-	Unsubscribe(*Subscription[T])
-	NotifyInsert(T)
-	NotifyInsertMultiple([]T)
+type WatchHub interface {
+	Subscribe(clientId string) *Subscription
+	Unsubscribe(*Subscription)
+	NotifyInsert(types.StoredLog)
+	NotifyInsertMultiple([]types.StoredLog)
 }
 
-type subscriptions map[*Subscription[types.StoredLog]]bool
+type subscriptions map[*Subscription]bool
 type LogsWatchHub struct {
 	mutex    sync.Mutex
 	channels map[string]subscriptions
 }
 
-var _ WatchHub[types.StoredLog] = &LogsWatchHub{}
+var _ WatchHub = &LogsWatchHub{}
 
 // Subscribe implements WatchHub.
-func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[types.StoredLog] {
+func (self *LogsWatchHub) Subscribe(clientId string) *Subscription {
 	subscription := createSubscription(clientId)
 
 	self.mutex.Lock()
@@ -36,7 +36,7 @@ func (self *LogsWatchHub) Subscribe(clientId string) *Subscription[types.StoredL
 }
 
 // Unsubscribe implements WatchHub.
-func (self *LogsWatchHub) Unsubscribe(subscription *Subscription[types.StoredLog]) {
+func (self *LogsWatchHub) Unsubscribe(subscription *Subscription) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 
@@ -92,7 +92,7 @@ func (self *LogsWatchHub) NotifyInsertMultiple(lines []types.StoredLog) {
 	}
 }
 
-var LogsHub WatchHub[types.StoredLog] = &LogsWatchHub{
+var LogsHub WatchHub = &LogsWatchHub{
 	mutex:    sync.Mutex{},
 	channels: make(map[string]subscriptions),
 }

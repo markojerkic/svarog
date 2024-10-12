@@ -7,34 +7,39 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-type Subscription[T interface{}] interface {
+type Subscription interface {
 	GetSubscriptionId() string
-	GetUpdates() <-chan T
+	GetUpdates() <-chan types.StoredLog
 	RemoveInstance(instanceId string)
 	AddInstance(instanceId string)
 	GetClientId() string
-	Notify(T)
+	Notify(types.StoredLog)
 	Close()
 }
 
 type LogSubscription struct {
 	id              string
-	hub             *WatchHub[types.StoredLog]
+	hub             *WatchHub
 	clientId        string
 	updates         chan types.StoredLog
 	clientInstances map[string]bool
 	isClosed        bool
 	mutex           *sync.Mutex
+	removeInstances map[string]bool
 }
 
 // AddInstance implements Subscription.
-func (l *LogSubscription) AddInstance(instanceId string) {
-	panic("unimplemented")
+func (self *LogSubscription) AddInstance(instanceId string) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+	self.removeInstances[instanceId] = false
 }
 
 // RemoveInstance implements Subscription.
-func (l *LogSubscription) RemoveInstance(instanceId string) {
-	panic("unimplemented")
+func (self *LogSubscription) RemoveInstance(instanceId string) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+	self.removeInstances[instanceId] = false
 }
 
 // GetUpdates implements Subscription.
@@ -71,9 +76,9 @@ func (self *LogSubscription) GetSubscriptionId() string {
 	return self.id
 }
 
-var _ Subscription[types.StoredLog] = &LogSubscription{}
+var _ Subscription = &LogSubscription{}
 
-func createSubscription(clientId string) Subscription[types.StoredLog] {
+func createSubscription(clientId string) Subscription {
 	return &LogSubscription{
 		id:              uuid.New().String(),
 		hub:             &LogsHub,

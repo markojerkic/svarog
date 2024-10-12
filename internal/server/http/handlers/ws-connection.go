@@ -7,12 +7,11 @@ import (
 
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type WsRouter struct {
-	wsHub        websocket.WatchHub[types.StoredLog]
+	wsHub        websocket.WatchHub
 	parentRouter *echo.Group
 	api          *echo.Group
 }
@@ -21,8 +20,8 @@ type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
 	pingPong     chan bool
-	wsHub        websocket.WatchHub[types.StoredLog]
-	subscription websocket.Subscription[types.StoredLog]
+	wsHub        websocket.WatchHub
+	subscription websocket.Subscription
 }
 
 type WsMessageType string
@@ -167,7 +166,7 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 	return nil
 }
 
-func NewWsConnectionRouter(hub websocket.WatchHub[types.StoredLog], parentRouter *echo.Group) *WsRouter {
+func NewWsConnectionRouter(hub websocket.WatchHub, parentRouter *echo.Group) *WsRouter {
 	api := parentRouter.Group("/ws")
 	router := &WsRouter{
 		wsHub:        hub,
