@@ -160,6 +160,8 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		// wait until read and write pipes are done and then close the subscription
 		wsWaitGroup.Wait()
 		wsConnection.closeSubscription()
+		slog.Debug("WS connection closed", slog.Any("clientId", clientId))
+		self.wsHub.Unsubscribe(subscription)
 	}()
 
 	return nil

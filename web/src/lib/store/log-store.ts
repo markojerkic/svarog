@@ -99,6 +99,10 @@ export const createLogQuery = (
 	return {
 		fetchPreviousPage,
 		fetchNextPage,
+		isNextPageLoading: state.isNextPageLoading,
+		isNextPageError: state.isNextPageError,
+		isPreviousPageLoading: state.isPreviousPageLoading,
+		isPreviousPageError: state.isPreviousPageError,
 		state,
 	};
 };

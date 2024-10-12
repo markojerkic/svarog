@@ -1,5 +1,12 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
+import {
+	For,
+	Show,
+	createEffect,
+	createSignal,
+	onCleanup,
+	onMount,
+} from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 import type { CreateLogQueryResult } from "~/lib/store/log-store";
 
@@ -13,6 +20,12 @@ const LogViewer = (props: LogViewerProps) => {
 	let topRef: HTMLDivElement | undefined = undefined;
 	// biome-ignore lint/style/useConst: Needs to be let for solidjs to be able to track it
 	let bottomRef: HTMLDivElement | undefined = undefined;
+	const windowHeight = useWindowHeight();
+	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
+
+	createEffect(() => {
+		console.log("Window height", scrollViewerHeight());
+	});
 
 	const logs = props.logsQuery.state;
 	const logCount = () => logs.logStore.size;
@@ -76,8 +89,12 @@ const LogViewer = (props: LogViewerProps) => {
 	return (
 		<div
 			ref={logsRef}
-			class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700"
-			style={{ height: "90vh", width: "100%", "overflow-y": "auto" }}
+			class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700 ml-4 rounded-l-md border border-black"
+			style={{
+				height: scrollViewerHeight(),
+				width: "90vw%",
+				"overflow-y": "auto",
+			}}
 		>
 			<div
 				style={{
@@ -114,7 +131,7 @@ const LogViewer = (props: LogViewerProps) => {
 										queueMicrotask(() => virtualizer.measureElement(el))
 									}
 								>
-									<pre class="text-white">{item()}</pre>
+									<pre class="text-black">{item()}</pre>
 								</div>
 							);
 						}}
@@ -154,6 +171,18 @@ const ScrollToBottomButton = (props: {
 			</button>
 		</Show>
 	);
+};
+
+const useWindowHeight = () => {
+	const [height, setHeight] = createSignal(window.innerHeight);
+
+	onMount(() => {
+		const handleResize = () => setHeight(window.innerHeight);
+		window.addEventListener("resize", handleResize);
+		onCleanup(() => window.removeEventListener("resize", handleResize));
+	});
+
+	return height;
 };
 
 export const createLogViewer = () => {
