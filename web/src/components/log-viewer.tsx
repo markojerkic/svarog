@@ -137,9 +137,7 @@ const LogViewer = (props: LogViewerProps) => {
 									}
 								>
 									<pre
-										class={
-											"border-l-4 pl-2 text-black hover:border-l-8"
-										}
+										class={"border-l-4 pl-2 text-black hover:border-l-8"}
 										style={{
 											"--tw-border-opacity": 1,
 											"border-left-color": color(),

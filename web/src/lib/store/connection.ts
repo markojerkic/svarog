@@ -50,4 +50,25 @@ export const createLogSubscription = (
 		ws.close();
 		clearInterval(pingPongInterval);
 	});
+
+	const addSubscription = (instance: string) => {
+		ws.send(
+			JSON.stringify({
+				type: "addSubscriptionInstance",
+				data: instance,
+			} satisfies WsMessage),
+		);
+	};
+	const removeSubscription = (instance: string) => {
+		ws.send(
+			JSON.stringify({
+				type: "removeSubscriptionInstance",
+				data: instance,
+			} satisfies WsMessage),
+		);
+	};
+
+	return { addSubscription, removeSubscription };
 };
+
+export type WsActions = ReturnType<typeof createLogSubscription>;

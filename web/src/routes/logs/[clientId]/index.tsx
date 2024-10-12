@@ -33,14 +33,20 @@ export default () => {
 
 	const [LogViewer, scrollToBottom] = createLogViewer();
 
-	createLogSubscription(clientId, logs.state.logStore, scrollToBottom);
+	const wsActions = createLogSubscription(
+		clientId,
+		logs.state.logStore,
+		scrollToBottom,
+	);
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
 			<ErrorBoundary fallback={<span class="bg-red-900 p-2">Error </span>}>
 				<Suspense fallback={<div>Loading...</div>}>
 					<Show when={instances.data}>
-						{(instances) => <Instances instances={instances()} />}
+						{(instances) => (
+							<Instances instances={instances()} actions={wsActions} />
+						)}
 					</Show>
 				</Suspense>
 			</ErrorBoundary>
