@@ -18,28 +18,28 @@ type Subscription interface {
 }
 
 type LogSubscription struct {
-	id              string
-	hub             *WatchHub
-	clientId        string
-	updates         chan types.StoredLog
-	clientInstances map[string]bool
-	isClosed        bool
-	mutex           *sync.Mutex
-	removeInstances map[string]bool
+	id                 string
+	hub                *WatchHub
+	clientId           string
+	updates            chan types.StoredLog
+	clientInstances    map[string]bool
+	isClosed           bool
+	mutex              *sync.Mutex
+	unfolowedInstances map[string]bool
 }
 
 // AddInstance implements Subscription.
 func (self *LogSubscription) AddInstance(instanceId string) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
-	self.removeInstances[instanceId] = false
+	self.unfolowedInstances[instanceId] = false
 }
 
 // RemoveInstance implements Subscription.
 func (self *LogSubscription) RemoveInstance(instanceId string) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
-	self.removeInstances[instanceId] = false
+	self.unfolowedInstances[instanceId] = true
 }
 
 // GetUpdates implements Subscription.
@@ -55,6 +55,10 @@ func (self *LogSubscription) Notify(log types.StoredLog) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 	if self.isClosed {
+		return
+	}
+
+	if self.unfolowedInstances[log.Client.IpAddress] {
 		return
 	}
 
@@ -80,12 +84,13 @@ var _ Subscription = &LogSubscription{}
 
 func createSubscription(clientId string) Subscription {
 	return &LogSubscription{
-		id:              uuid.New().String(),
-		hub:             &LogsHub,
-		clientId:        clientId,
-		updates:         make(chan types.StoredLog, 100),
-		clientInstances: make(map[string]bool),
-		isClosed:        false,
-		mutex:           &sync.Mutex{},
+		id:                 uuid.New().String(),
+		hub:                &LogsHub,
+		clientId:           clientId,
+		updates:            make(chan types.StoredLog, 100),
+		clientInstances:    make(map[string]bool),
+		isClosed:           false,
+		unfolowedInstances: make(map[string]bool),
+		mutex:              &sync.Mutex{},
 	}
 }

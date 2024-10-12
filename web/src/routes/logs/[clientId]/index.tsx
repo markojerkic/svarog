@@ -29,7 +29,7 @@ export default () => {
 	const instances = createQuery(() => ({
 		queryKey: ["logs", "instances", clientId],
 		queryFn: ({ signal }) => getInstances(clientId, signal),
-        refetchOnWindowFocus: true
+		refetchOnWindowFocus: true,
 	}));
 
 	const [LogViewer, scrollToBottom] = createLogViewer();

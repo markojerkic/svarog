@@ -14,8 +14,9 @@ import (
 func TestAddInstance(t *testing.T) {
 	markoSubscription := ws.LogsHub.Subscribe("marko")
 
+	firstId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
-		ID:        primitive.NewObjectID(),
+		ID:        firstId,
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
@@ -25,8 +26,34 @@ func TestAddInstance(t *testing.T) {
 		SequenceNumber: 0,
 	})
 
+	secondId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
-		ID:        primitive.NewObjectID(),
+		ID:        secondId,
+		LogLine:   "marko",
+		Timestamp: time.Now(),
+		Client: types.StoredClient{
+			ClientId:  "marko",
+			IpAddress: "::2",
+		},
+		SequenceNumber: 0,
+	})
+	(*markoSubscription).RemoveInstance("::2")
+
+	thirdId := primitive.NewObjectID()
+	ws.LogsHub.NotifyInsert(types.StoredLog{
+		ID:        thirdId,
+		LogLine:   "marko",
+		Timestamp: time.Now(),
+		Client: types.StoredClient{
+			ClientId:  "marko",
+			IpAddress: "::1",
+		},
+		SequenceNumber: 0,
+	})
+
+	fourthId := primitive.NewObjectID()
+	ws.LogsHub.NotifyInsert(types.StoredLog{
+		ID:        fourthId,
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
@@ -53,34 +80,13 @@ func TestAddInstance(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 2, len(markoUpdates))
+	assert.Equal(t, 3, len(markoUpdates))
 
-	markoUpdates = make([]types.StoredLog, 0, 10)
-	(*markoSubscription).RemoveInstance("::2")
-
-	ws.LogsHub.NotifyInsert(types.StoredLog{
-		ID:        primitive.NewObjectID(),
-		LogLine:   "marko",
-		Timestamp: time.Now(),
-		Client: types.StoredClient{
-			ClientId:  "marko",
-			IpAddress: "::1",
-		},
-		SequenceNumber: 0,
-	})
-
-	ws.LogsHub.NotifyInsert(types.StoredLog{
-		ID:        primitive.NewObjectID(),
-		LogLine:   "marko",
-		Timestamp: time.Now(),
-		Client: types.StoredClient{
-			ClientId:  "marko",
-			IpAddress: "::2",
-		},
-		SequenceNumber: 0,
-	})
-
-	assert.Equal(t, 1, len(markoUpdates))
+	assert.Equal(t, firstId, markoUpdates[0].ID)
 	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
+	assert.Equal(t, secondId, markoUpdates[1].ID)
+	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
+	assert.Equal(t, thirdId, markoUpdates[2].ID)
+	assert.Equal(t, "::1", markoUpdates[2].Client.IpAddress)
 
 }
