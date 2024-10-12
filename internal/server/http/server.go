@@ -33,16 +33,16 @@ func (self *HttpServer) Start() {
 
 	var api *echo.Group
 	if self.baseHref != "" {
-		baseHref := fmt.Sprintf("%s/api/v1", self.baseHref)
+		err := self.prepareIndexHtml()
+		if err != nil {
+			slog.Error("Failed to prepare index.html", slog.Any("error", err))
+		}
+
+		baseHref := fmt.Sprintf("%sapi/v1", self.baseHref)
 		slog.Info("Base href set", slog.String("baseHref", baseHref))
 		api = e.Group(baseHref)
 	} else {
 		api = e.Group("/api/v1")
-	}
-
-	err := self.prepareIndexHtml()
-	if err != nil {
-		slog.Error("Failed to prepare index.html", slog.Any("error", err))
 	}
 
 	if len(self.allowedOrigins) > 0 {

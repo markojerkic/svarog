@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -45,22 +46,30 @@ func (self *HttpServer) prepareIndexHtml() error {
 		return nil
 	}
 
-	indexHtmlPath := "public/index.html"
+	if !strings.HasSuffix(self.baseHref, "/") || !strings.HasPrefix(self.baseHref, "/") {
+		panic(fmt.Errorf("Base href must start and end with a /. For example: /my-base-href/"))
+	}
+
+	indexHtmlPath := "./public/index.html"
 	indexHtml, err := os.Open(indexHtmlPath)
 	if err != nil {
-		slog.Error("Failed to open index.html", slog.Any("error", err))
-		return err
+		return fmt.Errorf("Failed to open index.html for reading: %w", err)
 	}
-	defer indexHtml.Close()
 
 	htmlFile, err := html.Parse(indexHtml)
 	if err != nil {
 		return err
 	}
+	indexHtml.Close()
 
 	traverseAndModify(htmlFile, self.baseHref)
 
-	_, err = indexHtml.WriteString(renderHTML(htmlFile))
+	outputFile, err := os.Create(indexHtmlPath)
+	if err != nil {
+		return fmt.Errorf("Failed to open index.html for writting: %w", err)
+	}
+	defer outputFile.Close()
+	_, err = outputFile.WriteString(renderHTML(htmlFile))
 
 	if err != nil {
 		return err

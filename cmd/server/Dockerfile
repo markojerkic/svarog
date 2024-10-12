@@ -26,6 +26,8 @@ COPY ./web .
 # [optional] tests & build
 ENV NODE_ENV=production
 RUN bun run build
+# Set permissions for the index.html file
+RUN chmod -R a+w /usr/src/app/.output/public/index.html
 
 ####################################################################################
 # Stage 2: Build the Go app
