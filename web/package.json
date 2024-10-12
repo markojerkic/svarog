@@ -13,7 +13,7 @@
         "test:watch": "vitest --watch"
     },
     "dependencies": {
-        "@markojerkic/solid-router": "^0.14.8",
+        "@markojerkic/solid-router": "^0.14.9",
         "@solid-primitives/scheduled": "^1.4.3",
         "@solid-primitives/websocket": "^1.2.2",
         "@solidjs/meta": "^0.29.4",
