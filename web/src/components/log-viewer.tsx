@@ -9,6 +9,7 @@ import {
 } from "solid-js";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
 import type { CreateLogQueryResult } from "~/lib/store/log-store";
+import { useInstanceColor } from "./instances";
 
 type LogViewerProps = {
 	logsQuery: CreateLogQueryResult;
@@ -121,8 +122,12 @@ const LogViewer = (props: LogViewerProps) => {
 						{(virtualItem) => {
 							const item = () => {
 								logs.logStore.size;
-								return logs.logStore.get(virtualItem.index)?.content;
+								const item = logs.logStore.get(virtualItem.index);
+								const content = item?.content;
+								const instance = item?.client.ipAddress ?? "";
+								return { content, instance };
 							};
+							const color = useInstanceColor(item().instance);
 
 							return (
 								<div
@@ -131,7 +136,17 @@ const LogViewer = (props: LogViewerProps) => {
 										queueMicrotask(() => virtualizer.measureElement(el))
 									}
 								>
-									<pre class="text-black">{item()}</pre>
+									<pre
+										class={
+											"border-l-4 pl-2 text-black hover:border-l-8"
+										}
+										style={{
+											"--tw-border-opacity": 1,
+											"border-left-color": color(),
+										}}
+									>
+										{item().content}
+									</pre>
 								</div>
 							);
 						}}

@@ -1,6 +1,18 @@
 import { For } from "solid-js";
+import { createStore } from "solid-js/store";
 
-const Instance = (props: { instance: string; color: string }) => {
+export const instancesColorMap = createStore<{ [key: string]: string }>({});
+export const useInstanceColor = (instance: string) => {
+	const [state, setState] = instancesColorMap;
+	if (!state[instance]) {
+		const randomColor = randomColorForInstance(instance);
+		setState(instance, randomColor);
+	}
+	return () => state[instance];
+};
+
+const Instance = (props: { instance: string }) => {
+	const color = useInstanceColor(props.instance);
 	const toggleInstance = () => {
 		console.error("Not implemented: toggle instance");
 	};
@@ -16,7 +28,7 @@ const Instance = (props: { instance: string; color: string }) => {
 				viewBox="0 0 100 100"
 				class="h-4 w-4"
 			>
-				<circle cx="50" cy="50" r="25" fill={props.color} />
+				<circle cx="50" cy="50" r="25" fill={color()} />
 			</svg>
 
 			{props.instance}
@@ -28,12 +40,7 @@ export const Instances = (props: { instances: string[] }) => {
 	return (
 		<nav class="inline-flex bg-sky-700 p-2">
 			<For each={props.instances}>
-				{(instance) => (
-					<Instance
-						instance={instance}
-						color={randomColorForInstance(instance)}
-					/>
-				)}
+				{(instance) => <Instance instance={instance} />}
 			</For>
 		</nav>
 	);
