@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func generateOddAndEvenLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs int64) {
+func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImportedLogs int64) {
 	generatedLogLines := make([]*rpc.LogLine, numberOfImportedLogs)
 
 	for i := 0; i < int(numberOfImportedLogs); i++ {
@@ -34,7 +34,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- *rpc.LogLine, numberOfImpor
 		if i%1000 == 0 {
 			slog.Debug(fmt.Sprintf("Sending even line %d", i))
 		}
-		logIngestChannel <- generatedLogLines[i]
+		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
 		i += 2
 	}
 	log.Printf("Done with even lines")
@@ -48,7 +48,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- *rpc.LogLine, numberOfImpor
 		if i%1000 == 0 {
 			slog.Debug(fmt.Sprintf("Sending odd line %d", i))
 		}
-		logIngestChannel <- generatedLogLines[i]
+		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
 		i += 2
 	}
 	log.Printf("Done with odd lines")
@@ -59,7 +59,7 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
 
-	logIngestChannel := make(chan *rpc.LogLine, 1024)
+	logIngestChannel := make(chan db.LogLineWithIp, 1024)
 
 	go suite.logServer.Run(logIngestChannel)
 
