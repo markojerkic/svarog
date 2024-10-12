@@ -1,4 +1,4 @@
-import { A, type RouteDefinition } from "@solidjs/router";
+import { A, type RouteDefinition } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 

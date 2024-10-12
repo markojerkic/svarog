@@ -1,4 +1,4 @@
-import { A, useParams } from "@solidjs/router";
+import { A, useParams } from "@markojerkic/solid-router";
 import type { VoidProps } from "solid-js";
 import { Title } from "@solidjs/meta";
 

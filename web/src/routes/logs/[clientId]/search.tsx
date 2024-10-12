@@ -1,5 +1,5 @@
 import { debounce } from "@solid-primitives/scheduled";
-import { useParams, useSearchParams } from "@solidjs/router";
+import { useParams, useSearchParams } from "@markojerkic/solid-router";
 import { Show, createEffect, createSignal, on } from "solid-js";
 import { createLogViewer } from "~/components/log-viewer";
 import { createLogQuery } from "~/lib/store/log-store";

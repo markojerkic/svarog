@@ -1,4 +1,4 @@
-import { useSearchParams } from "@solidjs/router";
+import { useSearchParams } from "@markojerkic/solid-router";
 import { For } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { WsActions } from "~/lib/store/connection";

@@ -1,4 +1,4 @@
-import { type RouteDefinition, useParams } from "@solidjs/router";
+import { type RouteDefinition, useParams } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { ErrorBoundary, Show, Suspense } from "solid-js";
 import { Instances } from "~/components/instances";

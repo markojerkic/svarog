@@ -1,4 +1,4 @@
-import { useLocation } from "@solidjs/router";
+import { useLocation } from "@markojerkic/solid-router";
 
 export function Nav() {
 	const location = useLocation();
