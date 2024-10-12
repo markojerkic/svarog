@@ -54,7 +54,7 @@ export const Instances = (props: {
 	return (
 		<nav class="gap-2 border border-sky-700 p-2">
 			<p>Instances</p>
-			<div class="inline-flex gap-2">
+			<div class="scrollbar-thin scrollbar-track-white p-2 scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll">
 				<For each={props.instances}>
 					{(instance) => (
 						<Instance instance={instance} actions={props.actions} />

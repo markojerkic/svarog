@@ -65,7 +65,7 @@ const LogViewer = (props: LogViewerProps) => {
 	});
 
 	const scrollToBottom = () => {
-		console.log("Is invoked");
+		console.log("Scroll to bottom event");
 		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
 		setIsOnBottom();
 	};
