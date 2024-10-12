@@ -22,6 +22,7 @@ type Env struct {
 	GrpcServerPort           int      `env:"GPRC_PORT"`
 	HttpServerPort           int      `env:"HTTP_SERVER_PORT"`
 	HttpServerAllowedOrigins []string `env:"HTTP_SERVER_ALLOWED_ORIGINS"`
+	BaseHref                 string   `env:"BASE_HREF"`
 }
 
 type ImplementedServer struct {
@@ -110,6 +111,7 @@ func main() {
 	httpServer := http.NewServer(mongoRepository, http.HttpServerOptions{
 		AllowedOrigins: env.HttpServerAllowedOrigins,
 		ServerPort:     env.HttpServerPort,
+		BaseHref:       env.BaseHref,
 	})
 
 	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))

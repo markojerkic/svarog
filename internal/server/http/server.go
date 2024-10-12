@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -18,17 +19,31 @@ type HttpServer struct {
 
 	allowedOrigins []string
 	serverPort     int
+	baseHref       string
 }
 
 type HttpServerOptions struct {
 	AllowedOrigins []string
 	ServerPort     int
+	BaseHref       string
 }
 
 func (self *HttpServer) Start() {
 	e := echo.New()
 
-	api := e.Group("/api/v1")
+	var api *echo.Group
+	if self.baseHref != "" {
+		baseHref := fmt.Sprintf("%s/api/v1", self.baseHref)
+		slog.Info("Base href set", slog.String("baseHref", baseHref))
+		api = e.Group(baseHref)
+	} else {
+		api = e.Group("/api/v1")
+	}
+
+	err := self.prepareIndexHtml()
+	if err != nil {
+		slog.Error("Failed to prepare index.html", slog.Any("error", err))
+	}
 
 	if len(self.allowedOrigins) > 0 {
 		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -50,8 +65,13 @@ func (self *HttpServer) Start() {
 	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
 
 	e.GET("/*", func(c echo.Context) error {
+		requestedPath := c.Request().URL.Path
+		// Strip path of baseHref
+		if self.baseHref != "" && strings.HasPrefix(requestedPath, self.baseHref) {
+			requestedPath = requestedPath[len(self.baseHref):]
+		}
 		// Serve requested file or fallback to index.html
-		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
+		requestedFile := fmt.Sprintf("public/%s", requestedPath)
 
 		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
 			slog.Error("File not found", slog.String("file", requestedFile))
@@ -70,6 +90,7 @@ func NewServer(logRepository db.LogRepository, options HttpServerOptions) *HttpS
 		logRepository:  logRepository,
 		allowedOrigins: options.AllowedOrigins,
 		serverPort:     options.ServerPort,
+		baseHref:       options.BaseHref,
 	}
 
 	return server
