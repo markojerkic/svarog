@@ -1,4 +1,8 @@
-import { type RouteDefinition, useParams } from "@markojerkic/solid-router";
+import {
+	type RouteDefinition,
+	useParams,
+	useSearchParams,
+} from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { ErrorBoundary, Show, Suspense } from "solid-js";
 import { Instances } from "~/components/instances";
@@ -6,17 +10,31 @@ import { createLogViewer } from "~/components/log-viewer";
 import { createLogSubscription } from "~/lib/store/connection";
 import { createLogQuery, getInstances } from "~/lib/store/log-store";
 
+const getArrayValueOfSearchParam = (
+	searchParam: string | string[] | undefined,
+) => {
+	if (searchParam === undefined) {
+		return [];
+	}
+
+	return Array.isArray(searchParam) ? searchParam : [...searchParam];
+};
+
 export const route = {
-	load: async ({ params }) => {
+	load: async ({ params, location }) => {
 		const queryClient = useQueryClient();
 		const clientId = params.clientId;
+		const selectedInstances = getArrayValueOfSearchParam(
+			location.query.instances,
+		);
 
 		queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId],
-			queryFn: ({ signal }) => getInstances(clientId, signal),
+			queryKey: ["logs", "instances", clientId, selectedInstances],
+			queryFn: ({ signal }) =>
+				getInstances(clientId, selectedInstances, signal),
 		});
 
-		const logData = createLogQuery(() => ({ clientId }));
+		const logData = createLogQuery(() => ({ clientId, selectedInstances }));
 
 		return await logData.fetchPreviousPage();
 	},
@@ -24,11 +42,18 @@ export const route = {
 
 export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
-	const logs = createLogQuery(() => ({ clientId }));
+	const [searchParams] = useSearchParams();
+	const selectedInstances = () =>
+		getArrayValueOfSearchParam(searchParams.instances);
+	const logs = createLogQuery(() => ({
+		clientId,
+		selectedInstances: selectedInstances(),
+	}));
 
 	const instances = createQuery(() => ({
-		queryKey: ["logs", "instances", clientId],
-		queryFn: ({ signal }) => getInstances(clientId, signal),
+		queryKey: ["logs", "instances", clientId, selectedInstances()],
+		queryFn: ({ signal }) =>
+			getInstances(clientId, selectedInstances(), signal),
 		refetchOnWindowFocus: true,
 	}));
 

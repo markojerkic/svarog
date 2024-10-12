@@ -29,10 +29,16 @@ export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
 export const getInstances = async (
 	clientId: string,
+	selectedInstances: string[],
 	abortSignal?: AbortSignal,
 ) => {
+	const searchParams = new URLSearchParams();
+	for (const instance of selectedInstances) {
+		searchParams.append("instances", instance);
+	}
+
 	return fetch(
-		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances`,
+		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances?${searchParams.toString()}`,
 		{
 			signal: abortSignal,
 		},
@@ -46,14 +52,23 @@ export const getInstances = async (
 };
 
 export const createLogQuery = (
-	params: () => { clientId: string; search?: string },
+	params: () => {
+		clientId: string;
+		selectedInstances: string[];
+		search?: string;
+	},
 ) => {
 	const clientId = () => params().clientId;
 	const search = () => params().search;
 
 	const queryClient = useQueryClient();
 	const [state, setState] = createStore(
-		createDefaultState(queryClient, clientId(), search()),
+		createDefaultState(
+			queryClient,
+			clientId(),
+			params().selectedInstances,
+			search(),
+		),
 	);
 
 	createEffect(
@@ -62,6 +77,7 @@ export const createLogQuery = (
 				createDefaultState(
 					queryClient,
 					latestParams.clientId,
+					latestParams.selectedInstances,
 					latestParams.search,
 				),
 			);
@@ -147,6 +163,7 @@ const buildUrl = (
 const createDefaultState = (
 	queryClient: QueryClient,
 	clientId: string,
+	selectedInstances: string[],
 	search?: string,
 ) => {
 	const defaultQueryState = {
@@ -159,13 +176,14 @@ const createDefaultState = (
 	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
 		"logs",
 		clientId,
+		selectedInstances,
 		search,
 	]);
 
 	if (!logStore) {
 		logStore = new SortedList<LogLine>(sortFn);
 		queryClient.setQueryData<SortedList<LogLine>>(
-			["logs", clientId, search],
+			["logs", clientId, selectedInstances, search],
 			logStore,
 		);
 	}
