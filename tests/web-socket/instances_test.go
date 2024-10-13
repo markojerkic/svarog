@@ -169,5 +169,4 @@ func TestAddInstance(t *testing.T) {
 	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
 	assert.Equal(t, fourthId, markoUpdates[1].ID)
 	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
-
 }
