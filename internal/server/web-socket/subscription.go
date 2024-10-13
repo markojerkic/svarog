@@ -32,7 +32,7 @@ type LogSubscription struct {
 func (self *LogSubscription) SetInstances(instances []string) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
-	self.selectedInstances = make(map[string]bool)
+	clear(self.selectedInstances)
 	for _, instance := range instances {
 		self.selectedInstances[instance] = true
 	}

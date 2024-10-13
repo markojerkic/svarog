@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestRemoveInstance(t *testing.T) {
 		},
 		SequenceNumber: 0,
 	})
-	(*markoSubscription).SetInstances([]string{"::2"})
+	(*markoSubscription).SetInstances([]string{"::1"})
 
 	thirdId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
@@ -82,11 +83,11 @@ func TestRemoveInstance(t *testing.T) {
 
 	assert.Equal(t, 3, len(markoUpdates))
 
-	assert.Equal(t, firstId, markoUpdates[0].ID)
+	assert.Equal(t, firstId.Hex(), markoUpdates[0].ID.Hex())
 	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
-	assert.Equal(t, secondId, markoUpdates[1].ID)
+	assert.Equal(t, secondId.Hex(), markoUpdates[1].ID.Hex())
 	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
-	assert.Equal(t, thirdId, markoUpdates[2].ID)
+	assert.Equal(t, thirdId.Hex(), markoUpdates[2].ID.Hex())
 	assert.Equal(t, "::1", markoUpdates[2].Client.IpAddress)
 
 }
@@ -127,7 +128,7 @@ func TestAddInstance(t *testing.T) {
 		LogLine:   "marko-add-instance",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-add-instance",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
@@ -139,7 +140,7 @@ func TestAddInstance(t *testing.T) {
 		LogLine:   "marko-add-instance",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-add-instance",
 			IpAddress: "::2",
 		},
 		SequenceNumber: 0,
@@ -162,12 +163,12 @@ func TestAddInstance(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 2, len(markoUpdates))
+	assert.Equal(t, 2, len(markoUpdates), fmt.Sprintf("Got %+v", markoUpdates))
 
-	assert.Equal(t, firstId, markoUpdates[0].ID)
-	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
-	assert.Equal(t, fourthId, markoUpdates[1].ID)
-	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
+	assert.Equal(t, secondId.Hex(), markoUpdates[0].ID.Hex())
+	assert.Equal(t, "::2", markoUpdates[0].Client.IpAddress)
+	assert.Equal(t, thirdId.Hex(), markoUpdates[1].ID.Hex())
+	assert.Equal(t, "::1", markoUpdates[1].Client.IpAddress)
 }
 
 func TestNoInstances(t *testing.T) {
