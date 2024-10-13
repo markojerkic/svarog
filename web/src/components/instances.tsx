@@ -1,16 +1,25 @@
 import { useLocation, useSearchParams } from "@markojerkic/solid-router";
 import { For, batch, createMemo, on } from "solid-js";
-import { createStore } from "solid-js/store";
+import { useInstanceColor } from "~/lib/hooks/instance-color";
 import type { WsActions } from "~/lib/store/connection";
 
-export const instancesColorMap = createStore<{ [key: string]: string }>({});
-export const useInstanceColor = (instance: string) => {
-	const [state, setState] = instancesColorMap;
-	if (!state[instance]) {
-		const randomColor = randomColorForInstance(instance);
-		setState(instance, randomColor);
-	}
-	return () => state[instance];
+export const Instances = (props: {
+	instances: string[];
+	actions: WsActions;
+}) => {
+	return (
+		<nav class="gap-2 border border-sky-700 p-2">
+			<p>Instances</p>
+			<div class="scrollbar-thin scrollbar-track-white scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll p-2">
+				<AllInstances />
+				<For each={props.instances}>
+					{(instance) => (
+						<Instance instance={instance} actions={props.actions} />
+					)}
+				</For>
+			</div>
+		</nav>
+	);
 };
 
 const AllInstances = () => {
@@ -62,7 +71,6 @@ const mergeInstancesMap = (instancesMap: Record<string, boolean>): string[] => {
 
 const useInstanceIsActive = (instance: string | "all") => {
 	const [searchParams, setSearchParams] = useSearchParams<{
-		all: string;
 		instance: string | string[];
 	}>();
 
@@ -72,10 +80,7 @@ const useInstanceIsActive = (instance: string | "all") => {
 			() => {
 				const instanceSelected =
 					Object.keys(mapInstances(searchParams.instance ?? [])).length > 0;
-				return (
-					!instanceSelected &&
-					(searchParams.all ? Boolean(searchParams.all) : true)
-				);
+				return !instanceSelected;
 			},
 		),
 	);
@@ -131,52 +136,6 @@ const useInstanceIsActive = (instance: string | "all") => {
 	return { isActive, addInstance, removeInstance, toggleInstance };
 };
 
-// const useAllAreActive = () => {
-// 	const [searchParams, setSearchParams] = useSearchParams<{
-// 		all: string;
-// 		instance: string | string[];
-// 	}>();
-// 	const allActive = createMemo(
-// 		on(
-// 			() => useLocation().search,
-// 			() => {
-// 				const instanceSelected =
-// 					Object.keys(mapInstances(searchParams.instance ?? [])).length > 0;
-// 				return (
-// 					!instanceSelected &&
-// 					(searchParams.all ? Boolean(searchParams.all) : true)
-// 				);
-// 			},
-// 		),
-// 	);
-//
-// 	createEffect(
-// 		on(
-// 			() => useLocation().search,
-// 			() => {
-// 				const instanceSelected =
-// 					Object.keys(mapInstances(searchParams.instance ?? [])).length > 0;
-// 				if (instanceSelected && searchParams.all) {
-// 					console.log("Setting all to undefined");
-// 					setSearchParams({ all: undefined });
-// 				}
-// 			},
-// 		),
-// 	);
-//
-// 	const setAllActive = (active: boolean) => {
-// 		batch(() => {
-// 			console.log("Setting all to", active);
-// 			setSearchParams({ all: active ? "true" : undefined });
-// 			if (!active) {
-// 				setSearchParams({ instance: undefined });
-// 			}
-// 		});
-// 	};
-//
-// 	return [allActive, setAllActive] as const;
-// };
-
 const mapInstances = (instances: string | string[]) => {
 	const instancesMap: Record<string, boolean> = {};
 	if (Array.isArray(instances)) {
@@ -187,68 +146,4 @@ const mapInstances = (instances: string | string[]) => {
 		instancesMap[instances] = true;
 	}
 	return instancesMap;
-};
-
-// const useIsInstanceActive = (instance: string) => {
-// 	const [searchParams, setSearchParams] = useSearchParams<{
-// 		instance: string[];
-// 	}>();
-// 	const isActive = () => {
-// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-//
-// 		return instanceSearchParams[instance] ?? false;
-// 	};
-//
-// 	const mergeInstancesMap = (
-// 		instancesMap: Record<string, boolean>,
-// 	): string[] => {
-// 		return Object.keys(instancesMap).filter(
-// 			(instance) => instancesMap[instance],
-// 		);
-// 	};
-//
-// 	const addInstance = () => {
-// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-// 		instanceSearchParams[instance] = true;
-// 		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
-// 	};
-//
-// 	const removeInstance = () => {
-// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-// 		instanceSearchParams[instance] = false;
-// 		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
-// 	};
-//
-// 	const toggleInstance = () => {
-// 		if (isActive()) {
-// 			removeInstance();
-// 		} else {
-// 			addInstance();
-// 		}
-// 	};
-//
-// 	return { isActive, addInstance, removeInstance, toggleInstance };
-// };
-
-export const Instances = (props: {
-	instances: string[];
-	actions: WsActions;
-}) => {
-	return (
-		<nav class="gap-2 border border-sky-700 p-2">
-			<p>Instances</p>
-			<div class="scrollbar-thin scrollbar-track-white scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll p-2">
-				<AllInstances />
-				<For each={props.instances}>
-					{(instance) => (
-						<Instance instance={instance} actions={props.actions} />
-					)}
-				</For>
-			</div>
-		</nav>
-	);
-};
-
-const randomColorForInstance = (_: string) => {
-	return `#${Math.floor(Math.random() * 16777215).toString(16)}`;
 };
