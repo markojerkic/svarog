@@ -18,10 +18,10 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 					isBottomIntersecting = true;
 				}
 
-				if (entry.target.id === "bottom" && !query.isNextPageLoading) {
-					query.fetchNextPage();
-				} else if (entry.target.id === "top" && !query.isPreviousPageLoading) {
-					query.fetchPreviousPage();
+				if (entry.target.id === "bottom" && !query.query.isFetchingNextPage) {
+					query.query.fetchNextPage();
+				} else if (entry.target.id === "top" && !query.query.isFetchingPreviousPage) {
+					query.query.fetchPreviousPage();
 				}
 			}
 		}

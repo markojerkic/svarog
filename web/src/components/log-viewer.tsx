@@ -3,7 +3,9 @@ import {
 	For,
 	Show,
 	createEffect,
+	createMemo,
 	createSignal,
+	on,
 	onCleanup,
 	onMount,
 } from "solid-js";
@@ -24,12 +26,8 @@ const LogViewer = (props: LogViewerProps) => {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
-	createEffect(() => {
-		console.log("Window height", scrollViewerHeight());
-	});
-
-	const logs = props.logsQuery.state;
-	const logCount = () => logs.logStore.size;
+	const logs = props.logsQuery;
+	const logCount = () => logs.logCount();
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -54,23 +52,25 @@ const LogViewer = (props: LogViewerProps) => {
 
 	let wasFetchingPreviousPage = false;
 	createEffect(() => {
-		if (logs.isPreviousPageLoading) {
+		if (logs.query.isFetchingPreviousPage) {
 			wasFetchingPreviousPage = true;
 		} else if (wasFetchingPreviousPage && virtualizer.isScrolling) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
-			const offset = logs.lastLoadedPageSize - 1;
+			const offset = logs.lastLoadedPageSize() - 1;
+			console.log("Scrolling to index", offset);
 			virtualizer.scrollToIndex(offset, { align: "start" });
 		}
 	});
 
 	const scrollToBottom = () => {
-		console.log("Scroll to bottom event");
-		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
+		console.log("Scroll to bottom event", logs.logCount());
+		virtualizer.scrollToIndex(logs.logCount(), { align: "end" });
 		setIsOnBottom();
 	};
 
 	const scrollToBottomIfLocked = () => {
+		console.log("Is locked in bottom", isLockedInBottom());
 		if (isLockedInBottom()) {
 			scrollToBottom();
 		}
@@ -97,6 +97,7 @@ const LogViewer = (props: LogViewerProps) => {
 				"overflow-y": "auto",
 			}}
 		>
+			<pre>Log count: {props.logsQuery.logCount()}</pre>
 			<div
 				style={{
 					height: `${virtualizer.getTotalSize()}px`,
@@ -120,13 +121,14 @@ const LogViewer = (props: LogViewerProps) => {
 					<div id="top" ref={topRef} />
 					<For each={virtualizer.getVirtualItems()}>
 						{(virtualItem) => {
-							const item = () => {
-								logs.logStore.size;
-								const item = logs.logStore.get(virtualItem.index);
-								const content = item?.content;
-								const instance = item?.client.ipAddress ?? "";
-								return { content, instance };
-							};
+							const item = createMemo(
+								on(logs.lastLoadedPageSize, () => {
+									const item = logs.logStore().get(virtualItem.index);
+									const content = item?.content;
+									const instance = item?.client.ipAddress ?? "";
+									return { content, instance };
+								}),
+							);
 							const color = useInstanceColor(item().instance);
 
 							return (

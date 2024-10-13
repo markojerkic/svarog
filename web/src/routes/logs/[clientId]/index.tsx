@@ -7,8 +7,7 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { ErrorBoundary, Show, Suspense } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
-import { createLogSubscription } from "~/lib/store/connection";
-import { createLogQuery, getInstances } from "~/lib/store/log-store";
+import { getInstances, newCreateLogQuery } from "~/lib/store/log-store";
 
 const getArrayValueOfSearchParam = (
 	searchParam: string | string[] | undefined,
@@ -29,14 +28,15 @@ export const route = {
 		);
 
 		queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId, selectedInstances],
-			queryFn: ({ signal }) =>
-				getInstances(clientId, selectedInstances, signal),
+			queryKey: ["logs", "instances", clientId],
+			queryFn: ({ signal }) => getInstances(clientId, signal),
 		});
 
-		const logData = createLogQuery(() => ({ clientId, selectedInstances }));
-
-		return await logData.fetchPreviousPage();
+		const logs = newCreateLogQuery(() => ({
+			clientId,
+			selectedInstances,
+		}));
+		return await logs.query.fetchPreviousPage();
 	},
 } satisfies RouteDefinition;
 
@@ -45,25 +45,29 @@ export default () => {
 	const [searchParams] = useSearchParams();
 	const selectedInstances = () =>
 		getArrayValueOfSearchParam(searchParams.instances);
-	const logs = createLogQuery(() => ({
+
+	const logs = newCreateLogQuery(() => ({
 		clientId,
 		selectedInstances: selectedInstances(),
 	}));
 
 	const instances = createQuery(() => ({
-		queryKey: ["logs", "instances", clientId, selectedInstances()],
-		queryFn: ({ signal }) =>
-			getInstances(clientId, selectedInstances(), signal),
+		queryKey: ["logs", "instances", clientId],
+		queryFn: ({ signal }) => getInstances(clientId, signal),
 		refetchOnWindowFocus: true,
 	}));
 
-	const [LogViewer, scrollToBottom] = createLogViewer();
+	const [LogViewer, _scrollToBottom] = createLogViewer();
 
-	const wsActions = createLogSubscription(
-		clientId,
-		logs.state.logStore,
-		scrollToBottom,
-	);
+	// const wsActions = createLogSubscription(
+	// 	clientId,
+	// 	logs.state,
+	// 	scrollToBottom,
+	// );
+	const wsActions = {
+		addSubscription: (_instance: string) => {},
+		removeSubscription: (_instance: string) => {},
+	};
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
