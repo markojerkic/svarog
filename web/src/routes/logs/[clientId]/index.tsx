@@ -1,10 +1,11 @@
 import {
 	type RouteDefinition,
+	useLocation,
 	useParams,
 	useSearchParams,
 } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { ErrorBoundary, Show, Suspense } from "solid-js";
+import { ErrorBoundary, Show, Suspense, createMemo, on } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
 import { createLogSubscription } from "~/lib/store/connection";
@@ -42,13 +43,19 @@ export const route = {
 export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const [searchParams] = useSearchParams();
-	const selectedInstances = () =>
-		getArrayValueOfSearchParam(searchParams.instances);
+	const selectedInstances = createMemo(
+		on(
+			() => useLocation().search,
+			() => {
+				return getArrayValueOfSearchParam(searchParams.instance);
+			},
+		),
+	);
+
 	const logs = createLogQuery(() => ({
 		clientId,
 		selectedInstances: selectedInstances(),
 	}));
-
 	const instances = createQuery(() => ({
 		queryKey: ["logs", "instances", clientId],
 		queryFn: ({ signal }) => getInstances(clientId, signal),
