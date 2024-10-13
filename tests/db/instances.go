@@ -59,3 +59,52 @@ func (self *RepositorySuite) TestInstances() {
 	assert.Equal(t, []string{"::1", "::2"}, instances)
 
 }
+
+func (self *RepositorySuite) TestFilterByInstances() {
+	t := self.T()
+
+	mockLogLines := []types.StoredLog{
+		{
+			Client: types.StoredClient{
+				ClientId:  "marko",
+				IpAddress: "::1",
+			},
+			Timestamp: time.Now(),
+			LogLine:   "marko",
+		},
+		{
+			Client: types.StoredClient{
+				ClientId:  "marko",
+				IpAddress: "::1",
+			},
+			Timestamp: time.Now(),
+			LogLine:   "marko",
+		},
+		{
+			Client: types.StoredClient{
+				ClientId:  "marko",
+				IpAddress: "::2",
+			},
+			Timestamp: time.Now(),
+			LogLine:   "marko",
+		},
+		{
+			Client: types.StoredClient{
+				ClientId:  "marko",
+				IpAddress: "::1",
+			},
+			Timestamp: time.Now(),
+			LogLine:   "jerkić",
+		},
+	}
+	err := self.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	assert.NoError(t, err)
+
+	logs, err := self.mongoRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(logs))
+	for _, log := range logs {
+		assert.Equal(t, "::1", log.Client.IpAddress)
+
+	}
+}
