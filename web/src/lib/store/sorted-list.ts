@@ -11,7 +11,7 @@ class TreeNode<T> {
 	}
 }
 export function treeNodeToCursor(
-	node: TreeNode<LogLine> | null,
+	node: TreeNode<LogLine> | undefined | null,
 ): LogPageCursor | null {
 	if (!node) {
 		return null;

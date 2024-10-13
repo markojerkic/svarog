@@ -29,16 +29,10 @@ export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
 export const getInstances = async (
 	clientId: string,
-	selectedInstances: string[],
 	abortSignal?: AbortSignal,
 ) => {
-	const searchParams = new URLSearchParams();
-	for (const instance of selectedInstances) {
-		searchParams.append("instances", instance);
-	}
-
 	return fetch(
-		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances?${searchParams.toString()}`,
+		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances`,
 		{
 			signal: abortSignal,
 		},
@@ -99,9 +93,21 @@ export const createLogQuery = (
 		const lastLog = state.logStore.getHead();
 		try {
 			const logs = await queryClient.fetchQuery({
-				queryKey: ["logs", clientId, search, lastLog?.value],
-				queryFn: async () => {
-					return fetchLogs(clientId(), search(), treeNodeToCursor(lastLog));
+				queryKey: [
+					"logs",
+					"log-page",
+					clientId(),
+					params().selectedInstances,
+					search(),
+					lastLog,
+				] as const,
+				queryFn: async ({ queryKey }) => {
+					return fetchLogs(
+						queryKey[2],
+						queryKey[3],
+						queryKey[4],
+						treeNodeToCursor(queryKey[5]),
+					);
 				},
 			});
 			setState("lastLoadedPageSize", logs.length);
@@ -125,10 +131,13 @@ export const createLogQuery = (
 
 export const fetchLogs = async (
 	clientId: string,
+	selectedInstances?: string[],
 	search?: string,
 	cursor?: LogPageCursor | null,
 ) => {
-	const response = await fetch(buildUrl(clientId, search, cursor));
+	const response = await fetch(
+		buildUrl(clientId, selectedInstances, search, cursor),
+	);
 	return response.json() as Promise<LogLine[]>;
 };
 
@@ -137,6 +146,7 @@ const buildBaseUrl = (clientId: string) =>
 
 const buildUrl = (
 	clientId: string,
+	selectedInstances?: string[],
 	search?: string,
 	params?: LogPageCursor | null,
 ) => {
@@ -150,6 +160,13 @@ const buildUrl = (
 		searchParams.append("cursorTime", `${params.cursorTime}`);
 		searchParams.append("direction", params.direction);
 	}
+
+	if (selectedInstances) {
+		for (const instance of selectedInstances) {
+			searchParams.append("instances", instance);
+		}
+	}
+
 	if (search) {
 		searchParams.append("search", search);
 		url += "/search";

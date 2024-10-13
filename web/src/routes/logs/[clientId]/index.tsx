@@ -29,9 +29,8 @@ export const route = {
 		);
 
 		queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId, selectedInstances],
-			queryFn: ({ signal }) =>
-				getInstances(clientId, selectedInstances, signal),
+			queryKey: ["logs", "instances", clientId],
+			queryFn: ({ signal }) => getInstances(clientId, signal),
 		});
 
 		const logData = createLogQuery(() => ({ clientId, selectedInstances }));
@@ -51,9 +50,8 @@ export default () => {
 	}));
 
 	const instances = createQuery(() => ({
-		queryKey: ["logs", "instances", clientId, selectedInstances()],
-		queryFn: ({ signal }) =>
-			getInstances(clientId, selectedInstances(), signal),
+		queryKey: ["logs", "instances", clientId],
+		queryFn: ({ signal }) => getInstances(clientId, signal),
 		refetchOnWindowFocus: true,
 	}));
 
