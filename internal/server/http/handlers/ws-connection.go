@@ -56,11 +56,16 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 
 		switch message.Type {
 		case SetInstances:
-			instances, ok := message.Data.([]string)
+			instancesMap, ok := message.Data.([]interface{})
 			if !ok {
-				slog.Error("Instance id is not string")
+				slog.Error("Instances is a string array")
 				continue
 			}
+			instances := make([]string, 0, len(instancesMap))
+			for _, instance := range instancesMap {
+				instances = append(instances, instance.(string))
+			}
+			slog.Info("Setting instances", slog.Any("instances", instances))
 			self.subscription.SetInstances(instances)
 		case Ping:
 			self.pingPong <- true

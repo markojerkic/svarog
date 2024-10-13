@@ -27,6 +27,7 @@ export const createLogSubscription = (
 	clientId: string,
 	logStore: SortedList<LogLine>,
 	scrollToBottom: () => void,
+	instances: () => string[],
 ) => {
 	const ws = createReconnectingWS(
 		`${import.meta.env.VITE_WS_URL}/v1/ws/${clientId}`,
@@ -43,6 +44,10 @@ export const createLogSubscription = (
 			} catch (e) {
 				console.error("Error parsing WS message", e);
 			}
+		});
+
+		ws.addEventListener("open", () => {
+			setInstances(instances());
 		});
 	});
 

@@ -12,6 +12,7 @@ import {
 	createEffect,
 	createMemo,
 	on,
+	onMount,
 } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
@@ -75,11 +76,18 @@ export default () => {
 		clientId,
 		logs.state.logStore,
 		scrollToBottom,
+		() => selectedInstances(),
 	);
+
+	onMount(() => {
+		wsActions.setInstances(selectedInstances());
+		dispatchEvent(new Event("scroll-to-bottom"));
+	});
 
 	createEffect(
 		on(selectedInstances, (instances) => {
 			wsActions.setInstances(instances);
+			dispatchEvent(new Event("scroll-to-bottom"));
 		}),
 	);
 
