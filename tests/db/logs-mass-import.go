@@ -28,13 +28,16 @@ func (suite *RepositorySuite) countNumberOfLogsInDb() int64 {
 	return count
 }
 
-func generateLogLines(logIngestChannel chan<- *rpc.LogLine, numberOfImportedLogs int64) {
+func generateLogLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImportedLogs int64) {
 	for i := 0; i < int(numberOfImportedLogs); i++ {
-		logIngestChannel <- &rpc.LogLine{
-			Message:   fmt.Sprintf("Log line %d", i),
-			Timestamp: timestamppb.New(time.Now()),
-			Sequence:  int64(i) % math.MaxInt64,
-			Client:    "marko",
+		logIngestChannel <- db.LogLineWithIp{
+			LogLine: &rpc.LogLine{
+				Message:   fmt.Sprintf("Log line %d", i),
+				Timestamp: timestamppb.New(time.Now()),
+				Sequence:  int64(i) % math.MaxInt64,
+				Client:    "marko",
+			},
+			Ip: "::1",
 		}
 
 		if i%500_000 == 0 {
@@ -49,7 +52,7 @@ func (suite *RepositorySuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
-	logIngestChannel := make(chan *rpc.LogLine, 1024)
+	logIngestChannel := make(chan db.LogLineWithIp, 1024)
 
 	go suite.logServer.Run(logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
@@ -64,7 +67,7 @@ func (suite *RepositorySuite) TestMassImport() {
 		}
 	}
 
-	clients, err := suite.mongoRepository.GetClients()
+	clients, err := suite.mongoRepository.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients))
 
@@ -84,7 +87,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs("marko", int64(pageSize), lastCursorPtr)
+		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

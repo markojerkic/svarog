@@ -141,7 +141,7 @@ func TestUnsubscribe(t *testing.T) {
 
 type subscriptionTestBed struct {
 	t            *testing.T
-	subscription *ws.Subscription[types.StoredLog]
+	subscription *ws.Subscription
 	logs         []types.StoredLog
 }
 

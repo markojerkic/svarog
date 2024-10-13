@@ -1,4 +1,4 @@
-import { A, type RouteDefinition } from "@solidjs/router";
+import { A, type RouteDefinition } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 
@@ -23,10 +23,10 @@ export default function Home() {
 	}));
 
 	return (
-		<main class="text-center mx-auto text-gray-700 p-4">
+		<main class="mx-auto p-4 text-center text-gray-700">
 			<For
 				each={clients.data}
-				fallback={<div class="text-white animate-bounce">Loading...</div>}
+				fallback={<div class="animate-bounce text-white">Loading...</div>}
 			>
 				{(client) => (
 					<div>

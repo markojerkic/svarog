@@ -7,12 +7,11 @@ import (
 
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type WsRouter struct {
-	wsHub        websocket.WatchHub[types.StoredLog]
+	wsHub        websocket.WatchHub
 	parentRouter *echo.Group
 	api          *echo.Group
 }
@@ -21,18 +20,17 @@ type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
 	pingPong     chan bool
-	wsHub        websocket.WatchHub[types.StoredLog]
-	subscription websocket.Subscription[types.StoredLog]
+	wsHub        websocket.WatchHub
+	subscription websocket.Subscription
 }
 
 type WsMessageType string
 
 const (
-	NewLine                    WsMessageType = "newLine"
-	AddSubscriptionInstance    WsMessageType = "addSubscriptionInstance"
-	RemoveSubscriptionInstance WsMessageType = "removeSubscriptionInstance"
-	Ping                       WsMessageType = "ping"
-	Pong                       WsMessageType = "pong"
+	NewLine      WsMessageType = "newLine"
+	SetInstances WsMessageType = "setInstances"
+	Ping         WsMessageType = "ping"
+	Pong         WsMessageType = "pong"
 )
 
 type WsMessage struct {
@@ -57,20 +55,18 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 		}
 
 		switch message.Type {
-		case AddSubscriptionInstance:
-			instance, ok := message.Data.(string)
+		case SetInstances:
+			instancesMap, ok := message.Data.([]interface{})
 			if !ok {
-				slog.Error("Instance id is not string")
+				slog.Error("Instances is a string array")
 				continue
 			}
-			self.subscription.AddInstance(instance)
-		case RemoveSubscriptionInstance:
-			instance, ok := message.Data.(string)
-			if !ok {
-				slog.Error("Instance id is not string")
-				continue
+			instances := make([]string, 0, len(instancesMap))
+			for _, instance := range instancesMap {
+				instances = append(instances, instance.(string))
 			}
-			self.subscription.RemoveInstance(instance)
+			slog.Info("Setting instances", slog.Any("instances", instances))
+			self.subscription.SetInstances(instances)
 		case Ping:
 			self.pingPong <- true
 		default:
@@ -160,12 +156,14 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		// wait until read and write pipes are done and then close the subscription
 		wsWaitGroup.Wait()
 		wsConnection.closeSubscription()
+		slog.Debug("WS connection closed", slog.Any("clientId", clientId))
+		self.wsHub.Unsubscribe(subscription)
 	}()
 
 	return nil
 }
 
-func NewWsConnectionRouter(hub websocket.WatchHub[types.StoredLog], parentRouter *echo.Group) *WsRouter {
+func NewWsConnectionRouter(hub websocket.WatchHub, parentRouter *echo.Group) *WsRouter {
 	api := parentRouter.Group("/ws")
 	router := &WsRouter{
 		wsHub:        hub,

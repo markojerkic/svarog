@@ -1,4 +1,4 @@
-import { Router } from "@solidjs/router";
+import { Router } from "@markojerkic/solid-router";
 import { FileRoutes } from "@solidjs/start/router";
 import { Show } from "solid-js";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";

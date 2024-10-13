@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 func (s *RepositorySuite) TestNoClients() {
 	t := s.T()
 
-	clients, err := s.mongoRepository.GetClients()
+	clients, err := s.mongoRepository.GetClients(context.Background())
 
 	assert.NoError(t, err)
 
@@ -22,7 +23,7 @@ func (s *RepositorySuite) TestAddClient() {
 	t := s.T()
 
 	mockLogLines := []types.StoredLog{
-		types.StoredLog{
+		{
 			Client: types.StoredClient{
 				ClientId:  "marko",
 				IpAddress: "::1",
@@ -30,7 +31,7 @@ func (s *RepositorySuite) TestAddClient() {
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
-		types.StoredLog{
+		{
 			Client: types.StoredClient{
 				ClientId:  "jerkić",
 				IpAddress: "::1",
@@ -40,10 +41,10 @@ func (s *RepositorySuite) TestAddClient() {
 		},
 	}
 
-	err := s.mongoRepository.SaveLogs(mockLogLines)
+	err := s.mongoRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	clients, err := s.mongoRepository.GetClients()
+	clients, err := s.mongoRepository.GetClients(context.Background())
 
 	assert.NoError(t, err)
 

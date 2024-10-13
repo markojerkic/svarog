@@ -1,5 +1,5 @@
 import { debounce } from "@solid-primitives/scheduled";
-import { useParams, useSearchParams } from "@solidjs/router";
+import { useParams, useSearchParams } from "@markojerkic/solid-router";
 import { Show, createEffect, createSignal, on } from "solid-js";
 import { createLogViewer } from "~/components/log-viewer";
 import { createLogQuery } from "~/lib/store/log-store";
@@ -33,7 +33,7 @@ export default () => {
 				<input
 					id="search"
 					type="text"
-					class="border-white p-1 rounded-md text-black"
+					class="rounded-md border-white p-1 text-black"
 					value={search()}
 					onInput={(e) => setSearch(e.currentTarget.value)}
 				/>

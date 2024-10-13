@@ -12,10 +12,11 @@ import (
 )
 
 type LogRepository interface {
-	SaveLogs(logs []types.StoredLog) error
-	GetLogs(clientId string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
-	GetClients() ([]AvailableClient, error)
-	SearchLogs(query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	SaveLogs(ctx context.Context, logs []types.StoredLog) error
+	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
+	GetClients(ctx context.Context) ([]AvailableClient, error)
+	GetInstances(ctx context.Context, clientId string) ([]string, error)
+	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 }
 
 type LastCursor struct {
@@ -24,8 +25,13 @@ type LastCursor struct {
 	IsBackward     bool
 }
 
+type LogLineWithIp struct {
+	*rpc.LogLine
+	Ip string
+}
+
 type AggregatingLogServer interface {
-	Run(logIngestChannel <-chan *rpc.LogLine)
+	Run(logIngestChannel <-chan LogLineWithIp)
 	IsBacklogEmpty() bool
 	BacklogCount() int
 }
@@ -54,14 +60,14 @@ func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogSer
 	}
 }
 
-func (self *LogServer) dumpBacklog(logsToSave []types.StoredLog) {
-	err := self.repository.SaveLogs(logsToSave)
+func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.StoredLog) {
+	err := self.repository.SaveLogs(ctx, logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)
 	}
 }
 
-func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
+func (self *LogServer) Run(logIngestChannel <-chan LogLineWithIp) {
 	slog.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
@@ -75,13 +81,13 @@ func (self *LogServer) Run(logIngestChannel <-chan *rpc.LogLine) {
 				SequenceNumber: line.Sequence,
 				Client: types.StoredClient{
 					ClientId:  line.Client,
-					IpAddress: "::1",
+					IpAddress: line.Ip,
 				},
 			}
 			self.backlog.AddToBacklog(logLine)
 
 		case logsToSave := <-self.backlog.GetLogs():
-			go self.dumpBacklog(logsToSave)
+			go self.dumpBacklog(self.ctx, logsToSave)
 
 		case <-interval.C:
 			slog.Debug("Dumping backlog after timeout")

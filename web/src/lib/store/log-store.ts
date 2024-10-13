@@ -27,15 +27,42 @@ export type LogPageCursor = {
 
 export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 
+export const getInstances = async (
+	clientId: string,
+	abortSignal?: AbortSignal,
+) => {
+	return fetch(
+		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances`,
+		{
+			signal: abortSignal,
+		},
+	).then(async (res) => {
+		if (!res.ok) {
+			throw Error(await res.text());
+		}
+
+		return res.json() as Promise<string[]>;
+	});
+};
+
 export const createLogQuery = (
-	params: () => { clientId: string; search?: string },
+	params: () => {
+		clientId: string;
+		selectedInstances: string[];
+		search?: string;
+	},
 ) => {
 	const clientId = () => params().clientId;
 	const search = () => params().search;
 
 	const queryClient = useQueryClient();
 	const [state, setState] = createStore(
-		createDefaultState(queryClient, clientId(), search()),
+		createDefaultState(
+			queryClient,
+			clientId(),
+			params().selectedInstances,
+			search(),
+		),
 	);
 
 	createEffect(
@@ -44,6 +71,7 @@ export const createLogQuery = (
 				createDefaultState(
 					queryClient,
 					latestParams.clientId,
+					latestParams.selectedInstances,
 					latestParams.search,
 				),
 			);
@@ -65,9 +93,21 @@ export const createLogQuery = (
 		const lastLog = state.logStore.getHead();
 		try {
 			const logs = await queryClient.fetchQuery({
-				queryKey: ["logs", clientId, search, lastLog?.value],
-				queryFn: async () => {
-					return fetchLogs(clientId(), search(), treeNodeToCursor(lastLog));
+				queryKey: [
+					"logs",
+					"log-page",
+					clientId(),
+					params().selectedInstances,
+					search(),
+					lastLog,
+				] as const,
+				queryFn: async ({ queryKey }) => {
+					return fetchLogs(
+						queryKey[2],
+						queryKey[3],
+						queryKey[4],
+						treeNodeToCursor(queryKey[5]),
+					);
 				},
 			});
 			setState("lastLoadedPageSize", logs.length);
@@ -81,16 +121,23 @@ export const createLogQuery = (
 	return {
 		fetchPreviousPage,
 		fetchNextPage,
+		isNextPageLoading: state.isNextPageLoading,
+		isNextPageError: state.isNextPageError,
+		isPreviousPageLoading: state.isPreviousPageLoading,
+		isPreviousPageError: state.isPreviousPageError,
 		state,
 	};
 };
 
 export const fetchLogs = async (
 	clientId: string,
+	selectedInstances?: string[],
 	search?: string,
 	cursor?: LogPageCursor | null,
 ) => {
-	const response = await fetch(buildUrl(clientId, search, cursor));
+	const response = await fetch(
+		buildUrl(clientId, selectedInstances, search, cursor),
+	);
 	return response.json() as Promise<LogLine[]>;
 };
 
@@ -99,6 +146,7 @@ const buildBaseUrl = (clientId: string) =>
 
 const buildUrl = (
 	clientId: string,
+	selectedInstances?: string[],
 	search?: string,
 	params?: LogPageCursor | null,
 ) => {
@@ -112,6 +160,13 @@ const buildUrl = (
 		searchParams.append("cursorTime", `${params.cursorTime}`);
 		searchParams.append("direction", params.direction);
 	}
+
+	if (selectedInstances) {
+		for (const instance of selectedInstances) {
+			searchParams.append("instances", instance);
+		}
+	}
+
 	if (search) {
 		searchParams.append("search", search);
 		url += "/search";
@@ -125,6 +180,7 @@ const buildUrl = (
 const createDefaultState = (
 	queryClient: QueryClient,
 	clientId: string,
+	selectedInstances: string[],
 	search?: string,
 ) => {
 	const defaultQueryState = {
@@ -137,13 +193,14 @@ const createDefaultState = (
 	let logStore = queryClient.getQueryData<SortedList<LogLine>>([
 		"logs",
 		clientId,
+		selectedInstances,
 		search,
 	]);
 
 	if (!logStore) {
 		logStore = new SortedList<LogLine>(sortFn);
 		queryClient.setQueryData<SortedList<LogLine>>(
-			["logs", clientId, search],
+			["logs", clientId, selectedInstances, search],
 			logStore,
 		);
 	}

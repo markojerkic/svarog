@@ -24,6 +24,7 @@ run-server: build-server-dev
 
 
 watch:
+	@docker compose -f ./docker-compose.dev.yml up -d
 	@go run github.com/cosmtrek/air@v1.51.0
 
 build-dev: build-server-dev
@@ -41,7 +42,7 @@ lint-web:
 format-go:
 	go fmt ./...
 format-web:
-	cd web && bun format
+	cd web && bun lint:fix && bun format
 format: format-go format-web
 
 test-server:

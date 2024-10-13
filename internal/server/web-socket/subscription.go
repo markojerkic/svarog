@@ -7,34 +7,35 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-type Subscription[T interface{}] interface {
+type Subscription interface {
 	GetSubscriptionId() string
-	GetUpdates() <-chan T
-	RemoveInstance(instanceId string)
-	AddInstance(instanceId string)
+	GetUpdates() <-chan types.StoredLog
+	SetInstances(instances []string)
 	GetClientId() string
-	Notify(T)
+	Notify(types.StoredLog)
 	Close()
 }
 
 type LogSubscription struct {
 	id              string
-	hub             *WatchHub[types.StoredLog]
+	hub             *WatchHub
 	clientId        string
 	updates         chan types.StoredLog
 	clientInstances map[string]bool
 	isClosed        bool
 	mutex           *sync.Mutex
+
+	selectedInstances map[string]bool
 }
 
-// AddInstance implements Subscription.
-func (l *LogSubscription) AddInstance(instanceId string) {
-	panic("unimplemented")
-}
-
-// RemoveInstance implements Subscription.
-func (l *LogSubscription) RemoveInstance(instanceId string) {
-	panic("unimplemented")
+// SetInstances implements Subscription.
+func (self *LogSubscription) SetInstances(instances []string) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+	clear(self.selectedInstances)
+	for _, instance := range instances {
+		self.selectedInstances[instance] = true
+	}
 }
 
 // GetUpdates implements Subscription.
@@ -50,6 +51,10 @@ func (self *LogSubscription) Notify(log types.StoredLog) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
 	if self.isClosed {
+		return
+	}
+
+	if len(self.selectedInstances) > 0 && !self.selectedInstances[log.Client.IpAddress] {
 		return
 	}
 
@@ -71,16 +76,17 @@ func (self *LogSubscription) GetSubscriptionId() string {
 	return self.id
 }
 
-var _ Subscription[types.StoredLog] = &LogSubscription{}
+var _ Subscription = &LogSubscription{}
 
-func createSubscription(clientId string) Subscription[types.StoredLog] {
+func createSubscription(clientId string) Subscription {
 	return &LogSubscription{
-		id:              uuid.New().String(),
-		hub:             &LogsHub,
-		clientId:        clientId,
-		updates:         make(chan types.StoredLog, 100),
-		clientInstances: make(map[string]bool),
-		isClosed:        false,
-		mutex:           &sync.Mutex{},
+		id:                uuid.New().String(),
+		hub:               &LogsHub,
+		clientId:          clientId,
+		updates:           make(chan types.StoredLog, 100),
+		clientInstances:   make(map[string]bool),
+		isClosed:          false,
+		selectedInstances: make(map[string]bool),
+		mutex:             &sync.Mutex{},
 	}
 }

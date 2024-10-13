@@ -2,6 +2,7 @@ import { createSignal } from "solid-js";
 import type { CreateLogQueryResult } from "~/lib/store/log-store";
 
 export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
+	const created = new Date().getTime();
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
 
 	const setIsOnBottom = () => {
@@ -25,7 +26,10 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 			}
 		}
 
-		setIsLockedInBottom(isBottomIntersecting);
+		if (new Date().getTime() - created > 1000) {
+			console.log("isBottomIntersecting", isBottomIntersecting);
+			setIsLockedInBottom(isBottomIntersecting);
+		}
 	});
 
 	return [observer, isLockedInBottom, setIsOnBottom] as const;

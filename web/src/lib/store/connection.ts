@@ -7,6 +7,10 @@ type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
 
 type WsMessage =
 	| {
+			type: "setInstances";
+			data: string[];
+	  }
+	| {
 			type: "newLine";
 			data: LogLine;
 	  }
@@ -23,6 +27,7 @@ export const createLogSubscription = (
 	clientId: string,
 	logStore: SortedList<LogLine>,
 	scrollToBottom: () => void,
+	instances: () => string[],
 ) => {
 	const ws = createReconnectingWS(
 		`${import.meta.env.VITE_WS_URL}/v1/ws/${clientId}`,
@@ -40,6 +45,10 @@ export const createLogSubscription = (
 				console.error("Error parsing WS message", e);
 			}
 		});
+
+		ws.addEventListener("open", () => {
+			setInstances(instances());
+		});
 	});
 
 	const pingPongInterval = setInterval(() => {
@@ -50,4 +59,34 @@ export const createLogSubscription = (
 		ws.close();
 		clearInterval(pingPongInterval);
 	});
+
+	const setInstances = (instances: string[]) => {
+		ws.send(
+			JSON.stringify({
+				type: "setInstances",
+				data: instances,
+			} satisfies WsMessage),
+		);
+	};
+
+	const addSubscription = (instance: string) => {
+		ws.send(
+			JSON.stringify({
+				type: "addSubscriptionInstance",
+				data: instance,
+			} satisfies WsMessage),
+		);
+	};
+	const removeSubscription = (instance: string) => {
+		ws.send(
+			JSON.stringify({
+				type: "removeSubscriptionInstance",
+				data: instance,
+			} satisfies WsMessage),
+		);
+	};
+
+	return { addSubscription, removeSubscription, setInstances };
 };
+
+export type WsActions = ReturnType<typeof createLogSubscription>;

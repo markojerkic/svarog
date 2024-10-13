@@ -30,13 +30,40 @@ type ImplementedServer struct {
 
 var _ rpc.LoggAggregatorServer = &ImplementedServer{}
 
-var logIngestChannel = make(chan *rpc.LogLine, 1024*1024)
+var logIngestChannel = make(chan db.LogLineWithIp, 1024*1024)
 
-func (i *ImplementedServer) BatchLog(_ context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
-	slog.Debug("Received batch log of size: ", slog.Int64("size", int64(len(batchLogs.Logs))))
+func getIp(ctx context.Context) (string, error) {
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", fmt.Errorf("failed to get peer from context")
+	}
+
+	// parse out ipv4 address from peer
+	ipv6, _, err := net.SplitHostPort(peer.Addr.String())
+	if err != nil {
+		return "", err
+	}
+	ip := net.ParseIP(ipv6)
+
+	var ipv4 string
+	if ip.IsLoopback() {
+		ipv4 = "127.0.0.1"
+	} else {
+		ipv4 = ip.To4().String()
+	}
+
+	return ipv4, nil
+}
+
+func (i *ImplementedServer) BatchLog(ctx context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
+	ipv4, err := getIp(ctx)
+	if err != nil {
+		return &rpc.Void{}, err
+	}
+	slog.Debug("Received batch log", slog.Int64("size", int64(len(batchLogs.Logs))), slog.String("ip", ipv4))
 
 	for _, logLine := range batchLogs.Logs {
-		logIngestChannel <- logLine
+		logIngestChannel <- db.LogLineWithIp{LogLine: logLine, Ip: ipv4}
 	}
 	return &rpc.Void{}, nil
 }
@@ -48,12 +75,12 @@ func (i *ImplementedServer) Log(stream rpc.LoggAggregator_LogServer) error {
 		if err != nil {
 			return err
 		}
-		_, ok := peer.FromContext(stream.Context())
-		if !ok {
+		ipv4, err := getIp(stream.Context())
+		if err != nil {
 			return err
 		}
 
-		logIngestChannel <- logLine
+		logIngestChannel <- db.LogLineWithIp{LogLine: logLine, Ip: ipv4}
 	}
 }
 
