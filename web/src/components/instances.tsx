@@ -1,5 +1,5 @@
 import { useLocation, useSearchParams } from "@markojerkic/solid-router";
-import { For, batch, createEffect, createMemo, on } from "solid-js";
+import { For, batch, createMemo, on } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { WsActions } from "~/lib/store/connection";
 
@@ -14,20 +14,16 @@ export const useInstanceColor = (instance: string) => {
 };
 
 const AllInstances = () => {
-	const [allActive, setAllActive] = useAllAreActive();
-
-	const toggleActive = () => {
-		setAllActive(!allActive());
-	};
+	const { isActive, toggleInstance } = useInstanceIsActive("all");
 
 	return (
 		<button
 			type="button"
 			class="flex items-center gap-2 rounded-md border border-gray-900 p-1.5 text-black hover:bg-gray-200"
 			classList={{
-				"bg-gray-300": allActive(),
+				"bg-gray-300": isActive(),
 			}}
-			onClick={toggleActive}
+			onClick={toggleInstance}
 		>
 			All
 		</button>
@@ -36,7 +32,7 @@ const AllInstances = () => {
 
 const Instance = (props: { instance: string; actions: WsActions }) => {
 	const color = useInstanceColor(props.instance);
-	const { isActive, toggleInstance } = useIsInstanceActive(props.instance);
+	const { isActive, toggleInstance } = useInstanceIsActive(props.instance);
 
 	return (
 		<button
@@ -95,7 +91,7 @@ const useInstanceIsActive = (instance: string | "all") => {
 
 	const addInstance = () => {
 		if (instance === "all") {
-			setSearchParams({ all: "true", instance: [] });
+			setSearchParams({ instance: undefined });
 			return;
 		}
 
@@ -103,7 +99,7 @@ const useInstanceIsActive = (instance: string | "all") => {
 		instanceSearchParams[instance] = true;
 		setSearchParams({
 			instance: mergeInstancesMap(instanceSearchParams),
-			all: undefined,
+			// all: undefined,
 		});
 	};
 
@@ -117,9 +113,9 @@ const useInstanceIsActive = (instance: string | "all") => {
 		instanceSearchParams[instance] = false;
 		const newInstances = mergeInstancesMap(instanceSearchParams);
 		batch(() => {
-			setSearchParams({ instance: instance });
+			setSearchParams({ instance: newInstances });
 			if (newInstances.length === 0) {
-				setSearchParams({ all: "true" });
+				// setSearchParams({ all: "true" });
 			}
 		});
 	};
@@ -132,7 +128,7 @@ const useInstanceIsActive = (instance: string | "all") => {
 		}
 	};
 
-    return { isActive, addInstance, removeInstance, toggleInstance };
+	return { isActive, addInstance, removeInstance, toggleInstance };
 };
 
 // const useAllAreActive = () => {
@@ -193,46 +189,46 @@ const mapInstances = (instances: string | string[]) => {
 	return instancesMap;
 };
 
-const useIsInstanceActive = (instance: string) => {
-	const [searchParams, setSearchParams] = useSearchParams<{
-		instance: string[];
-	}>();
-	const isActive = () => {
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-
-		return instanceSearchParams[instance] ?? false;
-	};
-
-	const mergeInstancesMap = (
-		instancesMap: Record<string, boolean>,
-	): string[] => {
-		return Object.keys(instancesMap).filter(
-			(instance) => instancesMap[instance],
-		);
-	};
-
-	const addInstance = () => {
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-		instanceSearchParams[instance] = true;
-		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
-	};
-
-	const removeInstance = () => {
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
-		instanceSearchParams[instance] = false;
-		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
-	};
-
-	const toggleInstance = () => {
-		if (isActive()) {
-			removeInstance();
-		} else {
-			addInstance();
-		}
-	};
-
-	return { isActive, addInstance, removeInstance, toggleInstance };
-};
+// const useIsInstanceActive = (instance: string) => {
+// 	const [searchParams, setSearchParams] = useSearchParams<{
+// 		instance: string[];
+// 	}>();
+// 	const isActive = () => {
+// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+//
+// 		return instanceSearchParams[instance] ?? false;
+// 	};
+//
+// 	const mergeInstancesMap = (
+// 		instancesMap: Record<string, boolean>,
+// 	): string[] => {
+// 		return Object.keys(instancesMap).filter(
+// 			(instance) => instancesMap[instance],
+// 		);
+// 	};
+//
+// 	const addInstance = () => {
+// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+// 		instanceSearchParams[instance] = true;
+// 		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
+// 	};
+//
+// 	const removeInstance = () => {
+// 		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+// 		instanceSearchParams[instance] = false;
+// 		setSearchParams({ instance: mergeInstancesMap(instanceSearchParams) });
+// 	};
+//
+// 	const toggleInstance = () => {
+// 		if (isActive()) {
+// 			removeInstance();
+// 		} else {
+// 			addInstance();
+// 		}
+// 	};
+//
+// 	return { isActive, addInstance, removeInstance, toggleInstance };
+// };
 
 export const Instances = (props: {
 	instances: string[];
