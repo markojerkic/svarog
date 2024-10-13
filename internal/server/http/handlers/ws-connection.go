@@ -27,11 +27,10 @@ type WsConnection struct {
 type WsMessageType string
 
 const (
-	NewLine                    WsMessageType = "newLine"
-	AddSubscriptionInstance    WsMessageType = "addSubscriptionInstance"
-	RemoveSubscriptionInstance WsMessageType = "removeSubscriptionInstance"
-	Ping                       WsMessageType = "ping"
-	Pong                       WsMessageType = "pong"
+	NewLine      WsMessageType = "newLine"
+	SetInstances WsMessageType = "setInstances"
+	Ping         WsMessageType = "ping"
+	Pong         WsMessageType = "pong"
 )
 
 type WsMessage struct {
@@ -56,20 +55,13 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 		}
 
 		switch message.Type {
-		case AddSubscriptionInstance:
-			instance, ok := message.Data.(string)
+		case SetInstances:
+			instances, ok := message.Data.([]string)
 			if !ok {
 				slog.Error("Instance id is not string")
 				continue
 			}
-			self.subscription.AddInstance(instance)
-		case RemoveSubscriptionInstance:
-			instance, ok := message.Data.(string)
-			if !ok {
-				slog.Error("Instance id is not string")
-				continue
-			}
-			self.subscription.RemoveInstance(instance)
+			self.subscription.SetInstances(instances)
 		case Ping:
 			self.pingPong <- true
 		default:

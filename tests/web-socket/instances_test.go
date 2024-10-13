@@ -12,7 +12,7 @@ import (
 )
 
 func TestRemoveInstance(t *testing.T) {
-	markoSubscription := ws.LogsHub.Subscribe("marko")
+	markoSubscription := ws.LogsHub.Subscribe("marko-remove-instance")
 
 	firstId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
@@ -20,7 +20,7 @@ func TestRemoveInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-remove-instance",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
@@ -32,12 +32,12 @@ func TestRemoveInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-remove-instance",
 			IpAddress: "::2",
 		},
 		SequenceNumber: 0,
 	})
-	(*markoSubscription).RemoveInstance("::2")
+	(*markoSubscription).SetInstances([]string{"::2"})
 
 	thirdId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
@@ -45,7 +45,7 @@ func TestRemoveInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-remove-instance",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
@@ -57,7 +57,7 @@ func TestRemoveInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-remove-instance",
 			IpAddress: "::2",
 		},
 		SequenceNumber: 0,
@@ -92,8 +92,8 @@ func TestRemoveInstance(t *testing.T) {
 }
 
 func TestAddInstance(t *testing.T) {
-	markoSubscription := ws.LogsHub.Subscribe("marko")
-	(*markoSubscription).RemoveInstance("::2")
+	markoSubscription := ws.LogsHub.Subscribe("marko-add-instance")
+	(*markoSubscription).SetInstances([]string{"::2"})
 
 	firstId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
@@ -101,7 +101,7 @@ func TestAddInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-add-instance",
 			IpAddress: "::1",
 		},
 		SequenceNumber: 0,
@@ -113,19 +113,18 @@ func TestAddInstance(t *testing.T) {
 		LogLine:   "marko",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
-			ClientId:  "marko",
+			ClientId:  "marko-add-instance",
 			IpAddress: "::2",
 		},
 		SequenceNumber: 0,
 	})
 
-	(*markoSubscription).AddInstance("::2")
-	(*markoSubscription).RemoveInstance("::1")
+	(*markoSubscription).SetInstances([]string{"::1"})
 
 	thirdId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
 		ID:        thirdId,
-		LogLine:   "marko",
+		LogLine:   "marko-add-instance",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
 			ClientId:  "marko",
@@ -137,7 +136,7 @@ func TestAddInstance(t *testing.T) {
 	fourthId := primitive.NewObjectID()
 	ws.LogsHub.NotifyInsert(types.StoredLog{
 		ID:        fourthId,
-		LogLine:   "marko",
+		LogLine:   "marko-add-instance",
 		Timestamp: time.Now(),
 		Client: types.StoredClient{
 			ClientId:  "marko",
@@ -168,5 +167,57 @@ func TestAddInstance(t *testing.T) {
 	assert.Equal(t, firstId, markoUpdates[0].ID)
 	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
 	assert.Equal(t, fourthId, markoUpdates[1].ID)
+	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
+}
+
+func TestNoInstances(t *testing.T) {
+	markoSubscription := ws.LogsHub.Subscribe("marko-no-instance")
+
+	firstId := primitive.NewObjectID()
+	ws.LogsHub.NotifyInsert(types.StoredLog{
+		ID:        firstId,
+		LogLine:   "marko1",
+		Timestamp: time.Now(),
+		Client: types.StoredClient{
+			ClientId:  "marko-no-instance",
+			IpAddress: "::1",
+		},
+		SequenceNumber: 0,
+	})
+
+	secondId := primitive.NewObjectID()
+	ws.LogsHub.NotifyInsert(types.StoredLog{
+		ID:        secondId,
+		LogLine:   "marko2",
+		Timestamp: time.Now(),
+		Client: types.StoredClient{
+			ClientId:  "marko-no-instance",
+			IpAddress: "::2",
+		},
+		SequenceNumber: 0,
+	})
+
+	markoUpdates := make([]types.StoredLog, 0, 10)
+	timeout, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	for {
+		isDone := false
+		select {
+		case log, ok := <-(*markoSubscription).GetUpdates():
+			isDone = !ok
+			markoUpdates = append(markoUpdates, log)
+		case <-timeout.Done():
+			isDone = true
+		}
+		if isDone {
+			break
+		}
+	}
+
+	assert.Equal(t, 2, len(markoUpdates))
+
+	assert.Equal(t, firstId.Hex(), markoUpdates[0].ID.Hex())
+	assert.Equal(t, "::1", markoUpdates[0].Client.IpAddress)
+	assert.Equal(t, secondId.Hex(), markoUpdates[1].ID.Hex())
 	assert.Equal(t, "::2", markoUpdates[1].Client.IpAddress)
 }

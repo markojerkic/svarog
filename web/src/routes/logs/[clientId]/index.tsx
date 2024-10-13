@@ -5,7 +5,14 @@ import {
 	useSearchParams,
 } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { ErrorBoundary, Show, Suspense, createMemo, on } from "solid-js";
+import {
+	ErrorBoundary,
+	Show,
+	Suspense,
+	createEffect,
+	createMemo,
+	on,
+} from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
 import { createLogSubscription } from "~/lib/store/connection";
@@ -68,6 +75,12 @@ export default () => {
 		clientId,
 		logs.state.logStore,
 		scrollToBottom,
+	);
+
+	createEffect(
+		on(selectedInstances, (instances) => {
+			wsActions.setInstances(instances);
+		}),
 	);
 
 	return (

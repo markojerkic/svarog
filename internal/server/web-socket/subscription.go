@@ -10,36 +10,32 @@ import (
 type Subscription interface {
 	GetSubscriptionId() string
 	GetUpdates() <-chan types.StoredLog
-	RemoveInstance(instanceId string)
-	AddInstance(instanceId string)
+	SetInstances(instances []string)
 	GetClientId() string
 	Notify(types.StoredLog)
 	Close()
 }
 
 type LogSubscription struct {
-	id                 string
-	hub                *WatchHub
-	clientId           string
-	updates            chan types.StoredLog
-	clientInstances    map[string]bool
-	isClosed           bool
-	mutex              *sync.Mutex
-	unfolowedInstances map[string]bool
+	id              string
+	hub             *WatchHub
+	clientId        string
+	updates         chan types.StoredLog
+	clientInstances map[string]bool
+	isClosed        bool
+	mutex           *sync.Mutex
+
+	selectedInstances map[string]bool
 }
 
-// AddInstance implements Subscription.
-func (self *LogSubscription) AddInstance(instanceId string) {
+// SetInstances implements Subscription.
+func (self *LogSubscription) SetInstances(instances []string) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
-	self.unfolowedInstances[instanceId] = false
-}
-
-// RemoveInstance implements Subscription.
-func (self *LogSubscription) RemoveInstance(instanceId string) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-	self.unfolowedInstances[instanceId] = true
+	self.selectedInstances = make(map[string]bool)
+	for _, instance := range instances {
+		self.selectedInstances[instance] = true
+	}
 }
 
 // GetUpdates implements Subscription.
@@ -58,7 +54,7 @@ func (self *LogSubscription) Notify(log types.StoredLog) {
 		return
 	}
 
-	if self.unfolowedInstances[log.Client.IpAddress] {
+	if len(self.selectedInstances) > 0 && !self.selectedInstances[log.Client.IpAddress] {
 		return
 	}
 
@@ -84,13 +80,13 @@ var _ Subscription = &LogSubscription{}
 
 func createSubscription(clientId string) Subscription {
 	return &LogSubscription{
-		id:                 uuid.New().String(),
-		hub:                &LogsHub,
-		clientId:           clientId,
-		updates:            make(chan types.StoredLog, 100),
-		clientInstances:    make(map[string]bool),
-		isClosed:           false,
-		unfolowedInstances: make(map[string]bool),
-		mutex:              &sync.Mutex{},
+		id:                uuid.New().String(),
+		hub:               &LogsHub,
+		clientId:          clientId,
+		updates:           make(chan types.StoredLog, 100),
+		clientInstances:   make(map[string]bool),
+		isClosed:          false,
+		selectedInstances: make(map[string]bool),
+		mutex:             &sync.Mutex{},
 	}
 }

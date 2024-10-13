@@ -7,6 +7,10 @@ type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
 
 type WsMessage =
 	| {
+			type: "setInstances";
+			data: string[];
+	  }
+	| {
 			type: "newLine";
 			data: LogLine;
 	  }
@@ -51,6 +55,15 @@ export const createLogSubscription = (
 		clearInterval(pingPongInterval);
 	});
 
+	const setInstances = (instances: string[]) => {
+		ws.send(
+			JSON.stringify({
+				type: "setInstances",
+				data: instances,
+			} satisfies WsMessage),
+		);
+	};
+
 	const addSubscription = (instance: string) => {
 		ws.send(
 			JSON.stringify({
@@ -68,7 +81,7 @@ export const createLogSubscription = (
 		);
 	};
 
-	return { addSubscription, removeSubscription };
+	return { addSubscription, removeSubscription, setInstances };
 };
 
 export type WsActions = ReturnType<typeof createLogSubscription>;
