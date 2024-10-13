@@ -165,12 +165,11 @@ func createFilter(clientId string, pageSize int64, instances *[]string, lastCurs
 
 	if instances != nil {
 		filter = append(filter, bson.E{
-			Key: "$in",
+			Key: "client.ip_address",
 			Value: bson.D{
-				{Key: "client.ip_address", Value: instances},
+				{Key: "$in", Value: instances},
 			},
 		})
-
 	}
 
 	return filter, projection
