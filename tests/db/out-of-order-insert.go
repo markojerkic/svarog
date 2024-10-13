@@ -92,7 +92,7 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", int64(pageSize), lastCursorPtr)
+		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

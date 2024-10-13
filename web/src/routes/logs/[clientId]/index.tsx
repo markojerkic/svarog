@@ -18,7 +18,7 @@ const getArrayValueOfSearchParam = (
 		return [];
 	}
 
-	return Array.isArray(searchParam) ? searchParam : [...searchParam];
+	return Array.isArray(searchParam) ? searchParam : [searchParam];
 };
 
 export const route = {

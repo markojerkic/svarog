@@ -64,19 +64,19 @@ func (self *MongoLogRepository) GetClients(ctx context.Context) ([]AvailableClie
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
-	filter, projection := createFilter(clientId, pageSize, lastCursor)
+	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
 
 	slog.Debug(fmt.Sprintf("Filter: %v", filter))
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
-func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
-	filter, projection := createFilter(clientId, pageSize, lastCursor)
+	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
 
 	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
 	// filter = bson.D{{"$text", bson.D{{"$search", query}}}}
@@ -125,7 +125,7 @@ func NewMongoClient(connectionUrl string) *MongoLogRepository {
 // Can be useful if we want to drop clientId for some reason
 var logsByClient = bson.D{}
 
-func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
+func createFilter(clientId string, pageSize int64, instances *[]string, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
 	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
@@ -161,6 +161,16 @@ func createFilter(clientId string, pageSize int64, lastCursor *LastCursor) (bson
 
 	} else {
 		filter = clientIdFilter
+	}
+
+	if instances != nil {
+		filter = append(filter, bson.E{
+			Key: "$in",
+			Value: bson.D{
+				{Key: "client.ip_address", Value: instances},
+			},
+		})
+
 	}
 
 	return filter, projection

@@ -26,10 +26,11 @@ type LogsRouter struct {
 var DEFAULT_PAGE_SIZE = int64(300)
 
 type LogsByClientBinding struct {
-	ClientId             string  `param:"clientId"`
-	CursorTime           *int64  `query:"cursorTime"`
-	CursorSequenceNumber *int    `query:"cursorSequenceNumber"`
-	Direction            *string `query:"direction"`
+	ClientId             string    `param:"clientId"`
+	CursorTime           *int64    `query:"cursorTime"`
+	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
+	Direction            *string   `query:"direction"`
+	Instances            *[]string `query:"instances"`
 }
 
 func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
@@ -68,7 +69,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	}
 
 	slog.Debug("next", slog.Any("cursor", nextCursor))
-	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
 		return err
@@ -113,7 +114,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	}
 
 	slog.Debug("next", slog.Any("cursor", nextCursor))
-	logs, err := self.logRepository.SearchLogs(c.Request().Context(), params.Search, params.ClientId, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logRepository.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
 		return err

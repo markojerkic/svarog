@@ -183,8 +183,6 @@ const createDefaultState = (
 	selectedInstances: string[],
 	search?: string,
 ) => {
-	console.log("Creating new default state");
-
 	const defaultQueryState = {
 		isPreviousPageLoading: false,
 		isPreviousPageError: false,
