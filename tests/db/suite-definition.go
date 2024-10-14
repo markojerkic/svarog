@@ -34,7 +34,7 @@ func (suite *RepositorySuite) SetupSuite() {
 	suite.logServerContext = context.Background()
 	suite.testContainerContext = context.Background()
 
-	container, err := mongodb.Run(suite.testContainerContext, "mongo:6")
+	container, err := mongodb.Run(suite.testContainerContext, "mongo:6", mongodb.WithReplicaSet("rs0"))
 	if err != nil {
 		log.Fatalf("Could not start container: %s", err)
 	}

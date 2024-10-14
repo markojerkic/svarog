@@ -23,7 +23,9 @@ services:
     environment:
       - MONGODB_INITDB_ROOT_USERNAME=user
       - MONGODB_INITDB_ROOT_PASSWORD=pass
+    command: ["mongod", "--replSet", "rs0"]
     volumes:
       - dbdata:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
 volumes:
   dbdata:

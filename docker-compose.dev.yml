@@ -1,15 +1,25 @@
 version: '3'
 services:
   svarog-mongodb:
-    image: mongodb/mongodb-community-server:6.0-ubi8
+    image: mongo:7.0
     container_name: svarog-mongodb
     ports:
       - 27017:27017
     environment:
       - MONGODB_INITDB_ROOT_USERNAME=user
       - MONGODB_INITDB_ROOT_PASSWORD=pass
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'host.docker.internal:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
     volumes:
       - dbdata:/data/db
+      - mongo1_config:/data/configdb
+      # - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
   mongo-express:
     image: mongo-express
     container_name: mongo-express
@@ -20,8 +30,9 @@ services:
       ME_CONFIG_MONGODB_SERVER: svarog-mongodb
       ME_CONFIG_MONGODB_ADMINUSERNAME: user
       ME_CONFIG_MONGODB_ADMINPASSWORD: pass
-      ME_CONFIG_MONGODB_URL: mongo://user:pass@svarog-mongodb:27017/
+      ME_CONFIG_MONGODB_URL: mongo://user:pass@svarog-mongodb:27017/?replicaSet=rs0
     depends_on:
       - svarog-mongodb
 volumes:
   dbdata:
+  mongo1_config:

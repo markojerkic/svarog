@@ -73,13 +73,52 @@ func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, in
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
+func (self *MongoLogRepository) WatchInserts(ctx context.Context) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "operationType", Value: "insert"},
+		}}},
+	}
+
+	opts := options.ChangeStream().SetFullDocument(options.UpdateLookup)
+	changeStream, err := self.logCollection.Watch(ctx, pipeline, opts)
+
+	if err != nil {
+		log.Fatalf("Error watching inserts: %v", err)
+	}
+
+	defer changeStream.Close(ctx)
+
+	for changeStream.Next(ctx) {
+		var event bson.M
+		if err := changeStream.Decode(&event); err != nil {
+			slog.Error("Error decoding log", slog.Any("error", err))
+		}
+		fullDocument := event["fullDocument"].(bson.M)
+
+		var log types.StoredLog
+		bsonBytes, err := bson.Marshal(fullDocument) // Convert bson.M to bytes
+		if err != nil {
+			slog.Error("Error marshalling log", slog.Any("error", err))
+			continue
+		}
+
+		err = bson.Unmarshal(bsonBytes, &log) // Unmarshal into the Person struct
+		if err != nil {
+			slog.Error("Error unmarshalling log", slog.Any("error", err))
+			continue
+		}
+
+		websocket.LogsHub.NotifyInsert(log)
+	}
+}
+
 func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
 
 	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
 
 	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
-	// filter = bson.D{{"$text", bson.D{{"$search", query}}}}
 
 	slog.Debug("Search, tu sam")
 	slog.Debug("Search", slog.Any("filter", filter), slog.String("query", query))
@@ -101,10 +140,9 @@ func (self *MongoLogRepository) SaveLogs(ctx context.Context, logs []types.Store
 		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
 	}
 
-	websocket.LogsHub.NotifyInsertMultiple(logs)
-
 	return nil
 }
+
 func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(connectionUrl))
 	if err != nil {
@@ -118,6 +156,7 @@ func NewMongoClient(connectionUrl string) *MongoLogRepository {
 	}
 
 	repo.createIndexes()
+	go repo.WatchInserts(context.Background())
 
 	return repo
 }
