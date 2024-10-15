@@ -34,7 +34,7 @@ func (suite *RepositorySuite) SetupSuite() {
 	suite.logServerContext = context.Background()
 	suite.testContainerContext = context.Background()
 
-	container, err := mongodb.Run(suite.testContainerContext, "mongo:6", mongodb.WithReplicaSet("rs0"))
+	container, err := mongodb.Run(suite.testContainerContext, "mongo:7", mongodb.WithReplicaSet("rs0"))
 	if err != nil {
 		log.Fatalf("Could not start container: %s", err)
 	}
@@ -57,9 +57,37 @@ func (suite *RepositorySuite) SetupSuite() {
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
 	suite.mongoClient = mongoClient
+
+	suite.initiateReplicaSet(mongoClient)
+
 	if err != nil {
 		log.Fatalf("Could not connect to mongo: %s", err)
 	}
+}
+
+func (self *RepositorySuite) initiateReplicaSet(client *mongo.Client) error {
+	host, err := self.container.Host(context.Background())
+
+	if err != nil {
+		return err
+	}
+	options := bson.D{
+		{Key: "replSetInitiate", Value: bson.D{
+			{Key: "_id", Value: "rs0"},
+			{Key: "members", Value: bson.A{bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "host", Value: host},
+			},
+			}},
+		}},
+	}
+
+	result := client.Database("admin").RunCommand(context.Background(), options)
+	if result.Err() != nil {
+		return result.Err()
+	}
+
+	return nil
 }
 
 // Before each
