@@ -53,7 +53,7 @@ func (suite *RepositorySuite) SetupSuite() {
 	slog.SetDefault(logger)
 
 	suite.mongoRepository = db.NewMongoClient(suite.connectionString)
-	suite.logServer = db.NewLogServer(suite.logServerContext, suite.mongoRepository)
+	suite.logServer = db.NewLogServer(suite.mongoRepository)
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
 	suite.mongoClient = mongoClient
@@ -93,8 +93,7 @@ func (self *RepositorySuite) initiateReplicaSet(client *mongo.Client) error {
 // Before each
 func (suite *RepositorySuite) SetupTest() {
 	slog.Info("Setting up test. Recreating context")
-	suite.logServerContext = context.Background()
-	suite.logServer = db.NewLogServer(suite.logServerContext, suite.mongoRepository)
+	suite.logServer = db.NewLogServer(suite.mongoRepository)
 	num := suite.countNumberOfLogsInDb()
 	if ok := assert.Equal(suite.T(), int64(0), num, "Database should be empty before each test"); !ok {
 		suite.T().FailNow()

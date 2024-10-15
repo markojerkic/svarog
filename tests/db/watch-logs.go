@@ -17,14 +17,18 @@ func (suite *RepositorySuite) TestWatchInsert() {
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
 
-	go suite.logServer.Run(logIngestChannel)
+	logServerContext := context.Background()
+	defer logServerContext.Done()
+
+	go suite.logServer.Run(logServerContext, logIngestChannel)
+
 	generateLogLines(logIngestChannel, 10)
 	markoSubscription := ws.LogsHub.Subscribe("marko")
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
 			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount()))
-			time.Sleep(8 * time.Second)
+			time.Sleep(1 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
 			break

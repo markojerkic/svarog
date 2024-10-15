@@ -31,7 +31,7 @@ type LogLineWithIp struct {
 }
 
 type AggregatingLogServer interface {
-	Run(logIngestChannel <-chan LogLineWithIp)
+	Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp)
 	IsBacklogEmpty() bool
 	BacklogCount() int
 }
@@ -51,9 +51,8 @@ type AvailableClient struct {
 	IsOnline bool
 }
 
-func NewLogServer(ctx context.Context, dbClient LogRepository) AggregatingLogServer {
+func NewLogServer(dbClient LogRepository) AggregatingLogServer {
 	return &LogServer{
-		ctx:        ctx,
 		repository: dbClient,
 		logs:       make(chan types.StoredLog, 1024*1024),
 		backlog:    backlog.NewBacklog[types.StoredLog](1024 * 1024),
@@ -67,7 +66,7 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 	}
 }
 
-func (self *LogServer) Run(logIngestChannel <-chan LogLineWithIp) {
+func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp) {
 	slog.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
@@ -93,7 +92,7 @@ func (self *LogServer) Run(logIngestChannel <-chan LogLineWithIp) {
 			slog.Debug("Dumping backlog after timeout")
 			self.backlog.ForceDump()
 
-		case <-self.ctx.Done():
+		case <-ctx.Done():
 			slog.Debug("Context done")
 			break
 		}

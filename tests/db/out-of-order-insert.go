@@ -61,7 +61,10 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
 
-	go suite.logServer.Run(logIngestChannel)
+	logServerContext := context.Background()
+	defer logServerContext.Done()
+
+	go suite.logServer.Run(logServerContext, logIngestChannel)
 
 	generateOddAndEvenLines(logIngestChannel, 10_000)
 	for {
