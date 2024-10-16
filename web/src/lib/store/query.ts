@@ -23,6 +23,7 @@ export const createLogQuery = (
 	const query = createInfiniteQuery(() => ({
 		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()] as const,
 		initialPageParam: undefined as LogPageCursor | undefined,
+		gcTime: 1000 * 30,
 		queryFn: async ({ queryKey, pageParam, signal }) => {
 			const page = await fetchLogPage(
 				queryKey[1],

@@ -65,11 +65,9 @@ const mockData2 = [
 
 const handlers = [
 	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/marko`, () => {
-		console.log("Request for clientId marko");
 		return HttpResponse.json(mockData);
 	}),
 	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/jerkic`, () => {
-		console.log("Request for clientId jerkic");
 		return HttpResponse.json(mockData2);
 	}),
 ];

@@ -24,18 +24,12 @@ const LogViewer = (props: LogViewerProps) => {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
-	createEffect(() => {
-		console.log("Window height", scrollViewerHeight());
-	});
-
 	const logs = () => props.logsQuery.data;
 	const logCount = () => props.logsQuery.logCount;
 
 	const virtualizer = createVirtualizer({
 		get count() {
-			const lc = logCount();
-			console.log("logCount", lc);
-			return lc;
+			return logCount();
 		},
 		estimateSize: () => 25,
 		getScrollElement: () => logsRef ?? null,

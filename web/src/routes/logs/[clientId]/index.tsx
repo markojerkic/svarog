@@ -16,6 +16,7 @@ import {
 } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
+import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
 import { createLogSubscription } from "~/lib/store/connection";
 import { getInstances } from "~/lib/store/log-store";
 import { createLogQuery } from "~/lib/store/query";
@@ -31,21 +32,23 @@ const getArrayValueOfSearchParam = (
 };
 
 export const route = {
-	load: async ({ params }) => {
+	load: async ({ params, location }) => {
 		const queryClient = useQueryClient();
 		const clientId = params.clientId;
-		// const selectedInstances = getArrayValueOfSearchParam(
-		// 	location.query.instances,
-		// );
+		const selectedInstances = getArrayValueOfSearchParam(
+			location.query.instances,
+		);
 
 		queryClient.prefetchQuery({
 			queryKey: ["logs", "instances", clientId],
 			queryFn: ({ signal }) => getInstances(clientId, signal),
 		});
 
-		// const logData = createLogQuery(() => ({ clientId, selectedInstances }));
-		//
-		// return await logData.fetchPreviousPage();
+		createLogQuery(
+			() => clientId,
+			() => selectedInstances,
+			() => undefined,
+		);
 	},
 } satisfies RouteDefinition;
 
@@ -82,15 +85,24 @@ export default () => {
 		() => selectedInstances(),
 	);
 
+	useWithPreviousValue(
+		() => logs.queryDetails.isFetched,
+		(prev, curr) => {
+			if (prev === false && curr === true) {
+				scrollToBottom();
+			}
+		},
+	);
+
 	onMount(() => {
 		wsActions.setInstances(selectedInstances());
-		dispatchEvent(new Event("scroll-to-bottom"));
+		scrollToBottom();
 	});
 
 	createEffect(
 		on(selectedInstances, (instances) => {
 			wsActions.setInstances(instances);
-			dispatchEvent(new Event("scroll-to-bottom"));
+			scrollToBottom();
 		}),
 	);
 
@@ -107,6 +119,7 @@ export default () => {
 			</ErrorBoundary>
 			<div class="flex-grow">
 				<pre>Local log count: {logCount()}</pre>
+				<pre>Is fetched: {logs.queryDetails.isFetched ? "je" : "nije"}</pre>
 				<LogViewer logsQuery={logs} />
 			</div>
 		</div>

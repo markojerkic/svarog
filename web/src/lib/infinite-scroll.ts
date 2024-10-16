@@ -2,11 +2,12 @@ import { createSignal } from "solid-js";
 import type { CreateLogQueryResult } from "./store/query";
 
 export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
-	const created = new Date().getTime();
+	let created = new Date().getTime();
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
 
 	const setIsOnBottom = () => {
 		setIsLockedInBottom(true);
+		created = new Date().getTime();
 	};
 
 	const observer = new IntersectionObserver((entries) => {
