@@ -5,7 +5,7 @@ import { type LogLine, logsSortFn, type LogPageCursor } from "./log-store";
 
 export const createLoqQuery = (
 	clientId: Accessor<string>,
-	selectedInstances: Accessor<string[]>,
+	selectedInstances: Accessor<string[] | undefined>,
 	searchQuery: Accessor<string | undefined>,
 ) => {
 	const store = createQuery(() => ({
