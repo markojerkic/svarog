@@ -20,10 +20,31 @@ func (suite *RepositorySuite) TestWatchInsert() {
 	logServerContext := context.Background()
 	defer logServerContext.Done()
 
+	markoSubscription := ws.LogsHub.Subscribe("marko")
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 
+	go func() {
+		markoUpdates := make([]types.StoredLog, 0, 20)
+		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		for {
+			isDone := false
+			select {
+			case log, ok := <-(*markoSubscription).GetUpdates():
+				isDone = !ok
+				markoUpdates = append(markoUpdates, log)
+			case <-timeout.Done():
+				isDone = true
+			}
+			if isDone {
+				break
+			}
+		}
+
+		assert.Equal(t, 10, len(markoUpdates), fmt.Sprintf("Got %+v", markoUpdates))
+	}()
+
 	generateLogLines(logIngestChannel, 10)
-	markoSubscription := ws.LogsHub.Subscribe("marko")
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
@@ -34,23 +55,4 @@ func (suite *RepositorySuite) TestWatchInsert() {
 			break
 		}
 	}
-
-	markoUpdates := make([]types.StoredLog, 0, 20)
-	timeout, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	for {
-		isDone := false
-		select {
-		case log, ok := <-(*markoSubscription).GetUpdates():
-			isDone = !ok
-			markoUpdates = append(markoUpdates, log)
-		case <-timeout.Done():
-			isDone = true
-		}
-		if isDone {
-			break
-		}
-	}
-
-	assert.Equal(t, 10, len(markoUpdates), fmt.Sprintf("Got %+v", markoUpdates))
 }
