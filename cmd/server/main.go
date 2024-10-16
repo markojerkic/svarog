@@ -133,7 +133,7 @@ func main() {
 	env := loadEnv()
 
 	mongoRepository := db.NewMongoClient(env.MongoUrl)
-	logServer := db.NewLogServer(context.Background(), mongoRepository)
+	logServer := db.NewLogServer(mongoRepository)
 	httpServer := http.NewServer(mongoRepository, http.HttpServerOptions{
 		AllowedOrigins: env.HttpServerAllowedOrigins,
 		ServerPort:     env.HttpServerPort,
@@ -141,7 +141,7 @@ func main() {
 
 	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
 
-	go logServer.Run(logIngestChannel)
+	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()
 	startGrpcServer(env)
 }

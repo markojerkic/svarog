@@ -54,7 +54,10 @@ func (suite *RepositorySuite) TestMassImport() {
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
 
-	go suite.logServer.Run(logIngestChannel)
+	logServerContext := context.Background()
+	defer logServerContext.Done()
+
+	go suite.logServer.Run(logServerContext, logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
 
 	for {

@@ -1,15 +1,20 @@
 version: '3'
 services:
   svarog-mongodb:
-    image: mongodb/mongodb-community-server:6.0-ubi8
+    image: mongo:7.0
     container_name: svarog-mongodb
     ports:
       - 27017:27017
     environment:
       - MONGODB_INITDB_ROOT_USERNAME=user
       - MONGODB_INITDB_ROOT_PASSWORD=pass
+      - MONGO_REPLICA_SET_NAME=rs0
+    command: >
+      mongod --replSet rs0 --bind_ip_all
     volumes:
       - dbdata:/data/db
+      - mongo1_config:/data/configdb
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
   mongo-express:
     image: mongo-express
     container_name: mongo-express
@@ -17,11 +22,12 @@ services:
     ports:
       - "28081:8081"
     environment:
-      ME_CONFIG_MONGODB_SERVER: svarog-mongodb
       ME_CONFIG_MONGODB_ADMINUSERNAME: user
       ME_CONFIG_MONGODB_ADMINPASSWORD: pass
-      ME_CONFIG_MONGODB_URL: mongo://user:pass@svarog-mongodb:27017/
+      ME_CONFIG_MONGODB_SERVER: svarog-mongodb
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
     depends_on:
       - svarog-mongodb
 volumes:
   dbdata:
+  mongo1_config:
