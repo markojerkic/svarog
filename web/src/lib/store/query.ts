@@ -51,7 +51,9 @@ export const createLoqQuery = (
 	}));
 
 	return {
-		data: store.data,
+		get data() {
+			return store.data;
+		},
 		queryDetails: query,
 	};
 };

@@ -1,71 +1,155 @@
-import { renderHook, waitFor } from "@solidjs/testing-library";
+import { renderHook } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, createSignal } from "solid-js";
+import {
+    type ParentProps,
+    createSignal,
+    createRoot,
+    catchError,
+    type Owner,
+} from "solid-js";
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
 import { createLoqQuery } from "~/lib/store/query";
 import type { LogLine } from "~/lib/store/log-store";
 
+const waitFor = (fn: () => boolean, owner?: Owner) => {
+    let done: () => void;
+    let fail: (error: unknown) => void;
+    const promise = new Promise<void>((resolve, reject) => {
+        done = resolve;
+        fail = reject;
+    });
+
+    createRoot((dispose) => {
+        catchError(async () => {
+            let isDone = false;
+            while (!isDone) {
+                isDone = fn();
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+            done();
+            dispose();
+        }, fail);
+    }, owner);
+    return promise;
+};
+
 const mockData = [
-	{
-		id: "1",
-		content: "Hello",
-		timestamp: new Date().getTime(),
-		sequenceNumber: 1,
-		client: {
-			clientId: "marko",
-			ipAddress: "::1",
-		},
-	},
+    {
+        id: "1",
+        content: "Hello",
+        timestamp: new Date().getTime(),
+        sequenceNumber: 1,
+        client: {
+            clientId: "marko",
+            ipAddress: "::1",
+        },
+    },
+] satisfies LogLine[];
+
+const mockData2 = [
+    {
+        id: "2",
+        content: "Hello from data 2",
+        timestamp: new Date().getTime(),
+        sequenceNumber: 1,
+        client: {
+            clientId: "jerkic",
+            ipAddress: "::2",
+        },
+    },
 ] satisfies LogLine[];
 
 const handlers = [
-	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/*`, () => {
-		console.log("Hello from mock");
-		return HttpResponse.json(mockData);
-	}),
+    http.get(`${import.meta.env.VITE_API_URL}/v1/logs/marko`, () => {
+        console.log("Request for clientId marko");
+        return HttpResponse.json(mockData);
+    }),
+    http.get(`${import.meta.env.VITE_API_URL}/v1/logs/jerkic`, () => {
+        console.log("Request for clientId jerkic");
+        return HttpResponse.json(mockData2);
+    }),
 ];
 const mockServer = setupServer(...handlers);
 
 describe("createLoqQuery", () => {
-	beforeAll(() => mockServer.listen());
-	afterEach(() => mockServer.resetHandlers());
-	afterAll(() => mockServer.close());
+    beforeAll(() => mockServer.listen());
+    afterEach(() => mockServer.resetHandlers());
+    afterAll(() => mockServer.close());
 
-	const queryClient = new QueryClient();
+    const queryClient = new QueryClient();
 
-	const Wrapper = (props: ParentProps) => (
-		<QueryClientProvider client={queryClient}>
-			{props.children}
-		</QueryClientProvider>
-	);
+    const Wrapper = (props: ParentProps) => (
+        <QueryClientProvider client={queryClient}>
+            {props.children}
+        </QueryClientProvider>
+    );
 
-	const [clientId, _setClientId] = createSignal("marko");
-	const [selectedInstances, _setSelectedInstances] = createSignal<
-		string[] | undefined
-	>(undefined);
-	const [search, _setSearch] = createSignal<string | undefined>(undefined);
+    test("should initialize and return data", async () => {
+        const [clientId, _setClientId] = createSignal("marko");
+        const [selectedInstances, _setSelectedInstances] = createSignal<
+            string[] | undefined
+        >(undefined);
+        const [search, _setSearch] = createSignal<string | undefined>(undefined);
+        const { result } = renderHook(
+            () => createLoqQuery(clientId, selectedInstances, search),
+            {
+                wrapper: Wrapper,
+            },
+        );
+        await result.queryDetails.fetchNextPage();
 
-	test("should initialize and return data", async () => {
-		const { result } = renderHook(
-			() => createLoqQuery(clientId, selectedInstances, search),
-			{
-				wrapper: Wrapper,
-			},
-		);
-		await result.queryDetails.fetchNextPage();
+        await waitFor(() => {
+            return result.queryDetails.isSuccess;
+        });
+        expect(
+            result.queryDetails.isSuccess,
+            "Query needs to resolve to success",
+        ).toBeTruthy();
+        expect(result.data.size, "Data should hold exactly one element").toEqual(1);
+        expect(result.data.get(0), "Query data needs to be as expected").toEqual(
+            mockData[0],
+        );
+    });
 
-		await waitFor(() => {
-			return result.queryDetails.isSuccess;
-		});
-		expect(
-			result.queryDetails.isSuccess,
-			"Query needs to resolve to success",
-		).toBeTruthy();
-		expect(result.data.size, "Data should hold exactly one element").toEqual(1);
-		expect(result.data.get(0), "Query data needs to be as expected").toEqual(
-			mockData[0],
-		);
-	});
+    test("should refetch data when search changes", async () => {
+        const [clientId, setClientId] = createSignal("marko");
+        const [selectedInstances, _setSelectedInstances] = createSignal<
+            string[] | undefined
+        >(undefined);
+        const [search, _setSearch] = createSignal<string | undefined>(undefined);
+        const { result } = renderHook(
+            () => createLoqQuery(clientId, selectedInstances, search),
+            {
+                wrapper: Wrapper,
+            },
+        );
+        await result.queryDetails.fetchNextPage();
+
+        await waitFor(() => {
+            return result.queryDetails.isSuccess;
+        });
+        expect(
+            result.queryDetails.isSuccess,
+            "Query needs to resolve to success",
+        ).toBeTruthy();
+        expect(result.data.size, "Data should hold exactly one element").toEqual(1);
+        expect(result.data.get(0), "Query data needs to be as expected").toEqual(
+            mockData[0],
+        );
+
+        // Change clientId to jerkic
+
+        setClientId("jerkic");
+        await waitFor(() => {
+            const isSuccess = result.queryDetails.isSuccess;
+            return isSuccess;
+        });
+
+        expect(result.data.size, "Data should hold exactly one element").toEqual(1);
+        expect(result.data.get(0), "Query data needs to be as expected").toEqual(
+            mockData2[0],
+        );
+    });
 });
