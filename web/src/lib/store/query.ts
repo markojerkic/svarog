@@ -1,9 +1,10 @@
 import { createInfiniteQuery, createQuery } from "@tanstack/solid-query";
-import type { Accessor } from "solid-js";
+import { createSignal, type Accessor } from "solid-js";
 import { SortedList } from "./sorted-list";
 import { type LogLine, logsSortFn, type LogPageCursor } from "./log-store";
 
-export const createLoqQuery = (
+export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
+export const createLogQuery = (
 	clientId: Accessor<string>,
 	selectedInstances: Accessor<string[] | undefined>,
 	searchQuery: Accessor<string | undefined>,
@@ -11,10 +12,13 @@ export const createLoqQuery = (
 	const store = createQuery(() => ({
 		queryKey: ["store", "logs", clientId(), selectedInstances(), searchQuery()],
 		initialData: new SortedList<LogLine>(logsSortFn),
+		staleTime: Number.POSITIVE_INFINITY,
 		queryFn: () => {
+			console.log("Resetting data");
 			return new SortedList<LogLine>(logsSortFn);
 		},
 	}));
+	const [lastLoadedPageSize, setLastLoadedPageSize] = createSignal(0);
 
 	const query = createInfiniteQuery(() => ({
 		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()] as const,
@@ -31,15 +35,17 @@ export const createLoqQuery = (
 			);
 
 			store.data.insertMany(page);
+			setLastLoadedPageSize(page.length);
 
 			return page;
 		},
-		getNextPageParam: (lastPage) => {
-			return {
-				direction: "forward",
-				cursorTime: lastPage[lastPage.length - 1].timestamp,
-				cursorSequenceNumber: lastPage[lastPage.length - 1].sequenceNumber,
-			} satisfies LogPageCursor | undefined;
+		getNextPageParam: () => {
+			return undefined;
+			// return {
+			// 	direction: "forward",
+			// 	cursorTime: lastPage[lastPage.length - 1].timestamp,
+			// 	cursorSequenceNumber: lastPage[lastPage.length - 1].sequenceNumber,
+			// } satisfies LogPageCursor | undefined;
 		},
 		getPreviousPageParam: (firstPage) => {
 			return {
@@ -54,6 +60,10 @@ export const createLoqQuery = (
 		get data() {
 			return store.data;
 		},
+		get logCount() {
+			return store.data.size;
+		},
+		lastLoadedPageSize,
 		queryDetails: query,
 	};
 };

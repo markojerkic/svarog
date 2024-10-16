@@ -17,7 +17,8 @@ import {
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
 import { createLogSubscription } from "~/lib/store/connection";
-import { createLogQuery, getInstances } from "~/lib/store/log-store";
+import { getInstances } from "~/lib/store/log-store";
+import { createLogQuery } from "~/lib/store/query";
 
 const getArrayValueOfSearchParam = (
 	searchParam: string | string[] | undefined,
@@ -30,21 +31,21 @@ const getArrayValueOfSearchParam = (
 };
 
 export const route = {
-	load: async ({ params, location }) => {
+	load: async ({ params }) => {
 		const queryClient = useQueryClient();
 		const clientId = params.clientId;
-		const selectedInstances = getArrayValueOfSearchParam(
-			location.query.instances,
-		);
+		// const selectedInstances = getArrayValueOfSearchParam(
+		// 	location.query.instances,
+		// );
 
 		queryClient.prefetchQuery({
 			queryKey: ["logs", "instances", clientId],
 			queryFn: ({ signal }) => getInstances(clientId, signal),
 		});
 
-		const logData = createLogQuery(() => ({ clientId, selectedInstances }));
-
-		return await logData.fetchPreviousPage();
+		// const logData = createLogQuery(() => ({ clientId, selectedInstances }));
+		//
+		// return await logData.fetchPreviousPage();
 	},
 } satisfies RouteDefinition;
 
@@ -59,11 +60,13 @@ export default () => {
 			},
 		),
 	);
+	const logs = createLogQuery(
+		() => clientId,
+		selectedInstances,
+		() => undefined,
+	);
+	const logCount = () => logs.logCount;
 
-	const logs = createLogQuery(() => ({
-		clientId,
-		selectedInstances: selectedInstances(),
-	}));
 	const instances = createQuery(() => ({
 		queryKey: ["logs", "instances", clientId],
 		queryFn: ({ signal }) => getInstances(clientId, signal),
@@ -74,7 +77,7 @@ export default () => {
 
 	const wsActions = createLogSubscription(
 		clientId,
-		logs.state.logStore,
+		(line) => logs.data.insert(line),
 		scrollToBottom,
 		() => selectedInstances(),
 	);
@@ -103,6 +106,7 @@ export default () => {
 				</Suspense>
 			</ErrorBoundary>
 			<div class="flex-grow">
+				<pre>Local log count: {logCount()}</pre>
 				<LogViewer logsQuery={logs} />
 			</div>
 		</div>

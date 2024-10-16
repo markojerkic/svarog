@@ -67,12 +67,14 @@ export class SortedList<T> {
 		this.root = this.insertNode(this.root, value);
 		this.updateHeadTail(value);
 		this.countStore[1]("count", (prev) => prev + 1);
+		console.log("New log count", this.size);
 	}
 
 	insertMany(values: T[]): void {
 		for (const value of values) {
 			this.insert(value);
 		}
+		console.log("New log count after bulk", this.size);
 	}
 
 	get size() {

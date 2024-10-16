@@ -12,7 +12,7 @@ import {
 	createEffect,
 } from "solid-js";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createLoqQuery } from "~/lib/store/query";
+import { createLogQuery } from "~/lib/store/query";
 import type { LogLine } from "~/lib/store/log-store";
 
 const waitFor = (fn: () => boolean, owner?: Owner) => {
@@ -95,7 +95,7 @@ describe("createLoqQuery", () => {
 		>(undefined);
 		const [search, _setSearch] = createSignal<string | undefined>(undefined);
 		const { result } = renderHook(
-			() => createLoqQuery(clientId, selectedInstances, search),
+			() => createLogQuery(clientId, selectedInstances, search),
 			{
 				wrapper: Wrapper,
 			},
@@ -122,7 +122,7 @@ describe("createLoqQuery", () => {
 		>(undefined);
 		const [search, _setSearch] = createSignal<string | undefined>(undefined);
 		const { result } = renderHook(
-			() => createLoqQuery(clientId, selectedInstances, search),
+			() => createLogQuery(clientId, selectedInstances, search),
 			{
 				wrapper: Wrapper,
 			},
@@ -163,7 +163,7 @@ describe("createLoqQuery", () => {
 			>(undefined);
 			const [search, _setSearch] = createSignal<string | undefined>(undefined);
 
-			const query = createLoqQuery(clientId, selectedInstances, search);
+			const query = createLogQuery(clientId, selectedInstances, search);
 
 			return (
 				<Suspense>
@@ -189,7 +189,7 @@ describe("createLoqQuery", () => {
 			>(undefined);
 			const [search, _setSearch] = createSignal<string | undefined>(undefined);
 
-			const query = createLoqQuery(clientId, selectedInstances, search);
+			const query = createLogQuery(clientId, selectedInstances, search);
 
 			createEffect(() => {
 				setClientId("jerkic");

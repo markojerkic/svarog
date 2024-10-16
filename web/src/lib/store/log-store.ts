@@ -25,8 +25,6 @@ export type LogPageCursor = {
 	direction: "forward" | "backward";
 };
 
-export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
-
 export const getInstances = async (
 	clientId: string,
 	abortSignal?: AbortSignal,
