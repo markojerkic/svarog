@@ -198,7 +198,7 @@ const createDefaultState = (
 	]);
 
 	if (!logStore) {
-		logStore = new SortedList<LogLine>(sortFn);
+		logStore = new SortedList<LogLine>(logsSortFn);
 		queryClient.setQueryData<SortedList<LogLine>>(
 			["logs", clientId, selectedInstances, search],
 			logStore,
@@ -211,7 +211,7 @@ const createDefaultState = (
 	};
 };
 
-const sortFn: SortFn<LogLine> = (a, b) => {
+export const logsSortFn: SortFn<LogLine> = (a, b) => {
 	const timestampDiff = a.timestamp - b.timestamp;
 	if (timestampDiff !== 0) {
 		return timestampDiff;
