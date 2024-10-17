@@ -14,6 +14,8 @@ type AuthService interface {
 	Login(ctx context.Context, username string, password string) (bool, error)
 	Register(ctx context.Context, username string, password string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
+	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUserByID(ctx context.Context, id string) (User, error)
 }
 
 type MongoAuthService struct {
@@ -22,15 +24,24 @@ type MongoAuthService struct {
 	sessionCollection *mongo.Collection
 }
 
-func NewMongoAuthService(mongoClient *mongo.Client) *MongoAuthService {
-	userCollection := mongoClient.Database("svarog").Collection("users")
-	sessionCollection := mongoClient.Database("svarog").Collection("sessions")
+// GetUserByID implements AuthService.
+func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
+	var user User
+	err := self.userCollection.FindOne(ctx, bson.M{
+		"_id": id,
+	}).Decode(&user)
 
-	return &MongoAuthService{
-		mongoClient:       mongoClient,
-		userCollection:    userCollection,
-		sessionCollection: sessionCollection,
-	}
+	return user, err
+}
+
+// GetUserByUsername implements AuthService.
+func (self *MongoAuthService) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	var user User
+	err := self.userCollection.FindOne(ctx, bson.M{
+		"username": username,
+	}).Decode(&user)
+
+	return user, err
 }
 
 // Register implements AuthService.
@@ -51,6 +62,7 @@ func (self *MongoAuthService) Register(ctx context.Context, username string, pas
 	_, err = self.userCollection.InsertOne(ctx, User{
 		Username: username,
 		Password: hashedPassword,
+		Role:     USER,
 	})
 
 	return nil
@@ -76,4 +88,15 @@ func hashPassword(password string) (string, error) {
 func checkPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+func NewMongoAuthService(mongoClient *mongo.Client) *MongoAuthService {
+	userCollection := mongoClient.Database("svarog").Collection("users")
+	sessionCollection := mongoClient.Database("svarog").Collection("sessions")
+
+	return &MongoAuthService{
+		mongoClient:       mongoClient,
+		userCollection:    userCollection,
+		sessionCollection: sessionCollection,
+	}
 }

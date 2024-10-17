@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
 
 type AuthSuite struct {
 	suite.Suite
@@ -62,10 +62,9 @@ func (suite *AuthSuite) SetupTest() {
 // After each
 func (suite *AuthSuite) TearDownTest() {
 	slog.Info("Tearing down test")
-	// err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(context.Background())
-	err := suite.mongoClient.Database("logs").Collection("users").Drop(context.Background())
+	_, err := suite.mongoClient.Database("svarog").Collection("users").DeleteMany(context.Background(), bson.M{})
 	assert.NoError(suite.T(), err)
-	err = suite.mongoClient.Database("logs").Collection("sessions").Drop(context.Background())
+	_, err = suite.mongoClient.Database("svarog").Collection("sessions").DeleteMany(context.Background(), bson.M{})
 	assert.NoError(suite.T(), err)
 }
 
