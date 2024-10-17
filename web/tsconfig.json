@@ -1,19 +1,26 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "allowJs": true,
-    "noEmit": true,
-    "strict": true,
-    "types": ["vinxi/types/client"],
-    "isolatedModules": true,
-    "paths": {
-      "~/*": ["./src/*"]
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
+        "jsx": "preserve",
+        "jsxImportSource": "solid-js",
+        "allowJs": true,
+        "noEmit": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [
+            "vinxi/types/client",
+            "vite/client",
+            "@testing-library/jest-dom"
+        ],
+        "isolatedModules": true,
+        "paths": {
+            "~/*": [
+                "./src/*"
+            ]
+        }
     }
-  }
 }

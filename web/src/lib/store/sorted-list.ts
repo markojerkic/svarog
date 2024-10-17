@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store";
-import type { LogLine, LogPageCursor } from "~/lib/store/log-store";
+import type { LogLine, LogPageCursor } from "~/lib/store/query";
 
 class TreeNode<T> {
 	value: T;
@@ -28,7 +28,7 @@ export class SortedListIterator<T> implements Iterator<T> {
 	private stack: TreeNode<T>[] = [];
 	private current: TreeNode<T> | null;
 
-	constructor(private sortedList: SortedList<T>) {
+	constructor(sortedList: SortedList<T>) {
 		this.current = sortedList.getHead();
 	}
 

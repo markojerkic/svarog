@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 import { useInstanceColor } from "~/lib/hooks/instance-color";
 import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
-import type { CreateLogQueryResult } from "~/lib/store/log-store";
+import type { CreateLogQueryResult } from "~/lib/store/query";
 
 type LogViewerProps = {
 	logsQuery: CreateLogQueryResult;
@@ -24,12 +24,8 @@ const LogViewer = (props: LogViewerProps) => {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
-	createEffect(() => {
-		console.log("Window height", scrollViewerHeight());
-	});
-
-	const logs = props.logsQuery.state;
-	const logCount = () => logs.logStore.size;
+	const logs = () => props.logsQuery.data;
+	const logCount = () => props.logsQuery.logCount;
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -54,19 +50,19 @@ const LogViewer = (props: LogViewerProps) => {
 
 	let wasFetchingPreviousPage = false;
 	createEffect(() => {
-		if (logs.isPreviousPageLoading) {
+		if (props.logsQuery.queryDetails.isFetchingPreviousPage) {
 			wasFetchingPreviousPage = true;
 		} else if (wasFetchingPreviousPage && virtualizer.isScrolling) {
 			wasFetchingPreviousPage = false;
 			// if virtulizer is currently at the top, scroll to the top
-			const offset = logs.lastLoadedPageSize - 1;
+			const offset = props.logsQuery.lastLoadedPageSize() - 1;
 			virtualizer.scrollToIndex(offset, { align: "start" });
 		}
 	});
 
 	const scrollToBottom = () => {
 		console.log("Scroll to bottom event");
-		virtualizer.scrollToIndex(logs.logStore.size, { align: "end" });
+		virtualizer.scrollToIndex(logs().size, { align: "end" });
 		setIsOnBottom();
 	};
 
@@ -121,8 +117,7 @@ const LogViewer = (props: LogViewerProps) => {
 					<For each={virtualizer.getVirtualItems()}>
 						{(virtualItem) => {
 							const item = () => {
-								logs.logStore.size;
-								const item = logs.logStore.get(virtualItem.index);
+								const item = logs().get(virtualItem.index);
 								const content = item?.content;
 								const instance = item?.client.ipAddress ?? "";
 								return { content, instance };

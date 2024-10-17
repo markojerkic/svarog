@@ -1,12 +1,13 @@
 import { createSignal } from "solid-js";
-import type { CreateLogQueryResult } from "~/lib/store/log-store";
+import type { CreateLogQueryResult } from "./store/query";
 
 export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
-	const created = new Date().getTime();
+	let created = new Date().getTime();
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
 
 	const setIsOnBottom = () => {
 		setIsLockedInBottom(true);
+		created = new Date().getTime();
 	};
 
 	const observer = new IntersectionObserver((entries) => {
@@ -18,16 +19,23 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 					isBottomIntersecting = true;
 				}
 
-				if (entry.target.id === "bottom" && !query.isNextPageLoading) {
-					query.fetchNextPage();
-				} else if (entry.target.id === "top" && !query.isPreviousPageLoading) {
-					query.fetchPreviousPage();
+				if (
+					entry.target.id === "bottom" &&
+					!query.queryDetails.isFetchingNextPage
+				) {
+					console.log("fetchNextPage");
+					query.queryDetails.fetchNextPage();
+				} else if (
+					entry.target.id === "top" &&
+					!query.queryDetails.isFetchingPreviousPage
+				) {
+					console.log("fetchPreviousPage");
+					query.queryDetails.fetchPreviousPage();
 				}
 			}
 		}
 
 		if (new Date().getTime() - created > 1000) {
-			console.log("isBottomIntersecting", isBottomIntersecting);
 			setIsLockedInBottom(isBottomIntersecting);
 		}
 	});

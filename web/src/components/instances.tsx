@@ -22,6 +22,12 @@ export const Instances = (props: {
 	);
 };
 
+export const NOOP_WS_ACTIONS: WsActions = {
+	setInstances: () => {},
+	addSubscription: () => {},
+	removeSubscription: () => {},
+};
+
 const AllInstances = () => {
 	const { isActive, toggleInstance } = useInstanceIsActive("all");
 

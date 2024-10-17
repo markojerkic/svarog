@@ -1,33 +1,23 @@
-import {
-	type RouteDefinition,
-	useLocation,
-	useParams,
-	useSearchParams,
-} from "@markojerkic/solid-router";
+import { type RouteDefinition, useParams } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import {
 	ErrorBoundary,
 	Show,
 	Suspense,
 	createEffect,
-	createMemo,
 	on,
 	onMount,
 } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
+import {
+	getArrayValueOfSearchParam,
+	useSelectedInstances,
+} from "~/lib/hooks/use-selected-instances";
+import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
 import { createLogSubscription } from "~/lib/store/connection";
-import { createLogQuery, getInstances } from "~/lib/store/log-store";
-
-const getArrayValueOfSearchParam = (
-	searchParam: string | string[] | undefined,
-) => {
-	if (searchParam === undefined) {
-		return [];
-	}
-
-	return Array.isArray(searchParam) ? searchParam : [searchParam];
-};
+import { getInstances } from "~/lib/store/query";
+import { createLogQuery } from "~/lib/store/query";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -42,28 +32,25 @@ export const route = {
 			queryFn: ({ signal }) => getInstances(clientId, signal),
 		});
 
-		const logData = createLogQuery(() => ({ clientId, selectedInstances }));
-
-		return await logData.fetchPreviousPage();
+		createLogQuery(
+			() => clientId,
+			() => selectedInstances,
+			() => undefined,
+		);
 	},
 } satisfies RouteDefinition;
 
 export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
-	const [searchParams] = useSearchParams();
-	const selectedInstances = createMemo(
-		on(
-			() => useLocation().search,
-			() => {
-				return getArrayValueOfSearchParam(searchParams.instance);
-			},
-		),
-	);
+	const selectedInstances = useSelectedInstances();
 
-	const logs = createLogQuery(() => ({
-		clientId,
-		selectedInstances: selectedInstances(),
-	}));
+	const logs = createLogQuery(
+		() => clientId,
+		selectedInstances,
+		() => undefined,
+	);
+	const logCount = () => logs.logCount;
+
 	const instances = createQuery(() => ({
 		queryKey: ["logs", "instances", clientId],
 		queryFn: ({ signal }) => getInstances(clientId, signal),
@@ -74,20 +61,29 @@ export default () => {
 
 	const wsActions = createLogSubscription(
 		clientId,
-		logs.state.logStore,
+		(line) => logs.data.insert(line),
 		scrollToBottom,
 		() => selectedInstances(),
 	);
 
+	useWithPreviousValue(
+		() => logs.queryDetails.isFetched,
+		(prev, curr) => {
+			if (prev === false && curr === true) {
+				scrollToBottom();
+			}
+		},
+	);
+
 	onMount(() => {
 		wsActions.setInstances(selectedInstances());
-		dispatchEvent(new Event("scroll-to-bottom"));
+		scrollToBottom();
 	});
 
 	createEffect(
 		on(selectedInstances, (instances) => {
 			wsActions.setInstances(instances);
-			dispatchEvent(new Event("scroll-to-bottom"));
+			scrollToBottom();
 		}),
 	);
 
@@ -103,6 +99,8 @@ export default () => {
 				</Suspense>
 			</ErrorBoundary>
 			<div class="flex-grow">
+				<pre>Local log count: {logCount()}</pre>
+				<pre>Is fetched: {logs.queryDetails.isFetched ? "je" : "nije"}</pre>
 				<LogViewer logsQuery={logs} />
 			</div>
 		</div>

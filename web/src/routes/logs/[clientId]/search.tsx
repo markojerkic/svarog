@@ -1,28 +1,44 @@
 import { debounce } from "@solid-primitives/scheduled";
 import { useParams, useSearchParams } from "@markojerkic/solid-router";
-import { Show, createEffect, createSignal, on } from "solid-js";
+import {
+	ErrorBoundary,
+	Show,
+	Suspense,
+	createEffect,
+	createSignal,
+} from "solid-js";
 import { createLogViewer } from "~/components/log-viewer";
-import { createLogQuery } from "~/lib/store/log-store";
+import { useSelectedInstances } from "~/lib/hooks/use-selected-instances";
+import { createLogQuery, getInstances } from "~/lib/store/query";
+import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
+import { Instances, NOOP_WS_ACTIONS } from "~/components/instances";
+import { createQuery } from "@tanstack/solid-query";
 
 export default () => {
 	const clientId = useParams().clientId;
+	const selectedInstances = useSelectedInstances();
+
 	const [search, setSearch] = createDebouncedSearch();
 
-	const l = createLogQuery(() => ({
-		clientId,
-		search: search(),
+	const logsQuery = createLogQuery(() => clientId, selectedInstances, search);
+	const instances = createQuery(() => ({
+		queryKey: ["logs", "instances", clientId],
+		queryFn: ({ signal }) => getInstances(clientId, signal),
+		refetchOnWindowFocus: true,
 	}));
 
 	const logsStringified = () => {
-		return l.state.logStore.size;
+		return logsQuery.logCount;
 	};
 	const [LogViewer, scrollToBottom] = createLogViewer();
 
-	createEffect(
-		on(createDebouncedSearch, () => {
-			l.fetchPreviousPage();
-			scrollToBottom();
-		}),
+	useWithPreviousValue(
+		() => logsQuery.queryDetails.isFetched,
+		(prev, curr) => {
+			if (prev === false && curr === true) {
+				scrollToBottom();
+			}
+		},
 	);
 
 	return (
@@ -40,14 +56,23 @@ export default () => {
 			</div>
 
 			<div class="border-red p-2">
-				<Show when={l.state.isNextPageLoading}>
+				<Show when={logsQuery.queryDetails.isFetchingNextPage}>
 					<p class="animate-bounce">Loading next...</p>
 				</Show>
-				<Show when={l.state.isPreviousPageLoading}>
+				<Show when={logsQuery.queryDetails.isFetchingPreviousPage}>
 					<p class="animate-bounce">Loading prev...</p>
 				</Show>
 				<div>Logs Num: {logsStringified()}</div>
-				<LogViewer logsQuery={l} />
+				<ErrorBoundary fallback={<span class="bg-red-900 p-2">Error </span>}>
+					<Suspense fallback={<div>Loading...</div>}>
+						<Show when={instances.data}>
+							{(instances) => (
+								<Instances instances={instances()} actions={NOOP_WS_ACTIONS} />
+							)}
+						</Show>
+					</Suspense>
+				</ErrorBoundary>
+				<LogViewer logsQuery={logsQuery} />
 			</div>
 		</div>
 	);

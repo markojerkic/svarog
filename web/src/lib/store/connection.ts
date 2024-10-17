@@ -1,7 +1,6 @@
 import { createReconnectingWS } from "@solid-primitives/websocket";
 import { onCleanup, onMount } from "solid-js";
-import type { SortedList } from "./sorted-list";
-import type { LogLine } from "./log-store";
+import type { LogLine } from "./query";
 
 type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
 
@@ -25,7 +24,7 @@ type WsMessage =
 
 export const createLogSubscription = (
 	clientId: string,
-	logStore: SortedList<LogLine>,
+	onNewLine: (line: LogLine) => void,
 	scrollToBottom: () => void,
 	instances: () => string[],
 ) => {
@@ -38,7 +37,7 @@ export const createLogSubscription = (
 			try {
 				const message: WsMessage = JSON.parse(e.data);
 				if (message.type === "newLine") {
-					logStore.insert(message.data);
+					onNewLine(message.data);
 					scrollToBottom();
 				}
 			} catch (e) {
