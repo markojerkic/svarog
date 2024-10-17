@@ -5,7 +5,7 @@
         "dev": "vinxi dev",
         "build": "vinxi build --mode production",
         "start": "vinxi start",
-        "lint": "biome lint --error-on-warnings ./{src,test}",
+        "lint": "tsc && biome lint --error-on-warnings ./{src,test}",
         "lint:fix": "biome lint --write --unsafe ./{src,test}",
         "format:check": "biome format ./{src,test}",
         "format": "biome format --write ./{src,test}",
@@ -39,6 +39,7 @@
         "jsdom": "^25.0.1",
         "msw": "^2.4.11",
         "tailwind-scrollbar": "^3.1.0",
+        "typescript": "^5.6.3",
         "vitest": "^2.1.3"
     }
 }
