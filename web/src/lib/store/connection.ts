@@ -1,6 +1,6 @@
 import { createReconnectingWS } from "@solid-primitives/websocket";
 import { onCleanup, onMount } from "solid-js";
-import type { LogLine } from "./log-store";
+import type { LogLine } from "./query";
 
 type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
 

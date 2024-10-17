@@ -1,35 +1,23 @@
-import {
-	type RouteDefinition,
-	useLocation,
-	useParams,
-	useSearchParams,
-} from "@markojerkic/solid-router";
+import { type RouteDefinition, useParams } from "@markojerkic/solid-router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import {
 	ErrorBoundary,
 	Show,
 	Suspense,
 	createEffect,
-	createMemo,
 	on,
 	onMount,
 } from "solid-js";
 import { Instances } from "~/components/instances";
 import { createLogViewer } from "~/components/log-viewer";
+import {
+	getArrayValueOfSearchParam,
+	useSelectedInstances,
+} from "~/lib/hooks/use-selected-instances";
 import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
 import { createLogSubscription } from "~/lib/store/connection";
-import { getInstances } from "~/lib/store/log-store";
+import { getInstances } from "~/lib/store/query";
 import { createLogQuery } from "~/lib/store/query";
-
-const getArrayValueOfSearchParam = (
-	searchParam: string | string[] | undefined,
-) => {
-	if (searchParam === undefined) {
-		return [];
-	}
-
-	return Array.isArray(searchParam) ? searchParam : [searchParam];
-};
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -54,15 +42,8 @@ export const route = {
 
 export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
-	const [searchParams] = useSearchParams();
-	const selectedInstances = createMemo(
-		on(
-			() => useLocation().search,
-			() => {
-				return getArrayValueOfSearchParam(searchParams.instance);
-			},
-		),
-	);
+	const selectedInstances = useSelectedInstances();
+
 	const logs = createLogQuery(
 		() => clientId,
 		selectedInstances,
