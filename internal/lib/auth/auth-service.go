@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/labstack/echo/v4"
@@ -11,7 +12,7 @@ import (
 )
 
 type AuthService interface {
-	Login(ctx context.Context, username string, password string) (bool, error)
+	Login(ctx context.Context, username string, password string) error
 	Register(ctx context.Context, username string, password string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -74,11 +75,28 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 }
 
 // Login implements AuthService.
-func (m *MongoAuthService) Login(ctx context.Context, username string, password string) (bool, error) {
-	panic("unimplemented")
+func (m *MongoAuthService) Login(ctx context.Context, username string, password string) error {
+	user, err := m.GetUserByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	passwordOk := checkPasswordHash(password, user.Password)
+
+	if !passwordOk {
+		return errors.New("Invalid password")
+	}
+
+	return nil
 }
 
 var _ AuthService = &MongoAuthService{}
+
+func (self *MongoAuthService) createSession(ctx context.Context, userID string) error {
+	// mongostore.NewMongoStore(self.mongoClient.Database("svarog").Collection("sessions"), 3600, true, []byte("secret"))
+
+	return nil
+}
 
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)

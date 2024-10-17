@@ -1,6 +1,10 @@
 package auth
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Role string
 
@@ -20,4 +24,10 @@ type LoggedInUser struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
+}
+
+type Session struct {
+	ID       primitive.ObjectID `bson:"_id,omitempty"`
+	UserID   primitive.ObjectID `bson:"user_id"`
+	Modified time.Time          `bson:"modified"`
 }
