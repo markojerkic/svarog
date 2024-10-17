@@ -15,6 +15,7 @@ import (
 type MongoSessionStore struct {
 	mongoClient       *mongo.Client
 	sessionCollection *mongo.Collection
+	userCollection    *mongo.Collection
 
 	secretKey []byte
 }
@@ -76,7 +77,7 @@ func (self *MongoSessionStore) New(r *http.Request, name string) (*sessions.Sess
 // Save implements sessions.Store.
 func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	userId, ok := session.Values["user_id"].(string)
-	if !ok {
+	if !ok || userId == "" {
 		return errors.New("Session does not have a user")
 	}
 	userObjectId, err := primitive.ObjectIDFromHex(userId)
@@ -84,12 +85,20 @@ func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		return err
 	}
 
+	// Verify that the user exists
+	userResult := self.userCollection.FindOne(r.Context(), bson.M{
+		"_id": userObjectId,
+	})
+	if userResult.Err() != nil {
+		return errors.New("User does not exist")
+	}
+
 	insertResult, err := self.sessionCollection.InsertOne(r.Context(), Session{
 		UserID:   userObjectId,
 		Modified: time.Now(),
 	})
 	if err != nil {
-		return err
+		return errors.Join(errors.New("Could not save session"), err)
 	}
 	session.ID = insertResult.InsertedID.(primitive.ObjectID).Hex()
 
@@ -108,6 +117,7 @@ func NewMongoSessionStore(mongoClient *mongo.Client, secretKey []byte) *MongoSes
 	return &MongoSessionStore{
 		mongoClient:       mongoClient,
 		sessionCollection: mongoClient.Database("svarog").Collection("sessions"),
+		userCollection:    mongoClient.Database("svarog").Collection("users"),
 		secretKey:         secretKey,
 	}
 }
