@@ -1,4 +1,4 @@
-import { useLocation, useSearchParams } from "@markojerkic/solid-router";
+import { useLocation, useSearchParams } from "@solidjs/router";
 import { createMemo, on } from "solid-js";
 
 export const useSelectedInstances = () => {

@@ -1,4 +1,4 @@
-import { useLocation, useSearchParams } from "@markojerkic/solid-router";
+import { useLocation, useSearchParams } from "@solidjs/router";
 import { For, batch, createMemo, on } from "solid-js";
 import { useInstanceColor } from "~/lib/hooks/instance-color";
 import type { WsActions } from "~/lib/store/connection";

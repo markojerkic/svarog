@@ -1,4 +1,4 @@
-import { useMatch, type RouteSectionProps } from "@markojerkic/solid-router";
+import { useMatch, type RouteSectionProps } from "@solidjs/router";
 import { Suspense } from "solid-js";
 import { Nav } from "~/components/nav";
 
