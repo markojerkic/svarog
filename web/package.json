@@ -5,7 +5,6 @@
 		"dev": "vite",
 		"build": "tsc -b && vite build",
 		"preview": "vite preview",
-
 		"lint": "tsc && biome lint --error-on-warnings ./{src,test}",
 		"lint:fix": "biome lint --write --unsafe ./{src,test}",
 		"format:check": "biome format ./{src,test}",
@@ -40,6 +39,7 @@
 		"msw": "^2.7.0",
 		"tailwind-scrollbar": "^3.1.0",
 		"typescript": "^5.7.2",
+		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^2.1.8"
 	}
 }
