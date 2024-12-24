@@ -5,8 +5,8 @@
 		"dev": "vite",
 		"build": "tsc -b && vite build",
 		"preview": "vite preview",
-		"lint": "tsc && biome lint --error-on-warnings ./{src,test}",
-		"lint:fix": "biome lint --write --unsafe ./{src,test}",
+		"lint": "tsc && biome lint --error-on-warnings ./{src,test,plugins}",
+		"lint:fix": "biome lint --write --unsafe ./{src,test,plugins}",
 		"format:check": "biome format ./{src,test}",
 		"format": "biome format --write ./{src,test}",
 		"test": "vitest",
@@ -21,6 +21,7 @@
 		"@tanstack/solid-query-devtools": "^5.62.10",
 		"@tanstack/solid-virtual": "3.11.2",
 		"autoprefixer": "^10.4.20",
+		"glob": "^11.0.0",
 		"postcss": "^8.4.49",
 		"solid-js": "^1.9.3",
 		"tailwindcss": "^3.4.17"
@@ -30,6 +31,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
+		"@rollup/pluginutils": "^5.1.4",
 		"@solidjs/testing-library": "^0.8.10",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/user-event": "^14.5.2",
