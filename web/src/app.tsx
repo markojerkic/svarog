@@ -18,9 +18,7 @@ export default function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<MetaProvider>
-				<Layout>
-					<Router>{routes}</Router>
-				</Layout>
+				<Router root={Layout}>{routes}</Router>
 			</MetaProvider>
 			<Show when={import.meta.env.DEV}>
 				<SolidQueryDevtools buttonPosition="top-right" />

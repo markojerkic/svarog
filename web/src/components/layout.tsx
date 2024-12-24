@@ -1,8 +1,8 @@
-import { useMatch, } from "@solidjs/router";
-import type { ParentProps } from "solid-js";
+import { useMatch, type RouteSectionProps } from "@solidjs/router";
+import { Suspense } from "solid-js";
 import { Nav } from "~/components/nav";
 
-export const Layout = (props: ParentProps) => {
+export const Layout = (props: RouteSectionProps<unknown>) => {
 	const isLogsRoute = () =>
 		useMatch(() => "/logs/:clientId") ||
 		useMatch(() => "/logs/:clientId/search");
@@ -15,7 +15,7 @@ export const Layout = (props: ParentProps) => {
 			}}
 		>
 			<Nav />
-			{props.children}
+			<Suspense>{props.children}</Suspense>
 		</div>
 	);
 };
