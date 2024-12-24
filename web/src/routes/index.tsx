@@ -8,7 +8,7 @@ const getClients = async () => {
 };
 
 export const route = {
-	load: async () => {
+	preload: async () => {
 		return await useQueryClient().prefetchQuery({
 			queryKey: ["clients"],
 			queryFn: () => getClients(),

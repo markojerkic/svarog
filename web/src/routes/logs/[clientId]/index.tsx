@@ -27,16 +27,15 @@ export const route = {
 			location.query.instances,
 		);
 
-		queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId],
-			queryFn: ({ signal }) => getInstances(clientId, signal),
-		});
-
 		createLogQuery(
 			() => clientId,
 			() => selectedInstances,
 			() => undefined,
 		);
+		await queryClient.prefetchQuery({
+			queryKey: ["logs", "instances", clientId],
+			queryFn: ({ signal }) => getInstances(clientId, signal),
+		});
 	},
 } satisfies RouteDefinition;
 

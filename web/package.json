@@ -1,44 +1,45 @@
 {
-    "name": "example-with-tailwindcss",
-    "type": "module",
-    "scripts": {
-        "dev": "vinxi dev",
-        "build": "vinxi build --mode production",
-        "start": "vinxi start",
-        "lint": "tsc && biome lint --error-on-warnings ./{src,test}",
-        "lint:fix": "biome lint --write --unsafe ./{src,test}",
-        "format:check": "biome format ./{src,test}",
-        "format": "biome format --write ./{src,test}",
-        "test": "vitest",
-        "test:watch": "vitest --watch"
-    },
-    "dependencies": {
-        "@solid-primitives/scheduled": "^1.4.4",
-        "@solid-primitives/websocket": "^1.2.2",
-        "@solidjs/meta": "^0.29.4",
-        "@solidjs/router": "^0.15.2",
-        "@solidjs/start": "^1.0.10",
-        "@tanstack/solid-query": "^5.62.8",
-        "@tanstack/solid-query-devtools": "^5.62.8",
-        "@tanstack/solid-virtual": "3.11.2",
-        "autoprefixer": "^10.4.20",
-        "postcss": "^8.4.49",
-        "solid-js": "^1.9.3",
-        "tailwindcss": "^3.4.17",
-        "vinxi": "^0.5.1"
-    },
-    "engines": {
-        "node": ">=18"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "^1.9.4",
-        "@solidjs/testing-library": "^0.8.10",
-        "@testing-library/jest-dom": "^6.6.3",
-        "@testing-library/user-event": "^14.5.2",
-        "jsdom": "^25.0.1",
-        "msw": "^2.7.0",
-        "tailwind-scrollbar": "^3.1.0",
-        "typescript": "^5.7.2",
-        "vitest": "^2.1.8"
-    }
+	"name": "example-with-tailwindcss",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview",
+
+		"lint": "tsc && biome lint --error-on-warnings ./{src,test}",
+		"lint:fix": "biome lint --write --unsafe ./{src,test}",
+		"format:check": "biome format ./{src,test}",
+		"format": "biome format --write ./{src,test}",
+		"test": "vitest",
+		"test:watch": "vitest --watch"
+	},
+	"dependencies": {
+		"@solid-primitives/scheduled": "^1.4.4",
+		"@solid-primitives/websocket": "^1.2.2",
+		"@solidjs/meta": "^0.29.4",
+		"@solidjs/router": "^0.15.2",
+		"@solidjs/start": "^1.0.10",
+		"@tanstack/solid-query": "^5.62.8",
+		"@tanstack/solid-query-devtools": "^5.62.8",
+		"@tanstack/solid-virtual": "3.11.2",
+		"autoprefixer": "^10.4.20",
+		"postcss": "^8.4.49",
+		"solid-js": "^1.9.3",
+		"tailwindcss": "^3.4.17",
+		"vinxi": "^0.5.1"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@solidjs/testing-library": "^0.8.10",
+		"@testing-library/jest-dom": "^6.6.3",
+		"@testing-library/user-event": "^14.5.2",
+		"jsdom": "^25.0.1",
+		"msw": "^2.7.0",
+		"tailwind-scrollbar": "^3.1.0",
+		"typescript": "^5.7.2",
+		"vitest": "^2.1.8"
+	}
 }
