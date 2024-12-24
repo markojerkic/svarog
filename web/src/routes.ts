@@ -31,6 +31,10 @@ const routes = [
 			},
 		],
 	},
+	{
+		path: "*404",
+		component: lazy(() => import("./routes/[...404].tsx")),
+	},
 ] satisfies RouteDefinition[];
 
 export default routes;
