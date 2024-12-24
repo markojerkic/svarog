@@ -1,4 +1,8 @@
-import { type RouteDefinition, useParams } from "@solidjs/router";
+import {
+	type RouteDefinition,
+	type RouteSectionProps,
+	useParams,
+} from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import {
 	ErrorBoundary,
@@ -39,7 +43,7 @@ export const route = {
 	},
 } satisfies RouteDefinition;
 
-export default () => {
+export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
 
