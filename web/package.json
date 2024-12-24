@@ -17,8 +17,8 @@
 		"@solid-primitives/websocket": "^1.2.2",
 		"@solidjs/meta": "^0.29.4",
 		"@solidjs/router": "^0.15.2",
-		"@tanstack/solid-query": "^5.62.8",
-		"@tanstack/solid-query-devtools": "^5.62.8",
+		"@tanstack/solid-query": "^5.62.10",
+		"@tanstack/solid-query-devtools": "^5.62.10",
 		"@tanstack/solid-virtual": "3.11.2",
 		"autoprefixer": "^10.4.20",
 		"postcss": "^8.4.49",
@@ -37,6 +37,7 @@
 		"msw": "^2.7.0",
 		"tailwind-scrollbar": "^3.1.0",
 		"typescript": "^5.7.2",
+		"vite": "^6.0.5",
 		"vite-plugin-solid": "^2.11.0",
 		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^2.1.8"
