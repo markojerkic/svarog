@@ -15,7 +15,6 @@ import (
 )
 
 type MongoLogRepository struct {
-	mongoClient   *mongo.Client
 	logCollection *mongo.Collection
 }
 
@@ -143,16 +142,10 @@ func (self *MongoLogRepository) SaveLogs(ctx context.Context, logs []types.Store
 	return nil
 }
 
-func NewMongoClient(connectionUrl string) *MongoLogRepository {
-	clientOptions := options.Client().ApplyURI(connectionUrl)
-	client, err := mongo.Connect(context.Background(), clientOptions)
-	if err != nil {
-		log.Fatalf("Error connecting to mongo: %v", err)
-	}
-	collection := client.Database("logs").Collection("log_lines")
+func NewLogRepository(db *mongo.Database) *MongoLogRepository {
+	collection := db.Collection("log_lines")
 
 	repo := &MongoLogRepository{
-		mongoClient:   client,
 		logCollection: collection,
 	}
 

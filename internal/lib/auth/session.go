@@ -13,10 +13,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoSessionStore struct {
-	mongoClient       *mongo.Client
 	sessionCollection *mongo.Collection
 	userCollection    *mongo.Collection
 
@@ -167,11 +167,35 @@ func (self *MongoSessionStore) setSessionCookie(w http.ResponseWriter, session *
 
 var _ sessions.Store = &MongoSessionStore{}
 
-func NewMongoSessionStore(mongoClient *mongo.Client, secretKey []byte) *MongoSessionStore {
+const SESSION_DURATION = int32(24 * 60 * 60)
+
+func CreateSessionCollection(db *mongo.Database) (*mongo.Collection, error) {
+	err := db.CreateCollection(context.Background(), "sessions")
+	if err != nil {
+		return nil, errors.Join(errors.New("Error creating sessions collection"), err)
+	}
+
+	collection := db.Collection("sessions")
+
+	// Create index on modified field
+	index := mongo.IndexModel{
+		Keys:    bson.D{{Key: "modified", Value: int32(1)}},
+		Options: options.Index().SetExpireAfterSeconds(int32(time.Now().Add(time.Hour * 24).Unix())), // Will be removed after 24 Hours.
+	}
+
+	_, err = collection.Indexes().CreateOne(context.Background(), index)
+	if err != nil {
+		return nil, errors.Join(errors.New("Error creating index on sessions collection"), err)
+	}
+
+	return collection, nil
+
+}
+
+func NewMongoSessionStore(db *mongo.Database, secretKey []byte) *MongoSessionStore {
 	return &MongoSessionStore{
-		mongoClient:       mongoClient,
-		sessionCollection: mongoClient.Database("svarog").Collection("sessions"),
-		userCollection:    mongoClient.Database("svarog").Collection("users"),
+		sessionCollection: db.Collection("sessions"),
+		userCollection:    db.Collection("users"),
 		secretKey:         secretKey,
 	}
 }

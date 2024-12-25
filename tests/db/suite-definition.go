@@ -52,10 +52,20 @@ func (suite *RepositorySuite) SetupSuite() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	suite.mongoRepository = db.NewMongoClient(suite.connectionString)
+	clientOptions := options.Client().ApplyURI(suite.connectionString)
+	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		suite.T().Fatal(err)
+	}
+	database := mongoClient.Database("svarog")
+
+	suite.mongoRepository = db.NewLogRepository(database)
 	suite.logServer = db.NewLogServer(suite.mongoRepository)
 
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
+	mongoClient, err = mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
+	if err != nil {
+		suite.T().Fatal(err)
+	}
 	suite.mongoClient = mongoClient
 
 	suite.initiateReplicaSet(mongoClient)

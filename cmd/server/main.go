@@ -10,9 +10,12 @@ import (
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -128,16 +131,32 @@ func setupLogger() {
 	slog.SetDefault(logger)
 }
 
+func newMongoClient(connectionUrl string) (*mongo.Client, error) {
+	clientOptions := options.Client().ApplyURI(connectionUrl)
+	return mongo.Connect(context.Background(), clientOptions)
+}
+
 func main() {
 	setupLogger()
 	env := loadEnv()
 
-	mongoRepository := db.NewMongoClient(env.MongoUrl)
+	mongoClient, err := newMongoClient(env.MongoUrl)
+	if err != nil {
+		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
+	}
+	database := mongoClient.Database("logs")
+
+	mongoRepository := db.NewLogRepository(database)
+
 	logServer := db.NewLogServer(mongoRepository)
-	httpServer := http.NewServer(mongoRepository, http.HttpServerOptions{
-		AllowedOrigins: env.HttpServerAllowedOrigins,
-		ServerPort:     env.HttpServerPort,
-	})
+	sessionStore := auth.NewMongoSessionStore(database, []byte("secret"))
+
+	httpServer := http.NewServer(mongoRepository,
+		sessionStore,
+		http.HttpServerOptions{
+			AllowedOrigins: env.HttpServerAllowedOrigins,
+			ServerPort:     env.HttpServerPort,
+		})
 
 	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
 

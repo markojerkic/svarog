@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -15,6 +18,7 @@ import (
 
 type HttpServer struct {
 	logRepository db.LogRepository
+	sessionStore  sessions.Store
 
 	allowedOrigins []string
 	serverPort     int
@@ -29,6 +33,9 @@ func (self *HttpServer) Start() {
 	e := echo.New()
 
 	api := e.Group("/api/v1")
+	api.Use(session.MiddlewareWithConfig(session.Config{
+		Store: auth.NewMongoSessionStore(self.logRepository, self.sessionCollection, self.userCollection, self.secretKey),
+	}))
 
 	if len(self.allowedOrigins) > 0 {
 		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -65,9 +72,10 @@ func (self *HttpServer) Start() {
 	e.Logger.Fatal(e.Start(serverAddr))
 }
 
-func NewServer(logRepository db.LogRepository, options HttpServerOptions) *HttpServer {
+func NewServer(logRepository db.LogRepository, sessionStore sessions.Store, options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
 		logRepository:  logRepository,
+		sessionStore:   sessionStore,
 		allowedOrigins: options.AllowedOrigins,
 		serverPort:     options.ServerPort,
 	}

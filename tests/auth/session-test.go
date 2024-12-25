@@ -13,7 +13,7 @@ func (suite *AuthSuite) TestRegisterNewSession() {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient, []byte("markova-tajna"))
+	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 	session, err := sessionStore.New(req, "marko")
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
@@ -25,7 +25,7 @@ func (suite *AuthSuite) TestGetSessionForNoUser() {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient, []byte("markova-tajna"))
+	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 	session, err := sessionStore.Get(req, "marko")
 	assert.Error(t, err)
 	assert.Nil(t, session)
@@ -35,7 +35,7 @@ func (suite *AuthSuite) TestSaveSession() {
 	t := suite.T()
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient, []byte("markova-tajna"))
+	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
@@ -86,7 +86,7 @@ func TestSessionExpiration(suite *AuthSuite) {
 	t := suite.T()
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient, []byte("markova-tajna"))
+	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
@@ -133,7 +133,7 @@ func TestConcurrentSessions(suite *AuthSuite) {
 	// Verify they don't interfere
 	t := suite.T()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient, []byte("markova-tajna"))
+	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
