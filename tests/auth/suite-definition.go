@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/gorilla/sessions"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -20,9 +21,12 @@ type AuthSuite struct {
 
 	container        *mongodb.MongoDBContainer
 	connectionString string
-	mongoClient      *mongo.Client
 
-	authService authlayer.AuthService
+	userCollection    *mongo.Collection
+	sessionCollection *mongo.Collection
+
+	authService  authlayer.AuthService
+	sessionStore sessions.Store
 }
 
 // Before all
@@ -49,22 +53,27 @@ func (suite *AuthSuite) SetupSuite() {
 	if err != nil {
 		suite.T().Fatal(fmt.Sprintf("Could not connect to mongo: %v", err))
 	}
-	suite.mongoClient = mongoClient
+
+	db := mongoClient.Database("svarog")
+	suite.userCollection = db.Collection("users")
+	suite.sessionCollection = db.Collection("sessions")
+	suite.sessionStore = authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
 
 }
 
 // Before each
 func (suite *AuthSuite) SetupTest() {
 	slog.Info("Setting up test. Recreating context")
-	suite.authService = authlayer.NewMongoAuthService(suite.mongoClient)
+
+	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionStore)
 }
 
 // After each
 func (suite *AuthSuite) TearDownTest() {
 	slog.Info("Tearing down test")
-	_, err := suite.mongoClient.Database("svarog").Collection("users").DeleteMany(context.Background(), bson.M{})
+	_, err := suite.userCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(suite.T(), err)
-	_, err = suite.mongoClient.Database("svarog").Collection("sessions").DeleteMany(context.Background(), bson.M{})
+	_, err = suite.sessionCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(suite.T(), err)
 }
 

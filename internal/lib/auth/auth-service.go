@@ -5,24 +5,25 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService interface {
-	Login(ctx context.Context, username string, password string) error
-	Register(ctx context.Context, username string, password string) error
+	Login(ctx echo.Context, username string, password string) error
+	Register(ctx echo.Context, username string, password string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
-	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
+	GetUserByUsername(ctx context.Context, username string) (User, error)
 }
 
 type MongoAuthService struct {
-	mongoClient       *mongo.Client
-	userCollection    *mongo.Collection
-	sessionCollection *mongo.Collection
+	userCollection *mongo.Collection
+	sessionStore   sessions.Store
 }
 
 // GetUserByID implements AuthService.
@@ -46,9 +47,9 @@ func (self *MongoAuthService) GetUserByUsername(ctx context.Context, username st
 }
 
 // Register implements AuthService.
-func (self *MongoAuthService) Register(ctx context.Context, username string, password string) error {
+func (m *MongoAuthService) Register(ctx echo.Context, username string, password string) error {
 	// Check if user already exists
-	existingUserResult := self.userCollection.FindOne(ctx, bson.M{
+	existingUserResult := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
 		"username": username,
 	})
 	if existingUserResult.Err() == nil {
@@ -60,13 +61,19 @@ func (self *MongoAuthService) Register(ctx context.Context, username string, pas
 		return err
 	}
 
-	_, err = self.userCollection.InsertOne(ctx, User{
+	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
 		Username: username,
 		Password: hashedPassword,
 		Role:     USER,
 	})
 
-	return nil
+	userId, ok := user.InsertedID.(primitive.ObjectID)
+
+	if !ok {
+		return errors.New("Failed to get user ID")
+	}
+
+	return m.createSession(ctx, userId.Hex())
 }
 
 // GetCurrentUser implements AuthService.
@@ -75,8 +82,8 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 }
 
 // Login implements AuthService.
-func (m *MongoAuthService) Login(ctx context.Context, username string, password string) error {
-	user, err := m.GetUserByUsername(ctx, username)
+func (m *MongoAuthService) Login(ctx echo.Context, username string, password string) error {
+	user, err := m.GetUserByUsername(ctx.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -87,13 +94,21 @@ func (m *MongoAuthService) Login(ctx context.Context, username string, password 
 		return errors.New("Invalid password")
 	}
 
-	return nil
+	return m.createSession(ctx, user.ID.Hex())
 }
 
 var _ AuthService = &MongoAuthService{}
 
-func (self *MongoAuthService) createSession(ctx context.Context, userID string) error {
-	// mongostore.NewMongoStore(self.mongoClient.Database("svarog").Collection("sessions"), 3600, true, []byte("secret"))
+func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {
+	session, err := self.sessionStore.New(ctx.Request(), "session")
+	if err != nil {
+		return errors.Join(errors.New("Error creating session"), err)
+	}
+
+	err = session.Save(ctx.Request(), ctx.Response())
+	if err != nil {
+		return errors.Join(errors.New("Error writting session to response"), err)
+	}
 
 	return nil
 }
@@ -108,13 +123,9 @@ func checkPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func NewMongoAuthService(mongoClient *mongo.Client) *MongoAuthService {
-	userCollection := mongoClient.Database("svarog").Collection("users")
-	sessionCollection := mongoClient.Database("svarog").Collection("sessions")
-
+func NewMongoAuthService(userCollection *mongo.Collection, sessionStore sessions.Store) *MongoAuthService {
 	return &MongoAuthService{
-		mongoClient:       mongoClient,
-		userCollection:    userCollection,
-		sessionCollection: sessionCollection,
+		userCollection: userCollection,
+		sessionStore:   sessionStore,
 	}
 }

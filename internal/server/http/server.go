@@ -10,7 +10,6 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -34,7 +33,7 @@ func (self *HttpServer) Start() {
 
 	api := e.Group("/api/v1")
 	api.Use(session.MiddlewareWithConfig(session.Config{
-		Store: auth.NewMongoSessionStore(self.logRepository, self.sessionCollection, self.userCollection, self.secretKey),
+		Store: self.sessionStore,
 	}))
 
 	if len(self.allowedOrigins) > 0 {

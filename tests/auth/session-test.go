@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,7 +13,7 @@ func (suite *AuthSuite) TestRegisterNewSession() {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
+	sessionStore := suite.sessionStore
 	session, err := sessionStore.New(req, "marko")
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
@@ -25,7 +25,7 @@ func (suite *AuthSuite) TestGetSessionForNoUser() {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
+	sessionStore := suite.sessionStore
 	session, err := sessionStore.Get(req, "marko")
 	assert.Error(t, err)
 	assert.Nil(t, session)
@@ -35,7 +35,9 @@ func (suite *AuthSuite) TestSaveSession() {
 	t := suite.T()
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
+	rec := httptest.NewRecorder()
+
+	sessionStore := suite.sessionStore
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
@@ -43,8 +45,11 @@ func (suite *AuthSuite) TestSaveSession() {
 	assert.NotNil(t, session)
 	assert.True(t, session.IsNew)
 
+	e := echo.New()
+	ctx := e.NewContext(req, rec)
+
 	// Create test user
-	err = suite.authService.Register(req.Context(), "marko", "marko")
+	err = suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
@@ -86,7 +91,11 @@ func TestSessionExpiration(suite *AuthSuite) {
 	t := suite.T()
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
+	rec := httptest.NewRecorder()
+	sessionStore := suite.sessionStore
+
+	e := echo.New()
+	ctx := e.NewContext(req, rec)
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
@@ -95,7 +104,7 @@ func TestSessionExpiration(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(req.Context(), "marko", "marko")
+	err = suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
@@ -133,7 +142,12 @@ func TestConcurrentSessions(suite *AuthSuite) {
 	// Verify they don't interfere
 	t := suite.T()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	sessionStore := authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
+	rec := httptest.NewRecorder()
+
+	e := echo.New()
+	ctx := e.NewContext(req, rec)
+
+	sessionStore := suite.sessionStore
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")
@@ -142,7 +156,7 @@ func TestConcurrentSessions(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(req.Context(), "marko", "marko")
+	err = suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
