@@ -53,13 +53,13 @@ const loginSchema = v.object({
 });
 
 const LoginForm = () => {
-    const [_, { Form, Field }] = createForm({
+    const [_, { Form, Field }] = createForm<v.InferInput<typeof loginSchema>>({
         validate: valiForm(loginSchema),
     });
 
     return (
         <Form>
-            <Field type="string" name="email" validate={[]}>
+            <Field type="string" name="email">
                 {(field, props) => (
                     <TextFormField
                         {...props}
@@ -71,14 +71,7 @@ const LoginForm = () => {
                     />
                 )}
             </Field>
-            <Field
-                type="string"
-                name="password"
-                validate={[
-                    required("Please your password"),
-                    minLength(6, "Password must be at least 6 characters"),
-                ]}
-            >
+            <Field type="string" name="password">
                 {(field, props) => (
                     <TextFormField
                         {...props}
