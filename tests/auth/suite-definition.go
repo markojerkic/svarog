@@ -57,8 +57,6 @@ func (suite *AuthSuite) SetupSuite() {
 	db := mongoClient.Database("svarog")
 	suite.userCollection = db.Collection("users")
 	suite.sessionCollection = db.Collection("sessions")
-	suite.sessionStore = authlayer.NewMongoSessionStore(suite.mongoClient.Database("svarog"), []byte("markova-tajna"))
-
 }
 
 // Before each
