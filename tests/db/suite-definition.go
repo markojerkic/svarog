@@ -57,14 +57,13 @@ func (suite *RepositorySuite) SetupSuite() {
 	if err != nil {
 		suite.T().Fatal(err)
 	}
+	suite.mongoClient = mongoClient
+	suite.initiateReplicaSet(mongoClient)
+
 	database := mongoClient.Database("svarog")
 
 	suite.logsRepository = db.NewLogRepository(database)
 	suite.logServer = db.NewLogServer(suite.logsRepository)
-
-	suite.mongoClient = mongoClient
-
-	suite.initiateReplicaSet(mongoClient)
 
 	if err != nil {
 		log.Fatalf("Could not connect to mongo: %s", err)
@@ -110,7 +109,7 @@ func (suite *RepositorySuite) SetupTest() {
 func (suite *RepositorySuite) TearDownTest() {
 	slog.Info("Tearing down test")
 	// err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(context.Background())
-	result, err := suite.mongoClient.Database("logs").Collection("log_lines").DeleteMany(context.Background(), bson.M{})
+	result, err := suite.mongoClient.Database("svarog").Collection("log_lines").DeleteMany(context.Background(), bson.M{})
 
 	assert.NoError(suite.T(), err)
 
