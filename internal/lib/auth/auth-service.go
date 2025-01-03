@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
@@ -27,6 +28,9 @@ type MongoAuthService struct {
 }
 
 const SVAROG_SESSION = "svarog_session"
+const (
+	ErrUserNotFound = "User not found"
+) // Error codes
 
 // GetUserByID implements AuthService.
 func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -86,15 +90,16 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 	}
 
 	userId, ok := session.Values["user_id"].(string)
+	slog.Info("User ID", slog.Any("user_id", userId))
 
 	if !ok {
-		return LoggedInUser{}, errors.New("User not logged in")
+		return LoggedInUser{}, errors.New(ErrUserNotFound)
 	}
 
 	user, err := m.GetUserByID(ctx.Request().Context(), userId)
 
 	if err != nil {
-		return LoggedInUser{}, err
+		return LoggedInUser{}, errors.Join(errors.New(ErrUserNotFound), err)
 	}
 
 	return LoggedInUser{

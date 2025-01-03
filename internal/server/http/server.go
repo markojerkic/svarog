@@ -85,6 +85,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		sessionStore:   options.SessionStore,
 		allowedOrigins: options.AllowedOrigins,
 		serverPort:     options.ServerPort,
+		authService:    options.AuthService,
 	}
 
 	return server

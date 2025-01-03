@@ -166,7 +166,7 @@ func main() {
 			ServerPort:     env.HttpServerPort,
 			SessionStore:   sessionStore,
 			LogRepository:  logsRepository,
-            AuthService: authService
+			AuthService:    authService,
 		})
 
 	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
