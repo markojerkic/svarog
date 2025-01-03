@@ -38,6 +38,7 @@ func (suite *AuthSuite) TestSaveSession() {
 	rec := httptest.NewRecorder()
 
 	sessionStore := suite.sessionStore
+	assert.NotNil(suite.T(), sessionStore)
 
 	// Create new session
 	session, err := sessionStore.New(req, "marko")

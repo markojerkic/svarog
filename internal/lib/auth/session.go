@@ -192,10 +192,10 @@ func CreateSessionCollection(db *mongo.Database) (*mongo.Collection, error) {
 
 }
 
-func NewMongoSessionStore(db *mongo.Database, secretKey []byte) *MongoSessionStore {
+func NewMongoSessionStore(sessionCollection *mongo.Collection, userCollection *mongo.Collection, secretKey []byte) *MongoSessionStore {
 	return &MongoSessionStore{
-		sessionCollection: db.Collection("sessions"),
-		userCollection:    db.Collection("users"),
+		sessionCollection: sessionCollection,
+		userCollection:    userCollection,
 		secretKey:         secretKey,
 	}
 }

@@ -57,11 +57,7 @@ func (suite *AuthSuite) SetupSuite() {
 	db := mongoClient.Database("svarog")
 	suite.userCollection = db.Collection("users")
 	suite.sessionCollection = db.Collection("sessions")
-}
-
-// Before each
-func (suite *AuthSuite) SetupTest() {
-	slog.Info("Setting up test. Recreating context")
+	suite.sessionStore = authlayer.NewMongoSessionStore(suite.sessionCollection, suite.userCollection, []byte("marko"))
 
 	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionStore)
 }

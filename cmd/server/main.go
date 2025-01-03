@@ -152,11 +152,14 @@ func main() {
 		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
 	}
 
-	sessionStore := auth.NewMongoSessionStore(database, []byte("secret"))
-	mongoRepository := db.NewLogRepository(database)
-	logServer := db.NewLogServer(mongoRepository)
+	userCollection := database.Collection("users")
+	sessionCollection := database.Collection("sessions")
 
-	httpServer := http.NewServer(mongoRepository,
+	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
+	logsRepository := db.NewLogRepository(database)
+	logServer := db.NewLogServer(logsRepository)
+
+	httpServer := http.NewServer(logsRepository,
 		sessionStore,
 		http.HttpServerOptions{
 			AllowedOrigins: env.HttpServerAllowedOrigins,
