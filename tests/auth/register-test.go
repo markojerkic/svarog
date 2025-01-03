@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/labstack/echo/v4"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/stretchr/testify/assert"
 )
@@ -11,7 +12,10 @@ import (
 func (suite *AuthSuite) TestRegisterNewUser() {
 	t := suite.T()
 
-	err := suite.authService.Register(context.Background(), "marko", "marko")
+	e := echo.New()
+	ctx := e.NewContext(nil, nil)
+
+	err := suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
 
 	savedUser, err := suite.authService.GetUserByUsername(context.Background(), "marko")
@@ -29,9 +33,12 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 func (suite *AuthSuite) TestRegisterExistingUser() {
 	t := suite.T()
 
-	err := suite.authService.Register(context.Background(), "marko", "marko")
+	e := echo.New()
+	ctx := e.NewContext(nil, nil)
+
+	err := suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
 
-	err = suite.authService.Register(context.Background(), "marko", "marko")
+	err = suite.authService.Register(ctx, "marko", "marko")
 	assert.Error(t, err)
 }

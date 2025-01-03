@@ -100,7 +100,7 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 var _ AuthService = &MongoAuthService{}
 
 func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {
-	session, err := self.sessionStore.New(ctx.Request(), "session")
+	session, err := self.sessionStore.New(ctx.Request(), userID)
 	if err != nil {
 		return errors.Join(errors.New("Error creating session"), err)
 	}
