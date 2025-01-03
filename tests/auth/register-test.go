@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 
 	"github.com/labstack/echo/v4"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
@@ -13,7 +15,10 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	t := suite.T()
 
 	e := echo.New()
-	ctx := e.NewContext(nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
 
 	err := suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
@@ -34,7 +39,9 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 	t := suite.T()
 
 	e := echo.New()
-	ctx := e.NewContext(nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
 
 	err := suite.authService.Register(ctx, "marko", "marko")
 	assert.NoError(t, err)
