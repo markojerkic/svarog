@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -18,12 +19,16 @@ import (
 type HttpServer struct {
 	logRepository db.LogRepository
 	sessionStore  sessions.Store
+	authService   auth.AuthService
 
 	allowedOrigins []string
 	serverPort     int
 }
 
 type HttpServerOptions struct {
+	LogRepository  db.LogRepository
+	SessionStore   sessions.Store
+	AuthService    auth.AuthService
 	AllowedOrigins []string
 	ServerPort     int
 }
@@ -44,6 +49,8 @@ func (self *HttpServer) Start() {
 
 	api.GET("/clients", func(c echo.Context) error {
 		clients, err := self.logRepository.GetClients(c.Request().Context())
+		session := c.Get("session")
+		slog.Info("Session", slog.Any("session", session))
 
 		if err != nil {
 			return err
@@ -54,6 +61,7 @@ func (self *HttpServer) Start() {
 
 	handlers.NewLogsRouter(self.logRepository, api)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
+	handlers.NewAuthRouter(self.authService, api)
 
 	e.GET("/*", func(c echo.Context) error {
 		// Serve requested file or fallback to index.html
@@ -71,10 +79,10 @@ func (self *HttpServer) Start() {
 	e.Logger.Fatal(e.Start(serverAddr))
 }
 
-func NewServer(logRepository db.LogRepository, sessionStore sessions.Store, options HttpServerOptions) *HttpServer {
+func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logRepository:  logRepository,
-		sessionStore:   sessionStore,
+		logRepository:  options.LogRepository,
+		sessionStore:   options.SessionStore,
 		allowedOrigins: options.AllowedOrigins,
 		serverPort:     options.ServerPort,
 	}

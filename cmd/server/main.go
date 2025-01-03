@@ -158,12 +158,15 @@ func main() {
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
+	authService := auth.NewMongoAuthService(userCollection, sessionStore)
 
-	httpServer := http.NewServer(logsRepository,
-		sessionStore,
+	httpServer := http.NewServer(
 		http.HttpServerOptions{
 			AllowedOrigins: env.HttpServerAllowedOrigins,
 			ServerPort:     env.HttpServerPort,
+			SessionStore:   sessionStore,
+			LogRepository:  logsRepository,
+            AuthService: authService
 		})
 
 	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
