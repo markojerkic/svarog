@@ -26,6 +26,8 @@ type MongoAuthService struct {
 	sessionStore   sessions.Store
 }
 
+const SVAROG_SESSION = "svarog_session"
+
 // GetUserByID implements AuthService.
 func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
 	var user User
@@ -78,7 +80,29 @@ func (m *MongoAuthService) Register(ctx echo.Context, username string, password 
 
 // GetCurrentUser implements AuthService.
 func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error) {
-	panic("unimplemented")
+	session, err := m.sessionStore.Get(ctx.Request(), SVAROG_SESSION)
+	if err != nil {
+		return LoggedInUser{}, err
+	}
+
+	userId, ok := session.Values["user_id"].(string)
+
+	if !ok {
+		return LoggedInUser{}, errors.New("User not logged in")
+	}
+
+	user, err := m.GetUserByID(ctx.Request().Context(), userId)
+
+	if err != nil {
+		return LoggedInUser{}, err
+	}
+
+	return LoggedInUser{
+		ID:       user.ID.Hex(),
+		Username: user.Username,
+		Role:     user.Role,
+	}, nil
+
 }
 
 // Login implements AuthService.
@@ -100,7 +124,7 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 var _ AuthService = &MongoAuthService{}
 
 func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {
-	session, err := self.sessionStore.New(ctx.Request(), "svarog_session")
+	session, err := self.sessionStore.New(ctx.Request(), SVAROG_SESSION)
 	if err != nil {
 		return errors.Join(errors.New("Error creating session"), err)
 	}
