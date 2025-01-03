@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -5,14 +6,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { TextFormField } from "@/components/ui/textfield";
 import {
-	TextField,
-	TextFieldLabel,
-	TextFieldRoot,
-	TextFormField,
-} from "@/components/ui/textfield";
+	type LoginInput,
+	loginSchema,
+	useLogin,
+} from "@/lib/hooks/auth/login-register";
 import { createForm, valiForm } from "@modular-forms/solid";
-import * as v from "valibot";
 
 export default () => {
 	return (
@@ -32,33 +32,26 @@ export default () => {
 	);
 };
 
-const loginSchema = v.object({
-	email: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter your email"),
-		v.email("Please enter a valid email"),
-	),
-	password: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter your password"),
-		v.minLength(6, "Password must be at least 6 characters"),
-	),
-});
-
 const LoginForm = () => {
-	const [_, { Form, Field }] = createForm<v.InferInput<typeof loginSchema>>({
+	const [_, { Form, Field }] = createForm<LoginInput>({
 		validate: valiForm(loginSchema),
 	});
 
+	const login = useLogin();
+
+	const handleSubmit = async (values: LoginInput) => {
+		login.mutate(values);
+	};
+
 	return (
-		<Form>
+		<Form onSubmit={handleSubmit}>
 			<Field type="string" name="email">
 				{(field, props) => (
 					<TextFormField
 						{...props}
 						type="email"
 						label="Email"
-						error={field.error}
+						error={login.error?.message ?? field.error}
 						value={field.value as string | undefined}
 						required
 					/>
@@ -68,14 +61,18 @@ const LoginForm = () => {
 				{(field, props) => (
 					<TextFormField
 						{...props}
-						type="email"
-						label="Email"
-						error={field.error}
+						type="password"
+						label="Password"
+						error={login.error?.message ?? field.error}
 						value={field.value as string | undefined}
 						required
 					/>
 				)}
 			</Field>
+
+			<Button type="submit" disabled={login.isPending}>
+				Login
+			</Button>
 		</Form>
 	);
 };
