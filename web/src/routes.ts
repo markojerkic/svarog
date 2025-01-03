@@ -32,6 +32,10 @@ const routes = [
 		],
 	},
 	{
+		path: "/auth/login",
+		component: lazy(() => import("@/routes/auth/login.tsx")),
+	},
+	{
 		path: "*404",
 		component: lazy(() => import("@/routes/[...404].tsx")),
 	},
