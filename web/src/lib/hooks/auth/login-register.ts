@@ -1,6 +1,7 @@
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
+import { type FormStore, setError } from "@modular-forms/solid";
 
 export const loginSchema = v.object({
 	email: v.pipe(
@@ -16,7 +17,7 @@ export const loginSchema = v.object({
 });
 export type LoginInput = v.InferInput<typeof loginSchema>;
 
-export const useLogin = () => {
+export const useLogin = (form: FormStore<LoginInput>) => {
 	const queryClient = useQueryClient();
 
 	return createMutation(() => ({
@@ -38,6 +39,13 @@ export const useLogin = () => {
 			queryClient.invalidateQueries({
 				queryKey: [useCurrentUser.QUERY_KEY],
 			});
+		},
+		onError: (error) => {
+			if (error.fields) {
+				for (const [field, errorMessage] of Object.entries(error.fields)) {
+					setError(form, field as keyof LoginInput, errorMessage);
+				}
+			}
 		},
 	}));
 };

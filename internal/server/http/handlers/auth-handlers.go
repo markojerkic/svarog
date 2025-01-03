@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type AuthRouter struct {
@@ -17,7 +18,7 @@ type LoginForm struct {
 func (a *AuthRouter) getCurrentUser(c echo.Context) error {
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
-		return c.JSON(401, err)
+		return c.JSON(401, types.ApiError{Message: "Not logged in"})
 	}
 
 	return c.JSON(200, user)
@@ -31,7 +32,7 @@ func (a *AuthRouter) login(c echo.Context) error {
 
 	err := a.authService.Login(c, loginForm.Username, loginForm.Password)
 	if err != nil {
-		return c.JSON(401, err)
+		return c.JSON(401, types.ApiError{Message: "Invalid credentials"})
 	}
 
 	return c.JSON(200, "Logged in")
