@@ -10,7 +10,7 @@ import type {
 import { TextField as TextFieldPrimitive } from "@kobalte/core/text-field";
 import { cva } from "class-variance-authority";
 import type { ValidComponent, VoidProps } from "solid-js";
-import { splitProps } from "solid-js";
+import { JSX, Show, splitProps } from "solid-js";
 
 type textFieldProps<T extends ValidComponent = "div"> =
 	TextFieldRootProps<T> & {
@@ -125,5 +125,49 @@ export const TextField = <T extends ValidComponent = "input">(
 			)}
 			{...rest}
 		/>
+	);
+};
+
+type TextFieldProps = {
+	name: string;
+	type?: "text" | "email" | "tel" | "password" | "url" | "date" | undefined;
+	label?: string | undefined;
+	placeholder?: string | undefined;
+	value: string | undefined;
+	error: string;
+	multiline?: boolean | undefined;
+	required?: boolean | undefined;
+	disabled?: boolean | undefined;
+	ref: (element: HTMLInputElement | HTMLTextAreaElement) => void;
+	onInput: JSX.EventHandler<HTMLInputElement | HTMLTextAreaElement, InputEvent>;
+	onChange: JSX.EventHandler<HTMLInputElement | HTMLTextAreaElement, Event>;
+	onBlur: JSX.EventHandler<HTMLInputElement | HTMLTextAreaElement, FocusEvent>;
+};
+
+export const TextFormField = (props: TextFieldProps) => {
+	const [rootProps, inputProps] = splitProps(
+		props,
+		["name", "value", "required", "disabled"],
+		["placeholder", "ref", "onInput", "onChange", "onBlur"],
+	);
+
+	const validationState = () => (props.error ? "invalid" : "valid");
+
+	return (
+		<TextFieldRoot {...rootProps} validationState={validationState()}>
+			<Show when={props.label}>
+				<TextFieldLabel>{props.label}</TextFieldLabel>
+			</Show>
+			<Show
+				when={props.multiline}
+				fallback={<TextField {...inputProps} type={props.type} />}
+			>
+				<div>NOT IMPLEMENTED</div>
+			</Show>
+
+			<Show when={props.error}>
+				<TextFieldErrorMessage>{props.error}</TextFieldErrorMessage>
+			</Show>
+		</TextFieldRoot>
 	);
 };

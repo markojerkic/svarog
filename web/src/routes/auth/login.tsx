@@ -1,7 +1,6 @@
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardFooter,
 	CardHeader,
 	CardTitle,
@@ -11,13 +10,13 @@ import {
 	TextFieldLabel,
 	TextFieldRoot,
 } from "@/components/ui/textfield";
+import { createForm } from "@modular-forms/solid";
 
 export default () => {
 	return (
-		<Card class="container mt-6 max-w-fit">
+		<Card class="container w-full md:w-[70%] lg:w-[50%]">
 			<CardHeader>
-				<CardTitle>Card Title</CardTitle>
-				<CardDescription>Card Description</CardDescription>
+				<CardTitle>Login</CardTitle>
 			</CardHeader>
 			<CardContent>
 				<div class="grid gap-2">
@@ -28,15 +27,37 @@ export default () => {
 				</div>
 
 				<div class="grid gap-2">
-					<TextFieldRoot>
-						<TextFieldLabel>Password</TextFieldLabel>
-						<TextField type="Password" />
-					</TextFieldRoot>
+					<LoginForm />
 				</div>
 			</CardContent>
 			<CardFooter>
 				<p>Card Footer</p>
 			</CardFooter>
 		</Card>
+	);
+};
+
+const LoginForm = () => {
+	const [, { Form, Field }] = createForm();
+
+	return (
+		<Form>
+			<Field type="string" name="email">
+				{(_, props) => (
+					<TextFieldRoot>
+						<TextFieldLabel>Email</TextFieldLabel>
+						<TextField {...props} type="email" />
+					</TextFieldRoot>
+				)}
+			</Field>
+			<Field type="string" name="password">
+				{(_, props) => (
+					<TextFieldRoot>
+						<TextFieldLabel>Password</TextFieldLabel>
+						<TextField {...props} type="password" />
+					</TextFieldRoot>
+				)}
+			</Field>
+		</Form>
 	);
 };

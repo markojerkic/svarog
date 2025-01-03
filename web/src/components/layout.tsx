@@ -15,7 +15,9 @@ export const Layout = (props: RouteSectionProps<unknown>) => {
 			}}
 		>
 			<Nav />
-			<Suspense>{props.children}</Suspense>
+			<Suspense>
+				<main class="p-4">{props.children}</main>
+			</Suspense>
 		</div>
 	);
 };
