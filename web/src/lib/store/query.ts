@@ -1,6 +1,6 @@
 import { createInfiniteQuery, createQuery } from "@tanstack/solid-query";
 import { createSignal, type Accessor } from "solid-js";
-import { type SortFn, SortedList } from "~/lib/store/sorted-list";
+import { type SortFn, SortedList } from "@/lib/store/sorted-list";
 
 export const getInstances = async (
 	clientId: string,

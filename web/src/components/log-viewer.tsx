@@ -7,9 +7,9 @@ import {
 	onCleanup,
 	onMount,
 } from "solid-js";
-import { useInstanceColor } from "~/lib/hooks/instance-color";
-import { createInfiniteScrollObserver } from "~/lib/infinite-scroll";
-import type { CreateLogQueryResult } from "~/lib/store/query";
+import { useInstanceColor } from "@/lib/hooks/instance-color";
+import { createInfiniteScrollObserver } from "@/lib/infinite-scroll";
+import type { CreateLogQueryResult } from "@/lib/store/query";
 
 type LogViewerProps = {
 	logsQuery: CreateLogQueryResult;

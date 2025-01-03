@@ -5,7 +5,7 @@ import { SolidQueryDevtools } from "@tanstack/solid-query-devtools";
 import { MetaProvider } from "@solidjs/meta";
 import { Layout } from "./components/layout";
 import routes from "./routes";
-import { NotLoggedInError } from "~/lib/errors/not-logged-in-error";
+import { NotLoggedInError } from "@/lib/errors/not-logged-in-error";
 
 export default function App() {
 	const queryClient = new QueryClient({

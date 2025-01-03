@@ -1,6 +1,6 @@
 import { useMatch, type RouteSectionProps } from "@solidjs/router";
 import { Suspense } from "solid-js";
-import { Nav } from "~/components/navigation/nav";
+import { Nav } from "@/components/navigation/nav";
 
 export const Layout = (props: RouteSectionProps<unknown>) => {
 	const isLogsRoute = () =>

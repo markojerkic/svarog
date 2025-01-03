@@ -1,5 +1,5 @@
 import { ErrorBoundary, Suspense } from "solid-js";
-import { useCurrentUser } from "~/lib/hooks/auth/use-current-user";
+import { useCurrentUser } from "@/lib/hooks/auth/use-current-user";
 
 export const UserIcon = () => {
 	const currentUser = useCurrentUser();

@@ -12,16 +12,16 @@ import {
 	on,
 	onMount,
 } from "solid-js";
-import { Instances } from "~/components/instances";
-import { createLogViewer } from "~/components/log-viewer";
+import { Instances } from "@/components/instances";
+import { createLogViewer } from "@/components/log-viewer";
 import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
-} from "~/lib/hooks/use-selected-instances";
-import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
-import { createLogSubscription } from "~/lib/store/connection";
-import { getInstances } from "~/lib/store/query";
-import { createLogQuery } from "~/lib/store/query";
+} from "@/lib/hooks/use-selected-instances";
+import { useWithPreviousValue } from "@/lib/hooks/with-previous-value";
+import { createLogSubscription } from "@/lib/store/connection";
+import { getInstances } from "@/lib/store/query";
+import { createLogQuery } from "@/lib/store/query";
 
 export const route = {
 	load: async ({ params, location }) => {

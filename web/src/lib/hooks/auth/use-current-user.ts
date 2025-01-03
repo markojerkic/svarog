@@ -1,5 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import { NotLoggedInError } from "~/lib/errors/not-logged-in-error";
+import { NotLoggedInError } from "@/lib/errors/not-logged-in-error";
 
 type LoggedInUser = {
 	id: string;
