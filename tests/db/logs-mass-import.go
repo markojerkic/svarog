@@ -17,8 +17,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (suite *RepositorySuite) countNumberOfLogsInDb() int64 {
-	collection := suite.mongoClient.Database("logs").Collection("log_lines")
+func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
+	collection := suite.logsCollection
 
 	count, err := collection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
@@ -48,7 +48,7 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImported
 
 var numberOfImportedLogs = int64(1_000_000)
 
-func (suite *RepositorySuite) TestMassImport() {
+func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 

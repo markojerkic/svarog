@@ -55,7 +55,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 
 }
 
-func (suite *RepositorySuite) TestOutOfOrderInsert() {
+func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
 

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (self *RepositorySuite) TestInstances() {
+func (self *LogsCollectionRepositorySuite) TestInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -60,7 +60,7 @@ func (self *RepositorySuite) TestInstances() {
 
 }
 
-func (self *RepositorySuite) TestFilterByInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -109,7 +109,7 @@ func (self *RepositorySuite) TestFilterByInstances() {
 	}
 }
 
-func (self *RepositorySuite) TestFilterByMultipleInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -166,7 +166,7 @@ func (self *RepositorySuite) TestFilterByMultipleInstances() {
 	}
 }
 
-func (self *RepositorySuite) TestFilterByAllInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{

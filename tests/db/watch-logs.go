@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (suite *RepositorySuite) TestWatchInsert() {
+func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 	t := suite.T()
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)

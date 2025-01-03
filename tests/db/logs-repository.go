@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (s *RepositorySuite) TestNoClients() {
+func (s *LogsCollectionRepositorySuite) TestNoClients() {
 	t := s.T()
 
 	clients, err := s.logsRepository.GetClients(context.Background())
@@ -19,7 +19,7 @@ func (s *RepositorySuite) TestNoClients() {
 	assert.Equal(t, 0, len(clients))
 }
 
-func (s *RepositorySuite) TestAddClient() {
+func (s *LogsCollectionRepositorySuite) TestAddClient() {
 	t := s.T()
 
 	mockLogLines := []types.StoredLog{
