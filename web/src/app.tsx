@@ -21,6 +21,10 @@ export default function App() {
 					return !import.meta.env.DEV && faliureCount < 3;
 				},
 			},
+			mutations: {
+				retry: false,
+				throwOnError: false,
+			},
 		},
 	});
 

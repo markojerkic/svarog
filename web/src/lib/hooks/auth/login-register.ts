@@ -1,7 +1,9 @@
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
-import { type FormStore, setError } from "@modular-forms/solid";
+import type { FormStore } from "@modular-forms/solid";
+import type { ApiError } from "@/lib/api-error";
+import { createSignal } from "solid-js";
 
 export const loginSchema = v.object({
 	email: v.pipe(
@@ -17,10 +19,11 @@ export const loginSchema = v.object({
 });
 export type LoginInput = v.InferInput<typeof loginSchema>;
 
-export const useLogin = (form: FormStore<LoginInput>) => {
+export const useLogin = (_form: FormStore<LoginInput>) => {
 	const queryClient = useQueryClient();
+	const [apiError, setApiErrors] = createSignal<ApiError>();
 
-	return createMutation(() => ({
+	const mutation = createMutation(() => ({
 		mutationKey: ["login"],
 		mutationFn: async (input: LoginInput) => {
 			const response = await fetch(
@@ -33,19 +36,29 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 					body: JSON.stringify(input),
 				},
 			);
-			return response.json();
+			const responseData = await response.json();
+
+			if (!response.ok) {
+				throw responseData;
+			}
+
+			return responseData;
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: [useCurrentUser.QUERY_KEY],
-			});
-		},
-		onError: (error) => {
-			if (error.fields) {
-				for (const [field, errorMessage] of Object.entries(error.fields)) {
-					setError(form, field as keyof LoginInput, errorMessage);
-				}
+		onSettled: (_data, error) => {
+			if (error) {
+				console.log("Setting error", error);
+				setApiErrors(error);
+			} else {
+				setApiErrors(undefined);
+				queryClient.invalidateQueries({
+					queryKey: [useCurrentUser.QUERY_KEY],
+				});
 			}
 		},
 	}));
+
+	return {
+		action: mutation,
+		error: apiError,
+	};
 };
