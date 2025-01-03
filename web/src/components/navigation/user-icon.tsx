@@ -1,40 +1,25 @@
-import type { RouteDefinition } from "@solidjs/router";
-import { lazy } from "solid-js";
-import { route as indexRoute } from "./routes/index";
-import { route as clientLogsRoute } from "./routes/logs/[clientId]/index";
+import { Suspense } from "solid-js";
+import { useCurrentUser } from "~/lib/hooks/auth/use-current-user";
 
-const routes = [
-	{
-		...indexRoute,
-		path: "/",
-		component: lazy(() => import("./routes/index.tsx")),
-	},
-	{
-		path: "/logs",
-		children: [
-			{
-				path: "/:clientId",
-				component: lazy(() => import("./routes/logs/[clientId].tsx")),
-				children: [
-					{
-						...clientLogsRoute,
-						path: "/",
-						component: lazy(() => import("./routes/logs/[clientId]/index.tsx")),
-					},
-					{
-						path: "/search",
-						component: lazy(
-							() => import("./routes/logs/[clientId]/search.tsx"),
-						),
-					},
-				],
-			},
-		],
-	},
-	{
-		path: "*404",
-		component: lazy(() => import("./routes/[...404].tsx")),
-	},
-] satisfies RouteDefinition[];
+export const UserIcon = () => {
+	const currentUser = useCurrentUser();
 
-export default routes;
+	return (
+		<Suspense fallback="Loading...">
+			<div>
+				{currentUser.data ? (
+					<div>
+						<img
+							src={`https://avatars.dicebear.com/api/avataaars/${currentUser.data.username}.svg`}
+							alt="User avatar"
+							class="h-8 w-8 rounded-full"
+						/>
+						<span class="ml-2">{currentUser.data.username}</span>
+					</div>
+				) : (
+					<div class="animate-bounce text-white">Loading...</div>
+				)}
+			</div>
+		</Suspense>
+	);
+};

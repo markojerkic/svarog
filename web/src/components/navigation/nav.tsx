@@ -1,4 +1,5 @@
 import { useLocation } from "@solidjs/router";
+import { UserIcon } from "./user-icon";
 
 export function Nav() {
 	const location = useLocation();
@@ -12,8 +13,10 @@ export function Nav() {
 				<li class={`border-b-2 ${active("/")} mx-1.5 sm:mx-6`}>
 					<a href="/">Home</a>
 				</li>
-				<li class={`border-b-2 ${active("/about")} mx-1.5 sm:mx-6`}>
-					<a href="/about">About</a>
+
+				{/**user icon*/}
+				<li class="ml-auto">
+					<UserIcon />
 				</li>
 			</ul>
 		</nav>
