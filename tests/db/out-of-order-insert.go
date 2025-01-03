@@ -82,7 +82,7 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 	elapsed := time.Since(start)
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", 10_000, elapsed))
 
-	clients, err := suite.mongoRepository.GetClients(context.Background())
+	clients, err := suite.logsRepository.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients), "Expected one client")
 
@@ -95,7 +95,7 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
+		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

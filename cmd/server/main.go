@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -131,25 +132,29 @@ func setupLogger() {
 	slog.SetDefault(logger)
 }
 
-func newMongoClient(connectionUrl string) (*mongo.Client, error) {
+func newMongoDB(connectionUrl string) (*mongo.Database, error) {
 	clientOptions := options.Client().ApplyURI(connectionUrl)
-	return mongo.Connect(context.Background(), clientOptions)
+	client, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		return nil, errors.Join(errors.New("Error connecting to MongoDb"), err)
+	}
+
+	database := client.Database("logs")
+	return database, nil
 }
 
 func main() {
 	setupLogger()
 	env := loadEnv()
 
-	mongoClient, err := newMongoClient(env.MongoUrl)
+	database, err := newMongoDB(env.MongoUrl)
 	if err != nil {
 		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
 	}
-	database := mongoClient.Database("logs")
 
-	mongoRepository := db.NewLogRepository(database)
-
-	logServer := db.NewLogServer(mongoRepository)
 	sessionStore := auth.NewMongoSessionStore(database, []byte("secret"))
+	mongoRepository := db.NewLogRepository(database)
+	logServer := db.NewLogServer(mongoRepository)
 
 	httpServer := http.NewServer(mongoRepository,
 		sessionStore,

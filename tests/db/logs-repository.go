@@ -12,7 +12,7 @@ import (
 func (s *RepositorySuite) TestNoClients() {
 	t := s.T()
 
-	clients, err := s.mongoRepository.GetClients(context.Background())
+	clients, err := s.logsRepository.GetClients(context.Background())
 
 	assert.NoError(t, err)
 
@@ -41,10 +41,10 @@ func (s *RepositorySuite) TestAddClient() {
 		},
 	}
 
-	err := s.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	err := s.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	clients, err := s.mongoRepository.GetClients(context.Background())
+	clients, err := s.logsRepository.GetClients(context.Background())
 
 	assert.NoError(t, err)
 
