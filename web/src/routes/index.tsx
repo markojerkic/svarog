@@ -1,10 +1,11 @@
-import { A, type RouteDefinition } from "@solidjs/router";
+import { ServiceListItem } from "@/components/service-card";
+import { type RouteDefinition } from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 
 const getClients = async () => {
 	const response = await fetch(`${import.meta.env.VITE_API_URL}/v1/clients`);
-	return response.json() as Promise<{ Client: { clientId: number } }[]>;
+	return response.json() as Promise<{ Client: { clientId: string } }[]>;
 };
 
 export const route = {
@@ -28,16 +29,7 @@ export default function Home() {
 				each={clients.data}
 				fallback={<div class="animate-bounce text-white">Loading...</div>}
 			>
-				{(client) => (
-					<div>
-						<A
-							href={`/logs/${client.Client.clientId}`}
-							class="text-blue-500 hover:underline"
-						>
-							Client {client.Client.clientId}
-						</A>
-					</div>
-				)}
+				{(client) => <ServiceListItem clientId={client.Client.clientId} />}
 			</For>
 		</main>
 	);

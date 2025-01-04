@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
 	"organizeImports": {
 		"enabled": true
 	},
@@ -10,6 +10,10 @@
 			"a11y": {
 				"noSvgWithoutTitle": "off"
 			},
+			"style": {
+				"noNonNullAssertion": "off"
+			},
+
 			"correctness": {
 				"noUnusedImports": {
 					"level": "error",
@@ -20,6 +24,7 @@
 			},
 			"nursery": {
 				"useSortedClasses": {
+					"options": {},
 					"level": "error",
 					"fix": "safe"
 				}

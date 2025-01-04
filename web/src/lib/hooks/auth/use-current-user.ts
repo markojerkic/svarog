@@ -1,7 +1,7 @@
 import { createQuery, type QueryOptions } from "@tanstack/solid-query";
 import { api } from "@/lib/utils/axios-api";
 
-type LoggedInUser = {
+export type LoggedInUser = {
 	id: string;
 	username: string;
 	role: string;
