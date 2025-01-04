@@ -3,6 +3,7 @@ import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import axios from "axios";
 import * as v from "valibot";
+import { useCurrentUser } from "./use-current-user";
 
 export const loginSchema = v.object({
 	email: v.pipe(
@@ -35,13 +36,23 @@ api.interceptors.response.use(
 	},
 );
 
-export const useLogin = (_form: FormStore<LoginInput>) => {
-	const _queryClient = useQueryClient();
+export const useLogin = (form: FormStore<LoginInput>) => {
+	const queryClient = useQueryClient();
 
 	return createMutation(() => ({
 		mutationKey: ["login"],
 		mutationFn: async (input: LoginInput) => {
 			return api.post<void, TApiError>("/v1/auth/login", input);
+		},
+		onSuccess: () => {
+			return queryClient.invalidateQueries({
+				queryKey: [useCurrentUser.QUERY_KEY],
+			});
+		},
+		onError: (error) => {
+			if (error instanceof ApiError) {
+				error.setFormFieldErrors(form);
+			}
 		},
 	}));
 };
