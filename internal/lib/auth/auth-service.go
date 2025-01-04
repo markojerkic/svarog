@@ -96,7 +96,6 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 	}
 
 	userId, ok := session.Values["user_id"].(string)
-	log.Info("Get current user", "userId", userId)
 
 	if !ok {
 		log.Error("User ID is not a string")
@@ -140,7 +139,6 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 		return errors.Join(errors.New("Error creating session"), err)
 	}
 	session.Values["user_id"] = userID
-	log.Debug("Session created", "userID", userID, "session", session.ID)
 
 	err = session.Save(ctx.Request(), ctx.Response())
 	if err != nil {
