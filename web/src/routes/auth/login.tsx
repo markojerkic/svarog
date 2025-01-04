@@ -13,6 +13,7 @@ import {
 	useLogin,
 } from "@/lib/hooks/auth/login-register";
 import { createForm, valiForm } from "@modular-forms/solid";
+import { useNavigate } from "@solidjs/router";
 import { Show } from "solid-js";
 
 export default () => {
@@ -34,13 +35,19 @@ export default () => {
 };
 
 const LoginForm = () => {
+	const navigate = useNavigate();
+
 	const [form, { Form, Field }] = createForm<LoginInput>({
 		validate: valiForm(loginSchema),
 	});
 	const login = useLogin(form);
 
 	const handleSubmit = (values: LoginInput) => {
-		login.mutate(values);
+		login.mutate(values, {
+			onSuccess: () => {
+				navigate("/");
+			},
+		});
 	};
 
 	return (

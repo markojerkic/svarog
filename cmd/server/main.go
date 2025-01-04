@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/charmbracelet/log"
 	"log/slog"
 	"net"
 	"os"
@@ -124,6 +124,8 @@ func startGrpcServer(env Env) {
 }
 
 func setupLogger() {
+	log.SetLevel(log.DebugLevel)
+
 	logOpts := &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}

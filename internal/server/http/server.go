@@ -3,9 +3,9 @@ package http
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -44,15 +44,18 @@ func (self *HttpServer) Start() {
 	}))
 
 	if len(self.allowedOrigins) > 0 {
+		log.Info("Allowed origins", "origins", self.allowedOrigins)
 		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 			AllowOrigins: self.allowedOrigins,
 		}))
+	} else {
+		log.Warn("No allowed origins set, allowing all origins")
 	}
 
 	api.GET("/clients", func(c echo.Context) error {
 		clients, err := self.logRepository.GetClients(c.Request().Context())
 		session := c.Get("session")
-		slog.Info("Session", slog.Any("session", session))
+		log.Info("session", "session", session)
 
 		if err != nil {
 			return err
@@ -70,7 +73,7 @@ func (self *HttpServer) Start() {
 		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
 
 		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
-			slog.Error("File not found", slog.String("file", requestedFile))
+			log.Error("File not found", "file", requestedFile)
 			return c.File("public/index.html")
 		}
 
