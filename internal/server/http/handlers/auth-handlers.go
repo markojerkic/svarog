@@ -11,8 +11,8 @@ type AuthRouter struct {
 }
 
 type LoginForm struct {
-	Username string `json:"username" form:"username"`
-	Password string `json:"password" form:"password"`
+	Username string `json:"username" form:"username" validate:"required,gte=3"`
+	Password string `json:"password" form:"password" validate:"required,gte=8"`
 }
 
 func (a *AuthRouter) getCurrentUser(c echo.Context) error {
@@ -28,6 +28,9 @@ func (a *AuthRouter) login(c echo.Context) error {
 	var loginForm LoginForm
 	if err := c.Bind(&loginForm); err != nil {
 		return c.JSON(400, err)
+	}
+	if err := c.Validate(&loginForm); err != nil {
+		return err
 	}
 
 	err := a.authService.Login(c, loginForm.Username, loginForm.Password)

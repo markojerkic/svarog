@@ -45,12 +45,12 @@ const LoginForm = () => {
 
 	return (
 		<Form onSubmit={handleSubmit}>
-			<Field type="string" name="email">
+			<Field type="string" name="username">
 				{(field, props) => (
 					<TextFormField
 						{...props}
-						type="email"
-						label="Email"
+						type="text"
+						label="Username"
 						error={field.error}
 						value={field.value as string | undefined}
 						required

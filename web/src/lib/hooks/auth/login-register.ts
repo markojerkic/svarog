@@ -6,10 +6,10 @@ import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
 
 export const loginSchema = v.object({
-	email: v.pipe(
+	username: v.pipe(
 		v.string("Must be a string"),
 		v.nonEmpty("Please enter your email"),
-		v.email("Please enter a valid email"),
+		v.minLength(5, "Username must be at least 5 characters"),
 	),
 	password: v.pipe(
 		v.string("Must be a string"),

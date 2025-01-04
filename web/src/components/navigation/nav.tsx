@@ -23,16 +23,3 @@ export function Nav() {
 		</NavigationMenu>
 	);
 }
-
-//<nav class="bg-sky-800">
-//	<ul class="container flex justify-between p-3 text-gray-200">
-//		<li class={`border-b-2 ${active("/")} mx-1.5 sm:mx-6`}>
-//			<a href="/">Home</a>
-//		</li>
-//
-//		{/**user icon*/}
-//		<li>
-//			<UserIcon />
-//		</li>
-//	</ul>
-//</nav>

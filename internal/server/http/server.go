@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -35,6 +36,7 @@ type HttpServerOptions struct {
 
 func (self *HttpServer) Start() {
 	e := echo.New()
+	e.Validator = &Validator{validator: validator.New()}
 
 	api := e.Group("/api/v1")
 	api.Use(session.MiddlewareWithConfig(session.Config{
