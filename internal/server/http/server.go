@@ -57,7 +57,7 @@ func (self *HttpServer) Start() {
 
 	api.GET("/clients", func(c echo.Context) error {
 		clients, err := self.logRepository.GetClients(c.Request().Context())
-		session := c.Get("session")
+		session := c.Get
 		log.Info("session", "session", session)
 
 		if err != nil {

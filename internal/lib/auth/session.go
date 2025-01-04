@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,6 +25,7 @@ type MongoSessionStore struct {
 
 // Get implements sessions.Store.
 func (self *MongoSessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
+	log.Debug("Get session", "name", name)
 	session := sessions.NewSession(self, name)
 
 	// Get the cookie
@@ -128,13 +129,14 @@ func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		result, err = self.sessionCollection.UpdateOne(ctx,
 			bson.M{"_id": session.ID},
 			bson.M{"$set": sessionData})
-		slog.Debug("Update session", slog.Any("result", result))
+		log.Debug("Update session", "result", result)
 	} else {
 		// Create new session
 		inserted, err := self.sessionCollection.InsertOne(ctx, sessionData)
 		if err == nil {
 			session.ID = inserted.InsertedID.(primitive.ObjectID).Hex()
 		}
+		log.Debug("Insert session", "session", session.ID)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to save session: %w", err)

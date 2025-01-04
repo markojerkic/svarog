@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
+	"github.com/charmbracelet/log"
 	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,8 +36,13 @@ const (
 // GetUserByID implements AuthService.
 func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
 	var user User
-	err := self.userCollection.FindOne(ctx, bson.M{
-		"_id": id,
+	userId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return user, err
+	}
+
+	err = self.userCollection.FindOne(ctx, bson.M{
+		"_id": userId,
 	}).Decode(&user)
 
 	return user, err
@@ -84,21 +90,23 @@ func (m *MongoAuthService) Register(ctx echo.Context, username string, password 
 
 // GetCurrentUser implements AuthService.
 func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error) {
-	session, err := m.sessionStore.Get(ctx.Request(), SVAROG_SESSION)
+	session, err := session.Get(SVAROG_SESSION, ctx)
 	if err != nil {
 		return LoggedInUser{}, err
 	}
 
 	userId, ok := session.Values["user_id"].(string)
-	slog.Info("User ID", slog.Any("user_id", userId))
+	log.Info("Get current user", "userId", userId)
 
 	if !ok {
+		log.Error("User ID is not a string")
 		return LoggedInUser{}, errors.New(ErrUserNotFound)
 	}
 
 	user, err := m.GetUserByID(ctx.Request().Context(), userId)
 
 	if err != nil {
+		log.Error("Failed to get user by ID", "userId", userId, "error", err)
 		return LoggedInUser{}, errors.Join(errors.New(ErrUserNotFound), err)
 	}
 
@@ -132,6 +140,7 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 		return errors.Join(errors.New("Error creating session"), err)
 	}
 	session.Values["user_id"] = userID
+	log.Debug("Session created", "userID", userID, "session", session.ID)
 
 	err = session.Save(ctx.Request(), ctx.Response())
 	if err != nil {
@@ -147,7 +156,7 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 		"username": "admin",
 	})
 	if existingUserResult.Err() == nil {
-		slog.Info("Admin user already exists, not creating")
+		log.Warn("Admin user already exists, not creating")
 		return nil
 	}
 
