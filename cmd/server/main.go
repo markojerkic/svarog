@@ -125,6 +125,7 @@ func startGrpcServer(env Env) {
 
 func setupLogger() {
 	log.SetLevel(log.DebugLevel)
+	log.SetReportCaller(true)
 
 	logOpts := &slog.HandlerOptions{
 		Level: slog.LevelDebug,

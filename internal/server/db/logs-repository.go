@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -67,7 +66,7 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 }
 
 func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp) {
-	slog.Debug("Starting log server")
+	log.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
 
@@ -93,7 +92,7 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 			self.backlog.ForceDump()
 
 		case <-ctx.Done():
-			slog.Debug("Context done")
+			log.Debug("Context done")
 			break
 		}
 	}

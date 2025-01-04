@@ -1,5 +1,5 @@
 import axios from "axios";
-import { ApiError } from "@/lib/api-error";
+import { ApiError } from "@/lib/errors/api-error";
 
 export const api = axios.create({
 	baseURL: import.meta.env.VITE_API_URL,
@@ -11,7 +11,7 @@ api.interceptors.response.use(
 		if (axios.isAxiosError(error)) {
 			const apiError = error.response?.data;
 			if (apiError) {
-				throw new ApiError(apiError);
+				throw new ApiError(apiError, error.response?.status ?? 500);
 			}
 		}
 

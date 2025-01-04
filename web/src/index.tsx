@@ -2,7 +2,7 @@
 import { render } from "solid-js/web";
 import "./app.css";
 import App from "./app.tsx";
-import type { ApiError } from "@/lib/api-error.ts";
+import type { ApiError } from "@/lib/errors/api-error.ts";
 
 declare module "@tanstack/solid-query" {
 	interface Register {

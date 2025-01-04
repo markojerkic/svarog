@@ -8,9 +8,11 @@ type ApiFieldErrors = Record<string, string>;
 export type TApiError = { message: string; fields: ApiFieldErrors };
 
 export class ApiError extends Error {
-	constructor(public readonly apiError: TApiError) {
+	constructor(
+		public readonly apiError: TApiError,
+		public readonly status: number,
+	) {
 		super(apiError.message);
-		console.error("ApiError from interceptor", apiError);
 	}
 
 	public setFormFieldErrors<T extends FieldValues>(form: FormStore<T>) {

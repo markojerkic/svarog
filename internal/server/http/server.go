@@ -46,7 +46,10 @@ func (self *HttpServer) Start() {
 	if len(self.allowedOrigins) > 0 {
 		log.Info("Allowed origins", "origins", self.allowedOrigins)
 		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins: self.allowedOrigins,
+			AllowOrigins:     self.allowedOrigins,
+			AllowCredentials: true,
+			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+			AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
 		}))
 	} else {
 		log.Warn("No allowed origins set, allowing all origins")
