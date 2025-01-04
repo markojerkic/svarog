@@ -1,9 +1,9 @@
 import { ApiError, type TApiError } from "@/lib/api-error";
 import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
-import axios from "axios";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
+import { api } from "@/lib/utils/axios-api";
 
 export const loginSchema = v.object({
 	email: v.pipe(
@@ -18,23 +18,6 @@ export const loginSchema = v.object({
 	),
 });
 export type LoginInput = v.InferInput<typeof loginSchema>;
-
-export const api = axios.create({
-	baseURL: import.meta.env.VITE_API_URL,
-});
-api.interceptors.response.use(
-	(response) => response.data,
-	(error) => {
-		if (axios.isAxiosError(error)) {
-			const apiError = error.response?.data;
-			if (apiError) {
-				throw new ApiError(apiError);
-			}
-		}
-
-		throw error;
-	},
-);
 
 export const useLogin = (form: FormStore<LoginInput>) => {
 	const queryClient = useQueryClient();
