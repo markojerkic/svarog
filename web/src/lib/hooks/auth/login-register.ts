@@ -1,9 +1,8 @@
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
-import * as v from "valibot";
-import { useCurrentUser } from "./use-current-user";
+import { ApiError, type TApiError } from "@/lib/api-error";
 import type { FormStore } from "@modular-forms/solid";
-import type { ApiError } from "@/lib/api-error";
-import { createSignal } from "solid-js";
+import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import axios from "axios";
+import * as v from "valibot";
 
 export const loginSchema = v.object({
 	email: v.pipe(
@@ -19,46 +18,30 @@ export const loginSchema = v.object({
 });
 export type LoginInput = v.InferInput<typeof loginSchema>;
 
-export const useLogin = (_form: FormStore<LoginInput>) => {
-	const queryClient = useQueryClient();
-	const [apiError, setApiErrors] = createSignal<ApiError>();
+export const api = axios.create({
+	baseURL: import.meta.env.VITE_API_URL,
+});
+api.interceptors.response.use(
+	(response) => response.data,
+	(error) => {
+		if (axios.isAxiosError(error)) {
+			const apiError = error.response?.data;
+			if (apiError) {
+				throw new ApiError(apiError);
+			}
+		}
 
-	const mutation = createMutation(() => ({
+		throw error;
+	},
+);
+
+export const useLogin = (_form: FormStore<LoginInput>) => {
+	const _queryClient = useQueryClient();
+
+	return createMutation(() => ({
 		mutationKey: ["login"],
 		mutationFn: async (input: LoginInput) => {
-			const response = await fetch(
-				`${import.meta.env.VITE_API_URL}/v1/auth/login`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(input),
-				},
-			);
-			const responseData = await response.json();
-
-			if (!response.ok) {
-				throw responseData;
-			}
-
-			return responseData;
-		},
-		onSettled: (_data, error) => {
-			if (error) {
-				console.log("Setting error", error);
-				setApiErrors(error);
-			} else {
-				setApiErrors(undefined);
-				queryClient.invalidateQueries({
-					queryKey: [useCurrentUser.QUERY_KEY],
-				});
-			}
+			return api.post<void, TApiError>("/v1/auth/login", input);
 		},
 	}));
-
-	return {
-		action: mutation,
-		error: apiError,
-	};
 };

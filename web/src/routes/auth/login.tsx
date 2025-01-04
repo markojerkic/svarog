@@ -11,11 +11,13 @@ import {
     TextFormField,
 } from "@/components/ui/textfield";
 import {
+    api,
     type LoginInput,
     loginSchema,
     useLogin,
 } from "@/lib/hooks/auth/login-register";
 import { createForm, valiForm } from "@modular-forms/solid";
+import { createMutation } from "@tanstack/solid-query";
 import { createEffect, Show } from "solid-js";
 
 export default () => {
@@ -40,26 +42,38 @@ const LoginForm = () => {
     const [form, { Form, Field }] = createForm<LoginInput>({
         validate: valiForm(loginSchema),
     });
-
-    const login = useLogin(form);
+    const login = createMutation(() => ({
+        mutationKey: ["login"],
+        mutationFn: async (input: LoginInput) => {
+            return api.post("/v1/auth/login", input);
+        },
+    }));
 
     const handleSubmit = async (values: LoginInput) => {
-        login.action.mutate(values);
+        login.mutate(values);
+        //try {
+        //    await login.mutateAsync(values);
+        //} catch (error) {
+        //    console.error("form await mutate async", error);
+        //}
     };
-
-    createEffect(() => {
-        if (login.error()) {
-            console.log("Error", login.error());
-        }
-
-        if (login.action.isError) {
-            console.log("Error iz akcije", login.action.error);
-        }
-    });
 
     return (
         <>
-            <Form onSubmit={handleSubmit}>
+            <Show when={login.isPending}>
+                <p>Loading...</p>
+            </Show>
+            <Show when={login.isSuccess}>
+                <p>Success</p>
+            </Show>
+            <Show when={login.isError}>
+                <p>Error: {login.error?.message}</p>
+            </Show>
+            <Show when={login.isIdle}>
+                <p>Idle</p>
+            </Show>
+
+            <Form onSubmit={(props) => handleSubmit(props)}>
                 <Field type="string" name="email">
                     {(field, props) => (
                         <TextFormField
@@ -85,15 +99,10 @@ const LoginForm = () => {
                     )}
                 </Field>
 
-                <Button type="submit" disabled={login.action.isPending}>
+                <Button type="submit" disabled={login.isPending || form.submitting}>
                     Login
                 </Button>
             </Form>
-            <Show when={login.error()}>
-                <p>Error: {login.error()?.message}</p>
-                <TextFieldErrorMessage>{login.error()?.message}</TextFieldErrorMessage>
-            </Show>
-            <p class="bg-green-500 p-4">{login.error()?.message}</p>
         </>
     );
 };
