@@ -5,15 +5,23 @@ import {
 } from "@/lib/hooks/auth/use-current-user";
 import type { RouteDefinition } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
-import { Show, Suspense } from "solid-js";
+import { ParentProps, Show, Suspense, lazy } from "solid-js";
+import { usersRoute } from "./users";
 
 export const adminRoute = {
 	preload: async () => {
 		return useQueryClient().prefetchQuery(currentUserQueryOptions);
 	},
+	children: [
+		{
+			path: "/users",
+			...usersRoute,
+			component: lazy(() => import("./users")),
+		},
+	],
 } satisfies RouteDefinition;
 
-export default () => {
+export default (props: ParentProps) => {
 	const currentUser = useCurrentUser();
 
 	const isAdmin = () => currentUser.data?.role === "admin";
@@ -24,7 +32,7 @@ export default () => {
 				when={currentUser.isSuccess && isAdmin()}
 				fallback={<div>Nisi admin, nemaš pravo ovo gledati </div>}
 			>
-				<AdminLayout>Brabo, admin si</AdminLayout>
+				<AdminLayout>{props.children}</AdminLayout>
 			</Show>
 		</Suspense>
 	);
