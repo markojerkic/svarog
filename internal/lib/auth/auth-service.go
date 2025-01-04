@@ -126,8 +126,6 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 	return m.createSession(ctx, user.ID.Hex())
 }
 
-var _ AuthService = &MongoAuthService{}
-
 func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {
 	session, err := self.sessionStore.New(ctx.Request(), SVAROG_SESSION)
 	if err != nil {
@@ -143,6 +141,29 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 	return nil
 }
 
+func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
+	// Check if admin user already exists
+	existingUserResult := m.userCollection.FindOne(ctx, bson.M{
+		"username": "admin",
+	})
+	if existingUserResult.Err() == nil {
+		slog.Info("Admin user already exists, not creating")
+		return nil
+	}
+
+	hashedPassword, err := hashPassword("ADMINADMIN")
+	if err != nil {
+		return err
+	}
+
+	_, err = m.userCollection.InsertOne(ctx, User{
+		Username: "admin",
+		Password: hashedPassword,
+		Role:     ADMIN,
+	})
+	return err
+}
+
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
@@ -152,6 +173,8 @@ func checkPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+var _ AuthService = &MongoAuthService{}
 
 func NewMongoAuthService(userCollection *mongo.Collection, sessionStore sessions.Store) *MongoAuthService {
 	return &MongoAuthService{

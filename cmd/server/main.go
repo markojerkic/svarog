@@ -140,6 +140,7 @@ func newMongoDB(connectionUrl string) (*mongo.Database, error) {
 	}
 
 	database := client.Database("logs")
+
 	return database, nil
 }
 
@@ -159,6 +160,8 @@ func main() {
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
 	authService := auth.NewMongoAuthService(userCollection, sessionStore)
+
+	authService.CreateInitialAdminUser(context.Background())
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
