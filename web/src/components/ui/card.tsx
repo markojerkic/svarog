@@ -41,7 +41,7 @@ export const CardDescription: ParentComponent<ComponentProps<"h3">> = (
 	const [local, rest] = splitProps(props, ["class"]);
 
 	return (
-		<h3 class={cn("text-sm text-muted-foreground", local.class)} {...rest} />
+		<h3 class={cn("text-muted-foreground text-sm", local.class)} {...rest} />
 	);
 };
 

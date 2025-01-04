@@ -5,6 +5,7 @@ import { route as clientLogsRoute } from "@/routes/logs/[clientId]/index";
 import { useQueryClient } from "@tanstack/solid-query";
 import { currentUserQueryOptions } from "./lib/hooks/auth/use-current-user";
 import ProtectedLayout from "./routes/protected-layout";
+import { adminRoute } from "@/routes/admin/index.tsx";
 
 const routes = [
 	// Protected routes
@@ -45,6 +46,12 @@ const routes = [
 						],
 					},
 				],
+			},
+
+			{
+				path: "/admin",
+				...adminRoute,
+				component: lazy(() => import("@/routes/admin/index.tsx")),
 			},
 		],
 	},

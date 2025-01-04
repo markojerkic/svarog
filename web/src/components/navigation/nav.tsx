@@ -11,7 +11,7 @@ import {
 	type LoggedInUser,
 	useCurrentUser,
 } from "@/lib/hooks/auth/use-current-user";
-import { Match, type ParentProps, Suspense, Switch } from "solid-js";
+import { Match, type ParentProps, Show, Suspense, Switch } from "solid-js";
 
 export function Nav() {
 	const currentUser = useCurrentUser();
@@ -49,6 +49,12 @@ const AuthMenuItem = (props: { user: LoggedInUser }) => {
 				<ListItem title="Profile" href="/auth/profile">
 					{props.user.username}
 				</ListItem>
+				<Show when={props.user.role === "admin"}>
+					<ListItem title="Admin" href="/admin">
+						Manage users and roles
+					</ListItem>
+				</Show>
+
 				<ListItem title="Logout" href="/auth/logout" />
 			</NavigationMenuContent>
 		</>

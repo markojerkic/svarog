@@ -70,8 +70,8 @@ export const NavigationMenu = <T extends ValidComponent = "ul">(
 					"pointer-events-none z-50 overflow-x-clip overflow-y-visible rounded-md border bg-popover text-popover-foreground shadow",
 					"h-[--kb-navigation-menu-viewport-height] w-[--kb-navigation-menu-viewport-width] transition-[width,height] duration-300",
 					"origin-[--kb-menu-content-transform-origin]",
-					"data-[expanded]:duration-300 data-[expanded]:animate-in data-[expanded]:fade-in data-[expanded]:zoom-in-95",
-					"data-[closed]:duration-300 data-[closed]:animate-out data-[closed]:fade-out data-[closed]:zoom-out-95",
+					"data-[expanded]:fade-in data-[expanded]:zoom-in-95 data-[expanded]:animate-in data-[expanded]:duration-300",
+					"data-[closed]:fade-out data-[closed]:zoom-out-95 data-[closed]:animate-out data-[closed]:duration-300",
 				)}
 			>
 				<Show when={local.withArrow}>
@@ -110,7 +110,7 @@ export const NavigationMenuTrigger = <T extends ValidComponent = "button">(
 	return (
 		<NavigationMenuPrimitive.Trigger
 			class={cn(
-				"inline-flex w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium outline-none transition-colors duration-300 hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
+				"inline-flex w-max items-center justify-center rounded-md bg-background px-4 py-2 font-medium text-sm outline-none transition-colors duration-300 hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
 				local.class,
 			)}
 			{...rest}
@@ -155,9 +155,9 @@ export const NavigationMenuContent = <T extends ValidComponent = "ul">(
 		<NavigationMenuPrimitive.Portal>
 			<NavigationMenuPrimitive.Content
 				class={cn(
-					"absolute left-0 top-0 p-4 outline-none",
-					"data-[motion^=from-]:duration-300 data-[motion^=from-]:animate-in data-[motion^=from-]:fade-in data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52",
-					"data-[motion^=to-]:duration-300 data-[motion^=to-]:animate-out data-[motion^=to-]:fade-out data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52",
+					"absolute top-0 left-0 p-4 outline-none",
+					"data-[motion^=from-]:fade-in data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52 data-[motion^=from-]:animate-in data-[motion^=from-]:duration-300",
+					"data-[motion^=to-]:fade-out data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52 data-[motion^=to-]:animate-out data-[motion^=to-]:duration-300",
 					local.class,
 				)}
 				{...rest}

@@ -1,5 +1,5 @@
 import { ServiceListItem } from "@/components/service-card";
-import { type RouteDefinition } from "@solidjs/router";
+import type { RouteDefinition } from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 

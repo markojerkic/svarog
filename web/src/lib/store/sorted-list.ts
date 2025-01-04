@@ -38,7 +38,6 @@ export class SortedListIterator<T> implements Iterator<T> {
 				this.stack.push(this.current);
 				this.current = this.current.left;
 			}
-			// biome-ignore lint/style/noNonNullAssertion: <explanation>
 			this.current = this.stack.pop()!;
 			return { value: this.current.value, done: false };
 		}
