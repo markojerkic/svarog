@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store";
-import type { LogLine, LogPageCursor } from "~/lib/store/query";
+import type { LogLine, LogPageCursor } from "@/lib/store/query";
 
 class TreeNode<T> {
 	value: T;
