@@ -14,10 +14,10 @@ const (
 )
 
 type User struct {
-	ID       primitive.ObjectID `bson:"_id,omitempty"`
-	Username string             `bson:"username"`
+	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Username string             `bson:"username" json:"username"`
 	Password string             `bson:"password" json:"-"`
-	Role     Role               `bson:"role"`
+	Role     Role               `bson:"role" json:"role"`
 }
 
 type LoggedInUser struct {

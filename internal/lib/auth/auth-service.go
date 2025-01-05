@@ -9,9 +9,11 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -21,6 +23,7 @@ type AuthService interface {
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error)
 }
 
 type MongoAuthService struct {
@@ -146,6 +149,34 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 	}
 
 	return nil
+}
+
+// GetUserPage implements AuthService.
+func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error) {
+	var users []User
+
+	limit := query.Size
+	skip := query.Page * query.Size
+
+	cursor, err := self.userCollection.Find(ctx, bson.M{
+		"username": bson.M{"$regex": query.Username},
+	}, &options.FindOptions{
+		Limit: &limit,
+		Skip:  &skip,
+		Projection: bson.M{
+			"password": 0,
+		},
+	})
+	if err != nil {
+		return users, err
+	}
+
+	err = cursor.All(ctx, &users)
+	if err != nil {
+		return users, err
+	}
+
+	return users, nil
 }
 
 func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {

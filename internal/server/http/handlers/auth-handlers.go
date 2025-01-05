@@ -41,6 +41,18 @@ func (a *AuthRouter) login(c echo.Context) error {
 	return c.JSON(200, "Logged in")
 }
 
+func (a *AuthRouter) getUsersPage(c echo.Context) error {
+	var query types.GetUserPageInput
+	if err := c.Bind(&query); err != nil {
+		return c.JSON(400, err)
+	}
+	users, err := a.authService.GetUserPage(c.Request().Context(), query)
+	if err != nil {
+		return c.JSON(500, err)
+	}
+	return c.JSON(200, users)
+}
+
 func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
 	router := &AuthRouter{authService}
 
@@ -51,6 +63,7 @@ func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
 	group := e.Group("/auth")
 	group.POST("/login", router.login)
 	group.GET("/current-user", router.getCurrentUser)
+	group.GET("/users", router.getUsersPage)
 
 	return router
 }

@@ -5,7 +5,7 @@ import {
 } from "@/lib/hooks/auth/use-current-user";
 import type { RouteDefinition } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
-import { ParentProps, Show, Suspense, lazy } from "solid-js";
+import { type ParentProps, Show, Suspense, lazy } from "solid-js";
 import { usersRoute } from "./users";
 
 export const adminRoute = {
@@ -17,6 +17,10 @@ export const adminRoute = {
 			path: "/users",
 			...usersRoute,
 			component: lazy(() => import("./users")),
+		},
+		{
+			path: "*404",
+			component: lazy(() => import("@/routes/[...404].tsx")),
 		},
 	],
 } satisfies RouteDefinition;

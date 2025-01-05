@@ -50,8 +50,8 @@ const routes = [
 
 			{
 				path: "/admin",
-				...adminRoute,
 				component: lazy(() => import("@/routes/admin/index.tsx")),
+				...adminRoute,
 			},
 		],
 	},
