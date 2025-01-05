@@ -3,6 +3,8 @@ import { createQuery, type QueryOptions } from "@tanstack/solid-query";
 
 export type User = {
 	username: string;
+	firstName: string;
+	lastName: string;
 	id: string;
 	role: string;
 };

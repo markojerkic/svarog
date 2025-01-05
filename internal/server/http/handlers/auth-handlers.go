@@ -10,11 +10,6 @@ type AuthRouter struct {
 	authService auth.AuthService
 }
 
-type LoginForm struct {
-	Username string `json:"username" form:"username" validate:"required,gte=3"`
-	Password string `json:"password" form:"password" validate:"required,gte=8"`
-}
-
 func (a *AuthRouter) getCurrentUser(c echo.Context) error {
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
@@ -25,7 +20,7 @@ func (a *AuthRouter) getCurrentUser(c echo.Context) error {
 }
 
 func (a *AuthRouter) login(c echo.Context) error {
-	var loginForm LoginForm
+	var loginForm types.LoginForm
 	if err := c.Bind(&loginForm); err != nil {
 		return c.JSON(400, err)
 	}
@@ -36,6 +31,26 @@ func (a *AuthRouter) login(c echo.Context) error {
 	err := a.authService.Login(c, loginForm.Username, loginForm.Password)
 	if err != nil {
 		return c.JSON(401, types.ApiError{Message: "Invalid credentials"})
+	}
+
+	return c.JSON(200, "Logged in")
+}
+
+func (a *AuthRouter) register(c echo.Context) error {
+	var registerForm types.RegisterForm
+	if err := c.Bind(&registerForm); err != nil {
+		return c.JSON(400, err)
+	}
+	if err := c.Validate(&registerForm); err != nil {
+		return err
+	}
+
+	err := a.authService.Register(c, registerForm)
+	if err != nil {
+		if err.Error() == auth.UserAlreadyExists {
+			return c.JSON(400, types.ApiError{Message: "User already exists"})
+		}
+		return c.JSON(500, types.ApiError{Message: "Error registering user"})
 	}
 
 	return c.JSON(200, "Logged in")
@@ -62,6 +77,7 @@ func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
 
 	group := e.Group("/auth")
 	group.POST("/login", router.login)
+	group.POST("/register", router.register)
 	group.GET("/current-user", router.getCurrentUser)
 	group.GET("/users", router.getUsersPage)
 

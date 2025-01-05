@@ -7,11 +7,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { TextFormField } from "@/components/ui/textfield";
-import {
-	type LoginInput,
-	loginSchema,
-	useLogin,
-} from "@/lib/hooks/auth/login-register";
+import { type LoginInput, loginSchema, useLogin } from "@/lib/hooks/auth/login";
 import { createForm, valiForm } from "@modular-forms/solid";
 import { useNavigate } from "@solidjs/router";
 import { Show } from "solid-js";

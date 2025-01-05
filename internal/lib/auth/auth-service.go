@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/charmbracelet/log"
 	"github.com/gorilla/sessions"
@@ -33,7 +32,8 @@ type MongoAuthService struct {
 
 const SVAROG_SESSION = "svarog_session"
 const (
-	ErrUserNotFound = "User not found"
+	ErrUserNotFound   = "User not found"
+	UserAlreadyExists = "User already exists"
 ) // Error codes
 
 // GetUserByID implements AuthService.
@@ -68,7 +68,7 @@ func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) e
 		"username": form.Username,
 	})
 	if existingUserResult.Err() == nil {
-		return ctx.JSON(400, types.ApiError{Message: fmt.Sprintf("User %s already exists", form.Username)})
+		return errors.New(UserAlreadyExists)
 	}
 
 	hashedPassword, err := hashPassword(form.Password)
@@ -197,9 +197,11 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 	}
 
 	_, err = m.userCollection.InsertOne(ctx, User{
-		Username: "admin",
-		Password: hashedPassword,
-		Role:     ADMIN,
+		Username:  "admin",
+		FirstName: "Admin",
+		LastName:  "Admin",
+		Password:  hashedPassword,
+		Role:      ADMIN,
 	})
 	return err
 }

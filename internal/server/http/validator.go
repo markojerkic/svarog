@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -17,6 +18,7 @@ type Validator struct {
 func (v *Validator) Validate(i interface{}) error {
 	if err := v.validator.Struct(i); err != nil {
 		errs := err.(validator.ValidationErrors)
+		log.Error("Validation error", "error", errs)
 		apiError := types.NewApiError("Validation error")
 
 		// Get the type of the struct, handling both pointer and non-pointer types
