@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/log"
-	"log/slog"
 	"net"
 	"os"
 
@@ -64,7 +63,7 @@ func (i *ImplementedServer) BatchLog(ctx context.Context, batchLogs *rpc.Backlog
 	if err != nil {
 		return &rpc.Void{}, err
 	}
-	slog.Debug("Received batch log", slog.Int64("size", int64(len(batchLogs.Logs))), slog.String("ip", ipv4))
+	log.Debug("Received batch log", "size", int64(len(batchLogs.Logs)), "ip", ipv4)
 
 	for _, logLine := range batchLogs.Logs {
 		logIngestChannel <- db.LogLineWithIp{LogLine: logLine, Ip: ipv4}
@@ -126,13 +125,6 @@ func startGrpcServer(env Env) {
 func setupLogger() {
 	log.SetLevel(log.DebugLevel)
 	log.SetReportCaller(true)
-
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
 }
 
 func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
@@ -175,7 +167,7 @@ func main() {
 			AuthService:    authService,
 		})
 
-	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
+	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
 
 	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()

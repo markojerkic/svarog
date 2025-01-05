@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -50,7 +50,7 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 	for {
 		err := self.wsConnection.ReadJSON(&message)
 		if err != nil {
-			slog.Error("Error reading WS message", slog.Any("error", err))
+			log.Error("Error reading WS message", "error", err)
 			return
 		}
 
@@ -58,19 +58,19 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 		case SetInstances:
 			instancesMap, ok := message.Data.([]interface{})
 			if !ok {
-				slog.Error("Instances is a string array")
+				log.Error("Instances is a string array")
 				continue
 			}
 			instances := make([]string, 0, len(instancesMap))
 			for _, instance := range instancesMap {
 				instances = append(instances, instance.(string))
 			}
-			slog.Info("Setting instances", slog.Any("instances", instances))
+			log.Info("Setting instances", "instances", instances)
 			self.subscription.SetInstances(instances)
 		case Ping:
 			self.pingPong <- true
 		default:
-			slog.Error("Unknown message type", slog.Any("error", message.Type))
+			log.Error("Unknown message type", "error", message.Type)
 		}
 
 	}
@@ -98,7 +98,7 @@ func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
 
 			err := self.wsConnection.WriteJSON(message)
 			if err != nil {
-				slog.Error("Error writing WS message", slog.Any("error", err))
+				log.Error("Error writing WS message", "error", err)
 				return
 			}
 
@@ -108,7 +108,7 @@ func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
 			}
 			err := self.wsConnection.WriteJSON(message)
 			if err != nil {
-				slog.Error("Error writing WS message", slog.Any("error", err))
+				log.Error("Error writing WS message", "error", err)
 				return
 			}
 
@@ -127,16 +127,16 @@ var wsUpgrader = gorillaWs.Upgrader{
 func (self *WsRouter) connectionHandler(c echo.Context) error {
 	clientId := c.Param("clientId")
 
-	slog.Debug("Request made for client", slog.String("clientId", clientId))
+	log.Debug("Request made for client", "clientId", clientId)
 	subscription := self.wsHub.Subscribe(clientId)
-	slog.Debug("Created subscription", slog.Any("subscription", subscription))
+	log.Debug("Created subscription", "subscription", subscription)
 
 	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		return err
 	}
 
-	slog.Debug("New WS connection", slog.Any("clientId", clientId))
+	log.Debug("New WS connection", "clientId", clientId)
 
 	wsConnection := &WsConnection{
 		clientId:     clientId,
@@ -156,7 +156,7 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		// wait until read and write pipes are done and then close the subscription
 		wsWaitGroup.Wait()
 		wsConnection.closeSubscription()
-		slog.Debug("WS connection closed", slog.Any("clientId", clientId))
+		log.Debug("WS connection closed", "clientId", clientId)
 		self.wsHub.Unsubscribe(subscription)
 	}()
 
@@ -172,7 +172,7 @@ func NewWsConnectionRouter(hub websocket.WatchHub, parentRouter *echo.Group) *Ws
 	}
 
 	api.GET("/:clientId", router.connectionHandler)
-	slog.Info("Created WS connection router")
+	log.Info("Created WS connection router")
 
 	return router
 }
