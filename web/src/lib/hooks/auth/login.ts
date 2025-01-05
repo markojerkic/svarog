@@ -4,6 +4,7 @@ import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
+import { useNavigate } from "@solidjs/router";
 
 export const loginSchema = v.object({
 	username: v.pipe(
@@ -36,6 +37,27 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 			if (error instanceof ApiError) {
 				error.setFormFieldErrors(form);
 			}
+		},
+	}));
+};
+
+export const useLogout = () => {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+
+	return createMutation(() => ({
+		mutationKey: ["logout"],
+		mutationFn: async () => {
+			return api.post<void>("/v1/auth/logout");
+		},
+		onSuccess: async () => {
+			return queryClient
+				.invalidateQueries({
+					queryKey: [useCurrentUser.QUERY_KEY],
+				})
+				.then(() => {
+					navigate("/auth/login", { replace: true });
+				});
 		},
 	}));
 };

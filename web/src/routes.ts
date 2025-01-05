@@ -60,6 +60,10 @@ const routes = [
 		component: lazy(() => import("@/routes/auth/login.tsx")),
 	},
 	{
+		path: "/auth/logout",
+		component: lazy(() => import("@/routes/auth/logout.tsx")),
+	},
+	{
 		path: "*404",
 		component: lazy(() => import("@/routes/[...404].tsx")),
 	},

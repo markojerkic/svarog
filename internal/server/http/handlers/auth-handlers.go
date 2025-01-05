@@ -36,6 +36,14 @@ func (a *AuthRouter) login(c echo.Context) error {
 	return c.JSON(200, "Logged in")
 }
 
+func (a *AuthRouter) logout(c echo.Context) error {
+	err := a.authService.Logout(c)
+	if err != nil {
+		return c.JSON(500, types.ApiError{Message: "Error logging out"})
+	}
+	return c.JSON(200, "Logged out")
+}
+
 func (a *AuthRouter) register(c echo.Context) error {
 	var registerForm types.RegisterForm
 	if err := c.Bind(&registerForm); err != nil {
@@ -78,6 +86,7 @@ func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
 	group := e.Group("/auth")
 	group.POST("/login", router.login)
 	group.POST("/register", router.register)
+	group.POST("/logout", router.logout)
 	group.GET("/current-user", router.getCurrentUser)
 	group.GET("/users", router.getUsersPage)
 

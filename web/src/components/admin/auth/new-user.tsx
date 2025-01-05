@@ -9,11 +9,6 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-	TextField,
-	TextFieldLabel,
-	TextFieldRoot,
-} from "@/components/ui/textfield";
 import { TextFormField } from "@/components/ui/textfield";
 import { createForm, setError, valiForm } from "@modular-forms/solid";
 import { useNavigate } from "@solidjs/router";

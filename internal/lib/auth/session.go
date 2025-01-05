@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"go.mongodb.org/mongo-driver/bson"
@@ -121,20 +122,32 @@ func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 	}
 
 	ctx := r.Context()
+
 	if session.ID != "" {
-		// Update existing session
-		_, err = self.sessionCollection.UpdateOne(ctx,
-			bson.M{"_id": session.ID},
-			bson.M{"$set": sessionData})
+		sessionId, err := primitive.ObjectIDFromHex(session.ID)
+		if err != nil {
+			return errors.Join(errors.New("Failed to get sessionId"), err)
+		}
+		if session.Options.MaxAge <= 0 {
+			// Delete session from DB
+			log.Debug("Deleting session")
+
+			count, err := self.sessionCollection.DeleteOne(ctx, bson.M{"_id": sessionId})
+			log.Debug("Deleted session", "count", count, "err", err)
+
+		} else {
+			// Update existing session
+			_, err = self.sessionCollection.UpdateOne(ctx,
+				bson.M{"_id": sessionId},
+				bson.M{"$set": sessionData})
+		}
+
 	} else {
 		// Create new session
 		inserted, err := self.sessionCollection.InsertOne(ctx, sessionData)
 		if err == nil {
 			session.ID = inserted.InsertedID.(primitive.ObjectID).Hex()
 		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to save session: %w", err)
 	}
 
 	return self.setSessionCookie(w, session)

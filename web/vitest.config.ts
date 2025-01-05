@@ -8,7 +8,7 @@ export default mergeConfig(
 		resolve: {
 			conditions: ["development", "browser"],
 			alias: {
-				"~": path.resolve(__dirname, "src"),
+				"@": path.resolve(__dirname, "src"),
 			},
 		},
 	}),

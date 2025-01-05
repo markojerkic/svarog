@@ -77,9 +77,9 @@ const NavListItem = (props: { item: NavListItem; isCollapsed: boolean }) => {
 					as="a"
 					href={props.item.href}
 					class={cn(
-						buttonVariants({ variant: props.item.variant, size: "icon" }),
+						buttonVariants({ variant: variant(), size: "icon" }),
 						"h-9 w-9",
-						props.item.variant === "default" &&
+						variant() === "default" &&
 							"dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white",
 					)}
 				>

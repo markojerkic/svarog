@@ -19,6 +19,7 @@ import (
 type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
 	Register(ctx echo.Context, form types.RegisterForm) error
+	Logout(ctx echo.Context) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -49,6 +50,17 @@ func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User,
 	}).Decode(&user)
 
 	return user, err
+}
+
+// Logout implements AuthService.
+func (m *MongoAuthService) Logout(ctx echo.Context) error {
+	session, err := session.Get(SVAROG_SESSION, ctx)
+	if err != nil {
+		return errors.New("Error getting session")
+	}
+	session.Options.MaxAge = -1
+	return session.Save(ctx.Request(), ctx.Response())
+
 }
 
 // GetUserByUsername implements AuthService.

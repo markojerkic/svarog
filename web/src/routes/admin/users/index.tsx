@@ -26,7 +26,7 @@ export default () => {
 
 	return (
 		<Suspense>
-			<div class="mx-auto p-4 text-center text-gray-700 w-full md:w-[70%] lg:w-[50%]">
+			<div class="mx-auto w-full p-4 text-center text-gray-700 md:w-[70%] lg:w-[50%]">
 				<div class="flex justify-end">
 					<NewUserDialog />
 				</div>
