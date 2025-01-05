@@ -162,7 +162,7 @@ func main() {
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
-	authService := auth.NewMongoAuthService(userCollection, client, sessionStore)
+	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 
 	authService.CreateInitialAdminUser(context.Background())
 
