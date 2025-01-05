@@ -135,23 +135,23 @@ func setupLogger() {
 	slog.SetDefault(logger)
 }
 
-func newMongoDB(connectionUrl string) (*mongo.Database, error) {
+func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
 	clientOptions := options.Client().ApplyURI(connectionUrl)
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		return nil, errors.Join(errors.New("Error connecting to MongoDb"), err)
+		return nil, nil, errors.Join(errors.New("Error connecting to MongoDb"), err)
 	}
 
 	database := client.Database("logs")
 
-	return database, nil
+	return client, database, nil
 }
 
 func main() {
 	setupLogger()
 	env := loadEnv()
 
-	database, err := newMongoDB(env.MongoUrl)
+	client, database, err := newMongoDB(env.MongoUrl)
 	if err != nil {
 		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
 	}
@@ -162,7 +162,7 @@ func main() {
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
-	authService := auth.NewMongoAuthService(userCollection, sessionStore)
+	authService := auth.NewMongoAuthService(userCollection, client, sessionStore)
 
 	authService.CreateInitialAdminUser(context.Background())
 

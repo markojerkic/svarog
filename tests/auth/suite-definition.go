@@ -59,7 +59,7 @@ func (suite *AuthSuite) SetupSuite() {
 	suite.sessionCollection = db.Collection("sessions")
 	suite.sessionStore = authlayer.NewMongoSessionStore(suite.sessionCollection, suite.userCollection, []byte("marko"))
 
-	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionStore)
+	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionCollection, mongoClient, suite.sessionStore)
 }
 
 // After each

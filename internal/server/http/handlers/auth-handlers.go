@@ -56,7 +56,7 @@ func (a *AuthRouter) register(c echo.Context) error {
 	err := a.authService.Register(c, registerForm)
 	if err != nil {
 		if err.Error() == auth.UserAlreadyExists {
-			return c.JSON(400, types.ApiError{Message: "User already exists"})
+			return c.JSON(400, types.ApiError{Message: "User already exists", Fields: map[string]string{"username": "Username already exists"}})
 		}
 		return c.JSON(500, types.ApiError{Message: "Error registering user"})
 	}

@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,6 +21,7 @@ type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
 	Register(ctx echo.Context, form types.RegisterForm) error
 	Logout(ctx echo.Context) error
+	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -27,8 +29,10 @@ type AuthService interface {
 }
 
 type MongoAuthService struct {
-	userCollection *mongo.Collection
-	sessionStore   sessions.Store
+	userCollection    *mongo.Collection
+	sessionCollection *mongo.Collection
+	mongoClient       *mongo.Client
+	sessionStore      sessions.Store
 }
 
 const SVAROG_SESSION = "svarog_session"
@@ -96,13 +100,13 @@ func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) e
 		Role:      USER,
 	})
 
-	userId, ok := user.InsertedID.(primitive.ObjectID)
+	_, ok := user.InsertedID.(primitive.ObjectID)
 
 	if !ok {
 		return errors.New("Failed to get user ID")
 	}
 
-	return m.createSession(ctx, userId.Hex())
+	return nil
 }
 
 // GetCurrentUser implements AuthService.
@@ -148,6 +152,41 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 	}
 
 	return m.createSession(ctx, user.ID.Hex())
+}
+
+func (m *MongoAuthService) DeleteUser(ctx echo.Context, id string) error {
+	wc := writeconcern.Majority()
+	tnxOptions := options.Transaction().SetWriteConcern(wc)
+	session, err := m.mongoClient.StartSession()
+	if err != nil {
+		return err
+	}
+	defer session.EndSession(ctx.Request().Context())
+
+	_, err = session.WithTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (interface{}, error) {
+		user, err := m.GetUserByID(c, id)
+		if err != nil {
+			return struct{}{}, err
+		}
+		// Delete user
+		_, err = m.userCollection.DeleteOne(c, bson.M{
+			"_id": user.ID,
+		})
+		if err != nil {
+			return struct{}{}, err
+		}
+		// Delete sessions
+		_, err = m.sessionCollection.DeleteMany(c, bson.M{
+			"user_id": user.ID,
+		})
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		return struct{}{}, nil
+	}, tnxOptions)
+
+	return err
 }
 
 func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {
@@ -230,9 +269,11 @@ func checkPasswordHash(password, hash string) bool {
 
 var _ AuthService = &MongoAuthService{}
 
-func NewMongoAuthService(userCollection *mongo.Collection, sessionStore sessions.Store) *MongoAuthService {
+func NewMongoAuthService(userCollection *mongo.Collection, sessionCollection *mongo.Collection, client *mongo.Client, sessionStore sessions.Store) *MongoAuthService {
 	return &MongoAuthService{
-		userCollection: userCollection,
-		sessionStore:   sessionStore,
+		userCollection:    userCollection,
+		sessionCollection: sessionCollection,
+		mongoClient:       client,
+		sessionStore:      sessionStore,
 	}
 }
