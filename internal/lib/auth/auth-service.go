@@ -19,7 +19,7 @@ import (
 
 type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
-	Register(ctx echo.Context, username string, password string) error
+	Register(ctx echo.Context, form types.RegisterForm) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -62,24 +62,26 @@ func (self *MongoAuthService) GetUserByUsername(ctx context.Context, username st
 }
 
 // Register implements AuthService.
-func (m *MongoAuthService) Register(ctx echo.Context, username string, password string) error {
+func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) error {
 	// Check if user already exists
 	existingUserResult := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
-		"username": username,
+		"username": form.Username,
 	})
 	if existingUserResult.Err() == nil {
-		return fmt.Errorf("User %s already exists", username)
+		return ctx.JSON(400, types.ApiError{Message: fmt.Sprintf("User %s already exists", form.Username)})
 	}
 
-	hashedPassword, err := hashPassword(password)
+	hashedPassword, err := hashPassword(form.Password)
 	if err != nil {
 		return err
 	}
 
 	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
-		Username: username,
-		Password: hashedPassword,
-		Role:     USER,
+		Username:  form.Username,
+		FirstName: form.FirstName,
+		LastName:  form.LastName,
+		Password:  hashedPassword,
+		Role:      USER,
 	})
 
 	userId, ok := user.InsertedID.(primitive.ObjectID)

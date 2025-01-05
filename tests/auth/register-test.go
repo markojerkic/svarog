@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,12 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	err := suite.authService.Register(ctx, "marko", "marko")
+	err := suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.NoError(t, err)
 
 	savedUser, err := suite.authService.GetUserByUsername(context.Background(), "marko")
@@ -43,9 +49,19 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	err := suite.authService.Register(ctx, "marko", "marko")
+	err := suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.NoError(t, err)
 
-	err = suite.authService.Register(ctx, "marko", "marko")
+	err = suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.Error(t, err)
 }

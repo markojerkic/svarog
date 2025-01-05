@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,7 +51,12 @@ func (suite *AuthSuite) TestSaveSession() {
 	ctx := e.NewContext(req, rec)
 
 	// Create test user
-	err = suite.authService.Register(ctx, "marko", "marko")
+	err = suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
@@ -105,7 +111,12 @@ func TestSessionExpiration(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(ctx, "marko", "marko")
+	err = suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
@@ -157,7 +168,12 @@ func TestConcurrentSessions(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(ctx, "marko", "marko")
+	err = suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "marko",
+		Password:  "marko",
+		FirstName: "Marko",
+		LastName:  "Jerkic",
+	})
 	assert.NoError(t, err)
 	mockUser, err := suite.authService.GetUserByUsername(req.Context(), "marko")
 	assert.NoError(t, err)
