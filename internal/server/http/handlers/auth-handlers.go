@@ -38,6 +38,23 @@ func (a *AuthRouter) login(c echo.Context) error {
 	return c.JSON(200, "Logged in")
 }
 
+func (a *AuthRouter) loginWithToken(c echo.Context) error {
+	var loginForm types.LoginFormWithToken
+	if err := c.Bind(&loginForm); err != nil {
+		return c.JSON(400, err)
+	}
+	if err := c.Validate(&loginForm); err != nil {
+		return err
+	}
+
+	err := a.authService.LoginWithToken(c, loginForm.Token)
+	if err != nil {
+		return c.JSON(401, types.ApiError{Message: "Invalid credentials"})
+	}
+
+	return c.JSON(200, "Logged in")
+}
+
 func (a *AuthRouter) resetPassword(c echo.Context) error {
 	var resetPasswordForm types.ResetPasswordForm
 	if err := c.Bind(&resetPasswordForm); err != nil {
@@ -121,7 +138,7 @@ func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publi
 
 	authRequiredGroup.POST("/reset-password", router.resetPassword)
 	publicGroup.POST("/auth/login", router.login)
-	publicGroup.POST("/auth/login/:token", router.login)
+	publicGroup.POST("/auth/login/token", router.loginWithToken)
 
 	return router
 }

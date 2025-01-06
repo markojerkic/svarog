@@ -41,6 +41,24 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 	}));
 };
 
+export const useLoginWithToken = () => {
+	const queryClient = useQueryClient();
+
+	return createMutation(() => ({
+		mutationKey: ["login"],
+		mutationFn: async (token: string) => {
+			return api.post<void, TApiError>("/v1/auth/login/token", {
+				token,
+			});
+		},
+		onSuccess: () => {
+			return queryClient.invalidateQueries({
+				queryKey: [useCurrentUser.QUERY_KEY],
+			});
+		},
+	}));
+};
+
 export const useLogout = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();

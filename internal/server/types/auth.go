@@ -11,6 +11,10 @@ type LoginForm struct {
 	Password string `json:"password" form:"password" validate:"required,gte=8"`
 }
 
+type LoginFormWithToken struct {
+	Token string `json:"token" form:"token" validate:"required,gte=5"`
+}
+
 type RegisterForm struct {
 	Username  string `json:"username" form:"username" validate:"required,gte=3"`
 	Password  string `json:"password" form:"password" validate:"required,gte=8"`

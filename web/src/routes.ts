@@ -57,7 +57,16 @@ const routes = [
 	},
 	{
 		path: "/auth/login",
-		component: lazy(() => import("@/routes/auth/login.tsx")),
+		children: [
+			{
+				path: "/",
+				component: lazy(() => import("@/routes/auth/login.tsx")),
+			},
+			{
+				path: "/:token",
+				component: lazy(() => import("@/routes/auth/login-with-token.tsx")),
+			},
+		],
 	},
 	{
 		path: "/auth/reset-password",
