@@ -12,6 +12,7 @@ import (
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -157,8 +158,10 @@ func main() {
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
+
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
-	certificateService := serverauth.NewCertificateService(filesCollectinon)
+	filesService := files.NewFileService(filesCollectinon)
+	certificateService := serverauth.NewCertificateService(filesService, client)
 
 	authService.CreateInitialAdminUser(context.Background())
 

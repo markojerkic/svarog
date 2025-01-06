@@ -24,8 +24,8 @@ type cleanup = func()
 
 type CertificateService interface {
 	GenerateCaCertificate(ctx context.Context) error
-	GenerateCertificate(groupId string) (string, cleanup, error)
-	GetCaCertificate() (*x509.Certificate, *ecdsa.PrivateKey, error)
+	GenerateCertificate(ctx context.Context, groupId string) (string, cleanup, error)
+	GetCaCertificate(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error)
 }
 
 type CertificateServiceImpl struct {
@@ -81,7 +81,7 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 	return cert, key, nil
 }
 
-func (c *CertificateServiceImpl) GenerateCaCertificate() error {
+func (c *CertificateServiceImpl) GenerateCaCertificate(ctx context.Context) error {
 	// Create temp directory
 	tempDir, err := os.MkdirTemp("", "certs")
 	if err != nil {
@@ -144,9 +144,9 @@ func (c *CertificateServiceImpl) GenerateCaCertificate() error {
 	return c.saveCaCrt(context.Background(), caPath, caKeyPath)
 }
 
-func (c *CertificateServiceImpl) GenerateCertificate(groupId string) (string, cleanup, error) {
+func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupId string) (string, cleanup, error) {
 
-	caCert, err := c.GetCaCertificate()
+	caCert, privateKey, err := c.GetCaCertificate(ctx)
 	if err != nil {
 		return "", nil, errors.Join(errors.New("Error getting CA certificate"), err)
 	}
@@ -181,8 +181,7 @@ func (c *CertificateServiceImpl) GenerateCertificate(groupId string) (string, cl
 	}
 
 	// Create certificate
-	caKey := caCert.PublicKey.(*ecdsa.PublicKey)
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privKey.PublicKey, caKey)
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privKey.PublicKey, privateKey)
 	if err != nil {
 		cleanup()
 		return "", nil, errors.Join(errors.New("Error creating certificate"), err)

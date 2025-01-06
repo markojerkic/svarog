@@ -11,13 +11,12 @@ type CertificateRouter struct {
 }
 
 func (cr *CertificateRouter) GenerateCaCertificate(c echo.Context) error {
-	cert, cleanup, err := cr.certificateService.GenerateCaCertificate()
-	defer cleanup()
+	err := cr.certificateService.GenerateCaCertificate(c.Request().Context())
 	if err != nil {
 		return c.JSON(500, types.ApiError{Message: err.Error()})
 	}
 
-	return c.JSON(200, cert)
+	return c.JSON(200, "CA certificate generated")
 }
 
 func NewCertificateRouter(certificateService serverauth.CertificateService, e *echo.Group) *CertificateRouter {
