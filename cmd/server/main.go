@@ -152,12 +152,13 @@ func main() {
 
 	userCollection := database.Collection("users")
 	sessionCollection := database.Collection("sessions")
+	filesCollectinon := database.Collection("files")
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
-	certificateService := serverauth.NewCertificateService()
+	certificateService := serverauth.NewCertificateService(filesCollectinon)
 
 	authService.CreateInitialAdminUser(context.Background())
 
