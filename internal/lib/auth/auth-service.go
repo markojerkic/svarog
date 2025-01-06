@@ -19,6 +19,7 @@ import (
 
 type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
+	LoginWithToken(ctx echo.Context, token string) error
 	Register(ctx echo.Context, form types.RegisterForm) error
 	Logout(ctx echo.Context) error
 	DeleteUser(ctx echo.Context, id string) error
@@ -37,8 +38,9 @@ type MongoAuthService struct {
 
 const SVAROG_SESSION = "svarog_session"
 const (
-	ErrUserNotFound   = "User not found"
-	UserAlreadyExists = "User already exists"
+	ErrUserNotFound    = "User not found"
+	UserAlreadyExists  = "User already exists"
+	LoginTokenNotValid = "Login token not valid"
 ) // Error codes
 
 // GetUserByID implements AuthService.
@@ -93,11 +95,12 @@ func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) e
 	}
 
 	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
-		Username:  form.Username,
-		FirstName: form.FirstName,
-		LastName:  form.LastName,
-		Password:  hashedPassword,
-		Role:      USER,
+		Username:    form.Username,
+		FirstName:   form.FirstName,
+		LastName:    form.LastName,
+		Password:    hashedPassword,
+		Role:        USER,
+		LoginTokens: []string{generateLoginToken()},
 	})
 
 	_, ok := user.InsertedID.(primitive.ObjectID)
@@ -131,9 +134,10 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 	}
 
 	return LoggedInUser{
-		ID:       user.ID.Hex(),
-		Username: user.Username,
-		Role:     user.Role,
+		ID:                 user.ID.Hex(),
+		Username:           user.Username,
+		Role:               user.Role,
+		NeedsPasswordReset: user.NeedsPasswordReset,
 	}, nil
 
 }
@@ -149,6 +153,18 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 
 	if !passwordOk {
 		return errors.New("Invalid password")
+	}
+
+	return m.createSession(ctx, user.ID.Hex())
+}
+
+func (m *MongoAuthService) LoginWithToken(ctx echo.Context, token string) error {
+	var user User
+	err := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
+		"login_tokens": token,
+	}).Decode(&user)
+	if err != nil {
+		return errors.New(LoginTokenNotValid)
 	}
 
 	return m.createSession(ctx, user.ID.Hex())
@@ -248,11 +264,13 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 	}
 
 	_, err = m.userCollection.InsertOne(ctx, User{
-		Username:  "admin",
-		FirstName: "Admin",
-		LastName:  "Admin",
-		Password:  hashedPassword,
-		Role:      ADMIN,
+		Username:           "admin",
+		FirstName:          "Admin",
+		LastName:           "Admin",
+		Password:           hashedPassword,
+		Role:               ADMIN,
+		NeedsPasswordReset: true,
+		LoginTokens:        []string{generateLoginToken()},
 	})
 	return err
 }
@@ -265,6 +283,10 @@ func hashPassword(password string) (string, error) {
 func checkPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+func generateLoginToken() string {
+	return primitive.NewObjectID().Hex()
 }
 
 var _ AuthService = &MongoAuthService{}

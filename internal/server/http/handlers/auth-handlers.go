@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -85,10 +86,10 @@ func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
 
 	group := e.Group("/auth")
 	group.POST("/login", router.login)
-	group.POST("/register", router.register)
 	group.POST("/logout", router.logout)
 	group.GET("/current-user", router.getCurrentUser)
-	group.GET("/users", router.getUsersPage)
+	group.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	group.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	return router
 }

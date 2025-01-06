@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { TextFormField } from "@/components/ui/textfield";
 import { createForm, setError, valiForm } from "@modular-forms/solid";
-import { useNavigate } from "@solidjs/router";
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import {
 	type RegisterInput,
 	registerSchema,
@@ -20,8 +19,10 @@ import {
 } from "@/lib/hooks/auth/register";
 
 export const NewUserDialog = () => {
+	const [open, setOpen] = createSignal(false);
+
 	return (
-		<Dialog>
+		<Dialog open={open()} onOpenChange={setOpen}>
 			<DialogTrigger
 				as={(props: DialogTriggerProps) => (
 					<Button variant="outline" {...props}>
@@ -31,13 +32,13 @@ export const NewUserDialog = () => {
 			/>
 			<DialogContent class="sm:max-w-[425px]">
 				<DialogHeader>
-					<DialogTitle>Edit profile</DialogTitle>
+					<DialogTitle>Create new user</DialogTitle>
 					<DialogDescription>
-						Make changes to your profile here. Click save when you're done.
+						Enter the user's information to create a new user.
 					</DialogDescription>
 				</DialogHeader>
 				<div class="grid gap-4 py-4">
-					<RegisterForm />
+					<RegisterForm onSuccess={() => setOpen(false)} />
 				</div>
 				<DialogFooter>
 					<Button type="submit">Save changes</Button>
@@ -47,9 +48,7 @@ export const NewUserDialog = () => {
 	);
 };
 
-const RegisterForm = () => {
-	const navigate = useNavigate();
-
+const RegisterForm = (props: { onSuccess: () => void }) => {
 	const [form, { Form, Field }] = createForm<RegisterInput>({
 		validate: valiForm(registerSchema),
 	});
@@ -64,7 +63,7 @@ const RegisterForm = () => {
 
 		register.mutate(values, {
 			onSuccess: () => {
-				navigate("/");
+				props.onSuccess();
 			},
 		});
 	};

@@ -34,7 +34,7 @@ func (suite *AuthSuite) TestDeleteUser() {
 	err = suite.authService.Login(ctx, "marko", "marko")
 	assert.NoError(t, err)
 
-	err = suite.authService.DeleteUser(ctx, "marko")
+	err = suite.authService.DeleteUser(ctx, user.ID.Hex())
 	assert.NoError(t, err)
 
 	// Assert no user or sessions in db

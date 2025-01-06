@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { ApiError } from "@/lib/errors/api-error";
 
 export const api = axios.create({
@@ -13,6 +13,11 @@ api.interceptors.response.use(
 			if (apiError) {
 				throw new ApiError(apiError, error.response?.status ?? 500);
 			}
+		} else if (
+			error instanceof AxiosError &&
+			error.message === "Network Error"
+		) {
+			throw new ApiError({ message: "Network error", fields: {} }, 0);
 		}
 
 		throw error;

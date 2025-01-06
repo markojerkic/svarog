@@ -14,6 +14,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
+	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
@@ -42,6 +43,7 @@ func (self *HttpServer) Start() {
 	api.Use(session.MiddlewareWithConfig(session.Config{
 		Store: self.sessionStore,
 	}))
+	api.Use(customMiddleware.AuthContextMiddleware(self.authService))
 
 	if len(self.allowedOrigins) > 0 {
 		log.Info("Allowed origins", "origins", self.allowedOrigins)
