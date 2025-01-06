@@ -7,8 +7,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -18,8 +20,8 @@ import (
 type cleanup = func()
 
 type CertificateService interface {
-	GenerateCertificate(groupId string) (string, cleanup, error)
 	GenerateCaCertificate() (string, cleanup, error)
+	GenerateCertificate(groupId string) (string, cleanup, error)
 	GetCaCertificate() (*x509.Certificate, error)
 }
 
@@ -32,32 +34,41 @@ func (c *CertificateServiceImpl) GetCaCertificate() (*x509.Certificate, error) {
 	panic("unimplemented")
 }
 
-// GenerateCaCertificate implements CertificateService.
 func (c *CertificateServiceImpl) GenerateCaCertificate() (string, cleanup, error) {
-	// Generate CA cert and private key
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "certs")
+	if err != nil {
+		return "", nil, errors.Join(errors.New("Error creating temp dir"), err)
+	}
+
+	cleanup := func() {
+		os.RemoveAll(tempDir)
+	}
+
+	// Generate CA private key
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", nil, errors.Join(errors.New("Error generating private key"), err)
+	}
+
+	// Create CA certificate
 	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
 		Subject: pkix.Name{
-			CommonName: "svarog.jerkic.dev",
+			CommonName: "CA",
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0), // Valid for 10 years
+		NotAfter:              time.Now().AddDate(10, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
 
-	// Generate CA private key
-	caPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Create CA certificate
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
 	if err != nil {
-		log.Fatal(err)
+		return "", nil, errors.Join(errors.New("Error creating certificate"), err)
 	}
 
 	// Save CA certificate
@@ -65,70 +76,98 @@ func (c *CertificateServiceImpl) GenerateCaCertificate() (string, cleanup, error
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
 	})
-	tmpFile, err := os.CreateTemp("", "ca.crt")
-	if err != nil {
-		log.Fatal("Failed to create temp file for ca.crt", "err", err)
+
+	caPath := filepath.Join(tempDir, "ca.crt")
+	if err := os.WriteFile(caPath, caPEM, 0644); err != nil {
+		return "", nil, errors.Join(errors.New("Error writing certificate to file"), err)
 	}
 
-	log.Debug("Writting ca.crt file", "location", tmpFile.Name())
-	os.WriteFile(tmpFile.Name(), caPEM, 0644)
+	log.Debug("CA certificate generated", "caPath", caPath, "caKey", caKey)
 
-	return tmpFile.Name(), func() {
-		os.Remove(tmpFile.Name())
-	}, nil
-
+	return caPath, cleanup, nil
 }
 
-// GenerateCertificate implements CertificateService.
 func (c *CertificateServiceImpl) GenerateCertificate(groupId string) (string, cleanup, error) {
-	// Generate cert and private key
-	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			CommonName: groupId,
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0), // Valid for 10 years
-		IsCA:                  false,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
+
+	caCert, err := c.GetCaCertificate()
+	if err != nil {
+		return "", nil, errors.Join(errors.New("Error getting CA certificate"), err)
+	}
+
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "certs")
+	if err != nil {
+		return "", nil, errors.Join(errors.New("Error creating temp dir"), err)
+	}
+
+	cleanup := func() {
+		os.RemoveAll(tempDir)
 	}
 
 	// Generate private key
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	caCert, err := c.GetCaCertificate()
-	if err != nil {
-		return "", func() {}, err
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error generating private key"), err)
 	}
 
 	// Create certificate
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privKey.PublicKey, privKey)
-	if err != nil {
-		log.Fatal(err)
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject: pkix.Name{
+			CommonName: groupId,
+		},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().AddDate(10, 0, 0),
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		KeyUsage:    x509.KeyUsageDigitalSignature,
 	}
 
-	// Save certificate
+	// Create certificate
+	caKey := caCert.PublicKey.(*ecdsa.PublicKey)
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privKey.PublicKey, caKey)
+	if err != nil {
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error creating certificate"), err)
+	}
+
+	// Encode certificate and private key
 	certPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
-	tmpFile, err := os.CreateTemp("", groupId+".crt")
+
+	privKeyBytes, err := x509.MarshalECPrivateKey(privKey)
 	if err != nil {
-		log.Fatal("Failed to create temp file for "+groupId+".crt", "err", err)
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error marshaling private key"), err)
 	}
 
-	log.Debug("Writting "+groupId+".crt file", "location", tmpFile.Name())
-	os.WriteFile(tmpFile.Name(), certPEM, 0644)
+	privKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: privKeyBytes,
+	})
 
-	return tmpFile.Name(), func() {
-		os.Remove(tmpFile.Name())
-	}, nil
+	// Create combined PEM file
+	pemPath := filepath.Join(tempDir, "cert.pem")
+	pemFile, err := os.OpenFile(pemPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error creating PEM file"), err)
+	}
+	defer pemFile.Close()
 
+	// Write both certificate and private key to the PEM file
+	if _, err := pemFile.Write(certPEM); err != nil {
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error writing certificate to PEM file"), err)
+	}
+	if _, err := pemFile.Write(privKeyPEM); err != nil {
+		cleanup()
+		return "", nil, errors.Join(errors.New("Error writing private key to PEM file"), err)
+	}
+
+	return pemPath, cleanup, nil
 }
 
 var _ CertificateService = &CertificateServiceImpl{}
