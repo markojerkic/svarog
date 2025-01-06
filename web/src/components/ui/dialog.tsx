@@ -10,6 +10,7 @@ import type { ComponentProps, ParentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
 
 export const Dialog = DialogPrimitive;
+export const DialogCloseButton = DialogPrimitive.CloseButton;
 export const DialogTrigger = DialogPrimitive.Trigger;
 
 type dialogContentProps<T extends ValidComponent = "div"> = ParentProps<

@@ -20,7 +20,7 @@ import (
 type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
 	LoginWithToken(ctx echo.Context, token string) error
-	Register(ctx echo.Context, form types.RegisterForm) error
+	Register(ctx echo.Context, form types.RegisterForm) (string, error)
 	Logout(ctx echo.Context) error
 	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
@@ -80,36 +80,37 @@ func (self *MongoAuthService) GetUserByUsername(ctx context.Context, username st
 }
 
 // Register implements AuthService.
-func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) error {
+func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) (string, error) {
 	// Check if user already exists
 	existingUserResult := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
 		"username": form.Username,
 	})
 	if existingUserResult.Err() == nil {
-		return errors.New(UserAlreadyExists)
+		return "", errors.New(UserAlreadyExists)
 	}
 
 	hashedPassword, err := hashPassword(form.Password)
 	if err != nil {
-		return err
+		return "", err
 	}
 
+	loginToken := generateLoginToken()
 	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
 		Username:    form.Username,
 		FirstName:   form.FirstName,
 		LastName:    form.LastName,
 		Password:    hashedPassword,
 		Role:        USER,
-		LoginTokens: []string{generateLoginToken()},
+		LoginTokens: []string{loginToken},
 	})
 
 	_, ok := user.InsertedID.(primitive.ObjectID)
 
 	if !ok {
-		return errors.New("Failed to get user ID")
+		return "", errors.New("Failed to get user ID")
 	}
 
-	return nil
+	return loginToken, nil
 }
 
 // GetCurrentUser implements AuthService.

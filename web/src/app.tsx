@@ -6,6 +6,7 @@ import { MetaProvider } from "@solidjs/meta";
 import { Layout } from "./components/layout";
 import routes from "./routes";
 import { ApiError } from "./lib/errors/api-error";
+import { Toaster } from "solid-sonner";
 
 export default function App() {
 	const queryClient = new QueryClient({
@@ -30,6 +31,7 @@ export default function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<MetaProvider>
+				<Toaster />
 				<Router root={Layout}>{routes}</Router>
 			</MetaProvider>
 			<Show when={import.meta.env.DEV}>

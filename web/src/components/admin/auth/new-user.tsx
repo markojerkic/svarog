@@ -2,6 +2,7 @@ import type { DialogTriggerProps } from "@kobalte/core/dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	DialogCloseButton,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -11,15 +12,17 @@ import {
 } from "@/components/ui/dialog";
 import { TextFormField } from "@/components/ui/textfield";
 import { createForm, setError, valiForm } from "@modular-forms/solid";
-import { createSignal, Show } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import {
 	type RegisterInput,
 	registerSchema,
 	useRegister,
 } from "@/lib/hooks/auth/register";
+import { toast } from "solid-sonner";
 
 export const NewUserDialog = () => {
 	const [open, setOpen] = createSignal(false);
+	const [loginToken, setLoginToken] = createSignal<string>();
 
 	return (
 		<Dialog open={open()} onOpenChange={setOpen}>
@@ -31,24 +34,31 @@ export const NewUserDialog = () => {
 				)}
 			/>
 			<DialogContent class="sm:max-w-[425px]">
-				<DialogHeader>
-					<DialogTitle>Create new user</DialogTitle>
-					<DialogDescription>
-						Enter the user's information to create a new user.
-					</DialogDescription>
-				</DialogHeader>
-				<div class="grid gap-4 py-4">
-					<RegisterForm onSuccess={() => setOpen(false)} />
-				</div>
-				<DialogFooter>
-					<Button type="submit">Save changes</Button>
-				</DialogFooter>
+				<Switch>
+					<Match when={loginToken()} keyed>
+						{(token) => <CopyLoginTokenButton loginToken={token} />}
+					</Match>
+					<Match when={!loginToken()}>
+						<DialogHeader>
+							<DialogTitle>Create new user</DialogTitle>
+							<DialogDescription>
+								Enter the user's information to create a new user.
+							</DialogDescription>
+						</DialogHeader>
+						<div class="grid gap-4 py-4">
+							<RegisterForm onSuccess={setLoginToken} />
+						</div>
+						<DialogFooter>
+							<Button type="submit">Save changes</Button>
+						</DialogFooter>
+					</Match>
+				</Switch>
 			</DialogContent>
 		</Dialog>
 	);
 };
 
-const RegisterForm = (props: { onSuccess: () => void }) => {
+const RegisterForm = (props: { onSuccess: (loginToken: string) => void }) => {
 	const [form, { Form, Field }] = createForm<RegisterInput>({
 		validate: valiForm(registerSchema),
 	});
@@ -62,8 +72,8 @@ const RegisterForm = (props: { onSuccess: () => void }) => {
 		}
 
 		register.mutate(values, {
-			onSuccess: () => {
-				props.onSuccess();
+			onSuccess: (token) => {
+				props.onSuccess(token);
 			},
 		});
 	};
@@ -141,5 +151,29 @@ const RegisterForm = (props: { onSuccess: () => void }) => {
 				Register
 			</Button>
 		</Form>
+	);
+};
+
+const CopyLoginTokenButton = (props: { loginToken: string }) => {
+	const copy = () => {
+		const currentDomain = window.location.origin;
+		const loginUrl = `${currentDomain}/auth/login/${props.loginToken}`;
+		navigator.clipboard.writeText(loginUrl);
+		toast.success("Login token copied to clipboard");
+	};
+
+	return (
+		<>
+			<DialogHeader>
+				<DialogTitle>Login token</DialogTitle>
+				<DialogDescription>
+					Copy the login token below to share with the user.
+				</DialogDescription>
+			</DialogHeader>
+			<Button onClick={copy}>Copy login token</Button>
+			<DialogFooter>
+				<DialogCloseButton>Close</DialogCloseButton>
+			</DialogFooter>
+		</>
 	);
 };
