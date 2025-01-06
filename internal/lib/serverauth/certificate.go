@@ -1,6 +1,7 @@
 package serverauth
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,41 +15,87 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type cleanup = func()
 
 type CertificateService interface {
-	GenerateCaCertificate() (string, cleanup, error)
+	GenerateCaCertificate(ctx context.Context) error
 	GenerateCertificate(groupId string) (string, cleanup, error)
-	GetCaCertificate() (*x509.Certificate, error)
+	GetCaCertificate() (*x509.Certificate, *ecdsa.PrivateKey, error)
 }
 
 type CertificateServiceImpl struct {
-	filesCollecton *mongo.Collection
+	mongoClinet *mongo.Client
+	fileService files.FileService
 }
 
 // GetCaCertificate implements CertificateService.
-func (c *CertificateServiceImpl) GetCaCertificate() (*x509.Certificate, error) {
-	panic("unimplemented")
+func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+
+	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		caCert, err := c.fileService.GetFile(ctx, "ca.crt")
+		if err != nil {
+			return nil, errors.Join(errors.New("Failed getting ca.crt"), err)
+		}
+		caKey, err := c.fileService.GetFile(ctx, "ca.key")
+		if err != nil {
+			return nil, errors.Join(errors.New("Failed getting ca.key"), err)
+		}
+
+		return struct {
+			caCert []byte
+			caKey  []byte
+		}{caCert: caCert, caKey: caKey}, nil
+
+	}, c.mongoClinet)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	caCert := certs.(struct{ caCert []byte }).caCert
+	caKey := certs.(struct{ caKey []byte }).caKey
+
+	block, _ := pem.Decode(caCert)
+	if block == nil {
+		return nil, nil, errors.New("failed to decode certificate")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, errors.New("failed to parse certificate")
+	}
+
+	block, _ = pem.Decode(caKey)
+	if block == nil {
+		return nil, nil, errors.New("failed to decode key")
+	}
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, nil, errors.New("failed to parse key")
+	}
+
+	return cert, key, nil
 }
 
-func (c *CertificateServiceImpl) GenerateCaCertificate() (string, cleanup, error) {
+func (c *CertificateServiceImpl) GenerateCaCertificate() error {
 	// Create temp directory
 	tempDir, err := os.MkdirTemp("", "certs")
 	if err != nil {
-		return "", nil, errors.Join(errors.New("Error creating temp dir"), err)
+		return errors.Join(errors.New("Error creating temp dir"), err)
 	}
 
-	cleanup := func() {
+	defer func() {
 		os.RemoveAll(tempDir)
-	}
+	}()
 
 	// Generate CA private key
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return "", nil, errors.Join(errors.New("Error generating private key"), err)
+		return errors.Join(errors.New("Error generating private key"), err)
 	}
 
 	// Create CA certificate
@@ -68,7 +115,7 @@ func (c *CertificateServiceImpl) GenerateCaCertificate() (string, cleanup, error
 	// Create CA certificate
 	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
 	if err != nil {
-		return "", nil, errors.Join(errors.New("Error creating certificate"), err)
+		return errors.Join(errors.New("Error creating certificate"), err)
 	}
 
 	// Save CA certificate
@@ -79,12 +126,22 @@ func (c *CertificateServiceImpl) GenerateCaCertificate() (string, cleanup, error
 
 	caPath := filepath.Join(tempDir, "ca.crt")
 	if err := os.WriteFile(caPath, caPEM, 0644); err != nil {
-		return "", nil, errors.Join(errors.New("Error writing certificate to file"), err)
+		return errors.Join(errors.New("Error writing certificate to file"), err)
+	}
+
+	// Save CA private key
+	caKeyBytes, err := x509.MarshalECPrivateKey(caKey)
+	if err != nil {
+		return errors.Join(errors.New("Error marshaling private key"), err)
+	}
+	caKeyPath := filepath.Join(tempDir, "ca.key")
+	if err := os.WriteFile(caKeyPath, caKeyBytes, 0600); err != nil {
+		return errors.Join(errors.New("Error writing private key to file"), err)
 	}
 
 	log.Debug("CA certificate generated", "caPath", caPath, "caKey", caKey)
 
-	return caPath, cleanup, nil
+	return c.saveCaCrt(context.Background(), caPath, caKeyPath)
 }
 
 func (c *CertificateServiceImpl) GenerateCertificate(groupId string) (string, cleanup, error) {
@@ -170,14 +227,28 @@ func (c *CertificateServiceImpl) GenerateCertificate(groupId string) (string, cl
 	return pemPath, cleanup, nil
 }
 
+// Save files to mongodb
+func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string, privateKeyPath string) error {
+	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
+		if err != nil {
+			return struct{}{}, errors.Join(errors.New("Failed saving ca.cert"), err)
+		}
+		err = c.fileService.SaveFile(ctx, "ca.key", privateKeyPath)
+		if err != nil {
+			return struct{}{}, errors.Join(errors.New("Failed saving ca.key"), err)
+		}
+
+		return struct{}{}, nil
+	}, c.mongoClinet)
+	return err
+}
+
 var _ CertificateService = &CertificateServiceImpl{}
 
-func NewCertificateService(filesCollecton *mongo.Collection) CertificateService {
-	if filesCollecton == nil {
-		panic("No files collection")
-	}
-
+func NewCertificateService(fileService files.FileService, mongoClinet *mongo.Client) CertificateService {
 	return &CertificateServiceImpl{
-		filesCollecton: filesCollecton,
+		fileService: fileService,
+		mongoClinet: mongoClinet,
 	}
 }

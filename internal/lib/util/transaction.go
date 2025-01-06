@@ -8,15 +8,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
-func StartTransaction(ctx context.Context, fn func(mongo.SessionContext) (interface{}, error), client *mongo.Client) error {
+func StartTransaction(ctx context.Context, fn func(mongo.SessionContext) (interface{}, error), client *mongo.Client) (interface{}, error) {
 	wc := writeconcern.Majority()
 	tnxOptions := options.Transaction().SetWriteConcern(wc)
 	session, err := client.StartSession()
 	if err != nil {
-		return err
+		return struct{}{}, err
 	}
 	defer session.EndSession(ctx)
 
-	_, err = session.WithTransaction(ctx, fn, tnxOptions)
-	return err
+	return session.WithTransaction(ctx, fn, tnxOptions)
 }
