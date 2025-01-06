@@ -22,16 +22,12 @@ func (suite *AuthSuite) TestDeleteUser() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
 	assert.NoError(t, err)
 
 	user, err := suite.authService.GetUserByUsername(context.Background(), "marko")
-	assert.NoError(t, err)
-
-	err = suite.authService.Login(ctx, "marko", "marko")
 	assert.NoError(t, err)
 
 	err = suite.authService.DeleteUser(ctx, user.ID.Hex())
