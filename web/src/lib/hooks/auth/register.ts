@@ -1,4 +1,4 @@
-import { ApiError, } from "@/lib/errors/api-error";
+import { ApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";

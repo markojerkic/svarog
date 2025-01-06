@@ -88,7 +88,6 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 			go self.dumpBacklog(self.ctx, logsToSave)
 
 		case <-interval.C:
-			log.Debug("Dumping backlog after timeout")
 			self.backlog.ForceDump()
 
 		case <-ctx.Done():

@@ -2,10 +2,8 @@ package db
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"log/slog"
 
+	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"go.mongodb.org/mongo-driver/bson"
@@ -64,11 +62,11 @@ func (self *MongoLogRepository) GetClients(ctx context.Context) ([]AvailableClie
 
 // GetLogs implements LogRepository.
 func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
+	log.Debug("Getting logs for client", "client", clientId)
 
 	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
 
-	slog.Debug(fmt.Sprintf("Filter: %v", filter))
+	log.Debug("Filter logs", "filter", filter)
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
@@ -91,36 +89,34 @@ func (self *MongoLogRepository) WatchInserts(ctx context.Context) {
 	for changeStream.Next(ctx) {
 		var event bson.M
 		if err := changeStream.Decode(&event); err != nil {
-			slog.Error("Error decoding log", slog.Any("error", err))
+			log.Error("Error decoding log", "error", err)
 		}
 		fullDocument := event["fullDocument"].(bson.M)
 
-		var log types.StoredLog
+		var storedLog types.StoredLog
 		bsonBytes, err := bson.Marshal(fullDocument) // Convert bson.M to bytes
 		if err != nil {
-			slog.Error("Error marshalling log", slog.Any("error", err))
+			log.Error("Error marshalling log", "error", err)
 			continue
 		}
 
-		err = bson.Unmarshal(bsonBytes, &log) // Unmarshal into the Person struct
+		err = bson.Unmarshal(bsonBytes, &storedLog) // Unmarshal into the Person struct
 		if err != nil {
-			slog.Error("Error unmarshalling log", slog.Any("error", err))
+			log.Error("Error unmarshalling log", "error", err)
 			continue
 		}
 
-		websocket.LogsHub.NotifyInsert(log)
+		websocket.LogsHub.NotifyInsert(storedLog)
 	}
 }
 
 func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	slog.Debug(fmt.Sprintf("Getting logs for client %s", clientId))
+	log.Debug("Getting logs for client", "clientId", clientId)
 
 	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
 
 	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
 
-	slog.Debug("Search, tu sam")
-	slog.Debug("Search", slog.Any("filter", filter), slog.String("query", query))
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
@@ -131,7 +127,7 @@ func (self *MongoLogRepository) SaveLogs(ctx context.Context, logs []types.Store
 	}
 	insertedLines, err := self.logCollection.InsertMany(ctx, saveableLogs)
 	if err != nil {
-		slog.Error("Error saving logs", slog.Any("error", err))
+		log.Error("Error saving logs", "error", err)
 		return err
 	}
 
@@ -167,7 +163,7 @@ func createFilter(clientId string, pageSize int64, instances *[]string, lastCurs
 	var filter bson.D
 
 	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
-		slog.Debug("Adding timestamp cursor", slog.Any("cursor", *lastCursor))
+		log.Debug("Adding timestamp cursor", "cursor", *lastCursor)
 
 		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
 

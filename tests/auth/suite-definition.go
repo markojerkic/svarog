@@ -3,9 +3,8 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/gorilla/sessions"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/stretchr/testify/assert"
@@ -42,12 +41,8 @@ func (suite *AuthSuite) SetupSuite() {
 		suite.T().Fatal(fmt.Sprintf("Could not get connection string: %s", err))
 	}
 
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	log.SetLevel(log.DebugLevel)
+	log.SetReportCaller(true)
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
 	if err != nil {
@@ -64,7 +59,7 @@ func (suite *AuthSuite) SetupSuite() {
 
 // After each
 func (suite *AuthSuite) TearDownTest() {
-	slog.Info("Tearing down test")
+	log.Info("Tearing down test")
 	_, err := suite.userCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(suite.T(), err)
 	_, err = suite.sessionCollection.DeleteMany(context.Background(), bson.M{})
@@ -73,8 +68,8 @@ func (suite *AuthSuite) TearDownTest() {
 
 // After all
 func (suite *AuthSuite) TearDownSuite() {
-	slog.Info("Tearing down suite")
+	log.Info("Tearing down suite")
 	if err := suite.container.Terminate(context.Background()); err != nil {
-		slog.Error("Could not terminate container", slog.Any("error", err))
+		log.Error("Could not terminate container", "error", err)
 	}
 }

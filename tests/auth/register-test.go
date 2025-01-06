@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -21,7 +21,7 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	err := suite.authService.Register(ctx, types.RegisterForm{
+	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",
@@ -38,7 +38,7 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	assert.NotEmpty(t, savedUser.Password)
 	assert.NotEqual(t, "marko", savedUser.Password)
 
-	slog.Info("User saved", slog.Any("user", savedUser))
+	log.Info("User saved", "user", savedUser)
 }
 
 func (suite *AuthSuite) TestRegisterExistingUser() {
@@ -49,7 +49,7 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	err := suite.authService.Register(ctx, types.RegisterForm{
+	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",
@@ -57,7 +57,7 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 	})
 	assert.NoError(t, err)
 
-	err = suite.authService.Register(ctx, types.RegisterForm{
+	_, err = suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",

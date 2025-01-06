@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
-	"log/slog"
 	"os"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
 	"github.com/markojerkic/svarog/cmd/client/retry"
@@ -76,17 +75,14 @@ func getEnv() Env {
 }
 
 func configureLogging(env Env) {
-	opts := &slog.HandlerOptions{}
+	log.SetReportCaller(true)
 
 	if env.debugLogEnabled {
-		opts.Level = slog.LevelDebug
+		log.SetLevel(log.DebugLevel)
 	} else {
-		opts.Level = slog.LevelInfo
+		log.SetLevel(log.ErrorLevel)
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, opts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
 }
 
 func main() {
@@ -102,7 +98,7 @@ func main() {
 	go retryService.Run(context.Background(), func(logLines []*rpc.LogLine) {
 		err := grpcClient.BatchSend(logLines)
 		if err != nil {
-			slog.Info("Failed to retry batch insert. Returning to backlog")
+			log.Info("Failed to retry batch insert. Returning to backlog")
 			backlog.AddAllToBacklog(logLines)
 		}
 	})
