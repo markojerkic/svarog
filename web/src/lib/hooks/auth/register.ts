@@ -10,6 +10,7 @@ export const registerSchema = v.object({
 	username: v.pipe(
 		v.string("Must be a string"),
 		v.nonEmpty("Please enter your email"),
+		v.regex(/^[a-zA-Z0-9]+$/, "Username must not contain whitespaces"),
 		v.minLength(5, "Username must be at least 5 characters"),
 	),
 	firstName: v.pipe(
@@ -21,17 +22,6 @@ export const registerSchema = v.object({
 		v.string("Must be a string"),
 		v.nonEmpty("Please enter users's last name"),
 		v.minLength(3, "Last name must be at least 3 characters"),
-	),
-
-	password: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter your password"),
-		v.minLength(6, "Password must be at least 6 characters"),
-	),
-	repeatedPassword: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter your password"),
-		v.minLength(6, "Password must be at least 6 characters"),
 	),
 });
 export type RegisterInput = v.InferInput<typeof registerSchema>;
@@ -53,7 +43,7 @@ export const useRegister = (form: FormStore<RegisterInput>) => {
 		},
 		onSuccess: () => {
 			return queryClient.invalidateQueries({
-				queryKey: [useUsers.QUERY_KEY(0)],
+				queryKey: useUsers.QUERY_KEY(0),
 			});
 		},
 		onError: (error) => {

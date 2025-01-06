@@ -14,7 +14,7 @@ export const useUsers = (page: () => number) => {
 		enabled: !Number.isNaN(page()),
 	}));
 };
-useUsers.QUERY_KEY = (page: number) => [`users-${page}`];
+useUsers.QUERY_KEY = (page: number) => ["users", `users-${page}`];
 useUsers.QUERY_OPTIONS = (page: number) =>
 	({
 		queryKey: useUsers.QUERY_KEY(page),

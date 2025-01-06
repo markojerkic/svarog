@@ -11,8 +11,8 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { TextFormField } from "@/components/ui/textfield";
-import { createForm, setError, valiForm } from "@modular-forms/solid";
-import { createSignal, Match, Show, Switch } from "solid-js";
+import { createForm, valiForm } from "@modular-forms/solid";
+import { createEffect, createSignal, Match, Show, Switch } from "solid-js";
 import {
 	type RegisterInput,
 	registerSchema,
@@ -23,6 +23,12 @@ import { toast } from "solid-sonner";
 export const NewUserDialog = () => {
 	const [open, setOpen] = createSignal(false);
 	const [loginToken, setLoginToken] = createSignal<string>();
+
+	createEffect(() => {
+		if (!open()) {
+			setLoginToken(undefined);
+		}
+	});
 
 	return (
 		<Dialog open={open()} onOpenChange={setOpen}>
@@ -65,12 +71,6 @@ const RegisterForm = (props: { onSuccess: (loginToken: string) => void }) => {
 	const register = useRegister(form);
 
 	const handleSubmit = (values: RegisterInput) => {
-		if (values.password !== values.repeatedPassword) {
-			setError(form, "password", "Passwords do not match");
-			setError(form, "repeatedPassword", "Passwords do not match");
-			return;
-		}
-
 		register.mutate(values, {
 			onSuccess: (token) => {
 				props.onSuccess(token);
@@ -79,7 +79,7 @@ const RegisterForm = (props: { onSuccess: (loginToken: string) => void }) => {
 	};
 
 	return (
-		<Form onSubmit={handleSubmit}>
+		<Form class="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<Field type="string" name="username">
 				{(field, props) => (
 					<TextFormField
@@ -110,32 +110,6 @@ const RegisterForm = (props: { onSuccess: (loginToken: string) => void }) => {
 						{...props}
 						type="text"
 						label="Last name"
-						error={field.error}
-						value={field.value as string | undefined}
-						required
-					/>
-				)}
-			</Field>
-
-			<Field type="string" name="password">
-				{(field, props) => (
-					<TextFormField
-						{...props}
-						type="password"
-						label="Password"
-						error={field.error}
-						value={field.value as string | undefined}
-						required
-					/>
-				)}
-			</Field>
-
-			<Field type="string" name="repeatedPassword">
-				{(field, props) => (
-					<TextFormField
-						{...props}
-						type="password"
-						label="Repeated password"
 						error={field.error}
 						value={field.value as string | undefined}
 						required

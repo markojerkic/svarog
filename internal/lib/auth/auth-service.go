@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/sethvargo/go-password/password"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -129,19 +130,20 @@ func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) (
 		return "", errors.New(UserAlreadyExists)
 	}
 
-	hashedPassword, err := hashPassword(form.Password)
+	hashedPassword, err := hashPassword(generateRandomPassword())
 	if err != nil {
 		return "", err
 	}
 
 	loginToken := generateLoginToken()
 	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
-		Username:    form.Username,
-		FirstName:   form.FirstName,
-		LastName:    form.LastName,
-		Password:    hashedPassword,
-		Role:        USER,
-		LoginTokens: []string{loginToken},
+		Username:           form.Username,
+		FirstName:          form.FirstName,
+		LastName:           form.LastName,
+		Password:           hashedPassword,
+		Role:               USER,
+		LoginTokens:        []string{loginToken},
+		NeedsPasswordReset: true,
 	})
 
 	_, ok := user.InsertedID.(primitive.ObjectID)
@@ -325,6 +327,15 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
+}
+
+func generateRandomPassword() string {
+	res, err := password.Generate(64, 10, 10, false, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return res
 }
 
 func checkPasswordHash(password, hash string) bool {
