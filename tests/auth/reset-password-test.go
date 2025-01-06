@@ -19,7 +19,6 @@ func (suite *AuthSuite) TestResetPassword() {
 	ctx := e.NewContext(req, rec)
 	user, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "testuser",
-		Password:  "oldpassword",
 		FirstName: "Test",
 		LastName:  "User",
 	})

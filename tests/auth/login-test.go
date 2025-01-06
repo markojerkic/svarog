@@ -10,6 +10,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func (suite *AuthSuite) TestLoginUsernamePass() {
@@ -23,11 +24,16 @@ func (suite *AuthSuite) TestLoginUsernamePass() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
 	assert.NoError(t, err)
+
+	hashedPassword, err := hashPassword("marko")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suite.userCollection.UpdateOne(context.Background(), bson.M{"username": "marko"}, bson.M{"$set": bson.M{"password": hashedPassword}})
 
 	err = suite.authService.Login(ctx, "marko", "marko")
 	assert.NoError(t, err)
@@ -49,11 +55,16 @@ func (suite *AuthSuite) TestLoginInvalidUsername() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
 	assert.NoError(t, err)
+
+	hashedPassword, err := hashPassword("marko")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suite.userCollection.UpdateOne(context.Background(), bson.M{"username": "marko"}, bson.M{"$set": bson.M{"password": hashedPassword}})
 
 	err = suite.authService.Login(ctx, "marko1", "marko")
 	assert.Error(t, err)
@@ -70,11 +81,16 @@ func (suite *AuthSuite) TestLoginWithToken() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
 	assert.NoError(t, err)
+
+	hashedPassword, err := hashPassword("marko")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suite.userCollection.UpdateOne(context.Background(), bson.M{"username": "marko"}, bson.M{"$set": bson.M{"password": hashedPassword}})
 
 	var user auth.User
 	err = suite.userCollection.FindOne(context.Background(), bson.M{"username": "marko"}).Decode(&user)
@@ -95,4 +111,9 @@ func (suite *AuthSuite) TestLoginWithToken() {
 	assert.NoError(t, err)
 	assert.Len(t, user.LoginTokens, 0)
 
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
 }

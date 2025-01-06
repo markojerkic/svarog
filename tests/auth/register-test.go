@@ -23,7 +23,6 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
@@ -36,7 +35,6 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	assert.Equal(t, "marko", savedUser.Username)
 	assert.Equal(t, authlayer.USER, savedUser.Role)
 	assert.NotEmpty(t, savedUser.Password)
-	assert.NotEqual(t, "marko", savedUser.Password)
 
 	log.Info("User saved", "user", savedUser)
 }
@@ -51,7 +49,6 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 
 	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
@@ -59,7 +56,6 @@ func (suite *AuthSuite) TestRegisterExistingUser() {
 
 	_, err = suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
-		Password:  "marko",
 		FirstName: "Marko",
 		LastName:  "Jerkic",
 	})
