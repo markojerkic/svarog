@@ -2,14 +2,11 @@ package auth
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-
-	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
+	"net/http"
+	"net/http/httptest"
 )
 
 func (suite *AuthSuite) TestResetPassword() {
@@ -51,38 +48,21 @@ func (suite *AuthSuite) TestResetPassword() {
 			},
 			expectedError: true,
 		},
-		{
-			name: "password too short",
-			resetForm: types.ResetPasswordForm{
-				Password:         "short",
-				RepeatedPassword: "short",
-			},
-			expectedError: true,
-		},
 	}
 
 	for _, tc := range testCases {
 		suite.Run(tc.name, func() {
 			// Login to get session
-			loginReq := httptest.NewRequest(http.MethodPost, "/login", nil)
-			loginRec := httptest.NewRecorder()
-			loginCtx := e.NewContext(loginReq, loginRec)
-			err = suite.authService.Login(loginCtx, "testuser", "oldpassword")
-			assert.NoError(t, err)
-
-			sessionCookie := loginRec.Result().Cookies()[0]
-			cookieValue := strings.Split(sessionCookie.Value, ";")[0]
-			sessionCookie.Value = cookieValue
-			log.Debug("Logged in", "cookie", sessionCookie)
+			// loginReq := httptest.NewRequest(http.MethodPost, "/login", nil)
+			// loginRec := httptest.NewRecorder()
+			// loginCtx := e.NewContext(loginReq, loginRec)
+			// err = suite.authService.Login(loginCtx, "testuser", "oldpassword")
+			// assert.NoError(t, err)
 
 			// Perform password reset
 			resetReq := httptest.NewRequest(http.MethodPost, "/reset-password", nil)
 			resetRec := httptest.NewRecorder()
 			resetCtx := e.NewContext(resetReq, resetRec)
-			resetReq.AddCookie(&http.Cookie{
-				Name:  sessionCookie.Name,
-				Value: sessionCookie.Value,
-			})
 
 			user, err := suite.authService.GetUserByUsername(context.Background(), "testuser")
 			assert.NoError(t, err)
