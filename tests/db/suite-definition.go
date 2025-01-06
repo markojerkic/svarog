@@ -2,10 +2,8 @@ package db
 
 import (
 	"context"
-	"log"
-	"log/slog"
-	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -15,28 +13,28 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type RepositorySuite struct {
+type LogsCollectionRepositorySuite struct {
 	suite.Suite
 	container        *mongodb.MongoDBContainer
 	connectionString string
 
-	mongoRepository *db.MongoLogRepository
-	logServer       db.AggregatingLogServer
+	logsRepository *db.MongoLogRepository
+	logServer      db.AggregatingLogServer
 
-	mongoClient *mongo.Client
+	logsCollection *mongo.Collection
 
 	testContainerContext context.Context
 	logServerContext     context.Context
 }
 
 // Before all
-func (suite *RepositorySuite) SetupSuite() {
+func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 	suite.logServerContext = context.Background()
 	suite.testContainerContext = context.Background()
 
 	container, err := mongodb.Run(suite.testContainerContext, "mongo:7", mongodb.WithReplicaSet("rs0"))
 	if err != nil {
-		log.Fatalf("Could not start container: %s", err)
+		log.Fatal("Could not start container", "error", err)
 	}
 
 	suite.container = container
@@ -45,27 +43,28 @@ func (suite *RepositorySuite) SetupSuite() {
 		log.Fatalf("Could not get connection string: %s", err)
 	}
 
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+	log.SetLevel(log.DebugLevel)
+	log.SetReportCaller(true)
+
+	clientOptions := options.Client().ApplyURI(suite.connectionString)
+	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		suite.T().Fatal(err)
 	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-
-	suite.mongoRepository = db.NewMongoClient(suite.connectionString)
-	suite.logServer = db.NewLogServer(suite.mongoRepository)
-
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
-	suite.mongoClient = mongoClient
-
 	suite.initiateReplicaSet(mongoClient)
+
+	database := mongoClient.Database("svarog")
+
+	suite.logsRepository = db.NewLogRepository(database)
+	suite.logServer = db.NewLogServer(suite.logsRepository)
+	suite.logsCollection = database.Collection("log_lines")
 
 	if err != nil {
 		log.Fatalf("Could not connect to mongo: %s", err)
 	}
 }
 
-func (self *RepositorySuite) initiateReplicaSet(client *mongo.Client) error {
+func (self *LogsCollectionRepositorySuite) initiateReplicaSet(client *mongo.Client) error {
 	host, err := self.container.Host(context.Background())
 
 	if err != nil {
@@ -91,9 +90,9 @@ func (self *RepositorySuite) initiateReplicaSet(client *mongo.Client) error {
 }
 
 // Before each
-func (suite *RepositorySuite) SetupTest() {
-	slog.Info("Setting up test. Recreating context")
-	suite.logServer = db.NewLogServer(suite.mongoRepository)
+func (suite *LogsCollectionRepositorySuite) SetupTest() {
+	log.Info("Setting up test. Recreating context")
+	suite.logServer = db.NewLogServer(suite.logsRepository)
 	num := suite.countNumberOfLogsInDb()
 	if ok := assert.Equal(suite.T(), int64(0), num, "Database should be empty before each test"); !ok {
 		suite.T().FailNow()
@@ -101,14 +100,14 @@ func (suite *RepositorySuite) SetupTest() {
 }
 
 // After each
-func (suite *RepositorySuite) TearDownTest() {
-	slog.Info("Tearing down test")
+func (suite *LogsCollectionRepositorySuite) TearDownTest() {
+	log.Info("Tearing down test")
 	// err := suite.mongoClient.Database("logs").Collection("log_lines").Drop(context.Background())
-	result, err := suite.mongoClient.Database("logs").Collection("log_lines").DeleteMany(context.Background(), bson.M{})
+	result, err := suite.logsCollection.DeleteMany(context.Background(), bson.M{})
 
 	assert.NoError(suite.T(), err)
 
-	slog.Info("Deleted logs: ", slog.Any("count", result.DeletedCount))
+	log.Info("Deleted logs: ", "count", result.DeletedCount)
 	num := suite.countNumberOfLogsInDb()
 	if ok := assert.Equal(suite.T(), int64(0), num, "Database teardown not successful"); !ok {
 		suite.T().FailNow()
@@ -117,8 +116,8 @@ func (suite *RepositorySuite) TearDownTest() {
 }
 
 // After all
-func (suite *RepositorySuite) TearDownSuite() {
-	log.Println("Tearing down suite")
+func (suite *LogsCollectionRepositorySuite) TearDownSuite() {
+	log.Info("Tearing down suite")
 	if err := suite.container.Terminate(suite.testContainerContext); err != nil {
 		log.Fatalf("failed to terminate container: %s", err)
 	}

@@ -1,5 +1,5 @@
 import { expect, describe, it } from "vitest";
-import { SortedList } from "~/lib/store/sorted-list";
+import { SortedList } from "@/lib/store/sorted-list";
 
 describe("Sorted list", () => {
 	it("Sort on insert and return correct item at index", () => {

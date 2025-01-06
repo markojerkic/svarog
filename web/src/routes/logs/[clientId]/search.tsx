@@ -1,5 +1,5 @@
 import { debounce } from "@solid-primitives/scheduled";
-import { useParams, useSearchParams } from "@markojerkic/solid-router";
+import { useParams, useSearchParams } from "@solidjs/router";
 import {
 	ErrorBoundary,
 	Show,
@@ -7,11 +7,11 @@ import {
 	createEffect,
 	createSignal,
 } from "solid-js";
-import { createLogViewer } from "~/components/log-viewer";
-import { useSelectedInstances } from "~/lib/hooks/use-selected-instances";
-import { createLogQuery, getInstances } from "~/lib/store/query";
-import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
-import { Instances, NOOP_WS_ACTIONS } from "~/components/instances";
+import { createLogViewer } from "@/components/log-viewer";
+import { useSelectedInstances } from "@/lib/hooks/use-selected-instances";
+import { createLogQuery, getInstances } from "@/lib/store/query";
+import { useWithPreviousValue } from "@/lib/hooks/with-previous-value";
+import { Instances, NOOP_WS_ACTIONS } from "@/components/instances";
 import { createQuery } from "@tanstack/solid-query";
 
 export default () => {

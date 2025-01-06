@@ -25,7 +25,8 @@ run-server: build-server-dev
 
 watch:
 	@docker compose -f ./docker-compose.dev.yml up -d
-	@go run github.com/cosmtrek/air@v1.51.0
+	@watchexec -r -e go -d 1s -- go run cmd/server/main.go
+	# @go run github.com/cosmtrek/air@v1.51.0
 
 build-dev: build-server-dev
 

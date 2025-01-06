@@ -8,5 +8,5 @@ import (
 
 // Run test duite
 func TestRepositorySuite(t *testing.T) {
-	suite.Run(t, new(RepositorySuite))
+	suite.Run(t, new(LogsCollectionRepositorySuite))
 }

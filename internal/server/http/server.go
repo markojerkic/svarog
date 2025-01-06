@@ -3,58 +3,69 @@ package http
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 
+	"github.com/charmbracelet/log"
+	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
+	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type HttpServer struct {
 	logRepository db.LogRepository
+	sessionStore  sessions.Store
+	authService   auth.AuthService
 
 	allowedOrigins []string
 	serverPort     int
 }
 
 type HttpServerOptions struct {
+	LogRepository  db.LogRepository
+	SessionStore   sessions.Store
+	AuthService    auth.AuthService
 	AllowedOrigins []string
 	ServerPort     int
 }
 
 func (self *HttpServer) Start() {
 	e := echo.New()
+	e.Validator = &Validator{validator: validator.New()}
 
-	api := e.Group("/api/v1")
-
-	if len(self.allowedOrigins) > 0 {
-		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins: self.allowedOrigins,
-		}))
-	}
-
-	api.GET("/clients", func(c echo.Context) error {
-		clients, err := self.logRepository.GetClients(c.Request().Context())
-
-		if err != nil {
-			return err
-		}
-
-		return c.JSON(200, clients)
+	sessionMiddleware := session.MiddlewareWithConfig(session.Config{
+		Store: self.sessionStore,
+	})
+	corsMiddleware := middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     self.allowedOrigins,
+		AllowCredentials: true,
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+		AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
 	})
 
-	handlers.NewLogsRouter(self.logRepository, api)
-	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
+	privateApi := e.Group("/api/v1",
+		corsMiddleware,
+		sessionMiddleware,
+		customMiddleware.AuthContextMiddleware(self.authService),
+		customMiddleware.RestPasswordMiddleware())
+	publicApi := e.Group("/api/v1", corsMiddleware, sessionMiddleware)
+
+	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
+	handlers.NewLogsRouter(self.logRepository, privateApi)
+	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
 	e.GET("/*", func(c echo.Context) error {
 		// Serve requested file or fallback to index.html
 		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
 
 		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
-			slog.Error("File not found", slog.String("file", requestedFile))
+			log.Error("File not found", "file", requestedFile)
 			return c.File("public/index.html")
 		}
 
@@ -65,11 +76,13 @@ func (self *HttpServer) Start() {
 	e.Logger.Fatal(e.Start(serverAddr))
 }
 
-func NewServer(logRepository db.LogRepository, options HttpServerOptions) *HttpServer {
+func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logRepository:  logRepository,
+		logRepository:  options.LogRepository,
+		sessionStore:   options.SessionStore,
 		allowedOrigins: options.AllowedOrigins,
 		serverPort:     options.ServerPort,
+		authService:    options.AuthService,
 	}
 
 	return server

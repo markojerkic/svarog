@@ -1,8 +1,7 @@
-import { A, useParams } from "@markojerkic/solid-router";
-import type { VoidProps } from "solid-js";
+import { A, type RouteSectionProps, useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 
-export default (params: VoidProps) => {
+export default (params: RouteSectionProps) => {
 	const clientId = useParams().clientId;
 
 	return (

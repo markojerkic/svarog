@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (self *RepositorySuite) TestInstances() {
+func (self *LogsCollectionRepositorySuite) TestInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -47,10 +47,10 @@ func (self *RepositorySuite) TestInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	instances, err := self.mongoRepository.GetInstances(context.Background(), "marko")
+	instances, err := self.logsRepository.GetInstances(context.Background(), "marko")
 	assert.NoError(t, err)
 
 	sort.Sort(sort.StringSlice(instances))
@@ -60,7 +60,7 @@ func (self *RepositorySuite) TestInstances() {
 
 }
 
-func (self *RepositorySuite) TestFilterByInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -97,10 +97,10 @@ func (self *RepositorySuite) TestFilterByInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.mongoRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(logs))
 	for _, log := range logs {
@@ -109,7 +109,7 @@ func (self *RepositorySuite) TestFilterByInstances() {
 	}
 }
 
-func (self *RepositorySuite) TestFilterByMultipleInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -154,10 +154,10 @@ func (self *RepositorySuite) TestFilterByMultipleInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.mongoRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(logs))
 	for _, log := range logs {
@@ -166,7 +166,7 @@ func (self *RepositorySuite) TestFilterByMultipleInstances() {
 	}
 }
 
-func (self *RepositorySuite) TestFilterByAllInstances() {
+func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	t := self.T()
 
 	mockLogLines := []types.StoredLog{
@@ -211,10 +211,10 @@ func (self *RepositorySuite) TestFilterByAllInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.mongoRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.mongoRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(mockLogLines), len(logs))
 }

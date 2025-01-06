@@ -3,12 +3,11 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -17,8 +16,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (suite *RepositorySuite) countNumberOfLogsInDb() int64 {
-	collection := suite.mongoClient.Database("logs").Collection("log_lines")
+func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
+	collection := suite.logsCollection
 
 	count, err := collection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
@@ -48,7 +47,7 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImported
 
 var numberOfImportedLogs = int64(1_000_000)
 
-func (suite *RepositorySuite) TestMassImport() {
+func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
@@ -62,24 +61,24 @@ func (suite *RepositorySuite) TestMassImport() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount()))
+			log.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
 			time.Sleep(8 * time.Second)
 		} else {
-			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
+			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}
 
-	clients, err := suite.mongoRepository.GetClients(context.Background())
+	clients, err := suite.logsRepository.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients))
 
 	count := suite.countNumberOfLogsInDb()
-	slog.Info(fmt.Sprintf("Number of logs in db: %d", count))
+	log.Info("Number of logs in db", "count", count)
 	assert.Equal(t, numberOfImportedLogs, count)
 
 	elapsed := time.Since(start)
-	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
+	log.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
 	suite.logServerContext.Done()
 
 	// SECOND PART OF THE TEST
@@ -90,7 +89,7 @@ func (suite *RepositorySuite) TestMassImport() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
+		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

@@ -1,4 +1,4 @@
-import { A } from "@markojerkic/solid-router";
+import { A } from "@solidjs/router";
 
 export default function NotFound() {
 	return (

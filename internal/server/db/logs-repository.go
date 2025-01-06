@@ -2,10 +2,9 @@ package db
 
 import (
 	"context"
-	"log"
-	"log/slog"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -67,7 +66,7 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 }
 
 func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp) {
-	slog.Debug("Starting log server")
+	log.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
 
@@ -89,11 +88,10 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 			go self.dumpBacklog(self.ctx, logsToSave)
 
 		case <-interval.C:
-			slog.Debug("Dumping backlog after timeout")
 			self.backlog.ForceDump()
 
 		case <-ctx.Done():
-			slog.Debug("Context done")
+			log.Debug("Context done")
 			break
 		}
 	}

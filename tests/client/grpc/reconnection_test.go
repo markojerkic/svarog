@@ -3,14 +3,12 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"net"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
 	"github.com/markojerkic/svarog/internal/lib/optional"
 	rpc "github.com/markojerkic/svarog/internal/proto"
@@ -31,7 +29,7 @@ func (m *MockServer) BatchLog(ctx context.Context, lines *rpc.Backlog) (*rpc.Voi
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	receivedLines = append(receivedLines, lines.Logs...)
-	log.Printf("Mock server: Received batch log of size: %d", len(lines.Logs))
+	log.Info("Mock server: Received batch log of size", "size", len(lines.Logs))
 	return &rpc.Void{}, nil
 }
 
@@ -83,12 +81,8 @@ func generateLogLine(index int) *rpc.LogLine {
 }
 
 func createDebugLogger() {
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	log.SetLevel(log.DebugLevel)
+	log.SetReportCaller(true)
 }
 
 func TestReconnectingClient(t *testing.T) {
@@ -101,17 +95,17 @@ func TestReconnectingClient(t *testing.T) {
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
-	log.Println("Created client")
+	log.Info("Created client")
 
 	input := make(chan *rpc.LogLine, 10)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Println("Log line returned to input channel due to connection error")
+		log.Error("Log line returned to input channel due to connection error")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
-	log.Println("Client started")
+	log.Info("Client started")
 
 	for i := 0; i < 10; i++ {
 		input <- generateLogLine(i)
@@ -121,20 +115,20 @@ func TestReconnectingClient(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	server.Stop()
-	log.Println("Server stopped")
+	log.Info("Server stopped")
 
 	for i := 10; i < 20; i++ {
 		input <- generateLogLine(i)
 		log.Printf("Sent log line %d", i)
 	}
 
-	log.Println("Sleeping for 5 seconds before restarting server")
+	log.Info("Sleeping for 5 seconds before restarting server")
 	time.Sleep(6 * time.Second)
 
 	server, listen, addr, _ = createMockGrpcServer(&addr)
 
 	go listen()
-	log.Println("Server restarted")
+	log.Info("Server restarted")
 
 	time.Sleep(10 * time.Second)
 	cancel()
@@ -154,7 +148,7 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
-	log.Println("Created client")
+	log.Info("Created client")
 
 	input := make(chan *rpc.LogLine, 30)
 	defer close(input)
@@ -162,11 +156,11 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 	defer cancel()
 
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Println("Log line returned to input channel due to connection error")
+		log.Info("Log line returned to input channel due to connection error")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
-	log.Println("Client started")
+	log.Info("Client started")
 
 	for i := 0; i < 10; i++ {
 		input <- generateLogLine(i)
@@ -178,5 +172,5 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 	go listen()
 	time.Sleep(1 * time.Second)
 	server.Stop()
-	log.Println("Server stopped")
+	log.Info("Server stopped")
 }

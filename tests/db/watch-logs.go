@@ -3,16 +3,16 @@ package db
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/assert"
 )
 
-func (suite *RepositorySuite) TestWatchInsert() {
+func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 	t := suite.T()
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
@@ -48,10 +48,10 @@ func (suite *RepositorySuite) TestWatchInsert() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount()))
+			log.Info("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount())
 			time.Sleep(1 * time.Second)
 		} else {
-			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
+			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}

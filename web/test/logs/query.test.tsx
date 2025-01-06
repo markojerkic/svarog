@@ -12,8 +12,8 @@ import {
 	createEffect,
 } from "solid-js";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createLogQuery } from "~/lib/store/query";
-import type { LogLine } from "~/lib/store/query";
+import { createLogQuery } from "@/lib/store/query";
+import type { LogLine } from "@/lib/store/query";
 
 const waitFor = (fn: () => boolean, owner?: Owner) => {
 	let done: () => void;

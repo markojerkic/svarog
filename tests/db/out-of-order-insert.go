@@ -3,11 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"math"
 	"time"
 
+	"github.com/charmbracelet/log"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
@@ -25,14 +24,14 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 			Client:    "marko",
 		}
 		if i%2_000 == 0 {
-			log.Printf("Generated %d log lines", i)
+			log.Infof("Generated %d log lines", i)
 		}
 	}
 
 	i := 0
 	for i < int(numberOfImportedLogs) {
 		if i%1000 == 0 {
-			slog.Debug(fmt.Sprintf("Sending even line %d", i))
+			log.Debugf("Sending even line %d", i)
 		}
 		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
 		i += 2
@@ -46,7 +45,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 	i = 1
 	for i < int(numberOfImportedLogs) {
 		if i%1000 == 0 {
-			slog.Debug(fmt.Sprintf("Sending odd line %d", i))
+			log.Debug("Sending odd line %d", i)
 		}
 		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
 		i += 2
@@ -55,7 +54,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 
 }
 
-func (suite *RepositorySuite) TestOutOfOrderInsert() {
+func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
 
@@ -69,10 +68,10 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 	generateOddAndEvenLines(logIngestChannel, 10_000)
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info(fmt.Sprintf("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount()))
+			log.Info("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount())
 			time.Sleep(6 * time.Second)
 		} else {
-			slog.Info("Backlog is empty, we can count items", slog.Int64("count", int64(suite.logServer.BacklogCount())))
+			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}
@@ -80,14 +79,14 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 	suite.logServerContext.Done()
 
 	elapsed := time.Since(start)
-	slog.Info(fmt.Sprintf("Imported %d logs in %s", 10_000, elapsed))
+	log.Info("Imported %d logs in %s", 10_000, elapsed)
 
-	clients, err := suite.mongoRepository.GetClients(context.Background())
+	clients, err := suite.logsRepository.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients), "Expected one client")
 
 	count := suite.countNumberOfLogsInDb()
-	slog.Info(fmt.Sprintf("Number of logs in db: %d", count))
+	log.Info("Number of logs in db: %d", count)
 	assert.Equal(t, int64(10_000), count, "Expected 20 000 logs in db")
 
 	index := int(10_000)
@@ -95,7 +94,7 @@ func (suite *RepositorySuite) TestOutOfOrderInsert() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.mongoRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
+		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

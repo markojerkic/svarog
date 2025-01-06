@@ -3,10 +3,10 @@ package grpcclient
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/log"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -48,11 +48,11 @@ func (g *GrpcClient) Run(ctx context.Context, ch <-chan *rpc.LogLine, returnToBa
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Debug("Client context done")
+			log.Debug("Client context done")
 			return
 		case logLine := <-ch:
 			if err := g.sendLogLine(logLine); err != nil {
-				slog.Debug("Sending log line failed", slog.Any("error", err))
+				log.Debug("Sending log line failed", "error", err)
 				returnToBacklog(logLine)
 				g.reconnect()
 			}
@@ -96,12 +96,12 @@ func (g *GrpcClient) reconnect() {
 	defer g.mutex.Unlock()
 
 	for {
-		slog.Debug("Attempting to reconnect...", slog.String("server address", g.serverAddress))
+		log.Debug("Attempting to reconnect...", "server address", g.serverAddress)
 		if err := g.connect(); err == nil {
-			slog.Debug("Reconnected successfully")
+			log.Debug("Reconnected successfully")
 			return
 		}
-		slog.Debug("Failed to reconnect, retrying in 5 seconds...")
+		log.Debug("Failed to reconnect, retrying in 5 seconds...")
 		time.Sleep(5 * time.Second)
 	}
 }

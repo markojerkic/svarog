@@ -1,4 +1,8 @@
-import { type RouteDefinition, useParams } from "@markojerkic/solid-router";
+import {
+	type RouteDefinition,
+	type RouteSectionProps,
+	useParams,
+} from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import {
 	ErrorBoundary,
@@ -8,16 +12,16 @@ import {
 	on,
 	onMount,
 } from "solid-js";
-import { Instances } from "~/components/instances";
-import { createLogViewer } from "~/components/log-viewer";
+import { Instances } from "@/components/instances";
+import { createLogViewer } from "@/components/log-viewer";
 import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
-} from "~/lib/hooks/use-selected-instances";
-import { useWithPreviousValue } from "~/lib/hooks/with-previous-value";
-import { createLogSubscription } from "~/lib/store/connection";
-import { getInstances } from "~/lib/store/query";
-import { createLogQuery } from "~/lib/store/query";
+} from "@/lib/hooks/use-selected-instances";
+import { useWithPreviousValue } from "@/lib/hooks/with-previous-value";
+import { createLogSubscription } from "@/lib/store/connection";
+import { getInstances } from "@/lib/store/query";
+import { createLogQuery } from "@/lib/store/query";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -27,20 +31,19 @@ export const route = {
 			location.query.instances,
 		);
 
-		queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId],
-			queryFn: ({ signal }) => getInstances(clientId, signal),
-		});
-
 		createLogQuery(
 			() => clientId,
 			() => selectedInstances,
 			() => undefined,
 		);
+		await queryClient.prefetchQuery({
+			queryKey: ["logs", "instances", clientId],
+			queryFn: ({ signal }) => getInstances(clientId, signal),
+		});
 	},
 } satisfies RouteDefinition;
 
-export default () => {
+export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
 

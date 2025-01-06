@@ -1,14 +1,17 @@
-import { A, type RouteDefinition } from "@markojerkic/solid-router";
+import { ServiceListItem } from "@/components/service-card";
+import { api } from "@/lib/utils/axios-api";
+import type { RouteDefinition } from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 
 const getClients = async () => {
-	const response = await fetch(`${import.meta.env.VITE_API_URL}/v1/clients`);
-	return response.json() as Promise<{ Client: { clientId: number } }[]>;
+	const response =
+		await api.get<{ Client: { clientId: string } }[]>("/v1/logs/clients");
+	return response.data;
 };
 
 export const route = {
-	load: async () => {
+	preload: async () => {
 		return await useQueryClient().prefetchQuery({
 			queryKey: ["clients"],
 			queryFn: () => getClients(),
@@ -28,16 +31,7 @@ export default function Home() {
 				each={clients.data}
 				fallback={<div class="animate-bounce text-white">Loading...</div>}
 			>
-				{(client) => (
-					<div>
-						<A
-							href={`/logs/${client.Client.clientId}`}
-							class="text-blue-500 hover:underline"
-						>
-							Client {client.Client.clientId}
-						</A>
-					</div>
-				)}
+				{(client) => <ServiceListItem clientId={client.Client.clientId} />}
 			</For>
 		</main>
 	);

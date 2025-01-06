@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
-	"log/slog"
+	"github.com/charmbracelet/log"
 	"net"
 	"os"
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -60,7 +63,7 @@ func (i *ImplementedServer) BatchLog(ctx context.Context, batchLogs *rpc.Backlog
 	if err != nil {
 		return &rpc.Void{}, err
 	}
-	slog.Debug("Received batch log", slog.Int64("size", int64(len(batchLogs.Logs))), slog.String("ip", ipv4))
+	log.Debug("Received batch log", "size", int64(len(batchLogs.Logs)), "ip", ipv4)
 
 	for _, logLine := range batchLogs.Logs {
 		logIngestChannel <- db.LogLineWithIp{LogLine: logLine, Ip: ipv4}
@@ -120,26 +123,51 @@ func startGrpcServer(env Env) {
 }
 
 func setupLogger() {
-	logOpts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+	log.SetLevel(log.DebugLevel)
+	log.SetReportCaller(true)
+}
+
+func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
+	clientOptions := options.Client().ApplyURI(connectionUrl)
+	client, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		return nil, nil, errors.Join(errors.New("Error connecting to MongoDb"), err)
 	}
-	handler := slog.NewJSONHandler(os.Stdout, logOpts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+
+	database := client.Database("logs")
+
+	return client, database, nil
 }
 
 func main() {
 	setupLogger()
 	env := loadEnv()
 
-	mongoRepository := db.NewMongoClient(env.MongoUrl)
-	logServer := db.NewLogServer(mongoRepository)
-	httpServer := http.NewServer(mongoRepository, http.HttpServerOptions{
-		AllowedOrigins: env.HttpServerAllowedOrigins,
-		ServerPort:     env.HttpServerPort,
-	})
+	client, database, err := newMongoDB(env.MongoUrl)
+	if err != nil {
+		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
+	}
 
-	slog.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
+	userCollection := database.Collection("users")
+	sessionCollection := database.Collection("sessions")
+
+	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
+	logsRepository := db.NewLogRepository(database)
+	logServer := db.NewLogServer(logsRepository)
+	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
+
+	authService.CreateInitialAdminUser(context.Background())
+
+	httpServer := http.NewServer(
+		http.HttpServerOptions{
+			AllowedOrigins: env.HttpServerAllowedOrigins,
+			ServerPort:     env.HttpServerPort,
+			SessionStore:   sessionStore,
+			LogRepository:  logsRepository,
+			AuthService:    authService,
+		})
+
+	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d", env.GrpcServerPort, env.HttpServerPort))
 
 	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()

@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"log/slog"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -38,7 +38,7 @@ func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
 	if clientId == "" {
 		return c.JSON(400, "No client id")
 	}
-	slog.Debug("Getting instances by client", slog.String("clientId", clientId))
+	log.Debug("Getting instances by client", "clientId", clientId)
 
 	instances, err := self.logRepository.GetInstances(c.Request().Context(), clientId)
 	if err != nil {
@@ -53,11 +53,11 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 
 	err := c.Bind(&params)
 	if err != nil {
-		slog.Error("Bindings for logs by client not correct", slog.Any("error", err))
+		log.Error("Bindings for logs by client not correct", "error", err)
 		return c.JSON(400, "Bad request")
 	}
 
-	slog.Debug("params", slog.Any("params", params))
+	log.Debug("Get logs by client", "params", params)
 
 	var nextCursor db.LastCursor
 	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
@@ -68,7 +68,6 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	slog.Debug("next", slog.Any("cursor", nextCursor))
 	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
@@ -95,12 +94,21 @@ type SearchLogsByClientBinding struct {
 	Search string `query:"search"`
 }
 
+func (self *LogsRouter) clientsHandler(c echo.Context) error {
+	clients, err := self.logRepository.GetClients(c.Request().Context())
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(200, clients)
+}
+
 func (self *LogsRouter) searchLogs(c echo.Context) error {
 	var params SearchLogsByClientBinding
 
 	err := c.Bind(&params)
 	if err != nil {
-		slog.Error("Bindings for logs by client not correct", slog.Any("error", err))
+		log.Error("Bindings for logs by client not correct", "error", err)
 		return c.JSON(400, "Bad request")
 	}
 
@@ -113,7 +121,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 		}
 	}
 
-	slog.Debug("next", slog.Any("cursor", nextCursor))
+	log.Debug("next", "cursor", nextCursor)
 	logs, err := self.logRepository.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
@@ -144,6 +152,7 @@ func NewLogsRouter(logRepository db.LogRepository, e *echo.Group) *LogsRouter {
 		api:           logsApi,
 	}
 
+	logsRouter.api.GET("/clients", logsRouter.clientsHandler)
 	logsRouter.api.GET("/:clientId", logsRouter.logsByClientHandler)
 	logsRouter.api.GET("/:clientId/instances", logsRouter.instancesByClientHandler)
 	logsRouter.api.GET("/:clientId/search", logsRouter.searchLogs)
