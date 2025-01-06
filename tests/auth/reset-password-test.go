@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -69,14 +71,24 @@ func (suite *AuthSuite) TestResetPassword() {
 			assert.NoError(t, err)
 
 			sessionCookie := loginRec.Result().Cookies()[0]
+			cookieValue := strings.Split(sessionCookie.Value, ";")[0]
+			sessionCookie.Value = cookieValue
+			log.Debug("Logged in", "cookie", sessionCookie)
 
 			// Perform password reset
 			resetReq := httptest.NewRequest(http.MethodPost, "/reset-password", nil)
 			resetRec := httptest.NewRecorder()
 			resetCtx := e.NewContext(resetReq, resetRec)
-			resetReq.AddCookie(sessionCookie)
+			resetReq.AddCookie(&http.Cookie{
+				Name:  sessionCookie.Name,
+				Value: sessionCookie.Value,
+			})
 
-			err = suite.authService.ResetPassword(resetCtx, tc.resetForm)
+			user, err := suite.authService.GetUserByUsername(context.Background(), "testuser")
+			assert.NoError(t, err)
+			userId := user.ID.Hex()
+
+			err = suite.authService.ResetPassword(resetCtx.Request().Context(), userId, tc.resetForm)
 
 			if tc.expectedError {
 				assert.Error(t, err)

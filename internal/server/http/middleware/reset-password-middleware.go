@@ -16,7 +16,6 @@ func RestPasswordMiddleware() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			log.Debug("Path", "path", c.Path())
 			if user.NeedsPasswordReset && c.Path() != "/api/v1/auth/reset-password" {
 				return c.JSON(401, types.ApiError{Message: "password_reset_required"})
 			}

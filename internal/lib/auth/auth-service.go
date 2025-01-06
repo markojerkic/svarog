@@ -22,7 +22,7 @@ type AuthService interface {
 	LoginWithToken(ctx echo.Context, token string) error
 	Register(ctx echo.Context, form types.RegisterForm) (string, error)
 	Logout(ctx echo.Context) error
-	ResetPassword(ctx echo.Context, form types.ResetPasswordForm) error
+	ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error
 	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
@@ -46,26 +46,47 @@ const (
 ) // Error codes
 
 // ResetPassword implements AuthService.
-func (self *MongoAuthService) ResetPassword(ctx echo.Context, form types.ResetPasswordForm) error {
+func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error {
 	if form.Password != form.RepeatedPassword {
 		return errors.New(PasswordsDoNotMatch)
 	}
 
-	user, err := self.GetCurrentUser(ctx)
+	userID, err := primitive.ObjectIDFromHex(userId)
 	if err != nil {
 		return err
 	}
 
-	hashedPassword, err := hashPassword(form.Password)
+	wc := writeconcern.Majority()
+	tnxOptions := options.Transaction().SetWriteConcern(wc)
+	session, err := self.mongoClient.StartSession()
 	if err != nil {
 		return err
 	}
-	_, err = self.userCollection.UpdateByID(ctx.Request().Context(), user.ID, bson.M{
-		"$set": bson.M{
-			"password":             hashedPassword,
-			"needs_password_reset": false,
-		},
-	})
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(c mongo.SessionContext) (interface{}, error) {
+		var user User
+		err = self.userCollection.FindOne(ctx, bson.M{
+			"_id": userID,
+		}).Decode(&user)
+
+		if err != nil {
+			return struct{}{}, errors.New(ErrUserNotFound)
+		}
+
+		hashedPassword, err := hashPassword(form.Password)
+		if err != nil {
+			return struct{}{}, err
+		}
+		updateResult, err := self.userCollection.UpdateByID(ctx, user.ID, bson.M{
+			"$set": bson.M{
+				"password":             hashedPassword,
+				"needs_password_reset": false,
+			},
+		})
+
+		return updateResult, err
+	}, tnxOptions)
 
 	return err
 }

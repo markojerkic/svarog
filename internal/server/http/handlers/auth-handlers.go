@@ -47,7 +47,12 @@ func (a *AuthRouter) resetPassword(c echo.Context) error {
 		return err
 	}
 
-	err := a.authService.ResetPassword(c, resetPasswordForm)
+	user, err := a.authService.GetCurrentUser(c)
+	if err != nil {
+		return c.JSON(401, types.ApiError{Message: "Not logged in"})
+	}
+
+	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
 	if err != nil {
 		log.Error("Error resetting password", "error", err)
 		return c.JSON(500, types.ApiError{Message: "Error resetting password, try again"})
