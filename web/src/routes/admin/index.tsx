@@ -7,6 +7,7 @@ import type { RouteDefinition } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
 import { type ParentProps, Show, Suspense, lazy } from "solid-js";
 import { usersRoute } from "./users";
+import { projectsRoute } from "./projects";
 
 export const adminRoute = {
 	preload: async () => {
@@ -17,6 +18,11 @@ export const adminRoute = {
 			path: "/users",
 			...usersRoute,
 			component: lazy(() => import("./users")),
+		},
+		{
+			path: "/projects",
+			...projectsRoute,
+			component: lazy(() => import("./projects")),
 		},
 		{
 			path: "*404",

@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/log"
 	"net"
 	"os"
+
+	"github.com/charmbracelet/log"
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
@@ -155,16 +157,18 @@ func main() {
 	logsRepository := db.NewLogRepository(database)
 	logServer := db.NewLogServer(logsRepository)
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
+	certificateService := serverauth.NewCertificateService()
 
 	authService.CreateInitialAdminUser(context.Background())
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
-			AllowedOrigins: env.HttpServerAllowedOrigins,
-			ServerPort:     env.HttpServerPort,
-			SessionStore:   sessionStore,
-			LogRepository:  logsRepository,
-			AuthService:    authService,
+			AllowedOrigins:     env.HttpServerAllowedOrigins,
+			ServerPort:         env.HttpServerPort,
+			SessionStore:       sessionStore,
+			LogRepository:      logsRepository,
+			AuthService:        authService,
+			CertificateService: certificateService,
 		})
 
 	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d", env.GrpcServerPort, env.HttpServerPort))
