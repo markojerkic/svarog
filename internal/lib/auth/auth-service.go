@@ -8,12 +8,12 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -47,6 +47,7 @@ const (
 
 // ResetPassword implements AuthService.
 func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error {
+
 	if form.Password != form.RepeatedPassword {
 		return errors.New(PasswordsDoNotMatch)
 	}
@@ -56,15 +57,7 @@ func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, 
 		return err
 	}
 
-	wc := writeconcern.Majority()
-	tnxOptions := options.Transaction().SetWriteConcern(wc)
-	session, err := self.mongoClient.StartSession()
-	if err != nil {
-		return err
-	}
-	defer session.EndSession(ctx)
-
-	_, err = session.WithTransaction(ctx, func(c mongo.SessionContext) (interface{}, error) {
+	return util.StartTransaction(ctx, func(c mongo.SessionContext) (interface{}, error) {
 		var user User
 		err = self.userCollection.FindOne(ctx, bson.M{
 			"_id": userID,
@@ -86,9 +79,8 @@ func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, 
 		})
 
 		return updateResult, err
-	}, tnxOptions)
 
-	return err
+	}, self.mongoClient)
 }
 
 // GetUserByID implements AuthService.
@@ -208,27 +200,33 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 }
 
 func (m *MongoAuthService) LoginWithToken(ctx echo.Context, token string) error {
-	var user User
-	err := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
-		"login_tokens": token,
-	}).Decode(&user)
-	if err != nil {
-		return errors.New(LoginTokenNotValid)
-	}
+	return util.StartTransaction(ctx.Request().Context(), func(sc mongo.SessionContext) (interface{}, error) {
+		var user User
+		err := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
+			"login_tokens": token,
+		}).Decode(&user)
+		if err != nil {
+			return struct{}{}, errors.New(LoginTokenNotValid)
+		}
 
-	return m.createSession(ctx, user.ID.Hex())
+		// remove token from db
+		_, err = m.userCollection.UpdateByID(sc, user.ID, bson.M{
+			"$pull": bson.M{
+				"login_tokens": token,
+			},
+		})
+
+		if err != nil {
+			return struct{}{}, errors.Join(errors.New("Failed to delete login token"), err)
+		}
+
+		return struct{}{}, m.createSession(ctx, user.ID.Hex())
+	}, m.mongoClient)
+
 }
 
 func (m *MongoAuthService) DeleteUser(ctx echo.Context, id string) error {
-	wc := writeconcern.Majority()
-	tnxOptions := options.Transaction().SetWriteConcern(wc)
-	session, err := m.mongoClient.StartSession()
-	if err != nil {
-		return err
-	}
-	defer session.EndSession(ctx.Request().Context())
-
-	_, err = session.WithTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (interface{}, error) {
+	return util.StartTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (interface{}, error) {
 		user, err := m.GetUserByID(c, id)
 		if err != nil {
 			return struct{}{}, err
@@ -249,9 +247,9 @@ func (m *MongoAuthService) DeleteUser(ctx echo.Context, id string) error {
 		}
 
 		return struct{}{}, nil
-	}, tnxOptions)
 
-	return err
+	}, m.mongoClient)
+
 }
 
 func (self *MongoAuthService) createSession(ctx echo.Context, userID string) error {

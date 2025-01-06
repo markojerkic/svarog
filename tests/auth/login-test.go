@@ -90,4 +90,9 @@ func (suite *AuthSuite) TestLoginWithToken() {
 	assert.NotNil(t, cookie)
 	assert.Equal(t, "svarog_session", cookie.Name)
 
+	// Check that token is no longer in db
+	err = suite.userCollection.FindOne(context.Background(), bson.M{"username": "marko"}).Decode(&user)
+	assert.NoError(t, err)
+	assert.Len(t, user.LoginTokens, 0)
+
 }
