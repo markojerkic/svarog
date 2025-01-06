@@ -22,6 +22,7 @@ type AuthService interface {
 	LoginWithToken(ctx echo.Context, token string) error
 	Register(ctx echo.Context, form types.RegisterForm) (string, error)
 	Logout(ctx echo.Context) error
+	ResetPassword(ctx echo.Context, form types.ResetPasswordForm) error
 	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
@@ -38,10 +39,36 @@ type MongoAuthService struct {
 
 const SVAROG_SESSION = "svarog_session"
 const (
-	ErrUserNotFound    = "User not found"
-	UserAlreadyExists  = "User already exists"
-	LoginTokenNotValid = "Login token not valid"
+	ErrUserNotFound     = "User not found"
+	UserAlreadyExists   = "User already exists"
+	LoginTokenNotValid  = "Login token not valid"
+	PasswordsDoNotMatch = "Passwords do not match"
 ) // Error codes
+
+// ResetPassword implements AuthService.
+func (self *MongoAuthService) ResetPassword(ctx echo.Context, form types.ResetPasswordForm) error {
+	if form.Password != form.RepeatedPassword {
+		return errors.New(PasswordsDoNotMatch)
+	}
+
+	user, err := self.GetCurrentUser(ctx)
+	if err != nil {
+		return err
+	}
+
+	hashedPassword, err := hashPassword(form.Password)
+	if err != nil {
+		return err
+	}
+	_, err = self.userCollection.UpdateByID(ctx.Request().Context(), user.ID, bson.M{
+		"$set": bson.M{
+			"password":             hashedPassword,
+			"needs_password_reset": false,
+		},
+	})
+
+	return err
+}
 
 // GetUserByID implements AuthService.
 func (self *MongoAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -117,7 +144,7 @@ func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) (
 func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error) {
 	session, err := session.Get(SVAROG_SESSION, ctx)
 	if err != nil {
-		return LoggedInUser{}, err
+		return LoggedInUser{}, errors.Join(errors.New("Couldn't get session from context"), err)
 	}
 
 	userId, ok := session.Values["user_id"].(string)

@@ -94,6 +94,15 @@ type SearchLogsByClientBinding struct {
 	Search string `query:"search"`
 }
 
+func (self *LogsRouter) clientsHandler(c echo.Context) error {
+	clients, err := self.logRepository.GetClients(c.Request().Context())
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(200, clients)
+}
+
 func (self *LogsRouter) searchLogs(c echo.Context) error {
 	var params SearchLogsByClientBinding
 
@@ -143,6 +152,7 @@ func NewLogsRouter(logRepository db.LogRepository, e *echo.Group) *LogsRouter {
 		api:           logsApi,
 	}
 
+	logsRouter.api.GET("/clients", logsRouter.clientsHandler)
 	logsRouter.api.GET("/:clientId", logsRouter.logsByClientHandler)
 	logsRouter.api.GET("/:clientId/instances", logsRouter.instancesByClientHandler)
 	logsRouter.api.GET("/:clientId/search", logsRouter.searchLogs)

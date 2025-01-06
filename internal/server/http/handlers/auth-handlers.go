@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -35,6 +36,24 @@ func (a *AuthRouter) login(c echo.Context) error {
 	}
 
 	return c.JSON(200, "Logged in")
+}
+
+func (a *AuthRouter) resetPassword(c echo.Context) error {
+	var resetPasswordForm types.ResetPasswordForm
+	if err := c.Bind(&resetPasswordForm); err != nil {
+		return c.JSON(400, err)
+	}
+	if err := c.Validate(&resetPasswordForm); err != nil {
+		return err
+	}
+
+	err := a.authService.ResetPassword(c, resetPasswordForm)
+	if err != nil {
+		log.Error("Error resetting password", "error", err)
+		return c.JSON(500, types.ApiError{Message: "Error resetting password, try again"})
+	}
+
+	return c.JSON(200, "Success")
 }
 
 func (a *AuthRouter) logout(c echo.Context) error {
@@ -82,19 +101,22 @@ func (a *AuthRouter) getUsersPage(c echo.Context) error {
 	return c.JSON(200, users)
 }
 
-func NewAuthRouter(authService auth.AuthService, e *echo.Group) *AuthRouter {
+func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publicGroup *echo.Group) *AuthRouter {
 	router := &AuthRouter{authService}
 
 	if router.authService == nil {
 		panic("No authService")
 	}
 
-	group := e.Group("/auth")
-	group.POST("/login", router.login)
-	group.POST("/logout", router.logout)
-	group.GET("/current-user", router.getCurrentUser)
-	group.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	group.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	authRequiredGroup := privateGroup.Group("/auth")
+	authRequiredGroup.GET("/current-user", router.getCurrentUser)
+	authRequiredGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	authRequiredGroup.POST("/logout", router.logout)
+	authRequiredGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
+
+	authRequiredGroup.POST("/reset-password", router.resetPassword)
+	publicGroup.POST("/auth/login", router.login)
+	publicGroup.POST("/auth/login/:token", router.login)
 
 	return router
 }

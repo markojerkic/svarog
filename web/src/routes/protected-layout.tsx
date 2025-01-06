@@ -8,6 +8,11 @@ export default function ProtectedLayout(props: ParentProps) {
 
 	createEffect(() => {
 		if (currentUser.isError && currentUser.error.status === 401) {
+			if (currentUser.error.message === "password_reset_required") {
+				navigate("/auth/reset-password");
+				return;
+			}
+
 			navigate("/auth/login");
 		}
 	});

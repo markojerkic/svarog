@@ -167,7 +167,7 @@ func main() {
 			AuthService:    authService,
 		})
 
-	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d\n", env.GrpcServerPort, env.HttpServerPort))
+	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d", env.GrpcServerPort, env.HttpServerPort))
 
 	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()

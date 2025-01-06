@@ -51,7 +51,7 @@ func (suite *AuthSuite) TestSaveSession() {
 	ctx := e.NewContext(req, rec)
 
 	// Create test user
-	err = suite.authService.Register(ctx, types.RegisterForm{
+	_, err = suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",
@@ -111,7 +111,7 @@ func TestSessionExpiration(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(ctx, types.RegisterForm{
+	_, err = suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",
@@ -168,7 +168,7 @@ func TestConcurrentSessions(suite *AuthSuite) {
 	assert.True(t, session.IsNew)
 
 	// Create test user
-	err = suite.authService.Register(ctx, types.RegisterForm{
+	_, err = suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",

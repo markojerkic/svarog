@@ -1,11 +1,13 @@
 import { ServiceListItem } from "@/components/service-card";
+import { api } from "@/lib/utils/axios-api";
 import type { RouteDefinition } from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For } from "solid-js";
 
 const getClients = async () => {
-	const response = await fetch(`${import.meta.env.VITE_API_URL}/v1/clients`);
-	return response.json() as Promise<{ Client: { clientId: string } }[]>;
+	const response =
+		await api.get<{ Client: { clientId: string } }[]>("/v1/logs/clients");
+	return response.data;
 };
 
 export const route = {

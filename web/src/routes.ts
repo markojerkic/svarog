@@ -60,6 +60,10 @@ const routes = [
 		component: lazy(() => import("@/routes/auth/login.tsx")),
 	},
 	{
+		path: "/auth/reset-password",
+		component: lazy(() => import("@/routes/auth/reset-password")),
+	},
+	{
 		path: "/auth/logout",
 		component: lazy(() => import("@/routes/auth/logout.tsx")),
 	},

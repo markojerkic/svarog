@@ -39,39 +39,26 @@ func (self *HttpServer) Start() {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
 
-	api := e.Group("/api/v1")
-	api.Use(session.MiddlewareWithConfig(session.Config{
+	sessionMiddleware := session.MiddlewareWithConfig(session.Config{
 		Store: self.sessionStore,
-	}))
-	api.Use(customMiddleware.AuthContextMiddleware(self.authService))
-
-	if len(self.allowedOrigins) > 0 {
-		log.Info("Allowed origins", "origins", self.allowedOrigins)
-		api.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins:     self.allowedOrigins,
-			AllowCredentials: true,
-			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
-			AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
-		}))
-	} else {
-		log.Warn("No allowed origins set, allowing all origins")
-	}
-
-	api.GET("/clients", func(c echo.Context) error {
-		clients, err := self.logRepository.GetClients(c.Request().Context())
-		session := c.Get
-		log.Info("session", "session", session)
-
-		if err != nil {
-			return err
-		}
-
-		return c.JSON(200, clients)
+	})
+	corsMiddleware := middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     self.allowedOrigins,
+		AllowCredentials: true,
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+		AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
 	})
 
-	handlers.NewLogsRouter(self.logRepository, api)
-	handlers.NewWsConnectionRouter(websocket.LogsHub, api)
-	handlers.NewAuthRouter(self.authService, api)
+	privateApi := e.Group("/api/v1",
+		corsMiddleware,
+		sessionMiddleware,
+		customMiddleware.AuthContextMiddleware(self.authService),
+		customMiddleware.RestPasswordMiddleware())
+	publicApi := e.Group("/api/v1", corsMiddleware, sessionMiddleware)
+
+	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
+	handlers.NewLogsRouter(self.logRepository, privateApi)
+	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
 	e.GET("/*", func(c echo.Context) error {
 		// Serve requested file or fallback to index.html

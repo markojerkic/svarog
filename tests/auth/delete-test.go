@@ -20,7 +20,7 @@ func (suite *AuthSuite) TestDeleteUser() {
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	err := suite.authService.Register(ctx, types.RegisterForm{
+	_, err := suite.authService.Register(ctx, types.RegisterForm{
 		Username:  "marko",
 		Password:  "marko",
 		FirstName: "Marko",
