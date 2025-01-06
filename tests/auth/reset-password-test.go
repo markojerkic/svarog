@@ -12,47 +12,99 @@ import (
 
 func (suite *AuthSuite) TestResetPassword() {
 	t := suite.T()
-
 	e := echo.New()
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// Setup initial user
+	req := httptest.NewRequest(http.MethodPost, "/register", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-
-	_, err := suite.authService.Register(ctx, types.RegisterForm{
-		Username:  "marko",
-		Password:  "marko",
-		FirstName: "Marko",
-		LastName:  "Jerkic",
+	user, err := suite.authService.Register(ctx, types.RegisterForm{
+		Username:  "testuser",
+		Password:  "oldpassword",
+		FirstName: "Test",
+		LastName:  "User",
 	})
 	assert.NoError(t, err)
+	assert.NotNil(t, user)
 
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	rec = httptest.NewRecorder()
-	ctx = e.NewContext(req, rec)
+	// Test cases
+	testCases := []struct {
+		name          string
+		resetForm     types.ResetPasswordForm
+		expectedError bool
+	}{
+		{
+			name: "successful password reset",
+			resetForm: types.ResetPasswordForm{
+				Password:         "newpassword123",
+				RepeatedPassword: "newpassword123",
+			},
+			expectedError: false,
+		},
+		{
+			name: "mismatched passwords",
+			resetForm: types.ResetPasswordForm{
+				Password:         "newpassword123",
+				RepeatedPassword: "differentpassword",
+			},
+			expectedError: true,
+		},
+		{
+			name: "password too short",
+			resetForm: types.ResetPasswordForm{
+				Password:         "short",
+				RepeatedPassword: "short",
+			},
+			expectedError: true,
+		},
+	}
 
-	err = suite.authService.Login(ctx, "marko", "marko")
-	assert.NoError(t, err)
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			// Login to get session
+			loginReq := httptest.NewRequest(http.MethodPost, "/login", nil)
+			loginRec := httptest.NewRecorder()
+			loginCtx := e.NewContext(loginReq, loginRec)
+			err = suite.authService.Login(loginCtx, "testuser", "oldpassword")
+			assert.NoError(t, err)
 
-	sessionCookie := rec.Result().Cookies()[0]
+			sessionCookie := loginRec.Result().Cookies()[0]
 
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	rec = httptest.NewRecorder()
-	ctx = e.NewContext(req, rec)
+			// Perform password reset
+			resetReq := httptest.NewRequest(http.MethodPost, "/reset-password", nil)
+			resetRec := httptest.NewRecorder()
+			resetCtx := e.NewContext(resetReq, resetRec)
+			resetReq.AddCookie(sessionCookie)
 
-	req.AddCookie(sessionCookie)
+			err = suite.authService.ResetPassword(resetCtx, tc.resetForm)
 
-	err = suite.authService.ResetPassword(ctx, types.ResetPasswordForm{
-		Password:         "marko1",
-		RepeatedPassword: "marko1",
-	})
-	assert.NoError(t, err)
+			if tc.expectedError {
+				assert.Error(t, err)
+				return
+			}
 
-	err = suite.authService.Login(ctx, "marko", "marko1")
-	assert.NoError(t, err)
+			assert.NoError(t, err)
 
-	user, err := suite.authService.GetUserByUsername(context.Background(), "marko")
-	assert.NoError(t, err)
+			// Verify old password no longer works
+			oldPassReq := httptest.NewRequest(http.MethodPost, "/login", nil)
+			oldPassRec := httptest.NewRecorder()
+			oldPassCtx := e.NewContext(oldPassReq, oldPassRec)
+			err = suite.authService.Login(oldPassCtx, "testuser", "oldpassword")
+			assert.Error(t, err, "old password should no longer work")
 
-	assert.False(t, user.NeedsPasswordReset)
+			// Verify new password works
+			if !tc.expectedError {
+				newPassReq := httptest.NewRequest(http.MethodPost, "/login", nil)
+				newPassRec := httptest.NewRecorder()
+				newPassCtx := e.NewContext(newPassReq, newPassRec)
+				err = suite.authService.Login(newPassCtx, "testuser", tc.resetForm.Password)
+				assert.NoError(t, err, "new password should work")
+			}
+
+			// Verify user state
+			updatedUser, err := suite.authService.GetUserByUsername(context.Background(), "testuser")
+			assert.NoError(t, err)
+			assert.False(t, updatedUser.NeedsPasswordReset)
+		})
+	}
 }
