@@ -23,8 +23,9 @@ type GrpcClient struct {
 	serverAddress string
 	credentials   credentials.TransportCredentials
 	connection    *grpc.ClientConn
-	stream        rpc.LoggAggregator_LogClient
-	client        rpc.LoggAggregatorClient
+
+	stream rpc.LoggAggregator_LogClient
+	client rpc.LoggAggregatorClient
 
 	mutex sync.Mutex
 }

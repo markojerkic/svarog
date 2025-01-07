@@ -2,6 +2,8 @@ package serverauth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type mockClient struct {
@@ -24,9 +27,10 @@ type mockClient struct {
 }
 
 // BatchLog implements rpc.LoggAggregatorClient.
-func (m *mockClient) BatchLog(ctx context.Context, in *rpc.Backlog) error {
+func (m *mockClient) BatchLog(ctx context.Context, in *rpc.Backlog, tlsConfig *tls.Config) error {
 	serverAddr := fmt.Sprintf("localhost:%d", m.serverPort)
-	connection, err := grpc.NewClient(serverAddr)
+
+	connection, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		log.Fatal("Error connecting to server", "err", err)
 	}
@@ -61,10 +65,37 @@ func (s *ServerauthSuite) TestGrpcConnection() {
 
 	line := &rpc.Backlog{}
 
+	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), "mock-client")
+	if err != nil {
+		log.Fatal("failed to generate server certificate", "err", err)
+	}
+	defer cleanup()
+
+	// Load client certificate and key from the PEM file
+	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
+	if err != nil {
+		log.Fatal("failed to load client certificate", "err", err)
+	}
+
+	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
+	if err != nil {
+		log.Fatal("Failed to get ca.crt", "err", err)
+	}
+
+	// Create certificate pool and add CA certificate
+	caPool := x509.NewCertPool()
+	caPool.AddCert(caCert)
+
+	// Configure TLS
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caPool,
+	}
+
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err = client.BatchLog(timeoutContext, line)
+	err = client.BatchLog(timeoutContext, line, tlsConfig)
 	assert.NoError(s.T(), err)
 }
 
