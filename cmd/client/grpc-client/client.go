@@ -100,6 +100,8 @@ func (g *GrpcClient) reconnect() {
 		if err := g.connect(); err == nil {
 			log.Debug("Reconnected successfully")
 			return
+		} else {
+			log.Error("Failed to connect to server", "err", err)
 		}
 		log.Debug("Failed to reconnect, retrying in 5 seconds...")
 		time.Sleep(5 * time.Second)

@@ -21,6 +21,7 @@ import (
 
 type GrpcServer struct {
 	rpc.UnimplementedLoggAggregatorServer
+	grpcServer *grpc.Server
 
 	certificatesService serverauth.CertificateService
 	env                 types.ServerEnv
@@ -98,6 +99,10 @@ func (gs *GrpcServer) getCaCert(ctx context.Context) (*x509.Certificate, error) 
 	return cert, nil
 }
 
+func (gs *GrpcServer) Stop() {
+	gs.grpcServer.Stop()
+}
+
 func (gs *GrpcServer) Start() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", gs.env.GrpcServerPort))
 	if err != nil {
@@ -135,14 +140,13 @@ func (gs *GrpcServer) Start() error {
 	var opts []grpc.ServerOption = []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 	}
-	grpcServer := grpc.NewServer(opts...)
-	rpc.RegisterLoggAggregatorServer(grpcServer, gs)
+	gs.grpcServer = grpc.NewServer(opts...)
+
+	rpc.RegisterLoggAggregatorServer(gs.grpcServer, gs)
 
 	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d", gs.env.GrpcServerPort, gs.env.HttpServerPort))
 
-	grpcServer.Serve(lis)
-
-	return nil
+	return gs.grpcServer.Serve(lis)
 }
 
 func NewGrpcServer(certificatesService serverauth.CertificateService, env types.ServerEnv, logIngestChannel chan db.LogLineWithIp) *GrpcServer {
