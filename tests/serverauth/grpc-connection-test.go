@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/grpcserver"
@@ -60,9 +61,11 @@ func (s *ServerauthSuite) TestGrpcConnection() {
 
 	line := &rpc.Backlog{}
 
-	err = client.BatchLog(context.Background(), line)
-	assert.NoError(s.T(), err)
+	timeoutContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
+	err = client.BatchLog(timeoutContext, line)
+	assert.NoError(s.T(), err)
 }
 
 func getFreePort() (port int, err error) {
