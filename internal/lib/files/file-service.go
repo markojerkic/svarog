@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,6 +21,10 @@ type FileServiceImpl struct {
 	fileCollection *mongo.Collection
 }
 
+const (
+	ErrFileNotFound = "File not found"
+)
+
 // GetFile implements FileService.
 func (f *FileServiceImpl) GetFile(ctx context.Context, name string) ([]byte, error) {
 	var savedFile SavedFile
@@ -27,7 +32,8 @@ func (f *FileServiceImpl) GetFile(ctx context.Context, name string) ([]byte, err
 		"name": name,
 	}).Decode(&savedFile)
 	if err != nil {
-		return nil, errors.Join(errors.New("Error finding file"), err)
+		log.Error("Error reading file", "err", err)
+		return nil, errors.New(ErrFileNotFound)
 	}
 
 	return savedFile.File, nil
@@ -55,7 +61,8 @@ func (f *FileServiceImpl) GetFileById(ctx context.Context, id string) ([]byte, e
 func (f *FileServiceImpl) SaveFile(ctx context.Context, name string, path string) error {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return errors.Join(errors.New("Error reading file"), err)
+		log.Error("Error reading file", "err", err)
+		return errors.New(ErrFileNotFound)
 	}
 
 	_, err = f.fileCollection.InsertOne(ctx, SavedFile{

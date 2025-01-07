@@ -43,11 +43,13 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
 		caCert, err := c.fileService.GetFile(ctx, "ca.crt")
 		if err != nil {
-			return nil, errors.Join(errors.New("Failed getting ca.crt"), err)
+			log.Error("Failed getting ca.crt", "err", err)
+			return nil, err
 		}
 		caKey, err := c.fileService.GetFile(ctx, "ca.key")
 		if err != nil {
-			return nil, errors.Join(errors.New("Failed getting ca.key"), err)
+			log.Error("Failed getting ca.key", "err", err)
+			return nil, err
 		}
 
 		return &certFiles{caCert: caCert, caKey: caKey}, nil

@@ -2,16 +2,20 @@ package grpcserver
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 
 	"github.com/charmbracelet/log"
+	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 )
 
@@ -22,29 +26,6 @@ type GrpcServer struct {
 	env                 types.ServerEnv
 
 	logIngestChannel chan db.LogLineWithIp
-}
-
-func getIp(ctx context.Context) (string, error) {
-	peer, ok := peer.FromContext(ctx)
-	if !ok {
-		return "", errors.New("failed to get peer from context")
-	}
-
-	// parse out ipv4 address from peer
-	ipv6, _, err := net.SplitHostPort(peer.Addr.String())
-	if err != nil {
-		return "", err
-	}
-	ip := net.ParseIP(ipv6)
-
-	var ipv4 string
-	if ip.IsLoopback() {
-		ipv4 = "127.0.0.1"
-	} else {
-		ipv4 = ip.To4().String()
-	}
-
-	return ipv4, nil
 }
 
 func (g *GrpcServer) BatchLog(ctx context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
@@ -80,12 +61,80 @@ func (i *GrpcServer) mustEmbedUnimplementedLoggAggregatorServer() {}
 
 var _ rpc.LoggAggregatorServer = &GrpcServer{}
 
+func getIp(ctx context.Context) (string, error) {
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", errors.New("failed to get peer from context")
+	}
+
+	// parse out ipv4 address from peer
+	ipv6, _, err := net.SplitHostPort(peer.Addr.String())
+	if err != nil {
+		return "", err
+	}
+	ip := net.ParseIP(ipv6)
+
+	var ipv4 string
+	if ip.IsLoopback() {
+		ipv4 = "127.0.0.1"
+	} else {
+		ipv4 = ip.To4().String()
+	}
+
+	return ipv4, nil
+}
+
+func (gs *GrpcServer) getCaCert(ctx context.Context) (*x509.Certificate, error) {
+	cert, _, err := gs.certificatesService.GetCaCertificate(ctx)
+	if err != nil {
+		if err.Error() == files.ErrFileNotFound {
+			log.Warn("Ca cert file not found in db, creating a new one")
+			gs.certificatesService.GenerateCaCertificate(ctx)
+			return gs.getCaCert(ctx)
+		}
+		log.Error("Failed to get ca cert", "error", err)
+		return nil, err
+	}
+	return cert, nil
+}
+
 func (gs *GrpcServer) Start() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", gs.env.GrpcServerPort))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-	var opts []grpc.ServerOption
+
+	caCert, err := gs.getCaCert(context.Background())
+	if err != nil {
+		log.Fatal("Failed getting ca.crt", "err", err)
+	}
+
+	serverCertPath, cleanup, err := gs.certificatesService.GenerateCertificate(context.Background(), "svarog-server")
+	if err != nil {
+		return fmt.Errorf("failed to generate server certificate: %w", err)
+	}
+	defer cleanup()
+
+	// Load server certificate and key
+	serverCert, err := tls.LoadX509KeyPair(serverCertPath, serverCertPath)
+	if err != nil {
+		return fmt.Errorf("failed to load server certificate: %w", err)
+	}
+
+	// Create certificate pool with CA certificate
+	caPool := x509.NewCertPool()
+	caPool.AddCert(caCert)
+
+	// Create TLS configuration
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caPool,
+	}
+
+	var opts []grpc.ServerOption = []grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+	}
 	grpcServer := grpc.NewServer(opts...)
 	rpc.RegisterLoggAggregatorServer(grpcServer, gs)
 
