@@ -21,6 +21,10 @@ import (
 )
 
 type cleanup = func()
+type certFiles struct {
+	caCert []byte
+	caKey  []byte
+}
 
 type CertificateService interface {
 	GenerateCaCertificate(ctx context.Context) error
@@ -46,10 +50,7 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 			return nil, errors.Join(errors.New("Failed getting ca.key"), err)
 		}
 
-		return struct {
-			caCert []byte
-			caKey  []byte
-		}{caCert: caCert, caKey: caKey}, nil
+		return &certFiles{caCert: caCert, caKey: caKey}, nil
 
 	}, c.mongoClinet)
 
@@ -57,8 +58,13 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 		return nil, nil, err
 	}
 
-	caCert := certs.(struct{ caCert []byte }).caCert
-	caKey := certs.(struct{ caKey []byte }).caKey
+	certsStruct, ok := certs.(*certFiles)
+	if !ok {
+		log.Error("Failed to cast to certFiles")
+		return nil, nil, errors.New("Failed to cast to certFiles")
+	}
+	caCert := certsStruct.caCert
+	caKey := certsStruct.caKey
 
 	block, _ := pem.Decode(caCert)
 	if block == nil {
@@ -134,8 +140,12 @@ func (c *CertificateServiceImpl) GenerateCaCertificate(ctx context.Context) erro
 	if err != nil {
 		return errors.Join(errors.New("Error marshaling private key"), err)
 	}
+	caKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: caKeyBytes,
+	})
 	caKeyPath := filepath.Join(tempDir, "ca.key")
-	if err := os.WriteFile(caKeyPath, caKeyBytes, 0600); err != nil {
+	if err := os.WriteFile(caKeyPath, caKeyPEM, 0600); err != nil {
 		return errors.Join(errors.New("Error writing private key to file"), err)
 	}
 
