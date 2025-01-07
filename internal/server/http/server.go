@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
@@ -24,6 +25,7 @@ type HttpServer struct {
 	sessionStore       sessions.Store
 	authService        auth.AuthService
 	certificateService serverauth.CertificateService
+	filesService       files.FileService
 
 	allowedOrigins []string
 	serverPort     int
@@ -34,6 +36,7 @@ type HttpServerOptions struct {
 	SessionStore       sessions.Store
 	AuthService        auth.AuthService
 	CertificateService serverauth.CertificateService
+	FilesService       files.FileService
 
 	AllowedOrigins []string
 	ServerPort     int
@@ -61,7 +64,7 @@ func (self *HttpServer) Start() {
 	publicApi := e.Group("/api/v1", corsMiddleware, sessionMiddleware)
 
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
-	handlers.NewCertificateRouter(self.certificateService, privateApi)
+	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
 	handlers.NewLogsRouter(self.logRepository, privateApi)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
@@ -89,6 +92,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		serverPort:         options.ServerPort,
 		authService:        options.AuthService,
 		certificateService: options.CertificateService,
+		filesService:       options.FilesService,
 	}
 
 	return server

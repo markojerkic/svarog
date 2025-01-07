@@ -231,6 +231,7 @@ func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string,
 	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
 		err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
 		if err != nil {
+			log.Error("Failed saving ca.cert", "err", err)
 			return struct{}{}, errors.Join(errors.New("Failed saving ca.cert"), err)
 		}
 		err = c.fileService.SaveFile(ctx, "ca.key", privateKeyPath)

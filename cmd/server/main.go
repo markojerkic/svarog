@@ -173,6 +173,7 @@ func main() {
 			LogRepository:      logsRepository,
 			AuthService:        authService,
 			CertificateService: certificateService,
+			FilesService:       filesService,
 		})
 
 	log.Info(fmt.Sprintf("Starting gRPC server on port %d, HTTP server on port %d", env.GrpcServerPort, env.HttpServerPort))
