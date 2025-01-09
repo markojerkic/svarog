@@ -1,27 +1,21 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import {
-	For,
-	Show,
-	createEffect,
-	createMemo,
-	createSignal,
-	onCleanup,
-	onMount,
-} from "solid-js";
+import { For, createEffect, createMemo, onMount } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import {
 	createLogQueryOptions,
 	insertLogLine,
-	LogLine,
-	LogPageCursor,
+	type LogLine,
+	type LogPageCursor,
 } from "@/lib/store/query";
 import {
 	createInfiniteQuery,
-	InfiniteData,
+	type InfiniteData,
 	useQueryClient,
 } from "@tanstack/solid-query";
 import { createMachine } from "@solid-primitives/state-machine";
 import { newLogLineListener } from "@/lib/store/connection";
+import { useWindowHeight } from "@/lib/hooks/use-window-height";
+import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 
 export const LogViewer = (props: {
 	clientId: string;
@@ -208,55 +202,4 @@ export const LogViewer = (props: {
 			</div>
 		</div>
 	);
-};
-
-const ScrollToBottomButton = (props: {
-	isLockedInBottom: boolean;
-	scrollToBottom: () => void;
-}) => {
-	return (
-		<Show when={!props.isLockedInBottom}>
-			<button
-				type="button"
-				id="scroll-to-bottom"
-				class="fixed right-4 bottom-4 z-[1000] flex size-10 cursor-pointer rounded-full bg-red-800 hover:bg-red-700"
-				onClick={props.scrollToBottom}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="2.5"
-					class="m-auto size-6 stroke-white"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"
-					/>
-				</svg>
-			</button>
-		</Show>
-	);
-};
-
-const useWindowHeight = () => {
-	const [height, setHeight] = createSignal(window.innerHeight);
-
-	onMount(() => {
-		const handleResize = () => setHeight(window.innerHeight);
-		window.addEventListener("resize", handleResize);
-		onCleanup(() => window.removeEventListener("resize", handleResize));
-	});
-
-	return height;
-};
-
-export const createLogViewer = () => {
-	const scrollToBottom = () => {
-		const scrollToBottomEvent = new Event("scroll-to-bottom");
-		dispatchEvent(scrollToBottomEvent);
-	};
-
-	return [LogViewer, scrollToBottom] as const;
 };
