@@ -3,14 +3,16 @@ import {
 	For,
 	Show,
 	createEffect,
+	createMemo,
 	createSignal,
 	on,
 	onCleanup,
 	onMount,
 } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
-import { type LogLine, createLogQueryOptions } from "@/lib/store/query";
+import { createLogQueryOptions } from "@/lib/store/query";
 import { createInfiniteQuery } from "@tanstack/solid-query";
+import { createMachine } from "@solid-primitives/state-machine";
 
 export const LogViewer = (props: {
 	clientId: string;
@@ -27,8 +29,14 @@ export const LogViewer = (props: {
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
 	// LOGS
-	const [logs, setLogs] = createSignal<LogLine[]>([]);
 	const query = createInfiniteQuery(() => createLogQueryOptions(() => props));
+	const logs = createMemo(() => {
+		if (!query.data) {
+			return [];
+		}
+
+		return query.data.pages.flat();
+	});
 
 	const logCount = () => logs().length;
 
@@ -55,17 +63,63 @@ export const LogViewer = (props: {
 		}
 	});
 
-	createEffect(
-		on(
-			() => query.data,
-			(data) => {
-				setLogs(data?.pages.flat() ?? []);
-				virtualizer.scrollToIndex(data?.pages[0].length ?? 0);
-			},
-		),
-	);
+	const queryState = createMachine<{
+		idle: { value: { isFetching: () => void } };
+		fetchingPreviousPage: { value: { isDone: () => void } };
+		isDoneFetchingPreviousPage: { value: { isFetching: () => void } };
+	}>({
+		initial: "idle",
+		states: {
+			idle(_input, to) {
+				const isFetching = () => {
+					to("fetchingPreviousPage");
+				};
 
-	onMount(() => {});
+				return { isFetching };
+			},
+			fetchingPreviousPage(_input, to) {
+				const isDone = () => {
+					to("isDoneFetchingPreviousPage");
+					console.log("Scrolling to index", query.data?.pages[0].length);
+					virtualizer.scrollToIndex(query.data?.pages[0].length ?? 0);
+				};
+
+				return { isDone };
+			},
+			isDoneFetchingPreviousPage(_input, to) {
+				const isFetching = () => {
+					to("fetchingPreviousPage");
+				};
+
+				return { isFetching };
+			},
+		},
+	});
+
+	createEffect(() => {
+		if (query.isFetchingPreviousPage) {
+			if (
+				queryState.type === "isDoneFetchingPreviousPage" ||
+				queryState.type === "idle"
+			) {
+				queryState.value.isFetching();
+			}
+		} else if (queryState.type === "fetchingPreviousPage") {
+			queryState.value.isDone();
+		}
+	});
+
+	onMount(() => {
+		virtualizer.scrollToIndex(0);
+	});
+
+	query.isFetchingNextPage;
+
+	//createEffect(() => {
+	//	if (queryState.type === "isDoneFetchingPreviousPage") {
+	//		virtualizer.scrollToIndex(query.data?.pages[0].length ?? 0);
+	//	}
+	//});
 
 	//createEffect(
 	//	on(logs, () => {
