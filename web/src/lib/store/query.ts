@@ -1,7 +1,39 @@
-import { createInfiniteQuery, createQuery } from "@tanstack/solid-query";
+import {
+	createInfiniteQuery,
+	CreateInfiniteQueryOptions,
+	createQuery,
+	DefinedInitialDataInfiniteOptions,
+	SolidInfiniteQueryOptions,
+	UndefinedInitialDataInfiniteOptions,
+} from "@tanstack/solid-query";
 import { createEffect, createSignal, type Accessor } from "solid-js";
 import { type SortFn, SortedList } from "@/lib/store/sorted-list";
 import { api } from "../utils/axios-api";
+
+type FetchLogPageOptions = {
+	selectedInstances?: string[];
+	search?: string;
+	cursor?: LogPageCursor | null;
+};
+
+export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
+export type Client = {
+	clientId: string;
+	ipAddress: string;
+};
+export type LogLine = {
+	id: string;
+	timestamp: number;
+	sequenceNumber: number;
+	content: string;
+	client: Client;
+};
+
+export type LogPageCursor = {
+	cursorSequenceNumber: number;
+	cursorTime: number;
+	direction: "forward" | "backward";
+};
 
 export const getInstances = async (
 	clientId: string,
@@ -19,6 +51,36 @@ export const getInstances = async (
 
 		return res.json() as Promise<string[]>;
 	});
+};
+
+export const createLogQueryOptions = (
+	clientId: Accessor<string>,
+	selectedInstances: Accessor<string[] | undefined>,
+	searchQuery: Accessor<string | undefined>,
+) => {
+	return {
+		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()],
+		queryFn: async ({ pageParam, signal }) => {
+			return fetchLogPage(
+				clientId(),
+				{
+					selectedInstances: selectedInstances(),
+					search: searchQuery(),
+					cursor: pageParam as LogPageCursor,
+				},
+				signal,
+			);
+		},
+		initialPageParam: undefined as LogPageCursor | undefined,
+		getNextPageParam: () => undefined,
+		getPreviousPageParam: (firstPage) => {
+			return {
+				direction: "backward",
+				cursorTime: firstPage[0].timestamp,
+				cursorSequenceNumber: firstPage[0].sequenceNumber,
+			} satisfies LogPageCursor;
+		},
+	} satisfies ReturnType<UndefinedInitialDataInfiniteOptions<LogLine[]>>;
 };
 
 export const createLogQuery = (
@@ -71,7 +133,7 @@ export const logsSortFn: SortFn<LogLine> = (a, b) => {
 	return a.sequenceNumber - b.sequenceNumber;
 };
 
-const fetchLogPage = async (
+export const fetchLogPage = async (
 	clientId: string,
 	options: FetchLogPageOptions,
 	abortSignal: AbortSignal,
@@ -82,29 +144,4 @@ const fetchLogPage = async (
 	});
 
 	return response.data;
-};
-
-type FetchLogPageOptions = {
-	selectedInstances?: string[];
-	search?: string;
-	cursor?: LogPageCursor | null;
-};
-
-export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
-export type Client = {
-	clientId: string;
-	ipAddress: string;
-};
-export type LogLine = {
-	id: string;
-	timestamp: number;
-	sequenceNumber: number;
-	content: string;
-	client: Client;
-};
-
-export type LogPageCursor = {
-	cursorSequenceNumber: number;
-	cursorTime: number;
-	direction: "forward" | "backward";
 };

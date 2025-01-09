@@ -1,7 +1,9 @@
 import { createSignal } from "solid-js";
 import type { CreateLogQueryResult } from "./store/query";
 
-export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
+export const createInfiniteScrollObserver = (
+	query: CreateLogQueryResult["query"],
+) => {
 	let created = new Date().getTime();
 	const [isLockedInBottom, setIsLockedInBottom] = createSignal(true);
 
@@ -19,15 +21,12 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 					isBottomIntersecting = true;
 				}
 
-				if (entry.target.id === "bottom" && !query.query.isFetchingNextPage) {
+				if (entry.target.id === "bottom" && !query.isFetchingNextPage) {
 					console.log("fetchNextPage");
-					query.query.fetchNextPage();
-				} else if (
-					entry.target.id === "top" &&
-					!query.query.isFetchingPreviousPage
-				) {
+					query.fetchNextPage();
+				} else if (entry.target.id === "top" && !query.isFetchingPreviousPage) {
 					console.log("fetchPreviousPage");
-					query.query.fetchPreviousPage();
+					query.fetchPreviousPage();
 				}
 			}
 		}

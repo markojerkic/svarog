@@ -84,7 +84,10 @@ export default (_props: RouteSectionProps) => {
 			<div class="flex-grow">
 				<pre>Local log count: {logCount()}</pre>
 				<pre>Is fetched: {logQuery.query.isFetched ? "je" : "nije"}</pre>
-				<LogViewer logsQuery={logQuery} />
+				<LogViewer
+					selectedInstances={selectedInstances()}
+					clientId={clientId}
+				/>
 			</div>
 		</div>
 	);
