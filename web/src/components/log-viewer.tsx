@@ -9,9 +9,19 @@ import {
 	onMount,
 } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
-import { createLogQueryOptions } from "@/lib/store/query";
-import { createInfiniteQuery } from "@tanstack/solid-query";
+import {
+	createLogQueryOptions,
+	insertLogLine,
+	LogLine,
+	LogPageCursor,
+} from "@/lib/store/query";
+import {
+	createInfiniteQuery,
+	InfiniteData,
+	useQueryClient,
+} from "@tanstack/solid-query";
 import { createMachine } from "@solid-primitives/state-machine";
+import { newLogLineListener } from "@/lib/store/connection";
 
 export const LogViewer = (props: {
 	clientId: string;
@@ -27,7 +37,10 @@ export const LogViewer = (props: {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
+	const isLockedInBottom = () => false;
+
 	// LOGS
+	const queryClient = useQueryClient();
 	const query = createInfiniteQuery(() => createLogQueryOptions(() => props));
 	const logs = createMemo(() => {
 		if (!query.data) {
@@ -47,6 +60,9 @@ export const LogViewer = (props: {
 		getScrollElement: () => logsRef ?? null,
 		overscan: 5,
 	});
+	const scrollToBottom = () => {
+		virtualizer.scrollToIndex(logs().length, { align: "end" });
+	};
 
 	const observer = new IntersectionObserver((entries) => {
 		for (const entry of entries) {
@@ -109,7 +125,7 @@ export const LogViewer = (props: {
 	});
 
 	onMount(() => {
-		virtualizer.scrollToIndex(0);
+		scrollToBottom();
 	});
 
 	onMount(() => {
@@ -117,16 +133,19 @@ export const LogViewer = (props: {
 		observer.observe(bottomRef!);
 	});
 
-	const scrollToBottom = () => {
-		console.log("Scroll to bottom event");
-		virtualizer.scrollToIndex(logs().length, { align: "end" });
-		//setIsOnBottom();
-	};
-
-	const isLockedInBottom = () => false;
-
 	onMount(() => {
-		scrollToBottom();
+		const unsub = newLogLineListener((line) => {
+			console.log("New line", line);
+			const queryKey = createLogQueryOptions(() => props).queryKey;
+			queryClient.setQueryData(
+				queryKey,
+				(oldData: InfiniteData<LogLine[], LogPageCursor | undefined>) => {
+					return insertLogLine(oldData, line);
+				},
+			);
+		});
+
+		return () => unsub();
 	});
 
 	const items = virtualizer.getVirtualItems();

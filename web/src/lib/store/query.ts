@@ -1,13 +1,8 @@
-import {
-	createInfiniteQuery,
-	CreateInfiniteQueryOptions,
-	createQuery,
-	DefinedInitialDataInfiniteOptions,
-	SolidInfiniteQueryOptions,
+import type {
+	InfiniteData,
 	UndefinedInitialDataInfiniteOptions,
 } from "@tanstack/solid-query";
-import { createEffect, createSignal, type Accessor } from "solid-js";
-import { type SortFn, SortedList } from "@/lib/store/sorted-list";
+import type { SortFn } from "@/lib/store/sorted-list";
 import { api } from "../utils/axios-api";
 
 type FetchLogPageOptions = {
@@ -16,7 +11,6 @@ type FetchLogPageOptions = {
 	cursor?: LogPageCursor | null;
 };
 
-export type CreateLogQueryResult = ReturnType<typeof createLogQuery>;
 export type Client = {
 	clientId: string;
 	ipAddress: string;
@@ -33,24 +27,6 @@ export type LogPageCursor = {
 	cursorSequenceNumber: number;
 	cursorTime: number;
 	direction: "forward" | "backward";
-};
-
-export const getInstances = async (
-	clientId: string,
-	abortSignal?: AbortSignal,
-) => {
-	return fetch(
-		`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}/instances`,
-		{
-			signal: abortSignal,
-		},
-	).then(async (res) => {
-		if (!res.ok) {
-			throw Error(await res.text());
-		}
-
-		return res.json() as Promise<string[]>;
-	});
 };
 
 export const createLogQueryOptions = (
@@ -90,49 +66,82 @@ export const createLogQueryOptions = (
 	} satisfies ReturnType<UndefinedInitialDataInfiniteOptions<LogLine[]>>;
 };
 
-export const createLogQuery = (
-	clientId: Accessor<string>,
-	selectedInstances: Accessor<string[] | undefined>,
-	searchQuery: Accessor<string | undefined>,
+export const insertLogLine = (
+	store: InfiniteData<LogLine[], LogPageCursor | undefined>,
+	logLine: LogLine,
 ) => {
-	const [logs, setLogs] = createSignal<LogLine[]>([]);
-	const query = createInfiniteQuery(() => ({
-		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()],
-		queryFn: async ({ pageParam, signal }) => {
-			return fetchLogPage(
-				clientId(),
-				{
-					selectedInstances: selectedInstances(),
-					search: searchQuery(),
-					cursor: pageParam,
-				},
-				signal,
-			);
-		},
-		initialPageParam: undefined as LogPageCursor | undefined,
-		getNextPageParam: () => undefined,
-		getPreviousPageParam: (firstPage) => {
-			return {
-				direction: "backward",
-				cursorTime: firstPage[0].timestamp,
-				cursorSequenceNumber: firstPage[0].sequenceNumber,
-			} satisfies LogPageCursor;
-		},
-	}));
+	// Find position using binary search and _logsSortFn
+	// Insert logLine at the correct position
+	const pages = store.pages;
+	let targetPageIndex = -1;
+	let insertIndex = -1;
 
-	createEffect(() => {
-		setLogs(query.data?.pages.flat() ?? []);
-	});
+	// Find the correct page using binary search
+	let left = 0;
+	let right = pages.length - 1;
 
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		const page = pages[mid];
+
+		if (page.length === 0) {
+			right = mid - 1;
+			continue;
+		}
+
+		const firstLine = page[0];
+		const lastLine = page[page.length - 1];
+
+		if (_logsSortFn(logLine, firstLine) < 0) {
+			right = mid - 1;
+		} else if (_logsSortFn(logLine, lastLine) > 0) {
+			left = mid + 1;
+		} else {
+			targetPageIndex = mid;
+			break;
+		}
+	}
+
+	// If no suitable page found, insert at the boundary
+	if (targetPageIndex === -1) {
+		targetPageIndex = left;
+	}
+
+	// Handle case where it should go at the end
+	if (targetPageIndex >= pages.length) {
+		targetPageIndex = pages.length - 1;
+	}
+
+	// Find position within the target page
+	const targetPage = pages[targetPageIndex];
+	left = 0;
+	right = targetPage.length - 1;
+
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		const comparison = _logsSortFn(logLine, targetPage[mid]);
+
+		if (comparison < 0) {
+			right = mid - 1;
+		} else {
+			left = mid + 1;
+		}
+	}
+
+	insertIndex = left;
+
+	// Create new store with inserted log line
 	return {
-		get logs() {
-			return logs();
-		},
-		query,
+		...store,
+		pages: pages.map((page, index) =>
+			index === targetPageIndex
+				? [...page.slice(0, insertIndex), logLine, ...page.slice(insertIndex)]
+				: page,
+		),
 	};
 };
 
-export const logsSortFn: SortFn<LogLine> = (a, b) => {
+const _logsSortFn: SortFn<LogLine> = (a, b) => {
 	const timestampDiff = a.timestamp - b.timestamp;
 	if (timestampDiff !== 0) {
 		return timestampDiff;
@@ -140,7 +149,7 @@ export const logsSortFn: SortFn<LogLine> = (a, b) => {
 	return a.sequenceNumber - b.sequenceNumber;
 };
 
-export const fetchLogPage = async (
+const fetchLogPage = async (
 	clientId: string,
 	options: FetchLogPageOptions,
 	abortSignal: AbortSignal,

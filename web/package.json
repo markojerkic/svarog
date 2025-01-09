@@ -16,6 +16,7 @@
 		"@corvu/resizable": "^0.2.3",
 		"@kobalte/core": "^0.13.7",
 		"@modular-forms/solid": "0.25.0",
+		"@solid-primitives/event-bus": "^1.0.11",
 		"@solid-primitives/scheduled": "^1.4.4",
 		"@solid-primitives/state-machine": "^0.0.3",
 		"@solid-primitives/storage": "^4.2.1",
