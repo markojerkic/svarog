@@ -5,7 +5,6 @@ import {
 	createEffect,
 	createMemo,
 	createSignal,
-	on,
 	onCleanup,
 	onMount,
 } from "solid-js";
@@ -113,42 +112,9 @@ export const LogViewer = (props: {
 		virtualizer.scrollToIndex(0);
 	});
 
-	query.isFetchingNextPage;
-
-	//createEffect(() => {
-	//	if (queryState.type === "isDoneFetchingPreviousPage") {
-	//		virtualizer.scrollToIndex(query.data?.pages[0].length ?? 0);
-	//	}
-	//});
-
-	//createEffect(
-	//	on(logs, () => {
-	//		// If loading previous page, preserve scroll position
-	//		const index = Math.min(scrollPreservationIndex(), logs().length - 1);
-	//		if (index !== -1) {
-	//			const preservedLogLine = logs()[index];
-	//
-	//			setLogs(query.data?.pages.flat() ?? []);
-	//
-	//			const newIndex = logs().findIndex(
-	//				(log) => log.id === preservedLogLine.id,
-	//			);
-	//			if (newIndex !== -1) {
-	//				virtualizer.scrollToIndex(newIndex);
-	//			}
-	//		} else {
-	//			setLogs(query.data?.pages.flat() ?? []);
-	//		}
-	//	}),
-	//);
-
 	onMount(() => {
-		if (topRef) {
-			observer.observe(topRef);
-		}
-		if (bottomRef) {
-			observer.observe(bottomRef);
-		}
+		observer.observe(topRef!);
+		observer.observe(bottomRef!);
 	});
 
 	const scrollToBottom = () => {
