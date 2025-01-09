@@ -1,6 +1,7 @@
 import { createInfiniteQuery, createQuery } from "@tanstack/solid-query";
-import { createSignal, type Accessor } from "solid-js";
+import { createEffect, createSignal, type Accessor } from "solid-js";
 import { type SortFn, SortedList } from "@/lib/store/sorted-list";
+import { api } from "../utils/axios-api";
 
 export const getInstances = async (
 	clientId: string,
@@ -25,63 +26,40 @@ export const createLogQuery = (
 	selectedInstances: Accessor<string[] | undefined>,
 	searchQuery: Accessor<string | undefined>,
 ) => {
-	const store = createQuery(() => ({
-		queryKey: ["store", "logs", clientId(), selectedInstances(), searchQuery()],
-		initialData: new SortedList<LogLine>(logsSortFn),
-		staleTime: Number.POSITIVE_INFINITY,
-		queryFn: () => {
-			console.log("Resetting data");
-			return new SortedList<LogLine>(logsSortFn);
-		},
-	}));
-	const [lastLoadedPageSize, setLastLoadedPageSize] = createSignal(0);
-
+	const [logs, setLogs] = createSignal<LogLine[]>([]);
 	const query = createInfiniteQuery(() => ({
-		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()] as const,
-		initialPageParam: undefined as LogPageCursor | undefined,
-		gcTime: 1000 * 30,
-		queryFn: async ({ queryKey, pageParam, signal }) => {
-			const page = await fetchLogPage(
-				queryKey[1],
+		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()],
+		queryFn: async ({ pageParam, signal }) => {
+			return fetchLogPage(
+				clientId(),
 				{
-					selectedInstances: queryKey[2],
-					search: queryKey[3],
+					selectedInstances: selectedInstances(),
+					search: searchQuery(),
 					cursor: pageParam,
 				},
 				signal,
 			);
-
-			store.data.insertMany(page);
-			setLastLoadedPageSize(page.length);
-
-			return page;
 		},
-		getNextPageParam: () => {
-			return undefined;
-			// return {
-			// 	direction: "forward",
-			// 	cursorTime: lastPage[lastPage.length - 1].timestamp,
-			// 	cursorSequenceNumber: lastPage[lastPage.length - 1].sequenceNumber,
-			// } satisfies LogPageCursor | undefined;
-		},
+		initialPageParam: undefined as LogPageCursor | undefined,
+		getNextPageParam: () => undefined,
 		getPreviousPageParam: (firstPage) => {
 			return {
 				direction: "backward",
 				cursorTime: firstPage[0].timestamp,
 				cursorSequenceNumber: firstPage[0].sequenceNumber,
-			} satisfies LogPageCursor | undefined;
+			} satisfies LogPageCursor;
 		},
 	}));
 
+	createEffect(() => {
+		setLogs(query.data?.pages.flat() ?? []);
+	});
+
 	return {
-		get data() {
-			return store.data;
+		get logs() {
+			return logs();
 		},
-		get logCount() {
-			return store.data.size;
-		},
-		lastLoadedPageSize,
-		queryDetails: query,
+		query,
 	};
 };
 
@@ -98,43 +76,13 @@ const fetchLogPage = async (
 	options: FetchLogPageOptions,
 	abortSignal: AbortSignal,
 ) => {
-	const response = await fetch(buildUrl(clientId, options), {
+	const response = await api.get<LogLine[]>(`/v1/logs/${clientId}`, {
+		params: options,
 		signal: abortSignal,
 	});
-	return response.json() as Promise<LogLine[]>;
+
+	return response.data;
 };
-
-const buildUrl = (clientId: string, options: FetchLogPageOptions) => {
-	let url = buildBaseUrl(clientId);
-	const searchParams = new URLSearchParams();
-	if (options.cursor) {
-		searchParams.append(
-			"cursorSequenceNumber",
-			`${options.cursor.cursorSequenceNumber}`,
-		);
-		searchParams.append("cursorTime", `${options.cursor.cursorTime}`);
-		searchParams.append("direction", options.cursor.direction);
-	}
-
-	if (options.selectedInstances) {
-		for (const instance of options.selectedInstances) {
-			searchParams.append("instances", instance);
-		}
-	}
-
-	if (options.search) {
-		searchParams.append("search", options.search);
-		url += "/search";
-	}
-
-	if (searchParams.toString()) {
-		url += `?${searchParams.toString()}`;
-	}
-	return url;
-};
-
-const buildBaseUrl = (clientId: string) =>
-	`${import.meta.env.VITE_API_URL}/v1/logs/${clientId}`;
 
 type FetchLogPageOptions = {
 	selectedInstances?: string[];

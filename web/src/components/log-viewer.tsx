@@ -1,12 +1,5 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import {
-	For,
-	Show,
-	createEffect,
-	createSignal,
-	onCleanup,
-	onMount,
-} from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import { createInfiniteScrollObserver } from "@/lib/infinite-scroll";
 import type { CreateLogQueryResult } from "@/lib/store/query";
@@ -24,8 +17,8 @@ const LogViewer = (props: LogViewerProps) => {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
-	const logs = () => props.logsQuery.data;
-	const logCount = () => props.logsQuery.logCount;
+	const logs = () => props.logsQuery.logs;
+	const logCount = () => logs().length;
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -48,21 +41,9 @@ const LogViewer = (props: LogViewerProps) => {
 		}
 	});
 
-	let wasFetchingPreviousPage = false;
-	createEffect(() => {
-		if (props.logsQuery.queryDetails.isFetchingPreviousPage) {
-			wasFetchingPreviousPage = true;
-		} else if (wasFetchingPreviousPage && virtualizer.isScrolling) {
-			wasFetchingPreviousPage = false;
-			// if virtulizer is currently at the top, scroll to the top
-			const offset = props.logsQuery.lastLoadedPageSize() - 1;
-			virtualizer.scrollToIndex(offset, { align: "start" });
-		}
-	});
-
 	const scrollToBottom = () => {
 		console.log("Scroll to bottom event");
-		virtualizer.scrollToIndex(logs().size, { align: "end" });
+		virtualizer.scrollToIndex(logs().length, { align: "end" });
 		setIsOnBottom();
 	};
 
@@ -116,13 +97,8 @@ const LogViewer = (props: LogViewerProps) => {
 					<div id="top" ref={topRef} />
 					<For each={virtualizer.getVirtualItems()}>
 						{(virtualItem) => {
-							const item = () => {
-								const item = logs().get(virtualItem.index);
-								const content = item?.content;
-								const instance = item?.client.ipAddress ?? "";
-								return { content, instance };
-							};
-							const color = useInstanceColor(item().instance);
+							const item = logs()[virtualItem.index];
+							const color = useInstanceColor(item.client.ipAddress);
 
 							return (
 								<div
@@ -138,7 +114,7 @@ const LogViewer = (props: LogViewerProps) => {
 											"border-left-color": color(),
 										}}
 									>
-										{item().content}
+										{item.content}
 									</pre>
 								</div>
 							);

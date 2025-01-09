@@ -19,18 +19,15 @@ export const createInfiniteScrollObserver = (query: CreateLogQueryResult) => {
 					isBottomIntersecting = true;
 				}
 
-				if (
-					entry.target.id === "bottom" &&
-					!query.queryDetails.isFetchingNextPage
-				) {
+				if (entry.target.id === "bottom" && !query.query.isFetchingNextPage) {
 					console.log("fetchNextPage");
-					query.queryDetails.fetchNextPage();
+					query.query.fetchNextPage();
 				} else if (
 					entry.target.id === "top" &&
-					!query.queryDetails.isFetchingPreviousPage
+					!query.query.isFetchingPreviousPage
 				) {
 					console.log("fetchPreviousPage");
-					query.queryDetails.fetchPreviousPage();
+					query.query.fetchPreviousPage();
 				}
 			}
 		}

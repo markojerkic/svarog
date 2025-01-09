@@ -3,23 +3,12 @@ import {
 	type RouteSectionProps,
 	useParams,
 } from "@solidjs/router";
-import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import {
-	ErrorBoundary,
-	Show,
-	Suspense,
-	createEffect,
-	on,
-	onMount,
-} from "solid-js";
-import { Instances } from "@/components/instances";
+import { useQueryClient } from "@tanstack/solid-query";
 import { createLogViewer } from "@/components/log-viewer";
 import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
 } from "@/lib/hooks/use-selected-instances";
-import { useWithPreviousValue } from "@/lib/hooks/with-previous-value";
-import { createLogSubscription } from "@/lib/store/connection";
 import { getInstances } from "@/lib/store/query";
 import { createLogQuery } from "@/lib/store/query";
 
@@ -47,64 +36,55 @@ export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
 
-	const logs = createLogQuery(
+	const logQuery = createLogQuery(
 		() => clientId,
 		selectedInstances,
 		() => undefined,
 	);
-	const logCount = () => logs.logCount;
+	const logCount = () => logQuery.logs.length;
 
-	const instances = createQuery(() => ({
-		queryKey: ["logs", "instances", clientId],
-		queryFn: ({ signal }) => getInstances(clientId, signal),
-		refetchOnWindowFocus: true,
-	}));
+	//const instances = createQuery(() => ({
+	//	queryKey: ["logs", "instances", clientId],
+	//	queryFn: ({ signal }) => getInstances(clientId, signal),
+	//	refetchOnWindowFocus: true,
+	//}));
 
-	const [LogViewer, scrollToBottom] = createLogViewer();
+	const [LogViewer] = createLogViewer();
 
-	const wsActions = createLogSubscription(
-		clientId,
-		(line) => logs.data.insert(line),
-		scrollToBottom,
-		() => selectedInstances(),
-	);
+	//const wsActions = createLogSubscription(
+	//	clientId,
+	//	(line) => logQuery.data.insert(line),
+	//	scrollToBottom,
+	//	() => selectedInstances(),
+	//);
 
-	useWithPreviousValue(
-		() => logs.queryDetails.isFetched,
-		(prev, curr) => {
-			if (prev === false && curr === true) {
-				scrollToBottom();
-			}
-		},
-	);
+	//useWithPreviousValue(
+	//	() => logQuery.queryDetails.isFetched,
+	//	(prev, curr) => {
+	//		if (prev === false && curr === true) {
+	//			scrollToBottom();
+	//		}
+	//	},
+	//);
 
-	onMount(() => {
-		wsActions.setInstances(selectedInstances());
-		scrollToBottom();
-	});
+	//onMount(() => {
+	//	wsActions.setInstances(selectedInstances());
+	//	scrollToBottom();
+	//});
 
-	createEffect(
-		on(selectedInstances, (instances) => {
-			wsActions.setInstances(instances);
-			scrollToBottom();
-		}),
-	);
+	//createEffect(
+	//	on(selectedInstances, (instances) => {
+	//		wsActions.setInstances(instances);
+	//		scrollToBottom();
+	//	}),
+	//);
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
-			<ErrorBoundary fallback={<span class="bg-red-900 p-2">Error </span>}>
-				<Suspense fallback={<div>Loading...</div>}>
-					<Show when={instances.data}>
-						{(instances) => (
-							<Instances instances={instances()} actions={wsActions} />
-						)}
-					</Show>
-				</Suspense>
-			</ErrorBoundary>
 			<div class="flex-grow">
 				<pre>Local log count: {logCount()}</pre>
-				<pre>Is fetched: {logs.queryDetails.isFetched ? "je" : "nije"}</pre>
-				<LogViewer logsQuery={logs} />
+				<pre>Is fetched: {logQuery.query.isFetched ? "je" : "nije"}</pre>
+				<LogViewer logsQuery={logQuery} />
 			</div>
 		</div>
 	);
