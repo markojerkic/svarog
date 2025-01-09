@@ -57,6 +57,10 @@ export const createLogQueryOptions = (
 		initialPageParam: undefined as LogPageCursor | undefined,
 		getNextPageParam: () => undefined,
 		getPreviousPageParam: (firstPage) => {
+			if (firstPage.length === 0) {
+				return undefined;
+			}
+
 			return {
 				direction: "backward",
 				cursorTime: firstPage[0].timestamp,
@@ -92,9 +96,9 @@ export const insertLogLine = (
 		const firstLine = page[0];
 		const lastLine = page[page.length - 1];
 
-		if (_logsSortFn(logLine, firstLine) < 0) {
+		if (logsSortFn(logLine, firstLine) < 0) {
 			right = mid - 1;
-		} else if (_logsSortFn(logLine, lastLine) > 0) {
+		} else if (logsSortFn(logLine, lastLine) > 0) {
 			left = mid + 1;
 		} else {
 			targetPageIndex = mid;
@@ -119,7 +123,7 @@ export const insertLogLine = (
 
 	while (left <= right) {
 		const mid = Math.floor((left + right) / 2);
-		const comparison = _logsSortFn(logLine, targetPage[mid]);
+		const comparison = logsSortFn(logLine, targetPage[mid]);
 
 		if (comparison < 0) {
 			right = mid - 1;
@@ -141,7 +145,7 @@ export const insertLogLine = (
 	};
 };
 
-const _logsSortFn: SortFn<LogLine> = (a, b) => {
+const logsSortFn: SortFn<LogLine> = (a, b) => {
 	const timestampDiff = a.timestamp - b.timestamp;
 	if (timestampDiff !== 0) {
 		return timestampDiff;
@@ -155,9 +159,22 @@ const fetchLogPage = async (
 	abortSignal: AbortSignal,
 ) => {
 	const response = await api.get<LogLine[]>(`/v1/logs/${clientId}`, {
-		params: { ...options, cursor: undefined },
+		params: {
+			...options,
+			...buildCursor(options.cursor),
+			cursor: undefined,
+		},
 		signal: abortSignal,
 	});
 
 	return response.data;
+};
+
+const buildCursor = (cursor: LogPageCursor | null | undefined) => {
+	return cursor
+		? {
+				...cursor,
+				cursorTime: `${cursor.cursorTime}`,
+			}
+		: {};
 };

@@ -62,10 +62,8 @@ export const LogViewer = (props: {
 		for (const entry of entries) {
 			if (entry.isIntersecting) {
 				if (entry.target.id === "bottom" && !query.isFetchingNextPage) {
-					console.log("fetchNextPage");
 					query.fetchNextPage();
 				} else if (entry.target.id === "top" && !query.isFetchingPreviousPage) {
-					console.log("fetchPreviousPage");
 					query.fetchPreviousPage();
 				}
 			}
@@ -129,7 +127,6 @@ export const LogViewer = (props: {
 
 	onMount(() => {
 		const unsub = newLogLineListener((line) => {
-			console.log("New line", line);
 			const queryKey = createLogQueryOptions(() => props).queryKey;
 			queryClient.setQueryData(
 				queryKey,
