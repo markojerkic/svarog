@@ -158,7 +158,11 @@ const fetchLogPage = async (
 	options: FetchLogPageOptions,
 	abortSignal: AbortSignal,
 ) => {
-	const response = await api.get<LogLine[]>(`/v1/logs/${clientId}`, {
+	let url = `/v1/logs/${clientId}`;
+	if (options.search) {
+		url += "/search";
+	}
+	const response = await api.get<LogLine[]>(url, {
 		params: {
 			...options,
 			...buildCursor(options.cursor),

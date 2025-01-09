@@ -33,40 +33,6 @@ export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
 
-	//const instances = createQuery(() => ({
-	//	queryKey: ["logs", "instances", clientId],
-	//	queryFn: ({ signal }) => getInstances(clientId, signal),
-	//	refetchOnWindowFocus: true,
-	//}));
-
-	//const wsActions = createLogSubscription(
-	//	clientId,
-	//	(line) => logQuery.data.insert(line),
-	//	scrollToBottom,
-	//	() => selectedInstances(),
-	//);
-
-	//useWithPreviousValue(
-	//	() => logQuery.queryDetails.isFetched,
-	//	(prev, curr) => {
-	//		if (prev === false && curr === true) {
-	//			scrollToBottom();
-	//		}
-	//	},
-	//);
-
-	//onMount(() => {
-	//	wsActions.setInstances(selectedInstances());
-	//	scrollToBottom();
-	//});
-
-	//createEffect(
-	//	on(selectedInstances, (instances) => {
-	//		wsActions.setInstances(instances);
-	//		scrollToBottom();
-	//	}),
-	//);
-
 	createLogSubscription(() => ({
 		clientId: clientId,
 		instances: selectedInstances(),
