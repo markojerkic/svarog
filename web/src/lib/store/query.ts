@@ -54,18 +54,25 @@ export const getInstances = async (
 };
 
 export const createLogQueryOptions = (
-	clientId: Accessor<string>,
-	selectedInstances: Accessor<string[] | undefined>,
-	searchQuery: Accessor<string | undefined>,
+	props: () => {
+		clientId: string;
+		selectedInstances: string[] | undefined;
+		searchQuery?: string | undefined;
+	},
 ) => {
 	return {
-		queryKey: ["logs", clientId(), selectedInstances(), searchQuery()],
+		queryKey: [
+			"logs",
+			props().clientId,
+			props().selectedInstances,
+			props().searchQuery,
+		],
 		queryFn: async ({ pageParam, signal }) => {
 			return fetchLogPage(
-				clientId(),
+				props().clientId,
 				{
-					selectedInstances: selectedInstances(),
-					search: searchQuery(),
+					selectedInstances: props().selectedInstances,
+					search: props().searchQuery,
 					cursor: pageParam as LogPageCursor,
 				},
 				signal,
@@ -139,7 +146,7 @@ export const fetchLogPage = async (
 	abortSignal: AbortSignal,
 ) => {
 	const response = await api.get<LogLine[]>(`/v1/logs/${clientId}`, {
-		params: options,
+		params: { ...options, cursor: undefined },
 		signal: abortSignal,
 	});
 

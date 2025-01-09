@@ -9,14 +9,10 @@ import {
 	onMount,
 } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
-import {
-	fetchLogPage,
-	type LogPageCursor,
-	type LogLine,
-} from "@/lib/store/query";
+import { type LogLine, createLogQueryOptions } from "@/lib/store/query";
 import { createInfiniteQuery } from "@tanstack/solid-query";
 
-const LogViewer = (props: {
+export const LogViewer = (props: {
 	clientId: string;
 	selectedInstances: string[];
 	searchQuery?: string;
@@ -30,39 +26,9 @@ const LogViewer = (props: {
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
 
-	const [scrollPreservationIndex, _setScrollPreservationIndex] =
-		createSignal<number>(300);
-
 	// LOGS
 	const [logs, setLogs] = createSignal<LogLine[]>([]);
-	const query = createInfiniteQuery(() => ({
-		queryKey: [
-			"logs",
-			props.clientId,
-			props.selectedInstances,
-			props.searchQuery,
-		],
-		queryFn: async ({ pageParam, signal }) => {
-			return fetchLogPage(
-				props.clientId,
-				{
-					selectedInstances: props.selectedInstances,
-					search: props.searchQuery,
-					cursor: pageParam,
-				},
-				signal,
-			);
-		},
-		initialPageParam: undefined as LogPageCursor | undefined,
-		getNextPageParam: () => undefined,
-		getPreviousPageParam: (firstPage) => {
-			return {
-				direction: "backward",
-				cursorTime: firstPage[0].timestamp,
-				cursorSequenceNumber: firstPage[0].sequenceNumber,
-			} satisfies LogPageCursor;
-		},
-	}));
+	const query = createInfiniteQuery(() => createLogQueryOptions(() => props));
 
 	const logCount = () => logs().length;
 
@@ -90,25 +56,37 @@ const LogViewer = (props: {
 	});
 
 	createEffect(
-		on(logs, () => {
-			// If loading previous page, preserve scroll position
-			const index = Math.min(scrollPreservationIndex(), logs().length - 1);
-			if (index !== -1) {
-				const preservedLogLine = logs()[index];
-
-				setLogs(query.data?.pages.flat() ?? []);
-
-				const newIndex = logs().findIndex(
-					(log) => log.id === preservedLogLine.id,
-				);
-				if (newIndex !== -1) {
-					virtualizer.scrollToIndex(newIndex);
-				}
-			} else {
-				setLogs(query.data?.pages.flat() ?? []);
-			}
-		}),
+		on(
+			() => query.data,
+			(data) => {
+				setLogs(data?.pages.flat() ?? []);
+				virtualizer.scrollToIndex(data?.pages[0].length ?? 0);
+			},
+		),
 	);
+
+	onMount(() => {});
+
+	//createEffect(
+	//	on(logs, () => {
+	//		// If loading previous page, preserve scroll position
+	//		const index = Math.min(scrollPreservationIndex(), logs().length - 1);
+	//		if (index !== -1) {
+	//			const preservedLogLine = logs()[index];
+	//
+	//			setLogs(query.data?.pages.flat() ?? []);
+	//
+	//			const newIndex = logs().findIndex(
+	//				(log) => log.id === preservedLogLine.id,
+	//			);
+	//			if (newIndex !== -1) {
+	//				virtualizer.scrollToIndex(newIndex);
+	//			}
+	//		} else {
+	//			setLogs(query.data?.pages.flat() ?? []);
+	//		}
+	//	}),
+	//);
 
 	onMount(() => {
 		if (topRef) {

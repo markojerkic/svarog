@@ -4,12 +4,12 @@ import {
 	useParams,
 } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
-import { createLogViewer } from "@/components/log-viewer";
+import { LogViewer } from "@/components/log-viewer";
 import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
 } from "@/lib/hooks/use-selected-instances";
-import { getInstances } from "@/lib/store/query";
+import { createLogQueryOptions } from "@/lib/store/query";
 import { createLogQuery } from "@/lib/store/query";
 
 export const route = {
@@ -20,15 +20,12 @@ export const route = {
 			location.query.instances,
 		);
 
-		createLogQuery(
-			() => clientId,
-			() => selectedInstances,
-			() => undefined,
+		return await queryClient.ensureInfiniteQueryData(
+			createLogQueryOptions(() => ({
+				clientId,
+				selectedInstances,
+			})),
 		);
-		await queryClient.prefetchQuery({
-			queryKey: ["logs", "instances", clientId],
-			queryFn: ({ signal }) => getInstances(clientId, signal),
-		});
 	},
 } satisfies RouteDefinition;
 
@@ -48,8 +45,6 @@ export default (_props: RouteSectionProps) => {
 	//	queryFn: ({ signal }) => getInstances(clientId, signal),
 	//	refetchOnWindowFocus: true,
 	//}));
-
-	const [LogViewer] = createLogViewer();
 
 	//const wsActions = createLogSubscription(
 	//	clientId,
