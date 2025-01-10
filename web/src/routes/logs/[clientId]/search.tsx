@@ -41,13 +41,20 @@ export default (_props: RouteSectionProps) => {
 		search?: string;
 	}>();
 	const searchQuery = () => searchParams.search ?? "";
+	const navigateBack = useNavigateBack(() => ({
+		clientId: clientId,
+		selectedInstances: selectedInstances(),
+	}));
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
 			<SearchCommnad
 				search={searchQuery()}
 				onInput={(search) => {
-					console.log("search", search);
+					if (search === "") {
+						navigateBack();
+						return;
+					}
 					setSearchParams({ search });
 				}}
 			/>
@@ -67,7 +74,10 @@ const SearchInfo = (props: {
 	clientId: string;
 	selectedInstances: string[];
 }) => {
-	const navigate = useNavigate();
+	const navigateBack = useNavigateBack(() => ({
+		clientId: props.clientId,
+		selectedInstances: props.selectedInstances,
+	}));
 	let elementRef: HTMLDivElement | undefined;
 
 	return (
@@ -79,17 +89,23 @@ const SearchInfo = (props: {
 				You are on the search page, and live reload of data is turned off. To
 				enable live reload, please clear the search.
 			</span>
-			<Button
-				onClick={() => {
-					const searchParams = new URLSearchParams();
-					for (const instance of props.selectedInstances) {
-						searchParams.append("instance", instance);
-					}
-					navigate(`/logs/${props.clientId}?${searchParams.toString()}`);
-				}}
-			>
-				Clear
-			</Button>
+			<Button onClick={navigateBack}>Clear</Button>
 		</div>
 	);
+};
+
+const useNavigateBack = (
+	props: () => {
+		clientId: string;
+		selectedInstances: string[];
+	},
+) => {
+	const navigate = useNavigate();
+	return () => {
+		const searchParams = new URLSearchParams();
+		for (const instance of props().selectedInstances) {
+			searchParams.append("instance", instance);
+		}
+		navigate(`/logs/${props().clientId}?${searchParams.toString()}`);
+	};
 };

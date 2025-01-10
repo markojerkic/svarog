@@ -14,7 +14,10 @@ export const SearchCommnad = (props: {
 		const down = (e: KeyboardEvent) => {
 			if (e.key === SEARCH_KEY.toLowerCase() && (e.metaKey || e.ctrlKey)) {
 				e.preventDefault();
-				searchInputRef?.focus();
+				if (searchInputRef) {
+					searchInputRef.focus();
+					searchInputRef.select();
+				}
 			}
 		};
 
