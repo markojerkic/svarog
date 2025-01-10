@@ -1,7 +1,9 @@
 import {
 	type RouteDefinition,
 	type RouteSectionProps,
+	useNavigate,
 	useParams,
+	useSearchParams,
 } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
 import { LogViewer } from "@/components/log-viewer";
@@ -11,6 +13,7 @@ import {
 } from "@/lib/hooks/use-selected-instances";
 import { createLogQueryOptions } from "@/lib/store/query";
 import { createLogSubscription } from "@/lib/store/connection";
+import { SearchCommnad } from "@/components/log-search";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -32,6 +35,8 @@ export const route = {
 export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
+	const [searchParams] = useSearchParams();
+	const navigate = useNavigate();
 
 	createLogSubscription(() => ({
 		clientId: clientId,
@@ -41,6 +46,18 @@ export default (_props: RouteSectionProps) => {
 	return (
 		<div class="flex flex-col justify-start gap-2">
 			<div class="flex-grow">
+				<SearchCommnad
+					search={(searchParams.search as string) ?? ""}
+					onInput={(search) => {
+						console.log("search", search);
+						const params = new URLSearchParams();
+						params.set("search", search);
+						for (const instance of selectedInstances()) {
+							params.append("instances", instance);
+						}
+						navigate(`search?${params.toString()}`, { replace: true });
+					}}
+				/>
 				<LogViewer
 					selectedInstances={selectedInstances()}
 					clientId={clientId}

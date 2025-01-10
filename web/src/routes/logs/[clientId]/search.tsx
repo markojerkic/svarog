@@ -1,4 +1,3 @@
-import { debounce } from "@solid-primitives/scheduled";
 import {
 	type RouteDefinition,
 	type RouteSectionProps,
@@ -12,8 +11,7 @@ import {
 	useSelectedInstances,
 } from "@/lib/hooks/use-selected-instances";
 import { createLogQueryOptions } from "@/lib/store/query";
-import { TextField, TextFieldRoot } from "@/components/ui/textfield";
-import { createEffect, createSignal } from "solid-js";
+import { SearchCommnad } from "@/components/log-search";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -37,41 +35,27 @@ export const route = {
 export default (_props: RouteSectionProps) => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
-	const [search, setSearch] = createDebouncedSearch();
+	const [searchParams, setSearchParams] = useSearchParams<{
+		search?: string;
+	}>();
+	const searchQuery = () => searchParams.search ?? "";
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
-			<TextFieldRoot>
-				<TextField
-					placeholder="Search..."
-					onInput={(e) => {
-						setSearch(e.currentTarget.value);
-					}}
-				/>
-			</TextFieldRoot>
+			<SearchCommnad
+				search={searchQuery()}
+				onInput={(search) => {
+					console.log("search", search);
+					setSearchParams({ search });
+				}}
+			/>
 			<div class="flex-grow">
 				<LogViewer
 					selectedInstances={selectedInstances()}
 					clientId={clientId}
-					searchQuery={search()}
+					searchQuery={searchQuery()}
 				/>
 			</div>
 		</div>
 	);
-};
-const createDebouncedSearch = () => {
-	const [searchParams, setSearchParams] = useSearchParams<{
-		search?: string;
-	}>();
-	const [search, setSearch] = createSignal(searchParams.search ?? "");
-	const trigger = debounce((value: string) => {
-		setSearchParams({ search: value });
-	}, 500);
-
-	createEffect(() => {
-		trigger(search());
-	});
-	const debouncedSearch = () => searchParams.search;
-
-	return [debouncedSearch, setSearch] as const;
 };
