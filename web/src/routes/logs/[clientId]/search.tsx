@@ -51,6 +51,7 @@ export default (_props: RouteSectionProps) => {
 					setSearchParams({ search });
 				}}
 			/>
+			<SearchInfo clientId={clientId} selectedInstances={selectedInstances()} />
 			<div class="flex-grow">
 				<LogViewer
 					selectedInstances={selectedInstances()}
@@ -58,7 +59,6 @@ export default (_props: RouteSectionProps) => {
 					searchQuery={searchQuery()}
 				/>
 			</div>
-			<SearchInfo clientId={clientId} selectedInstances={selectedInstances()} />
 		</div>
 	);
 };
@@ -68,25 +68,27 @@ const SearchInfo = (props: {
 	selectedInstances: string[];
 }) => {
 	const navigate = useNavigate();
+	let elementRef: HTMLDivElement | undefined;
 
 	return (
-		<div class="fixed bottom-0 left-0 w-full translate-y-0 transform animate-slide-in bg-blue-500 py-4 text-center text-white shadow-lg transition-transform">
-			<p>
+		<div
+			ref={elementRef}
+			class="flex w-full items-center justify-center gap-2 bg-card py-2 text-center text-primary shadow-lg"
+		>
+			<span>
 				You are on the search page, and live reload of data is turned off. To
 				enable live reload, please clear the search.
-			</p>
+			</span>
 			<Button
-				class="mt-2 rounded-md bg-white px-4 py-2 text-blue-500 hover:bg-gray-200"
 				onClick={() => {
 					const searchParams = new URLSearchParams();
 					for (const instance of props.selectedInstances) {
 						searchParams.append("instance", instance);
 					}
-
 					navigate(`/logs/${props.clientId}?${searchParams.toString()}`);
 				}}
 			>
-				Dismiss
+				Clear
 			</Button>
 		</div>
 	);
