@@ -55,7 +55,14 @@ export default (_props: RouteSectionProps) => {
 						for (const instance of selectedInstances()) {
 							params.append("instances", instance);
 						}
-						navigate(`search?${params.toString()}`, { replace: true });
+
+						if (document.startViewTransition) {
+							document.startViewTransition(() => {
+								navigate(`search?${params.toString()}`, { replace: true });
+							});
+						} else {
+							navigate(`search?${params.toString()}`, { replace: true });
+						}
 					}}
 				/>
 				<LogViewer
