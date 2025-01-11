@@ -1,211 +1,216 @@
-import { renderHook, render } from "@solidjs/testing-library";
+import { renderHook } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
+import type { Component, ParentProps } from "solid-js";
 import {
-	type ParentProps,
-	createSignal,
-	createRoot,
-	catchError,
-	type Owner,
-	Suspense,
-	createEffect,
-} from "solid-js";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createLogQuery } from "@/lib/store/query";
-import type { LogLine } from "@/lib/store/query";
+	afterAll,
+	afterEach,
+	beforeAll,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
+import { useLogStore, type LogLine } from "@/lib/hooks/use-log-store";
 
-const waitFor = (fn: () => boolean, owner?: Owner) => {
-	let done: () => void;
-	let fail: (error: unknown) => void;
-	const promise = new Promise<void>((resolve, reject) => {
-		done = resolve;
-		fail = reject;
-	});
-
-	createRoot((dispose) => {
-		catchError(async () => {
-			let isDone = false;
-			while (!isDone) {
-				isDone = fn();
-				await new Promise((resolve) => setTimeout(resolve, 1000));
-			}
-			done();
-			dispose();
-		}, fail);
-	}, owner);
-	return promise;
-};
-
-const mockData = [
+const mockData: LogLine[] = [
 	{
 		id: "1",
-		content: "Hello",
+		content: "First log entry",
 		timestamp: new Date().getTime(),
 		sequenceNumber: 1,
 		client: {
-			clientId: "marko",
+			clientId: "client1",
 			ipAddress: "::1",
 		},
 	},
-] satisfies LogLine[];
-
-const mockData2 = [
 	{
 		id: "2",
-		content: "Hello from data 2",
-		timestamp: new Date().getTime(),
-		sequenceNumber: 1,
+		content: "Second log entry",
+		timestamp: new Date().getTime() + 1000,
+		sequenceNumber: 2,
 		client: {
-			clientId: "jerkic",
-			ipAddress: "::2",
+			clientId: "client1",
+			ipAddress: "::1",
 		},
 	},
-] satisfies LogLine[];
+];
+
+const mockDataPage2: LogLine[] = [
+	{
+		id: "3",
+		content: "Earlier log entry",
+		timestamp: new Date().getTime() - 1000,
+		sequenceNumber: 0,
+		client: {
+			clientId: "client1",
+			ipAddress: "::1",
+		},
+	},
+];
 
 const handlers = [
-	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/marko`, () => {
+	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/client1`, () => {
 		return HttpResponse.json(mockData);
 	}),
-	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/jerkic`, () => {
-		return HttpResponse.json(mockData2);
+	// Handler for previous page fetch with cursor
+	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/client1`, ({ request }) => {
+		const url = new URL(request.url);
+		const direction = url.searchParams.get("direction");
+		if (direction === "backward") {
+			return HttpResponse.json(mockDataPage2);
+		}
+		return HttpResponse.json(mockData);
+	}),
+	// Handler for search
+	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/client1/search`, () => {
+		return HttpResponse.json([mockData[0]]);
 	}),
 ];
+
 const mockServer = setupServer(...handlers);
 
-describe("createLoqQuery", () => {
+vi.mock("@/lib/hooks/use-scroll-event", () => ({
+	useScrollEvent: () => ({
+		scrollToBottom: vi.fn(),
+		scrollToIndex: vi.fn(),
+	}),
+}));
+
+describe("useLogStore", () => {
 	beforeAll(() => mockServer.listen());
-	afterEach(() => mockServer.resetHandlers());
+	afterEach(() => {
+		mockServer.resetHandlers();
+		vi.clearAllMocks();
+	});
 	afterAll(() => mockServer.close());
 
-	const queryClient = new QueryClient();
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
 
-	const Wrapper = (props: ParentProps) => (
+	const Wrapper: Component<ParentProps> = (props) => (
 		<QueryClientProvider client={queryClient}>
 			{props.children}
 		</QueryClientProvider>
 	);
 
-	it("should initialize and return data", async () => {
-		const [clientId, _setClientId] = createSignal("marko");
-		const [selectedInstances, _setSelectedInstances] = createSignal<
-			string[] | undefined
-		>(undefined);
-		const [search, _setSearch] = createSignal<string | undefined>(undefined);
+	it("should initialize and fetch initial logs", async () => {
 		const { result } = renderHook(
-			() => createLogQuery(clientId, selectedInstances, search),
-			{
-				wrapper: Wrapper,
-			},
+			() =>
+				useLogStore(() => ({
+					clientId: "client1",
+					selectedInstances: [],
+				})),
+			{ wrapper: Wrapper },
 		);
-		await result.queryDetails.fetchNextPage();
 
-		await waitFor(() => {
-			return result.queryDetails.isSuccess;
+		// Wait for initial fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(2);
 		});
-		expect(
-			result.queryDetails.isSuccess,
-			"Query needs to resolve to success",
-		).toBeTruthy();
-		expect(result.data.size, "Data should hold exactly one element").toEqual(1);
-		expect(result.data.get(0), "Query data needs to be as expected").toEqual(
-			mockData[0],
-		);
+
+		expect(result.logs.get(0)).toEqual(expect.objectContaining({ id: "1" }));
+		expect(result.logs.get(1)).toEqual(expect.objectContaining({ id: "2" }));
 	});
 
-	it("should refetch data when search changes", async () => {
-		const [clientId, setClientId] = createSignal("marko");
-		const [selectedInstances, _setSelectedInstances] = createSignal<
-			string[] | undefined
-		>(undefined);
-		const [search, _setSearch] = createSignal<string | undefined>(undefined);
+	it("should fetch previous page when requested", async () => {
 		const { result } = renderHook(
-			() => createLogQuery(clientId, selectedInstances, search),
-			{
-				wrapper: Wrapper,
-			},
-		);
-		await result.queryDetails.fetchNextPage();
-
-		await waitFor(() => {
-			return result.queryDetails.isSuccess;
-		});
-		expect(
-			result.queryDetails.isSuccess,
-			"Query needs to resolve to success",
-		).toBeTruthy();
-		expect(result.data.size, "Data should hold exactly one element").toEqual(1);
-		expect(result.data.get(0), "Query data needs to be as expected").toEqual(
-			mockData[0],
+			() =>
+				useLogStore(() => ({
+					clientId: "client1",
+					selectedInstances: [],
+				})),
+			{ wrapper: Wrapper },
 		);
 
-		// Change clientId to jerkic
-
-		setClientId("jerkic");
-		await waitFor(() => {
-			const isSuccess = result.queryDetails.isSuccess;
-			return isSuccess;
+		// Wait for initial fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(2);
 		});
 
-		expect(result.data.size, "Data should hold exactly one element").toEqual(1);
-		expect(result.data.get(0), "Query data needs to be as expected").toEqual(
-			mockData2[0],
+		// Request previous page
+		expect(result.state.type).toBe("idle");
+		if (result.state.type === "idle") {
+			result.state.value.fetchPreviousPage();
+		}
+
+		// Wait for fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(3);
+		});
+
+		expect(result.logs.get(0)).toEqual(expect.objectContaining({ id: "1" }));
+		expect(result.logs.get(1)).toEqual(expect.objectContaining({ id: "2" }));
+		expect(result.logs.get(2)).toEqual(expect.objectContaining({ id: "3" }));
+	});
+
+	it("should reset store when props change", async () => {
+		let searchQuery: string | undefined = undefined;
+		const { result } = renderHook(
+			() =>
+				useLogStore(() => ({
+					clientId: "client1",
+					selectedInstances: [],
+					searchQuery,
+				})),
+			{ wrapper: Wrapper },
 		);
+
+		// Wait for initial fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(2);
+		});
+
+		// Change search query
+		searchQuery = "test";
+
+		// Wait for new fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(1);
+		});
+
+		expect(result.logs.get(0)).toEqual(expect.objectContaining({ id: "1" }));
 	});
 
-	it("should add value to DOM after insert", async () => {
-		const TestBed = () => {
-			const [clientId, _setClientId] = createSignal("marko");
-			const [selectedInstances, _setSelectedInstances] = createSignal<
-				string[] | undefined
-			>(undefined);
-			const [search, _setSearch] = createSignal<string | undefined>(undefined);
+	it("should maintain sorted order when inserting logs", async () => {
+		const { result } = renderHook(
+			() =>
+				useLogStore(() => ({
+					clientId: "client1",
+					selectedInstances: [],
+				})),
+			{ wrapper: Wrapper },
+		);
 
-			const query = createLogQuery(clientId, selectedInstances, search);
+		// Wait for initial fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(2);
+		});
 
-			return (
-				<Suspense>
-					<div id="target">{query.data.get(0)?.content}</div>
-				</Suspense>
-			);
-		};
+		// Request previous page
+		expect(result.state.type).toBe("idle");
+		if (result.state.type === "idle") {
+			result.state.value.fetchPreviousPage();
+		}
 
-		const { findByText } = render(() => (
-			<Wrapper>
-				<TestBed />
-			</Wrapper>
-		));
+		// Wait for fetch to complete
+		await vi.waitFor(() => {
+			expect(result.logs.size).toBe(3);
+		});
 
-		expect(await findByText("Hello")).toBeTruthy();
-	});
-
-	it("should add value to DOM after insert", async () => {
-		const TestBed = () => {
-			const [clientId, setClientId] = createSignal("marko");
-			const [selectedInstances, _setSelectedInstances] = createSignal<
-				string[] | undefined
-			>(undefined);
-			const [search, _setSearch] = createSignal<string | undefined>(undefined);
-
-			const query = createLogQuery(clientId, selectedInstances, search);
-
-			createEffect(() => {
-				setClientId("jerkic");
-			});
-
-			return (
-				<Suspense>
-					<div id="target">{query.data.get(0)?.content}</div>
-				</Suspense>
-			);
-		};
-
-		const { findByText } = render(() => (
-			<Wrapper>
-				<TestBed />
-			</Wrapper>
-		));
-
-		expect(await findByText("Hello from data 2")).toBeTruthy();
+		const logs = result.logs;
+		expect(logs.size).toEqual(3);
+		expect(logs.get(0)?.sequenceNumber).toBeLessThan(
+			logs.get(1)?.sequenceNumber!,
+		);
+		expect(logs.get(1)?.sequenceNumber).toBeLessThan(
+			logs.get(2)?.sequenceNumber!,
+		);
 	});
 });
