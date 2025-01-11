@@ -158,7 +158,6 @@ func (c *CertificateServiceImpl) GenerateCaCertificate(ctx context.Context) erro
 }
 
 func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupId string) (string, cleanup, error) {
-
 	caCert, privateKey, err := c.GetCaCertificate(ctx)
 	if err != nil {
 		return "", nil, errors.Join(errors.New("Error getting CA certificate"), err)
@@ -189,7 +188,7 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 		},
 		NotBefore:   time.Now(),
 		NotAfter:    time.Now().AddDate(10, 0, 0),
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		DNSNames:    []string{"*"},
 		IPAddresses: []net.IP{net.ParseIP("0.0.0.0"), net.ParseIP("::"), net.IPv6loopback},
