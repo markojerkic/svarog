@@ -1,12 +1,13 @@
 import { useWindowHeight } from "@/lib/hooks/use-window-height";
 import { createViewportObserver } from "@solid-primitives/intersection-observer";
 import { type VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
-import { For, type JSXElement, Show, createSignal, onMount } from "solid-js";
+import { For, type JSXElement, createSignal, onMount } from "solid-js";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 import {
 	useOnScrollToBottom,
 	useOnScrollToIndex,
 } from "@/lib/hooks/use-scroll-event";
+import { newLogLineListener } from "@/lib/store/connection";
 
 type ScrollAreaProps = {
 	itemCount: number;
@@ -20,7 +21,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	let logsRef: HTMLDivElement | undefined = undefined;
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
-	const [isLockedInBottom, _setIsLockedInBotton] = createSignal(false);
+	const [isLockedInBottom, setIsLockedInBotton] = createSignal(true);
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -47,30 +48,33 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 
 	onMount(() => {
 		scrollToBottom();
-		// On logsRef scroll upwards, remove scroll lock
-		//if (logsRef) {
-		//	logsRef.addEventListener("scroll", () => {
-		//		if (logsRef.scrollTop + logsRef.clientHeight < logsRef.scrollHeight) {
-		//			console.log("not locked in bottom");
-		//			setIsLockedInBotton(false);
-		//		}
-		//	});
-		//}
+
+		const scrollHandler = () => {
+			const el = logsRef!;
+			const isLockedInBotton =
+				el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+			setIsLockedInBotton(isLockedInBotton);
+		};
+		(logsRef as HTMLDivElement | undefined)?.addEventListener(
+			"scroll",
+			scrollHandler,
+		);
+
+		return () => {
+			(logsRef as HTMLDivElement | undefined)?.removeEventListener(
+				"scroll",
+				scrollHandler,
+			);
+		};
 	});
 
-	//createEffect(
-	//	on(
-	//		() => ({ count: props.itemCount, locked: isLockedInBottom() }),
-	//		() => {
-	//			if (isLockedInBottom()) {
-	//				console.log("Sengin to bottom from effect");
-	//				scrollToBottom();
-	//			} else {
-	//				console.log("not locked in bottom");
-	//			}
-	//		},
-	//	),
-	//);
+	onMount(() => {
+		newLogLineListener(() => {
+			if (isLockedInBottom()) {
+				scrollToBottom();
+			}
+		});
+	});
 
 	const items = virtualizer.getVirtualItems();
 
@@ -111,22 +115,19 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						{(virtualItem) => props.children(virtualItem)}
 					</For>
 
-					<Show when={isLockedInBottom()} fallback="NIje">
-						Lockano
-					</Show>
-
 					<div
 						id="bottom"
 						class="my-[-2rem]"
 						use:intersectionObserver={() => {
 							//setTimeout(() => {
 							//	if (el.intersectionRatio > 0.3) {
-							//		//console.log("Setting lock");
+							//		//fn.log("Setting lock");
 							//		//setIsLockedInBotton(true);
 							//	} else {
 							//		//console.log("Not setting lock");
 							//	}
 							//}, 300);
+
 							props.fetchNext();
 						}}
 					/>

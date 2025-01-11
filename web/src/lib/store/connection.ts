@@ -22,7 +22,7 @@ type WsMessage =
 			data: unknown;
 	  };
 
-const newLogLineBus = createEventBus<LogLine>();
+const newLogLineBus = createEventBus<LogLine[]>();
 
 export const newLogLineListener = newLogLineBus.listen;
 export const createLogSubscription = (
@@ -34,13 +34,14 @@ export const createLogSubscription = (
 	const ws = createReconnectingWS(
 		`${import.meta.env.VITE_WS_URL}/v1/ws/${props().clientId}`,
 	);
+	const buffer = new Array<LogLine>();
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
 			try {
 				const message: WsMessage = JSON.parse(e.data);
 				if (message.type === "newLine") {
-					newLogLineBus.emit(message.data);
+					buffer.push(message.data);
 				}
 			} catch (e) {
 				console.error("Error parsing WS message", e);
@@ -50,6 +51,17 @@ export const createLogSubscription = (
 		ws.addEventListener("open", () => {
 			setInstances(props().instances);
 		});
+
+		const bufferDumpInterval = setInterval(() => {
+			if (buffer.length > 0) {
+				newLogLineBus.emit(buffer);
+				buffer.length = 0;
+			}
+		}, 1000);
+
+		return () => {
+			clearInterval(bufferDumpInterval);
+		};
 	});
 
 	const pingPongInterval = setInterval(() => {

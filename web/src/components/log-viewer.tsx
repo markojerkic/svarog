@@ -1,12 +1,5 @@
 import { onMount, Show } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
-import {
-	createLogQueryOptions,
-	insertLogLine,
-	type LogLine,
-	type LogPageCursor,
-} from "@/lib/store/query";
-import { type InfiniteData, useQueryClient } from "@tanstack/solid-query";
 import { newLogLineListener } from "@/lib/store/connection";
 import { ScrollArea } from "./scroll-area";
 import { useScrollEvent } from "@/lib/hooks/use-scroll-event";
@@ -18,7 +11,6 @@ export const LogViewer = (props: {
 	searchQuery?: string;
 }) => {
 	const scrollEventBus = useScrollEvent();
-	const queryClient = useQueryClient();
 	const logStore = useLogStore(() => ({
 		clientId: props.clientId,
 		selectedInstances: props.selectedInstances,
@@ -28,22 +20,17 @@ export const LogViewer = (props: {
 	onMount(() => {
 		scrollEventBus.scrollToBottom();
 
-		const unsub = newLogLineListener((line) => {
-			const queryKey = createLogQueryOptions(() => props).queryKey;
-			queryClient.setQueryData(
-				queryKey,
-				(oldData: InfiniteData<LogLine[], LogPageCursor | undefined>) => {
-					return insertLogLine(oldData, line);
-				},
-			);
+		const unsub = newLogLineListener((lines) => {
+			logStore.logs.insertMany(lines);
 		});
 
-		return () => unsub();
+		return () => {
+			unsub();
+		};
 	});
 
 	return (
 		<>
-			<p>Log machine state: {logStore.state.type}</p>
 			<ScrollArea
 				fetchPrevious={() => {
 					if (logStore.state.type === "idle") {
@@ -58,7 +45,7 @@ export const LogViewer = (props: {
 				itemCount={logStore.logs.size}
 			>
 				{(virtualItem) => {
-					const item = logStore.logs.get(virtualItem.index); //logs()[virtualItem.index];
+					const item = logStore.logs.get(virtualItem.index);
 
 					return (
 						<Show when={item} keyed>
