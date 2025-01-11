@@ -24,7 +24,9 @@ export function treeNodeToCursor(
 	};
 }
 
-export class SortedListIterator<T> implements Iterator<T> {
+export class SortedListIterator<T extends { id: string }>
+	implements Iterator<T>
+{
 	private stack: TreeNode<T>[] = [];
 	private current: TreeNode<T> | null;
 
@@ -47,12 +49,13 @@ export class SortedListIterator<T> implements Iterator<T> {
 
 export type SortFn<T> = (a: T, b: T) => number;
 
-export class SortedList<T> {
+export class SortedList<T extends { id: string }> {
 	private root: TreeNode<T> | null = null;
 	private compare: (a: T, b: T) => number;
 	private countStore = createStore({ count: 0 });
 	private head: TreeNode<T> | null = null;
 	private tail: TreeNode<T> | null = null;
+	private ids: Set<string> = new Set();
 
 	constructor(compare: SortFn<T>) {
 		this.compare = compare;
@@ -63,6 +66,10 @@ export class SortedList<T> {
 	}
 
 	insert(value: T): void {
+		if (this.ids.has(value.id)) {
+			return;
+		}
+		this.ids.add(value.id);
 		this.root = this.insertNode(this.root, value);
 		this.updateHeadTail(value);
 		this.countStore[1]("count", (prev) => prev + 1);
@@ -138,7 +145,7 @@ export class SortedList<T> {
 		return 1 + this.countNodes(node.left) + this.countNodes(node.right);
 	}
 
-	private insertNode(node: TreeNode<T> | null, value: T): TreeNode<T> {
+	private insertNode(node: TreeNode<T> | null, value: T): TreeNode<T> | null {
 		if (node === null) {
 			return new TreeNode(value);
 		}
