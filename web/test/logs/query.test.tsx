@@ -2,7 +2,7 @@ import { renderHook } from "@solidjs/testing-library";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import type { Component, ParentProps } from "solid-js";
+import { createSignal, type Component, type ParentProps } from "solid-js";
 import {
 	afterAll,
 	afterEach,
@@ -51,9 +51,6 @@ const mockDataPage2: LogLine[] = [
 ];
 
 const handlers = [
-	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/client1`, () => {
-		return HttpResponse.json(mockData);
-	}),
 	// Handler for previous page fetch with cursor
 	http.get(`${import.meta.env.VITE_API_URL}/v1/logs/client1`, ({ request }) => {
 		const url = new URL(request.url);
@@ -145,21 +142,24 @@ describe("useLogStore", () => {
 			expect(result.logs.size).toBe(3);
 		});
 
-		expect(result.logs.get(0)).toEqual(expect.objectContaining({ id: "1" }));
-		expect(result.logs.get(1)).toEqual(expect.objectContaining({ id: "2" }));
-		expect(result.logs.get(2)).toEqual(expect.objectContaining({ id: "3" }));
+		expect(result.logs.get(0)).toEqual(expect.objectContaining({ id: "3" }));
+		expect(result.logs.get(1)).toEqual(expect.objectContaining({ id: "1" }));
+		expect(result.logs.get(2)).toEqual(expect.objectContaining({ id: "2" }));
 	});
 
 	it("should reset store when props change", async () => {
-		let searchQuery: string | undefined = undefined;
+		const [searchQuery, setSearchQuery] = createSignal("");
+
 		const { result } = renderHook(
 			() =>
 				useLogStore(() => ({
 					clientId: "client1",
 					selectedInstances: [],
-					searchQuery,
+					searchQuery: searchQuery(),
 				})),
-			{ wrapper: Wrapper },
+			{
+				wrapper: Wrapper,
+			},
 		);
 
 		// Wait for initial fetch to complete
@@ -168,7 +168,7 @@ describe("useLogStore", () => {
 		});
 
 		// Change search query
-		searchQuery = "test";
+		setSearchQuery("test");
 
 		// Wait for new fetch to complete
 		await vi.waitFor(() => {
