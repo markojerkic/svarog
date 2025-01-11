@@ -1,4 +1,3 @@
-
 import { createEffect, createMemo, onMount } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import {
@@ -34,50 +33,40 @@ export const LogViewer = (props: {
 
 	const logCount = () => logs().length;
 
-	const queryState = createMachine<{
-		idle: { value: { isFetching: () => void } };
-		fetchingPreviousPage: { value: { isDone: () => void } };
-		isDoneFetchingPreviousPage: { value: { isFetching: () => void } };
+	const machine = createMachine<{
+		idle: {
+			to: "fetchingPreviousPage" | "fetchingNextPage";
+		};
+		fetchingNextPage: {
+			to: "idle";
+		};
+		fetchingPreviousPage: {
+			to: "idle";
+		};
 	}>({
 		initial: "idle",
 		states: {
-			idle(_input, to) {
-				const isFetching = () => {
-					to("fetchingPreviousPage");
-				};
-
-				return { isFetching };
-			},
-			fetchingPreviousPage(_input, to) {
-				const isDone = () => {
-					to("isDoneFetchingPreviousPage");
-					console.log("Scrolling to index", query.data?.pages[0].length);
-					//virtualizer.scrollToIndex(query.data?.pages[0].length ?? 0);
-					console.error("Treba scroll");
-				};
-
-				return { isDone };
-			},
-			isDoneFetchingPreviousPage(_input, to) {
-				const isFetching = () => {
-					to("fetchingPreviousPage");
-				};
-
-				return { isFetching };
-			},
+			idle() {},
+			fetchingPreviousPage() {},
+			fetchingNextPage() {},
 		},
 	});
 
 	createEffect(() => {
-		if (query.isFetchingPreviousPage) {
-			if (
-				queryState.type === "isDoneFetchingPreviousPage" ||
-				queryState.type === "idle"
-			) {
-				queryState.value.isFetching();
+		if (machine.type === "idle") {
+			if (query.isFetchingPreviousPage) {
+				machine.to("fetchingPreviousPage");
 			}
-		} else if (queryState.type === "fetchingPreviousPage") {
-			queryState.value.isDone();
+			if (query.isFetchingNextPage) {
+				machine.to("fetchingNextPage");
+			}
+		} else {
+			// Was fetching previous page, now it's done
+			if (machine.type === "fetchingPreviousPage") {
+				console.log("Scrolling to index", query.data?.pages[0].length);
+			}
+
+			machine.to("idle");
 		}
 	});
 
@@ -117,12 +106,6 @@ export const LogViewer = (props: {
 							"--tw-border-opacity": 1,
 							"border-left-color": color(),
 						}}
-						ref={(_el) =>
-							queueMicrotask(() => {
-								//virtualizer.measureElement(el)
-								console.warn("Nezz triba li ovo popraviti");
-							})
-						}
 					>
 						{item.content}
 					</pre>

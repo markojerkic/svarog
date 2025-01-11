@@ -30,6 +30,8 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 		virtualizer.scrollToIndex(props.itemCount, { align: "end" });
 	};
 
+	// @ts-expect-error used in directive
+	// biome-ignore lint/correctness/noUnusedVariables: used in directive
 	const [intersectionObserver] = createViewportObserver();
 
 	onMount(() => {
