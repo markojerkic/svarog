@@ -4,11 +4,12 @@ import { logsSortFn } from "../store/query";
 import { useQueryClient } from "@tanstack/solid-query";
 import { createEffect, createSignal, on } from "solid-js";
 import { api } from "../utils/axios-api";
+import { useScrollEvent } from "./use-scroll-event";
 
 type LogStoreProps = () => {
 	clientId: string;
 	selectedInstances: string[];
-	searchQuery: string;
+	searchQuery?: string;
 };
 type FetchLogPageOptions = {
 	selectedInstances?: string[];
@@ -43,6 +44,8 @@ export const useLogStore = (props: LogStoreProps) => {
 	const [logStore, setLogStore] = createSignal(
 		new SortedList<LogLine>(logsSortFn),
 	);
+	const scrollEventBus = useScrollEvent();
+
 	const fetchPage = (cursor: LogPageCursor | null) => {
 		return queryClient.fetchQuery({
 			queryKey: [
@@ -73,7 +76,10 @@ export const useLogStore = (props: LogStoreProps) => {
 		};
 		idle: {
 			to: "initial" | "fetchingPreviousPage" | "fetchingNextPage";
-			value: RestStateMachine;
+			value: RestStateMachine & {
+				fetchPreviousPage: () => void;
+				fetchNextPage: () => void;
+			};
 		};
 		fetchingNextPage: {
 			to: "idle" | "initial";
@@ -91,6 +97,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				fetchPage(null).then((page) => {
 					logStore().insertMany(page);
 					to("idle");
+					scrollEventBus.scrollToIndex(page.length);
 				});
 
 				return {
@@ -105,6 +112,8 @@ export const useLogStore = (props: LogStoreProps) => {
 					reset: () => {
 						to("initial");
 					},
+					fetchPreviousPage: () => to("fetchingPreviousPage"),
+					fetchNextPage: () => to("fetchingNextPage"),
 				};
 			},
 			fetchingPreviousPage(_, to) {

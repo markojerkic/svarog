@@ -40,5 +40,5 @@ export const useInstanceColor = (instance: string) => {
 		const randomColor = randomColorForInstance(instance);
 		setState(instance, randomColor);
 	}
-	return () => state[instance];
+	return state[instance];
 };

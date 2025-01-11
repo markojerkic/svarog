@@ -1,4 +1,4 @@
-import { createEffect, createMemo, on, onMount } from "solid-js";
+import { onMount, Show } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import {
 	createLogQueryOptions,
@@ -6,15 +6,11 @@ import {
 	type LogLine,
 	type LogPageCursor,
 } from "@/lib/store/query";
-import {
-	createInfiniteQuery,
-	type InfiniteData,
-	useQueryClient,
-} from "@tanstack/solid-query";
-import { createMachine } from "@solid-primitives/state-machine";
+import { type InfiniteData, useQueryClient } from "@tanstack/solid-query";
 import { newLogLineListener } from "@/lib/store/connection";
 import { ScrollArea } from "./scroll-area";
 import { useScrollEvent } from "@/lib/hooks/use-scroll-event";
+import { useLogStore } from "@/lib/hooks/use-log-store";
 
 export const LogViewer = (props: {
 	clientId: string;
@@ -23,58 +19,11 @@ export const LogViewer = (props: {
 }) => {
 	const scrollEventBus = useScrollEvent();
 	const queryClient = useQueryClient();
-	const query = createInfiniteQuery(() => createLogQueryOptions(() => props));
-	const logs = createMemo(() => {
-		if (!query.data) {
-			return [];
-		}
-
-		return query.data.pages.flat();
-	});
-
-	const logCount = () => logs().length;
-
-	const machine = createMachine<{
-		idle: {
-			to: "fetchingPreviousPage" | "fetchingNextPage";
-		};
-		fetchingNextPage: {
-			to: "idle";
-		};
-		fetchingPreviousPage: {
-			to: "idle";
-		};
-	}>({
-		initial: "idle",
-		states: {
-			idle() {},
-			fetchingPreviousPage() {},
-			fetchingNextPage() {},
-		},
-	});
-
-	createEffect(
-		on(
-			() => query.status,
-			() => {
-				if (machine.type === "idle") {
-					if (query.isFetchingPreviousPage) {
-						machine.to("fetchingPreviousPage");
-					}
-					if (query.isFetchingNextPage) {
-						machine.to("fetchingNextPage");
-					}
-				} else {
-					// Was fetching previous page, now it's done
-					if (machine.type === "fetchingPreviousPage") {
-						scrollEventBus.scrollToIndex(query.data?.pages[0].length ?? 0);
-					}
-
-					machine.to("idle");
-				}
-			},
-		),
-	);
+	const logStore = useLogStore(() => ({
+		clientId: props.clientId,
+		selectedInstances: props.selectedInstances,
+		searchQuery: props.searchQuery,
+	}));
 
 	onMount(() => {
 		scrollEventBus.scrollToBottom();
@@ -96,28 +45,37 @@ export const LogViewer = (props: {
 		<>
 			<ScrollArea
 				fetchPrevious={() => {
-					query.fetchPreviousPage();
+					if (logStore.state.type === "idle") {
+						logStore.state.value.fetchPreviousPage();
+					}
 				}}
 				fetchNext={() => {
-					query.fetchNextPage();
+					if (logStore.state.type === "idle") {
+						logStore.state.value.fetchPreviousPage();
+					}
 				}}
-				itemCount={logCount()}
+				itemCount={logStore.logs.size}
 			>
 				{(virtualItem) => {
-					const item = logs()[virtualItem.index];
-					const color = useInstanceColor(item.client.ipAddress);
+					const item = logStore.logs.get(virtualItem.index); //logs()[virtualItem.index];
 
 					return (
-						<pre
-							data-index={virtualItem.index}
-							class={"border-l-4 pl-2 text-black hover:border-l-8"}
-							style={{
-								"--tw-border-opacity": 1,
-								"border-left-color": color(),
-							}}
-						>
-							{item.content}
-						</pre>
+						<Show when={item} keyed>
+							{(item) => (
+								<pre
+									data-index={virtualItem.index}
+									class={"border-l-4 pl-2 text-black hover:border-l-8"}
+									style={{
+										"--tw-border-opacity": 1,
+										"border-left-color": useInstanceColor(
+											item.client.ipAddress,
+										),
+									}}
+								>
+									{item.content}
+								</pre>
+							)}
+						</Show>
 					);
 				}}
 			</ScrollArea>

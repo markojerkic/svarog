@@ -5,13 +5,10 @@ import {
 	For,
 	type JSXElement,
 	Show,
-	createEffect,
 	createSignal,
-	on,
 	onMount,
 } from "solid-js";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
-import { createEventBus, createEventHub } from "@solid-primitives/event-bus";
 import {
 	useOnScrollToBottom,
 	useOnScrollToIndex,
@@ -55,30 +52,30 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 
 	onMount(() => {
 		scrollToBottom();
-
 		// On logsRef scroll upwards, remove scroll lock
-		if (logsRef) {
-			logsRef.addEventListener("scroll", () => {
-				if (logsRef.scrollTop + logsRef.clientHeight < logsRef.scrollHeight) {
-					console.log("not locked in bottom");
-					setIsLockedInBotton(false);
-				}
-			});
-		}
+		//if (logsRef) {
+		//	logsRef.addEventListener("scroll", () => {
+		//		if (logsRef.scrollTop + logsRef.clientHeight < logsRef.scrollHeight) {
+		//			console.log("not locked in bottom");
+		//			setIsLockedInBotton(false);
+		//		}
+		//	});
+		//}
 	});
-	createEffect(
-		on(
-			() => ({ count: props.itemCount, locked: isLockedInBottom() }),
-			() => {
-				if (isLockedInBottom()) {
-					console.log("Sengin to bottom from effect");
-					scrollToBottom();
-				} else {
-					console.log("not locked in bottom");
-				}
-			},
-		),
-	);
+
+	//createEffect(
+	//	on(
+	//		() => ({ count: props.itemCount, locked: isLockedInBottom() }),
+	//		() => {
+	//			if (isLockedInBottom()) {
+	//				console.log("Sengin to bottom from effect");
+	//				scrollToBottom();
+	//			} else {
+	//				console.log("not locked in bottom");
+	//			}
+	//		},
+	//	),
+	//);
 
 	const items = virtualizer.getVirtualItems();
 
