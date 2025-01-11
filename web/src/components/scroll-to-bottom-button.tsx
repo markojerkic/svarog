@@ -1,16 +1,18 @@
+import { useScrollEvent } from "@/lib/hooks/use-scroll-event";
 import { Show } from "solid-js";
 
 export const ScrollToBottomButton = (props: {
 	isLockedInBottom: boolean;
-	scrollToBottom: () => void;
 }) => {
+	const scrollEventBus = useScrollEvent();
+
 	return (
 		<Show when={!props.isLockedInBottom}>
 			<button
 				type="button"
 				id="scroll-to-bottom"
 				class="fixed right-4 bottom-4 z-[1000] flex size-10 cursor-pointer rounded-full bg-primary"
-				onClick={props.scrollToBottom}
+				onClick={() => scrollEventBus.scrollToBottom()}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

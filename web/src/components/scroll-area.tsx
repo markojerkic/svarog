@@ -1,8 +1,20 @@
 import { useWindowHeight } from "@/lib/hooks/use-window-height";
 import { createViewportObserver } from "@solid-primitives/intersection-observer";
 import { type VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
-import { For, type JSXElement, createSignal, onMount } from "solid-js";
+import {
+	For,
+	type JSXElement,
+	createEffect,
+	createSignal,
+	on,
+	onMount,
+} from "solid-js";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
+import { createEventBus, createEventHub } from "@solid-primitives/event-bus";
+import {
+	useOnScrollToBottom,
+	useOnScrollToIndex,
+} from "@/lib/hooks/use-scroll-event";
 
 type ScrollAreaProps = {
 	itemCount: number;
@@ -16,7 +28,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	let logsRef: HTMLDivElement | undefined = undefined;
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
-	const [isLockedInBottom, _setIsLockedInBotton] = createSignal(false);
+	const [isLockedInBottom, setIsLockedInBotton] = createSignal(true);
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -27,8 +39,14 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 		overscan: 5,
 	});
 	const scrollToBottom = () => {
+		console.log("scrollToBottom", props.itemCount);
 		virtualizer.scrollToIndex(props.itemCount, { align: "end" });
 	};
+
+	useOnScrollToBottom(() => scrollToBottom());
+	useOnScrollToIndex((index) => {
+		virtualizer.scrollToIndex(index);
+	});
 
 	// @ts-expect-error used in directive
 	// biome-ignore lint/correctness/noUnusedVariables: used in directive
@@ -37,6 +55,19 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	onMount(() => {
 		scrollToBottom();
 	});
+	createEffect(
+		on(
+			() => props.itemCount,
+			() => {
+				if (isLockedInBottom()) {
+					scrollToBottom();
+				} else {
+					console.log("not locked in bottom");
+				}
+			},
+		),
+	);
+
 	const items = virtualizer.getVirtualItems();
 
 	return (
@@ -56,10 +87,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					position: "relative",
 				}}
 			>
-				<ScrollToBottomButton
-					scrollToBottom={scrollToBottom}
-					isLockedInBottom={isLockedInBottom()}
-				/>
+				<ScrollToBottomButton isLockedInBottom={isLockedInBottom()} />
 				<div
 					style={{
 						position: "absolute",
@@ -72,7 +100,6 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					<div
 						id="top"
 						use:intersectionObserver={() => {
-							console.log("to top");
 							props.fetchPrevious();
 						}}
 					/>
@@ -83,7 +110,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						id="bottom"
 						class="my-[-2rem]"
 						use:intersectionObserver={() => {
-							console.log("to bottom");
+							setIsLockedInBotton(true);
 							props.fetchNext();
 						}}
 					/>

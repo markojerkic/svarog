@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onMount } from "solid-js";
+import { createEffect, createMemo, on, onMount } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import {
 	createLogQueryOptions,
@@ -14,13 +14,14 @@ import {
 import { createMachine } from "@solid-primitives/state-machine";
 import { newLogLineListener } from "@/lib/store/connection";
 import { ScrollArea } from "./scroll-area";
+import { useScrollEvent } from "@/lib/hooks/use-scroll-event";
 
 export const LogViewer = (props: {
 	clientId: string;
 	selectedInstances: string[];
 	searchQuery?: string;
 }) => {
-	// LOGS
+	const scrollEventBus = useScrollEvent();
 	const queryClient = useQueryClient();
 	const query = createInfiniteQuery(() => createLogQueryOptions(() => props));
 	const logs = createMemo(() => {
@@ -52,25 +53,32 @@ export const LogViewer = (props: {
 		},
 	});
 
-	createEffect(() => {
-		if (machine.type === "idle") {
-			if (query.isFetchingPreviousPage) {
-				machine.to("fetchingPreviousPage");
-			}
-			if (query.isFetchingNextPage) {
-				machine.to("fetchingNextPage");
-			}
-		} else {
-			// Was fetching previous page, now it's done
-			if (machine.type === "fetchingPreviousPage") {
-				console.log("Scrolling to index", query.data?.pages[0].length);
-			}
+	createEffect(
+		on(
+			() => query.status,
+			() => {
+				if (machine.type === "idle") {
+					if (query.isFetchingPreviousPage) {
+						machine.to("fetchingPreviousPage");
+					}
+					if (query.isFetchingNextPage) {
+						machine.to("fetchingNextPage");
+					}
+				} else {
+					// Was fetching previous page, now it's done
+					if (machine.type === "fetchingPreviousPage") {
+						scrollEventBus.scrollToIndex(query.data?.pages[0].length ?? 0);
+					}
 
-			machine.to("idle");
-		}
-	});
+					machine.to("idle");
+				}
+			},
+		),
+	);
 
 	onMount(() => {
+		scrollEventBus.scrollToBottom();
+
 		const unsub = newLogLineListener((line) => {
 			const queryKey = createLogQueryOptions(() => props).queryKey;
 			queryClient.setQueryData(
@@ -85,32 +93,34 @@ export const LogViewer = (props: {
 	});
 
 	return (
-		<ScrollArea
-			fetchPrevious={() => {
-				console.log("Daj previous");
-			}}
-			fetchNext={() => {
-				console.log("Daj next");
-			}}
-			itemCount={logCount()}
-		>
-			{(virtualItem) => {
-				const item = logs()[virtualItem.index];
-				const color = useInstanceColor(item.client.ipAddress);
+		<>
+			<ScrollArea
+				fetchPrevious={() => {
+					query.fetchPreviousPage();
+				}}
+				fetchNext={() => {
+					query.fetchNextPage();
+				}}
+				itemCount={logCount()}
+			>
+				{(virtualItem) => {
+					const item = logs()[virtualItem.index];
+					const color = useInstanceColor(item.client.ipAddress);
 
-				return (
-					<pre
-						data-index={virtualItem.index}
-						class={"border-l-4 pl-2 text-black hover:border-l-8"}
-						style={{
-							"--tw-border-opacity": 1,
-							"border-left-color": color(),
-						}}
-					>
-						{item.content}
-					</pre>
-				);
-			}}
-		</ScrollArea>
+					return (
+						<pre
+							data-index={virtualItem.index}
+							class={"border-l-4 pl-2 text-black hover:border-l-8"}
+							style={{
+								"--tw-border-opacity": 1,
+								"border-left-color": color(),
+							}}
+						>
+							{item.content}
+						</pre>
+					);
+				}}
+			</ScrollArea>
+		</>
 	);
 };
