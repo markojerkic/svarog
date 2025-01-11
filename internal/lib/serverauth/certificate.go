@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -190,6 +191,8 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 		NotAfter:    time.Now().AddDate(10, 0, 0),
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
+		DNSNames:    []string{"*"},
+		IPAddresses: []net.IP{net.ParseIP("0.0.0.0"), net.ParseIP("::"), net.IPv6loopback},
 	}
 
 	// Create certificate

@@ -28,7 +28,7 @@ type mockClient struct {
 
 // BatchLog implements rpc.LoggAggregatorClient.
 func (m *mockClient) BatchLog(ctx context.Context, in *rpc.Backlog, tlsConfig *tls.Config) error {
-	serverAddr := fmt.Sprintf("localhost:%d", m.serverPort)
+	serverAddr := fmt.Sprintf("0.0.0.0:%d", m.serverPort)
 
 	connection, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
