@@ -145,7 +145,7 @@ export const insertLogLine = (
 	};
 };
 
-const logsSortFn: SortFn<LogLine> = (a, b) => {
+export const logsSortFn: SortFn<LogLine> = (a, b) => {
 	const timestampDiff = a.timestamp - b.timestamp;
 	if (timestampDiff !== 0) {
 		return timestampDiff;

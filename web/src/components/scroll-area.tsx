@@ -4,6 +4,7 @@ import { type VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
 import {
 	For,
 	type JSXElement,
+	Show,
 	createEffect,
 	createSignal,
 	on,
@@ -50,16 +51,27 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 
 	// @ts-expect-error used in directive
 	// biome-ignore lint/correctness/noUnusedVariables: used in directive
-	const [intersectionObserver] = createViewportObserver();
+	const [intersectionObserver] = createViewportObserver({ rootMargin: "10px" });
 
 	onMount(() => {
 		scrollToBottom();
+
+		// On logsRef scroll upwards, remove scroll lock
+		if (logsRef) {
+			logsRef.addEventListener("scroll", () => {
+				if (logsRef.scrollTop + logsRef.clientHeight < logsRef.scrollHeight) {
+					console.log("not locked in bottom");
+					setIsLockedInBotton(false);
+				}
+			});
+		}
 	});
 	createEffect(
 		on(
-			() => props.itemCount,
+			() => ({ count: props.itemCount, locked: isLockedInBottom() }),
 			() => {
 				if (isLockedInBottom()) {
+					console.log("Sengin to bottom from effect");
 					scrollToBottom();
 				} else {
 					console.log("not locked in bottom");
@@ -106,11 +118,23 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					<For each={virtualizer.getVirtualItems()}>
 						{(virtualItem) => props.children(virtualItem)}
 					</For>
+
+					<Show when={isLockedInBottom()} fallback="NIje">
+						Lockano
+					</Show>
+
 					<div
 						id="bottom"
 						class="my-[-2rem]"
-						use:intersectionObserver={() => {
-							setIsLockedInBotton(true);
+						use:intersectionObserver={(el) => {
+							setTimeout(() => {
+								if (el.intersectionRatio > 0.3) {
+									console.log("Setting lock");
+									setIsLockedInBotton(true);
+								} else {
+									console.log("Not setting lock");
+								}
+							}, 300);
 							props.fetchNext();
 						}}
 					/>
