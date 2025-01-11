@@ -26,6 +26,7 @@ export const NOOP_WS_ACTIONS: WsActions = {
 	setInstances: () => {},
 	addSubscription: () => {},
 	removeSubscription: () => {},
+	close: () => {},
 };
 
 const AllInstances = () => {
@@ -46,7 +47,7 @@ const AllInstances = () => {
 };
 
 const Instance = (props: { instance: string; actions: WsActions }) => {
-	const color = useInstanceColor(props.instance);
+	const color = () => useInstanceColor(props.instance);
 	const { isActive, toggleInstance } = useInstanceIsActive(props.instance);
 
 	return (

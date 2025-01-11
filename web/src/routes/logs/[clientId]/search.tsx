@@ -11,9 +11,9 @@ import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
 } from "@/lib/hooks/use-selected-instances";
-import { createLogQueryOptions } from "@/lib/store/query";
 import { SearchCommnad } from "@/components/log-search";
 import { Button } from "@/components/ui/button";
+import { preloadLogStore } from "@/lib/hooks/use-log-store";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -24,12 +24,9 @@ export const route = {
 		);
 		const search = location.query.search as string | undefined;
 
-		return await queryClient.ensureInfiniteQueryData(
-			createLogQueryOptions(() => ({
-				clientId,
-				selectedInstances,
-				searchQuery: search,
-			})),
+		return await preloadLogStore(
+			{ clientId, selectedInstances, searchQuery: search },
+			queryClient,
 		);
 	},
 } satisfies RouteDefinition;
