@@ -20,7 +20,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	let logsRef: HTMLDivElement | undefined = undefined;
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
-	const [isLockedInBottom, _setIsLockedInBotton] = createSignal(true);
+	const [isLockedInBottom, _setIsLockedInBotton] = createSignal(false);
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -34,7 +34,9 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 		virtualizer.scrollToIndex(props.itemCount, { align: "end" });
 	};
 
-	useOnScrollToBottom(() => scrollToBottom());
+	useOnScrollToBottom(() => {
+		scrollToBottom();
+	});
 	useOnScrollToIndex((index) => {
 		virtualizer.scrollToIndex(index);
 	});

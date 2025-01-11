@@ -97,8 +97,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				fetchPage(null).then((page) => {
 					logStore().insertMany(page);
 					to("idle");
-					console.log("Done fetching initial, going to idle", page.length);
-					scrollEventBus.scrollToIndex(page.length);
+					scrollEventBus.scrollToBottom();
 				});
 
 				return {
@@ -129,6 +128,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				fetchPage(cursor).then((page) => {
 					logStore().insertMany(page);
 					to("idle");
+					scrollEventBus.scrollToIndex(page.length);
 				});
 				return {
 					reset: () => {

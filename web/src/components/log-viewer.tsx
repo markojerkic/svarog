@@ -46,15 +46,8 @@ export const LogViewer = (props: {
 			<p>Log machine state: {logStore.state.type}</p>
 			<ScrollArea
 				fetchPrevious={() => {
-					console.log("want to fetch previous");
 					if (logStore.state.type === "idle") {
-						console.log("fetching previous");
 						logStore.state.value.fetchPreviousPage();
-					} else {
-						console.log(
-							"not fetching previous because state is not idle",
-							logStore.state.type,
-						);
 					}
 				}}
 				fetchNext={() => {
