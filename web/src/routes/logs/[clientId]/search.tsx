@@ -1,96 +1,108 @@
-import { debounce } from "@solid-primitives/scheduled";
-import { useParams, useSearchParams } from "@solidjs/router";
 import {
-	ErrorBoundary,
-	Show,
-	Suspense,
-	createEffect,
-	createSignal,
-} from "solid-js";
-import { createLogViewer } from "@/components/log-viewer";
-import { useSelectedInstances } from "@/lib/hooks/use-selected-instances";
-import { createLogQuery, getInstances } from "@/lib/store/query";
-import { useWithPreviousValue } from "@/lib/hooks/with-previous-value";
-import { Instances, NOOP_WS_ACTIONS } from "@/components/instances";
-import { createQuery } from "@tanstack/solid-query";
+	type RouteDefinition,
+	type RouteSectionProps,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "@solidjs/router";
+import { useQueryClient } from "@tanstack/solid-query";
+import { LogViewer } from "@/components/log-viewer";
+import {
+	getArrayValueOfSearchParam,
+	useSelectedInstances,
+} from "@/lib/hooks/use-selected-instances";
+import { SearchCommnad } from "@/components/log-search";
+import { Button } from "@/components/ui/button";
+import { preloadLogStore } from "@/lib/hooks/use-log-store";
 
-export default () => {
-	const clientId = useParams().clientId;
+export const route = {
+	load: async ({ params, location }) => {
+		const queryClient = useQueryClient();
+		const clientId = params.clientId;
+		const selectedInstances = getArrayValueOfSearchParam(
+			location.query.instances,
+		);
+		const search = location.query.search as string | undefined;
+
+		return await preloadLogStore(
+			{ clientId, selectedInstances, searchQuery: search },
+			queryClient,
+		);
+	},
+} satisfies RouteDefinition;
+
+export default (_props: RouteSectionProps) => {
+	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
-
-	const [search, setSearch] = createDebouncedSearch();
-
-	const logsQuery = createLogQuery(() => clientId, selectedInstances, search);
-	const instances = createQuery(() => ({
-		queryKey: ["logs", "instances", clientId],
-		queryFn: ({ signal }) => getInstances(clientId, signal),
-		refetchOnWindowFocus: true,
+	const [searchParams, setSearchParams] = useSearchParams<{
+		search?: string;
+	}>();
+	const searchQuery = () => searchParams.search ?? "";
+	const navigateBack = useNavigateBack(() => ({
+		clientId: clientId,
+		selectedInstances: selectedInstances(),
 	}));
 
-	const logsStringified = () => {
-		return logsQuery.logCount;
-	};
-	const [LogViewer, scrollToBottom] = createLogViewer();
-
-	useWithPreviousValue(
-		() => logsQuery.queryDetails.isFetched,
-		(prev, curr) => {
-			if (prev === false && curr === true) {
-				scrollToBottom();
-			}
-		},
-	);
-
 	return (
-		<div class="rounded-md border-white p-2">
-			<p>Search term: {search()}</p>
-			<div>
-				<label for="search">Search</label>
-				<input
-					id="search"
-					type="text"
-					class="rounded-md border-white p-1 text-black"
-					value={search()}
-					onInput={(e) => setSearch(e.currentTarget.value)}
+		<div class="flex flex-col justify-start gap-2">
+			<SearchCommnad
+				search={searchQuery()}
+				onInput={(search) => {
+					if (search === "") {
+						navigateBack();
+						return;
+					}
+					setSearchParams({ search });
+				}}
+			/>
+			<SearchInfo clientId={clientId} selectedInstances={selectedInstances()} />
+			<div class="flex-grow">
+				<LogViewer
+					selectedInstances={selectedInstances()}
+					clientId={clientId}
+					searchQuery={searchQuery()}
 				/>
-			</div>
-
-			<div class="border-red p-2">
-				<Show when={logsQuery.queryDetails.isFetchingNextPage}>
-					<p class="animate-bounce">Loading next...</p>
-				</Show>
-				<Show when={logsQuery.queryDetails.isFetchingPreviousPage}>
-					<p class="animate-bounce">Loading prev...</p>
-				</Show>
-				<div>Logs Num: {logsStringified()}</div>
-				<ErrorBoundary fallback={<span class="bg-red-900 p-2">Error </span>}>
-					<Suspense fallback={<div>Loading...</div>}>
-						<Show when={instances.data}>
-							{(instances) => (
-								<Instances instances={instances()} actions={NOOP_WS_ACTIONS} />
-							)}
-						</Show>
-					</Suspense>
-				</ErrorBoundary>
-				<LogViewer logsQuery={logsQuery} />
 			</div>
 		</div>
 	);
 };
 
-const createDebouncedSearch = () => {
-	const [searchParams, setSearchParams] = useSearchParams<{
-		search?: string;
-	}>();
-	const [search, setSearch] = createSignal(searchParams.search ?? "");
-	const trigger = debounce((value: string) => {
-		setSearchParams({ search: value });
-	}, 500);
+const SearchInfo = (props: {
+	clientId: string;
+	selectedInstances: string[];
+}) => {
+	const navigateBack = useNavigateBack(() => ({
+		clientId: props.clientId,
+		selectedInstances: props.selectedInstances,
+	}));
+	let elementRef: HTMLDivElement | undefined;
 
-	createEffect(() => {
-		trigger(search());
-	});
-	const debouncedSearch = () => searchParams.search;
+	return (
+		<div
+			ref={elementRef}
+			class="flex w-full items-center justify-center gap-2 bg-card py-2 text-center text-primary shadow-lg"
+		>
+			<span>
+				You are on the search page, and live reload of data is turned off. To
+				enable live reload, please clear the search.
+			</span>
+			<Button onClick={navigateBack}>Clear</Button>
+		</div>
+	);
+};
 
-	return [debouncedSearch, setSearch] as const;
+const useNavigateBack = (
+	props: () => {
+		clientId: string;
+		selectedInstances: string[];
+	},
+) => {
+	const navigate = useNavigate();
+	return () => {
+		const searchParams = new URLSearchParams();
+		for (const instance of props().selectedInstances) {
+			searchParams.append("instance", instance);
+		}
+		navigate(`/logs/${props().clientId}?${searchParams.toString()}`);
+	};
 };

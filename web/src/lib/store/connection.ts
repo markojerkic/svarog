@@ -1,9 +1,9 @@
 import { createReconnectingWS } from "@solid-primitives/websocket";
 import { onCleanup, onMount } from "solid-js";
-import type { LogLine } from "./query";
+import type { LogLine } from "@/lib/hooks/use-log-store";
+import { createEventBus } from "@solid-primitives/event-bus";
 
 type MessageType = "addSubscriptionInstance" | "removeSubscriptionInstance";
-
 type WsMessage =
 	| {
 			type: "setInstances";
@@ -22,23 +22,26 @@ type WsMessage =
 			data: unknown;
 	  };
 
+const newLogLineBus = createEventBus<LogLine[]>();
+
+export const newLogLineListener = newLogLineBus.listen;
 export const createLogSubscription = (
-	clientId: string,
-	onNewLine: (line: LogLine) => void,
-	scrollToBottom: () => void,
-	instances: () => string[],
+	props: () => {
+		clientId: string;
+		instances: string[];
+	},
 ) => {
 	const ws = createReconnectingWS(
-		`${import.meta.env.VITE_WS_URL}/v1/ws/${clientId}`,
+		`${import.meta.env.VITE_WS_URL}/v1/ws/${props().clientId}`,
 	);
+	const buffer = new Array<LogLine>();
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
 			try {
 				const message: WsMessage = JSON.parse(e.data);
 				if (message.type === "newLine") {
-					onNewLine(message.data);
-					scrollToBottom();
+					buffer.push(message.data);
 				}
 			} catch (e) {
 				console.error("Error parsing WS message", e);
@@ -46,8 +49,19 @@ export const createLogSubscription = (
 		});
 
 		ws.addEventListener("open", () => {
-			setInstances(instances());
+			setInstances(props().instances);
 		});
+
+		const bufferDumpInterval = setInterval(() => {
+			if (buffer.length > 0) {
+				newLogLineBus.emit(buffer);
+				buffer.length = 0;
+			}
+		}, 1000);
+
+		return () => {
+			clearInterval(bufferDumpInterval);
+		};
 	});
 
 	const pingPongInterval = setInterval(() => {
@@ -85,7 +99,11 @@ export const createLogSubscription = (
 		);
 	};
 
-	return { addSubscription, removeSubscription, setInstances };
+	const close = () => {
+		ws.close();
+	};
+
+	return { addSubscription, removeSubscription, setInstances, close };
 };
 
 export type WsActions = ReturnType<typeof createLogSubscription>;

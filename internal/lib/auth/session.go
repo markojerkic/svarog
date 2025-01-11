@@ -87,8 +87,8 @@ func (self *MongoSessionStore) New(r *http.Request, name string) (*sessions.Sess
 	newSession := sessions.NewSession(self, name)
 	newSession.Options = &sessions.Options{
 		Path: "/",
-		// 30 minutes
-		MaxAge:   30 * 60,
+		// 24 hours
+		MaxAge:   24 * 60 * 60,
 		Domain:   r.URL.Host,
 		Secure:   r.URL.Scheme == "https",
 		HttpOnly: true,
