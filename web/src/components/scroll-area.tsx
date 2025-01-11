@@ -1,13 +1,7 @@
 import { useWindowHeight } from "@/lib/hooks/use-window-height";
 import { createViewportObserver } from "@solid-primitives/intersection-observer";
 import { type VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
-import {
-	For,
-	type JSXElement,
-	Show,
-	createSignal,
-	onMount,
-} from "solid-js";
+import { For, type JSXElement, Show, createSignal, onMount } from "solid-js";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 import {
 	useOnScrollToBottom,
@@ -26,7 +20,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	let logsRef: HTMLDivElement | undefined = undefined;
 	const windowHeight = useWindowHeight();
 	const scrollViewerHeight = () => `${Math.ceil(windowHeight() * 0.8)}px`;
-	const [isLockedInBottom, setIsLockedInBotton] = createSignal(true);
+	const [isLockedInBottom, _setIsLockedInBotton] = createSignal(true);
 
 	const virtualizer = createVirtualizer({
 		get count() {
@@ -37,7 +31,6 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 		overscan: 5,
 	});
 	const scrollToBottom = () => {
-		console.log("scrollToBottom", props.itemCount);
 		virtualizer.scrollToIndex(props.itemCount, { align: "end" });
 	};
 
@@ -123,15 +116,15 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					<div
 						id="bottom"
 						class="my-[-2rem]"
-						use:intersectionObserver={(el) => {
-							setTimeout(() => {
-								if (el.intersectionRatio > 0.3) {
-									console.log("Setting lock");
-									setIsLockedInBotton(true);
-								} else {
-									console.log("Not setting lock");
-								}
-							}, 300);
+						use:intersectionObserver={() => {
+							//setTimeout(() => {
+							//	if (el.intersectionRatio > 0.3) {
+							//		//console.log("Setting lock");
+							//		//setIsLockedInBotton(true);
+							//	} else {
+							//		//console.log("Not setting lock");
+							//	}
+							//}, 300);
 							props.fetchNext();
 						}}
 					/>

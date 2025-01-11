@@ -1,7 +1,7 @@
 import { createMachine } from "@solid-primitives/state-machine";
 import { SortedList } from "../store/sorted-list";
 import { logsSortFn } from "../store/query";
-import { useQueryClient } from "@tanstack/solid-query";
+import { type QueryClient, useQueryClient } from "@tanstack/solid-query";
 import { createEffect, createSignal, on } from "solid-js";
 import { api } from "../utils/axios-api";
 import { useScrollEvent } from "./use-scroll-event";
@@ -97,6 +97,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				fetchPage(null).then((page) => {
 					logStore().insertMany(page);
 					to("idle");
+					console.log("Done fetching initial, going to idle", page.length);
 					scrollEventBus.scrollToIndex(page.length);
 				});
 
@@ -117,16 +118,17 @@ export const useLogStore = (props: LogStoreProps) => {
 				};
 			},
 			fetchingPreviousPage(_, to) {
-				const tail = logStore().getTail();
-				const cursor = tail
+				const head = logStore().getHead();
+				const cursor = head
 					? ({
 							direction: "backward",
-							cursorTime: tail.value.timestamp,
-							cursorSequenceNumber: tail.value.sequenceNumber,
+							cursorTime: head.value.timestamp,
+							cursorSequenceNumber: head.value.sequenceNumber,
 						} satisfies LogPageCursor)
 					: null;
 				fetchPage(cursor).then((page) => {
 					logStore().insertMany(page);
+					to("idle");
 				});
 				return {
 					reset: () => {
@@ -135,6 +137,9 @@ export const useLogStore = (props: LogStoreProps) => {
 				};
 			},
 			fetchingNextPage(_, to) {
+				to("idle");
+				console.warn("fetching next page not implemented");
+
 				return {
 					reset: () => {
 						to("initial");
@@ -156,6 +161,32 @@ export const useLogStore = (props: LogStoreProps) => {
 		},
 		state: machine,
 	};
+};
+
+export const preloadLogStore = async (
+	props: ReturnType<LogStoreProps>,
+	queryClient: QueryClient,
+) => {
+	return queryClient.prefetchQuery({
+		queryKey: [
+			"logs",
+			props.clientId,
+			props.selectedInstances,
+			props.searchQuery,
+			null,
+		],
+		queryFn: async ({ signal }) => {
+			return fetchLogPage(
+				props.clientId,
+				{
+					selectedInstances: props.selectedInstances,
+					search: props.searchQuery,
+					cursor: null,
+				},
+				signal,
+			);
+		},
+	});
 };
 
 const fetchLogPage = async (
