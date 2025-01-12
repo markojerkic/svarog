@@ -7,8 +7,7 @@ import type {
 } from "@kobalte/core/select";
 import { Select as SelectPrimitive } from "@kobalte/core/select";
 import type { JSX, ParentProps, ValidComponent } from "solid-js";
-import { createEffect, createSignal, Show, splitProps } from "solid-js";
-import { Select as Kobalte } from "@kobalte/core";
+import { Show, splitProps } from "solid-js";
 
 export const Select = SelectPrimitive;
 export const SelectValue = SelectPrimitive.Value;
@@ -151,7 +150,7 @@ export function FormSelect(props: FormSelectProps) {
 	const [rootProps, selectProps] = splitProps(
 		props,
 		["name", "placeholder", "options", "required", "disabled"],
-		["placeholder", "ref", "onInput", "onChange", "onBlur"],
+		["ref", "onInput", "onChange", "onBlur"],
 	);
 
 	return (
@@ -164,9 +163,12 @@ export function FormSelect(props: FormSelectProps) {
 				<SelectItem item={props.item}>{props.item.textValue}</SelectItem>
 			)}
 		>
-			<SelectTrigger {...selectProps}>
-				<SelectValue<string>>{(state) => state.selectedOption()}</SelectValue>
+			<SelectTrigger>
+				<SelectValue<Option>>
+					{(state) => state.selectedOption().label}
+				</SelectValue>
 			</SelectTrigger>
+			<SelectHiddenSelect {...selectProps} />
 			<SelectContent />
 			<Show when={props.error}>
 				<SelectErrorMessage>{props.error}</SelectErrorMessage>

@@ -18,8 +18,16 @@ export const addClientSchema = v.object({
 });
 
 export const removeClientSchema = v.object({
-	projectId: v.number(),
-	clientId: v.number(),
+	projectId: v.pipe(
+		v.string("Must be a string"),
+		v.nonEmpty("Please enter project id"),
+		v.minLength(3, "Project id must be at least 3 characters"),
+	),
+	clientId: v.pipe(
+		v.string("Must be a string"),
+		v.nonEmpty("Please enter client name"),
+		v.minLength(3, "Client name must be at least 3 characters"),
+	),
 });
 export type AddClientInput = v.InferInput<typeof addClientSchema>;
 export type RemoveClientInput = v.InferInput<typeof removeClientSchema>;

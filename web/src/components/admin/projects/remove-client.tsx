@@ -17,9 +17,9 @@ import {
 	DropdownMenuItemLabel,
 } from "@/components/ui/dropdown-menu";
 import {
-	type AddClientInput,
-	addClientSchema,
-	useAddClient,
+	type RemoveClientInput,
+	removeClientSchema,
+	useRemoveClient,
 } from "@/lib/hooks/projects/add-remove-client";
 import type { Project } from "@/lib/hooks/projects/use-projects";
 import { FormSelect } from "@/components/ui/select";
@@ -57,16 +57,19 @@ const RemoveClientForm = (props: {
 	project: Project;
 	onSuccess: () => void;
 }) => {
-	const [form, { Form, Field }] = createForm<AddClientInput>({
-		validate: valiForm(addClientSchema),
+	const [form, { Form, Field }] = createForm<RemoveClientInput>({
+		validate: valiForm(removeClientSchema),
 		initialValues: { projectId: props.project.id },
 	});
-	const createClient = useAddClient(form);
+	const createClient = useRemoveClient(form);
 
 	const clientOptions = () =>
 		props.project.clients.map((client) => ({ label: client, value: client }));
 
-	const handleSubmit = async (values: AddClientInput) => {
+	const handleSubmit = async (values: RemoveClientInput) => {
+		console.warn(
+			"Perhaps double down and add alert dialog to confirm deletion",
+		);
 		createClient.mutateAsync(values).then(() => {
 			props.onSuccess();
 			toast.success("Client created");
@@ -81,7 +84,7 @@ const RemoveClientForm = (props: {
 				)}
 			</Field>
 
-			<Field type="string" name="clientName">
+			<Field type="string" name="clientId">
 				{(field, formItemProps) => (
 					<FormSelect
 						{...formItemProps}
