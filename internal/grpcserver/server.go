@@ -139,6 +139,7 @@ func (gs *GrpcServer) Start() error {
 
 	var opts []grpc.ServerOption = []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.UnaryInterceptor(NewAuthInterceptor().withInterceptor()),
 	}
 	gs.grpcServer = grpc.NewServer(opts...)
 
