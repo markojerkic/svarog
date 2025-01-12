@@ -11,6 +11,6 @@ type RemoveClientForm struct {
 }
 
 type AddClientForm struct {
-	ClientId  string `json:"clientId" form:"clientId" validate:"required"`
-	ProjectId string `json:"projectId" form:"projectId" validate:"required"`
+	ClientName string `json:"clientName" form:"clientName" validate:"required"`
+	ProjectId  string `json:"projectId" form:"projectId" validate:"required"`
 }

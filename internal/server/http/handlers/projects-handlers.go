@@ -129,7 +129,7 @@ func (p *ProjectsRouter) addClientToProject(c echo.Context) error {
 		return err
 	}
 
-	err := p.projectsService.AddClientToProject(c.Request().Context(), addClientForm.ProjectId, addClientForm.ClientId)
+	err := p.projectsService.AddClientToProject(c.Request().Context(), addClientForm.ProjectId, addClientForm.ClientName)
 	if err != nil {
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})

@@ -24,7 +24,7 @@ export default () => {
 		<>
 			<Title>Projects</Title>
 			<Suspense fallback={<div>Loading...</div>}>
-				<div class="grid grid-cols-1">
+				<div class="grid grid-cols-1 p-4">
 					<span class="flex justify-end">
 						<NewProject />
 					</span>

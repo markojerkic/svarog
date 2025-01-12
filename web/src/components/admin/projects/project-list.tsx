@@ -23,7 +23,6 @@ import {
 import type { DropdownMenuSubTriggerProps } from "@kobalte/core/dropdown-menu";
 import EllipsisVertical from "lucide-solid/icons/ellipsis-vertical";
 import Pencil from "lucide-solid/icons/pencil";
-import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
 import HardDriveDownload from "lucide-solid/icons/hard-drive-download";
 import {
@@ -43,6 +42,7 @@ import type {
 	AlertDialogCloseButtonProps,
 	AlertDialogTriggerProps,
 } from "@kobalte/core/alert-dialog";
+import { AddClient } from "./add-remove-client";
 
 export const ProjectList = (props: { projects: Project[] }) => {
 	return (
@@ -101,10 +101,7 @@ const ProjectActions = (props: { project: Project }) => {
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
 					<DropdownMenuGroupLabel>Clients</DropdownMenuGroupLabel>
-					<DropdownMenuItem>
-						<Plus class="h-5" />
-						<DropdownMenuItemLabel>Add client</DropdownMenuItemLabel>
-					</DropdownMenuItem>
+					<AddClient projectId={props.project.id} />
 				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
