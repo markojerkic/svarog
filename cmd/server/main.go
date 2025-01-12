@@ -12,6 +12,7 @@ import (
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
@@ -66,6 +67,7 @@ func main() {
 	userCollection := database.Collection("users")
 	sessionCollection := database.Collection("sessions")
 	filesCollectinon := database.Collection("files")
+	projectsCollection := database.Collection("projects")
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
@@ -74,6 +76,7 @@ func main() {
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
 	certificateService := serverauth.NewCertificateService(filesService, client)
+	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
 
@@ -86,6 +89,7 @@ func main() {
 			AuthService:        authService,
 			CertificateService: certificateService,
 			FilesService:       filesService,
+			ProjectsService:    projectsService,
 		})
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1000)

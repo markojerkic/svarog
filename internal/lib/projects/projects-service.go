@@ -15,6 +15,7 @@ import (
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
+	GetProjects(ctx context.Context) ([]Project, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	RemoveClientFromProject(ctx context.Context, projectId string, client string) error
@@ -58,6 +59,21 @@ func (m *MongoProjectsService) GetProject(ctx context.Context, id string) (Proje
 		return Project{}, errors.New(ErrProjectNotFound)
 	}
 	return project, nil
+}
+
+func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
+	cursor, err := m.projectsCollection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, errors.Join(errors.New("error getting projects"), err)
+	}
+	defer cursor.Close(ctx)
+	projects := []Project{}
+	err = cursor.All(ctx, &projects)
+	if err != nil {
+		return nil, errors.Join(errors.New("error getting projects"), err)
+	}
+
+	return projects, nil
 }
 
 // GetProjectByClient implements ProjectsService.
