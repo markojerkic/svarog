@@ -42,7 +42,8 @@ import type {
 	AlertDialogCloseButtonProps,
 	AlertDialogTriggerProps,
 } from "@kobalte/core/alert-dialog";
-import { AddClient } from "./add-remove-client";
+import { AddClient } from "./add-client";
+import { RemoveClient } from "./remove-client";
 
 export const ProjectList = (props: { projects: Project[] }) => {
 	return (
@@ -102,6 +103,7 @@ const ProjectActions = (props: { project: Project }) => {
 				<DropdownMenuGroup>
 					<DropdownMenuGroupLabel>Clients</DropdownMenuGroupLabel>
 					<AddClient projectId={props.project.id} />
+					<RemoveClient project={props.project} />
 				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
