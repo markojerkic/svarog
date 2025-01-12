@@ -8,7 +8,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { createEffect, createSignal, For, on } from "solid-js";
+import { createSignal, For } from "solid-js";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -25,6 +25,7 @@ import EllipsisVertical from "lucide-solid/icons/ellipsis-vertical";
 import Pencil from "lucide-solid/icons/pencil";
 import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
+import HardDriveDownload from "lucide-solid/icons/hard-drive-download";
 import {
 	AlertDialog,
 	AlertDialogClose,
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDeleteProject } from "@/lib/hooks/projects/delete-project";
 import { toast } from "solid-sonner";
-import {
+import type {
 	AlertDialogCloseButtonProps,
 	AlertDialogTriggerProps,
 } from "@kobalte/core/alert-dialog";
@@ -79,7 +80,7 @@ const Clients = (props: { clients: string[] }) => {
 	return <span>{clients()}</span>;
 };
 
-const ProjectActions = (_props: { project: Project }) => {
+const ProjectActions = (props: { project: Project }) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -94,7 +95,9 @@ const ProjectActions = (_props: { project: Project }) => {
 					<Pencil class="h-5" />
 					<DropdownMenuItemLabel>Edit</DropdownMenuItemLabel>
 				</DropdownMenuItem>
-				<DeleteProjectDialog projectId={_props.project.id} />
+				<DeleteProjectDialog projectId={props.project.id} />
+				<DownloadCertificatesMenuItem projectId={props.project.id} />
+
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
 					<DropdownMenuGroupLabel>Clients</DropdownMenuGroupLabel>
@@ -159,5 +162,18 @@ const DeleteProjectDialog = (props: { projectId: string }) => {
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
+	);
+};
+
+const DownloadCertificatesMenuItem = (props: { projectId: string }) => {
+	return (
+		<DropdownMenuItem
+			as="a"
+			href={`${import.meta.env.VITE_API_URL}/v1/projects/${props.projectId}/certificate`}
+			target="_blank"
+		>
+			<HardDriveDownload class="h-5" />
+			<DropdownMenuItemLabel>Download certificates</DropdownMenuItemLabel>
+		</DropdownMenuItem>
 	);
 };
