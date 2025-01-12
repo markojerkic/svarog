@@ -82,7 +82,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	return c.JSON(200, project)
 }
 
-func (p *ProjectsRouter) logout(c echo.Context) error {
+func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
@@ -171,7 +171,7 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group.POST("", router.createProject)
 	group.POST("/remove-client", router.removeClientFromProject)
 	group.POST("/add-client", router.addClientToProject)
-	group.DELETE("/:id", router.logout)
+	group.DELETE("/:id", router.deleteProject)
 
 	return router
 }
