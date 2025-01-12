@@ -54,9 +54,6 @@ export const NewUserDialog = () => {
 						<div class="grid gap-4 py-4">
 							<RegisterForm onSuccess={setLoginToken} />
 						</div>
-						<DialogFooter>
-							<Button type="submit">Save changes</Button>
-						</DialogFooter>
 					</Match>
 				</Switch>
 			</DialogContent>

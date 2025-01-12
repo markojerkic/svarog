@@ -162,6 +162,7 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group := e.Group("/projects", middleware.RequiresRoleMiddleware(auth.ADMIN))
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
+	group.GET("/:id/certificate", router.getCertificatesZip)
 	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
 	group.POST("/remove-client", router.removeClientFromProject)

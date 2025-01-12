@@ -11,6 +11,8 @@ import { TextField as TextFieldPrimitive } from "@kobalte/core/text-field";
 import { cva } from "class-variance-authority";
 import type { ValidComponent, VoidProps } from "solid-js";
 import { type JSX, Show, splitProps } from "solid-js";
+import { Button } from "./button";
+import Minus from "lucide-solid/icons/minus";
 
 type textFieldProps<T extends ValidComponent = "div"> =
 	TextFieldRootProps<T> & {
@@ -131,6 +133,7 @@ export const TextField = <T extends ValidComponent = "input">(
 type TextFieldProps = {
 	name: string;
 	type?: "text" | "email" | "tel" | "password" | "url" | "date" | undefined;
+	class?: string;
 	label?: string | undefined;
 	placeholder?: string | undefined;
 	value: string | undefined;
@@ -147,7 +150,7 @@ type TextFieldProps = {
 export const TextFormField = (props: TextFieldProps) => {
 	const [rootProps, inputProps] = splitProps(
 		props,
-		["name", "value", "required", "disabled"],
+		["name", "value", "required", "disabled", "class"],
 		["placeholder", "ref", "onInput", "onChange", "onBlur"],
 	);
 
@@ -163,6 +166,42 @@ export const TextFormField = (props: TextFieldProps) => {
 				fallback={<TextField {...inputProps} type={props.type} />}
 			>
 				<div>NOT IMPLEMENTED</div>
+			</Show>
+
+			<Show when={props.error}>
+				<TextFieldErrorMessage>{props.error}</TextFieldErrorMessage>
+			</Show>
+		</TextFieldRoot>
+	);
+};
+
+export const RemovableTextFormField = (
+	props: TextFieldProps & { onRemove: () => void },
+) => {
+	const [rootProps, inputProps] = splitProps(
+		props,
+		["name", "value", "required", "disabled", "class"],
+		["placeholder", "ref", "onInput", "onChange", "onBlur"],
+	);
+
+	const validationState = () => (props.error ? "invalid" : "valid");
+
+	return (
+		<TextFieldRoot {...rootProps} validationState={validationState()}>
+			<Show when={props.label}>
+				<TextFieldLabel>{props.label}</TextFieldLabel>
+			</Show>
+			<Show when={!props.multiline} fallback={<div>NOT IMPLEMENTED</div>}>
+				<span class="flex items-center justify-between gap-1">
+					<TextField {...inputProps} type={props.type} />
+					<Button
+						onClick={props.onRemove}
+						variant="destructive"
+						aria-label="Remove item"
+					>
+						<Minus />
+					</Button>
+				</span>
 			</Show>
 
 			<Show when={props.error}>
