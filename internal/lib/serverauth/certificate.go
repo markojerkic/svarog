@@ -31,6 +31,7 @@ type CertificateService interface {
 	GenerateCaCertificate(ctx context.Context) error
 	GenerateCertificate(ctx context.Context, groupId string) (string, cleanup, error)
 	GetCaCertificate(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error)
+	GetCertificatesZip(ctx context.Context, groupId string) (string, cleanup, error)
 }
 
 type CertificateServiceImpl struct {
@@ -40,7 +41,6 @@ type CertificateServiceImpl struct {
 
 // GetCaCertificate implements CertificateService.
 func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-
 	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
 		caCert, err := c.fileService.GetFile(ctx, "ca.crt")
 		if err != nil {
@@ -238,6 +238,56 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 	}
 
 	return pemPath, cleanup, nil
+}
+
+// GetCertificatesZip implements CertificateService.
+func (c *CertificateServiceImpl) GetCertificatesZip(ctx context.Context, groupId string) (string, cleanup, error) {
+	caCert, _, err := c.GetCaCertificate(ctx)
+	if err != nil {
+		return "", nil, errors.Join(errors.New("error getting CA certificate"), err)
+	}
+	certPath, certCleanup, err := c.GenerateCertificate(ctx, groupId)
+	if err != nil {
+		return "", nil, errors.Join(errors.New("error generating certificate"), err)
+	}
+	defer certCleanup()
+
+	// write caCert to file
+	tempDir, err := os.MkdirTemp("", "certs")
+	if err != nil {
+		return "", nil, errors.Join(errors.New("error creating temp dir"), err)
+	}
+
+	caCertPath := filepath.Join(tempDir, "ca.crt")
+	caCertFile, err := os.OpenFile(caCertPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return "", nil, errors.Join(errors.New("error creating ca.crt file"), err)
+	}
+	defer caCertFile.Close()
+
+	caCertPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caCert.Raw,
+	})
+
+	if _, err := caCertFile.Write(caCertPEM); err != nil {
+		return "", nil, errors.Join(errors.New("error writing ca.crt file"), err)
+	}
+
+	// zip files
+	zipPath := filepath.Join(tempDir, "certs.zip")
+	err = util.ZipFiles(zipPath, []string{certPath, caCertPath})
+	if err != nil {
+		return "", nil, errors.Join(errors.New("error zipping files"), err)
+	}
+
+	return zipPath, func() {
+		certCleanup()
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			log.Error("Failed to remove temp dir", "err", err)
+		}
+	}, nil
 }
 
 // Save files to mongodb

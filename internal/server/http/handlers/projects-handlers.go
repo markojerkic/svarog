@@ -5,12 +5,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type ProjectsRouter struct {
-	projectsService projects.ProjectsService
+	projectsService    projects.ProjectsService
+	certificateService serverauth.CertificateService
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
@@ -102,7 +104,7 @@ func (p *ProjectsRouter) removeClientFromProject(c echo.Context) error {
 		return err
 	}
 
-	err := p.projectsService.RemoveClientFromProject(c.Request().Context(), removeClientForm.ProjectID, removeClientForm.Client)
+	err := p.projectsService.RemoveClientFromProject(c.Request().Context(), removeClientForm.ProjectId, removeClientForm.ClientId)
 	if err != nil {
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
@@ -134,8 +136,24 @@ func (p *ProjectsRouter) addClientToProject(c echo.Context) error {
 	return c.JSON(200, "Client added to project")
 }
 
-func NewProjectsRouter(projectsService projects.ProjectsService, e *echo.Group) *ProjectsRouter {
-	router := &ProjectsRouter{projectsService}
+func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
+	groupId := c.Param("groupId")
+	zipPath, cleanup, err := p.certificateService.GetCertificatesZip(c.Request().Context(), groupId)
+	if err != nil {
+		log.Error("Error getting certificates zip", "error", err)
+		return c.JSON(500, types.ApiError{Message: "Error getting certificates zip"})
+	}
+	defer cleanup()
+
+	// Name attacment so it can download
+	c.Response().Header().Add("Content-Disposition", "attachment")
+	c.Response().Header().Add("filename", "certificates.zip")
+
+	return c.File(zipPath)
+}
+
+func NewProjectsRouter(projectsService projects.ProjectsService, certificateService serverauth.CertificateService, e *echo.Group) *ProjectsRouter {
+	router := &ProjectsRouter{projectsService, certificateService}
 
 	if router.projectsService == nil {
 		panic("No projectsService")
