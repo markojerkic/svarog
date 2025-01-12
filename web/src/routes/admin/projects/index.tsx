@@ -1,4 +1,5 @@
 import { NewProject } from "@/components/admin/projects/new-project";
+import { ProjectList } from "@/components/admin/projects/project-list";
 import {
 	useProjects,
 	useProjectsOptions,
@@ -6,7 +7,7 @@ import {
 import { Title } from "@solidjs/meta";
 import type { RouteDefinition } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
-import { For, Suspense } from "solid-js";
+import { Suspense } from "solid-js";
 
 export const projectsRoute = {
 	preload: async () => {
@@ -23,10 +24,12 @@ export default () => {
 		<>
 			<Title>Projects</Title>
 			<Suspense fallback={<div>Loading...</div>}>
-				<NewProject />
-				<ul>
-					<For each={projects.data}>{(project) => <li>{project.name}</li>}</For>
-				</ul>
+				<div class="grid grid-cols-1">
+					<span class="flex justify-end">
+						<NewProject />
+					</span>
+					<ProjectList projects={projects.data ?? []} />
+				</div>
 			</Suspense>
 		</>
 	);

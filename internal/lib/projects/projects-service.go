@@ -30,12 +30,17 @@ type MongoProjectsService struct {
 const (
 	ErrProjectNotFound = "project not found"
 	ErrClientNotFound  = "client not found"
+	ErrProjectExists   = "project already exists"
 )
 
 // CreateProject implements ProjectsService.
 func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
 	result, err := m.projectsCollection.InsertOne(ctx, bson.M{"name": name, "clients": clients})
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return Project{}, errors.New(ErrProjectExists)
+		}
+
 		log.Error("Error creating project", "error", err)
 		return Project{}, err
 	}

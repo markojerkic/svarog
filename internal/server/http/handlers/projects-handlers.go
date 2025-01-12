@@ -71,6 +71,10 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 
 	project, err := p.projectsService.CreateProject(c.Request().Context(), createProjectForm.Name, createProjectForm.Clients)
 	if err != nil {
+		if err.Error() == projects.ErrProjectExists {
+			return c.JSON(409, types.ApiError{Message: "Project already exists", Fields: map[string]string{"name": "Project with this name already exists"}})
+		}
+
 		log.Error("Error creating project", "error", err)
 		return c.JSON(500, types.ApiError{Message: "Error creating project"})
 	}
