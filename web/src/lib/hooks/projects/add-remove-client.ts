@@ -4,17 +4,25 @@ import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 
+export const clientNameSchema = v.pipe(
+	v.string("Must be a string"),
+	v.nonEmpty("Please enter client name"),
+	v.minLength(3, "Client name must be at least 3 characters"),
+	// no sapces
+	v.regex(/^[^\s]*$/, "Client name must not contain spaces"),
+	v.regex(
+		/^[a-zA-Z0-9\_\-]*$/,
+		"Client name must not contain special characters aside from _ and -",
+	),
+);
+
 export const addClientSchema = v.object({
 	projectId: v.pipe(
 		v.string("Must be a string"),
 		v.nonEmpty("Please enter project id"),
 		v.minLength(3, "Project id must be at least 3 characters"),
 	),
-	clientName: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter client name"),
-		v.minLength(3, "Client name must be at least 3 characters"),
-	),
+	clientName: clientNameSchema,
 });
 
 export const removeClientSchema = v.object({
@@ -23,11 +31,7 @@ export const removeClientSchema = v.object({
 		v.nonEmpty("Please enter project id"),
 		v.minLength(3, "Project id must be at least 3 characters"),
 	),
-	clientId: v.pipe(
-		v.string("Must be a string"),
-		v.nonEmpty("Please enter client name"),
-		v.minLength(3, "Client name must be at least 3 characters"),
-	),
+	clientId: clientNameSchema,
 });
 export type AddClientInput = v.InferInput<typeof addClientSchema>;
 export type RemoveClientInput = v.InferInput<typeof removeClientSchema>;

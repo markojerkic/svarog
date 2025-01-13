@@ -44,7 +44,7 @@ export function Nav() {
 const AuthMenuItem = (props: { user: LoggedInUser }) => {
 	return (
 		<>
-			<NavigationMenuTrigger>Profile</NavigationMenuTrigger>
+			<NavigationMenuTrigger>Settings</NavigationMenuTrigger>
 			<NavigationMenuContent class="grid w-[400px] gap-3 p-4 lg:w-[500px] lg:grid-cols-[.75fr_1fr] [&>li:first-of-type]:row-span-3">
 				<ListItem title="Profile" href="/auth/profile">
 					{props.user.username}
