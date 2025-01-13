@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -21,10 +22,12 @@ type ServerauthSuite struct {
 	container        *mongodb.MongoDBContainer
 	connectionString string
 
-	filesCollection *mongo.Collection
+	filesCollection    *mongo.Collection
+	projectsCollection *mongo.Collection
 
 	filesService        files.FileService
 	certificatesService serverauth.CertificateService
+	projectsService     projects.ProjectsService
 }
 
 // SetupSuite implements suite.SetupAllSuite.
@@ -51,9 +54,11 @@ func (s *ServerauthSuite) SetupSuite() {
 	db := mongoClient.Database("svarog")
 
 	s.filesCollection = db.Collection("files")
+	s.projectsCollection = db.Collection("projects")
 
 	s.filesService = files.NewFileService(s.filesCollection)
 	s.certificatesService = serverauth.NewCertificateService(s.filesService, mongoClient)
+	s.projectsService = projects.NewProjectsService(s.projectsCollection, mongoClient)
 
 }
 

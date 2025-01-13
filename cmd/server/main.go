@@ -93,7 +93,7 @@ func main() {
 		})
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1000)
-	grpcServer := grpcserver.NewGrpcServer(certificateService, env, logIngestChannel)
+	grpcServer := grpcserver.NewGrpcServer(certificateService, projectsService, env, logIngestChannel)
 
 	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()

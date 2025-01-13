@@ -10,13 +10,16 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	rpc "github.com/markojerkic/svarog/internal/proto"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 type GrpcServer struct {
@@ -24,12 +27,37 @@ type GrpcServer struct {
 	grpcServer *grpc.Server
 
 	certificatesService serverauth.CertificateService
+	projectsService     projects.ProjectsService
 	env                 types.ServerEnv
 
 	logIngestChannel chan db.LogLineWithIp
 }
 
+func (g *GrpcServer) validateAuthorizationForArray(ctx context.Context, line []*rpc.LogLine) error {
+	projectId := ctx.Value(ClientIDKey).(string)
+	for _, l := range line {
+		if !g.isAuthorized(ctx, projectId, l.Client) {
+			log.Error("Unauthorized", "projectId", projectId, "client", l.Client)
+			return status.Error(codes.PermissionDenied, "unauthorized")
+		}
+	}
+	return nil
+}
+
+func (g *GrpcServer) validateAuthorization(ctx context.Context, line *rpc.LogLine) error {
+	projectId := ctx.Value(ClientIDKey).(string)
+	if !g.isAuthorized(ctx, projectId, line.Client) {
+		log.Error("Unauthorized", "projectId", projectId, "client", line.Client)
+		return status.Error(codes.PermissionDenied, "unauthorized")
+	}
+	return nil
+}
+
 func (g *GrpcServer) BatchLog(ctx context.Context, batchLogs *rpc.Backlog) (*rpc.Void, error) {
+	if err := g.validateAuthorizationForArray(ctx, batchLogs.Logs); err != nil {
+		return nil, err
+	}
+
 	ipv4, err := getIp(ctx)
 	if err != nil {
 		return &rpc.Void{}, err
@@ -49,6 +77,11 @@ func (g *GrpcServer) Log(stream rpc.LoggAggregator_LogServer) error {
 		if err != nil {
 			return err
 		}
+
+		if err := g.validateAuthorization(stream.Context(), logLine); err != nil {
+			return err
+		}
+
 		ipv4, err := getIp(stream.Context())
 		if err != nil {
 			return err
@@ -152,6 +185,11 @@ func (gs *GrpcServer) Start() error {
 	return gs.grpcServer.Serve(lis)
 }
 
-func NewGrpcServer(certificatesService serverauth.CertificateService, env types.ServerEnv, logIngestChannel chan db.LogLineWithIp) *GrpcServer {
-	return &GrpcServer{certificatesService: certificatesService, env: env, logIngestChannel: logIngestChannel}
+func NewGrpcServer(certificatesService serverauth.CertificateService, projectsService projects.ProjectsService, env types.ServerEnv, logIngestChannel chan db.LogLineWithIp) *GrpcServer {
+	return &GrpcServer{
+		certificatesService: certificatesService,
+		projectsService:     projectsService,
+		env:                 env,
+		logIngestChannel:    logIngestChannel,
+	}
 }

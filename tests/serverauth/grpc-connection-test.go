@@ -54,7 +54,7 @@ func (s *ServerauthSuite) TestGrpcConnection() {
 	}
 	logIngestChan := make(chan db.LogLineWithIp)
 
-	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, env, logIngestChan)
+	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, s.projectsService, env, logIngestChan)
 
 	client := &mockClient{
 		serverPort: randomFreePort,
