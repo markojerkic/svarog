@@ -12,7 +12,7 @@ import (
 	"github.com/markojerkic/svarog/cmd/client/retry"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
 func readStdin(clientId string, output chan *rpc.LogLine) {
@@ -35,6 +35,7 @@ type Env struct {
 	debugLogEnabled bool
 	serverAddr      string
 	clientId        string
+	certificatePath string
 }
 
 func getOsEnv() Env {
@@ -42,6 +43,7 @@ func getOsEnv() Env {
 		debugLogEnabled: os.Getenv("SVAROG_DEBUG_ENABLED") == "true",
 		serverAddr:      os.Getenv("SVAROG_SERVER_ADDR"),
 		clientId:        os.Getenv("SVAROG_CLIENT_ID"),
+		certificatePath: os.Getenv("SVAROG_CERTIFICATE_PATH"),
 	}
 
 	return env
@@ -57,6 +59,7 @@ func getEnv() Env {
 	debugLogEnabled := flag.Bool("SVAROG_DEBUG_ENABLED", osEnv.debugLogEnabled, "Enable debug mode")
 	serverAddr := flag.String("SVAROG_SERVER_ADDR", osEnv.serverAddr, "Server address")
 	clientId := flag.String("SVAROG_CLIENT_ID", osEnv.clientId, "Client ID")
+	certificatePath := flag.String("SVAROG_CERTIFICATE_PATH", osEnv.certificatePath, "Path to certificates zip file")
 	flag.Parse()
 
 	if serverAddr == nil || *serverAddr == "" {
@@ -71,6 +74,7 @@ func getEnv() Env {
 		debugLogEnabled: *debugLogEnabled,
 		serverAddr:      *serverAddr,
 		clientId:        *clientId,
+		certificatePath: *certificatePath,
 	}
 }
 
@@ -93,7 +97,15 @@ func main() {
 
 	backlog := backlog.NewBacklog[*rpc.LogLine](1024 * 1024)
 	retryService := retry.NewRetry(backlog.GetLogs(), 5)
-	grpcClient := grpcclient.NewClient(env.serverAddr, insecure.NewCredentials())
+
+	caCertPath, certPath := grpcclient.UnzipCredentials(env.certificatePath)
+	defer func() {
+		os.Remove(caCertPath)
+		os.Remove(certPath)
+	}()
+	tlsConfig := grpcclient.BuildCredentials(caCertPath, certPath)
+
+	grpcClient := grpcclient.NewClient(env.serverAddr, credentials.NewTLS(tlsConfig))
 
 	go retryService.Run(context.Background(), func(logLines []*rpc.LogLine) {
 		err := grpcClient.BatchSend(logLines)

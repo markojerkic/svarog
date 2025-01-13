@@ -35,7 +35,7 @@ export default function App() {
 				<Router root={Layout}>{routes}</Router>
 			</MetaProvider>
 			<Show when={import.meta.env.DEV}>
-				<SolidQueryDevtools buttonPosition="top-right" />
+				<SolidQueryDevtools />
 			</Show>
 		</QueryClientProvider>
 	);

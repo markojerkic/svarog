@@ -45,8 +45,8 @@ export const AdminLayout = (props: ParentProps) => {
 							icon: <User />,
 						},
 						{
-							title: "Settings",
-							href: "/admin/settings",
+							title: "Projects",
+							href: "/admin/projects",
 							icon: <Settings />,
 						},
 					]}

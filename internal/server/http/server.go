@@ -12,6 +12,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -19,18 +22,25 @@ import (
 )
 
 type HttpServer struct {
-	logRepository db.LogRepository
-	sessionStore  sessions.Store
-	authService   auth.AuthService
+	logRepository      db.LogRepository
+	sessionStore       sessions.Store
+	authService        auth.AuthService
+	certificateService serverauth.CertificateService
+	filesService       files.FileService
+	projectsService    projects.ProjectsService
 
 	allowedOrigins []string
 	serverPort     int
 }
 
 type HttpServerOptions struct {
-	LogRepository  db.LogRepository
-	SessionStore   sessions.Store
-	AuthService    auth.AuthService
+	LogRepository      db.LogRepository
+	SessionStore       sessions.Store
+	AuthService        auth.AuthService
+	CertificateService serverauth.CertificateService
+	FilesService       files.FileService
+	ProjectsService    projects.ProjectsService
+
 	AllowedOrigins []string
 	ServerPort     int
 }
@@ -56,7 +66,9 @@ func (self *HttpServer) Start() {
 		customMiddleware.RestPasswordMiddleware())
 	publicApi := e.Group("/api/v1", corsMiddleware, sessionMiddleware)
 
+	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
+	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
 	handlers.NewLogsRouter(self.logRepository, privateApi)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
@@ -78,11 +90,14 @@ func (self *HttpServer) Start() {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logRepository:  options.LogRepository,
-		sessionStore:   options.SessionStore,
-		allowedOrigins: options.AllowedOrigins,
-		serverPort:     options.ServerPort,
-		authService:    options.AuthService,
+		logRepository:      options.LogRepository,
+		sessionStore:       options.SessionStore,
+		allowedOrigins:     options.AllowedOrigins,
+		serverPort:         options.ServerPort,
+		authService:        options.AuthService,
+		certificateService: options.CertificateService,
+		filesService:       options.FilesService,
+		projectsService:    options.ProjectsService,
 	}
 
 	return server
