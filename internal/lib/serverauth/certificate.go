@@ -158,6 +158,10 @@ func (c *CertificateServiceImpl) GenerateCaCertificate(ctx context.Context) erro
 }
 
 func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupId string) (string, cleanup, error) {
+	if groupId == "" {
+		return "", nil, errors.New("groupId is empty")
+	}
+
 	caCert, privateKey, err := c.GetCaCertificate(ctx)
 	if err != nil {
 		return "", nil, errors.Join(errors.New("Error getting CA certificate"), err)
@@ -242,6 +246,10 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 
 // GetCertificatesZip implements CertificateService.
 func (c *CertificateServiceImpl) GetCertificatesZip(ctx context.Context, groupId string) (string, cleanup, error) {
+	if groupId == "" {
+		return "", nil, errors.New("groupId is empty")
+	}
+
 	caCert, _, err := c.GetCaCertificate(ctx)
 	if err != nil {
 		return "", nil, errors.Join(errors.New("error getting CA certificate"), err)

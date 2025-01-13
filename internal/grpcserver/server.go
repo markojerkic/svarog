@@ -137,9 +137,11 @@ func (gs *GrpcServer) Start() error {
 		ClientCAs:    caPool,
 	}
 
+	authInterceptor := NewAuthInterceptor()
 	var opts []grpc.ServerOption = []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.UnaryInterceptor(NewAuthInterceptor().withInterceptor()),
+		grpc.UnaryInterceptor(authInterceptor.withInterceptor()),
+		grpc.StreamInterceptor(authInterceptor.withStreamInterceptor()),
 	}
 	gs.grpcServer = grpc.NewServer(opts...)
 

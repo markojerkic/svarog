@@ -142,6 +142,10 @@ func (p *ProjectsRouter) addClientToProject(c echo.Context) error {
 
 func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
 	groupId := c.Param("groupId")
+	if groupId == "" {
+		return c.JSON(400, types.ApiError{Message: "Group ID is required", Fields: map[string]string{"groupId": "Group ID is required"}})
+	}
+
 	zipPath, cleanup, err := p.certificateService.GetCertificatesZip(c.Request().Context(), groupId)
 	if err != nil {
 		log.Error("Error getting certificates zip", "error", err)
@@ -166,7 +170,7 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group := e.Group("/projects", middleware.RequiresRoleMiddleware(auth.ADMIN))
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
-	group.GET("/:id/certificate", router.getCertificatesZip)
+	group.GET("/:groupId/certificate", router.getCertificatesZip)
 	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
 	group.POST("/remove-client", router.removeClientFromProject)

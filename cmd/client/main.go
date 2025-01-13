@@ -12,9 +12,7 @@ import (
 	"github.com/markojerkic/svarog/cmd/client/retry"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func readStdin(clientId string, output chan *rpc.LogLine) {
