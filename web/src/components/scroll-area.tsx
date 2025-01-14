@@ -47,8 +47,6 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	const [intersectionObserver] = createViewportObserver({ rootMargin: "10px" });
 
 	onMount(() => {
-		scrollToBottom();
-
 		const scrollHandler = () => {
 			const el = logsRef!;
 			const isLockedInBotton =
@@ -107,8 +105,13 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 				>
 					<div
 						id="top"
-						use:intersectionObserver={() => {
-							props.fetchPrevious();
+						use:intersectionObserver={(el) => {
+							if (el.intersectionRatio > 0.3) {
+								console.log(
+									"Fetching previous because hasInitialyScrolledToBottom",
+								);
+								props.fetchPrevious();
+							}
 						}}
 					/>
 					<For each={virtualizer.getVirtualItems()}>
@@ -118,17 +121,10 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					<div
 						id="bottom"
 						class="my-[-2rem]"
-						use:intersectionObserver={() => {
-							//setTimeout(() => {
-							//	if (el.intersectionRatio > 0.3) {
-							//		//fn.log("Setting lock");
-							//		//setIsLockedInBotton(true);
-							//	} else {
-							//		//console.log("Not setting lock");
-							//	}
-							//}, 300);
-
-							props.fetchNext();
+						use:intersectionObserver={(el) => {
+							if (el.intersectionRatio > 0.3) {
+								props.fetchNext();
+							}
 						}}
 					/>
 				</div>

@@ -10,6 +10,7 @@ type LogStoreProps = () => {
 	clientId: string;
 	selectedInstances: string[];
 	searchQuery?: string;
+	selectedLogLineId?: string;
 };
 type FetchLogPageOptions = {
 	selectedInstances?: string[];
@@ -96,8 +97,18 @@ export const useLogStore = (props: LogStoreProps) => {
 				setLogStore(new SortedList<LogLine>(logsSortFn));
 				fetchPage(null).then((page) => {
 					logStore().insertMany(page);
-					to("idle");
-					scrollEventBus.scrollToBottom();
+					to.idle();
+
+					const selectedLogLineId = props().selectedLogLineId;
+					if (!selectedLogLineId) {
+						scrollEventBus.scrollToBottom();
+					} else {
+						const logsArray = page;
+						const index = logsArray.findIndex(
+							(logLine) => logLine.id === selectedLogLineId,
+						);
+						scrollEventBus.scrollToIndex(index);
+					}
 				});
 
 				return {
@@ -167,7 +178,7 @@ export const preloadLogStore = async (
 	props: ReturnType<LogStoreProps>,
 	queryClient: QueryClient,
 ) => {
-	return queryClient.prefetchQuery({
+	return queryClient.ensureQueryData({
 		queryKey: [
 			"logs",
 			props.clientId,

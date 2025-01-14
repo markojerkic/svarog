@@ -63,6 +63,7 @@ export default (_props: RouteSectionProps) => {
 				<LogViewer
 					selectedInstances={selectedInstances()}
 					clientId={clientId}
+					selectedLogLineId={searchParams.logLine as string}
 				/>
 			</div>
 		</div>
