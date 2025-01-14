@@ -107,9 +107,6 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						id="top"
 						use:intersectionObserver={(el) => {
 							if (el.intersectionRatio > 0.3) {
-								console.log(
-									"Fetching previous because hasInitialyScrolledToBottom",
-								);
 								props.fetchPrevious();
 							}
 						}}

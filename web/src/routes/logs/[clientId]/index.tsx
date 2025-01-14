@@ -14,6 +14,7 @@ import {
 import { createLogSubscription } from "@/lib/store/connection";
 import { SearchCommnad } from "@/components/log-search";
 import { preloadLogStore } from "@/lib/hooks/use-log-store";
+import { Instances } from "@/components/instances";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -41,10 +42,18 @@ export default (_props: RouteSectionProps) => {
 	return (
 		<div class="flex flex-col justify-start gap-2">
 			<div class="flex-grow">
+				<Instances
+					instances={selectedInstances()}
+					actions={{
+						addSubscription: () => {},
+						close: () => {},
+						removeSubscription: () => {},
+						setInstances: () => {},
+					}}
+				/>
 				<SearchCommnad
 					search={(searchParams.search as string) ?? ""}
 					onInput={(search) => {
-						console.log("search", search);
 						const params = new URLSearchParams();
 						params.set("search", search);
 						for (const instance of selectedInstances()) {

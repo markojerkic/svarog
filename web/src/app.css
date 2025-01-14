@@ -76,6 +76,7 @@
 
 	pre[data-log-line] {
 		border-left-color: rgb(var(--instance-color));
+		min-width: fit-content;
 	}
 	pre[data-log-line]:not([data-line-is-selected="true"]):hover {
 		background-color: rgba(var(--instance-color), 0.1);

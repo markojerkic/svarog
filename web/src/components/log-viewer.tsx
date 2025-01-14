@@ -72,6 +72,7 @@ export const LogViewer = (props: {
 									<ContextMenuOptions
 										logLineId={item.id}
 										clientId={item.client.clientId}
+										instanceId={item.client.ipAddress}
 									/>
 								</ContextMenu>
 							)}
@@ -83,10 +84,14 @@ export const LogViewer = (props: {
 	);
 };
 
-const ContextMenuOptions = (props: { logLineId: string; clientId: string }) => {
+const ContextMenuOptions = (props: {
+	logLineId: string;
+	clientId: string;
+	instanceId: string;
+}) => {
 	const copyLogLineAddress = () => {
 		const currentDomain = window.location.origin;
-		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}`;
+		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}&instances=${props.instanceId}`;
 		navigator.clipboard.writeText(logLineUrl);
 		toast.success("Log line address copied to clipboard");
 	};

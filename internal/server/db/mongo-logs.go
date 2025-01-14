@@ -39,22 +39,20 @@ func (self *MongoLogRepository) GetInstances(ctx context.Context, clientId strin
 }
 
 // GetClients implements LogRepository.
-func (self *MongoLogRepository) GetClients(ctx context.Context) ([]AvailableClient, error) {
-	results, err := self.logCollection.Distinct(ctx, "client.client_id", bson.D{})
+func (self *MongoLogRepository) GetClients(ctx context.Context) ([]types.StoredClient, error) {
+	results, err := self.logCollection.Distinct(ctx, "client.ip_address", bson.D{})
 	if err != nil {
 		return nil, err
 	}
 
-	clients := make([]AvailableClient, len(results))
+	clients := make([]types.StoredClient, len(results))
 
 	for i, result := range results {
-		mappedClient := AvailableClient{
-			Client: types.StoredClient{
-				ClientId: result.(string),
-			},
+		client := types.StoredClient{
+			IpAddress: result.(string),
 		}
+		clients[i] = client
 
-		clients[i] = mappedClient
 	}
 
 	return clients, nil
