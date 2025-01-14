@@ -73,4 +73,11 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+
+	pre[data-log-line] {
+		border-left-color: rgb(var(--instance-color));
+	}
+	pre[data-log-line]:hover {
+		background-color: rgba(var(--instance-color), 0.1);
+	}
 }

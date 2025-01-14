@@ -52,12 +52,10 @@ export const LogViewer = (props: {
 							{(item) => (
 								<pre
 									data-index={virtualItem.index}
-									class={"border-l-4 pl-2 text-black hover:border-l-8"}
+									data-log-line
+									class={"border-l-4 pl-2 text-black"}
 									style={{
-										"--tw-border-opacity": 1,
-										"border-left-color": useInstanceColor(
-											item.client.ipAddress,
-										),
+										"--instance-color": useInstanceColor(item.client.ipAddress),
 									}}
 								>
 									{item.content}

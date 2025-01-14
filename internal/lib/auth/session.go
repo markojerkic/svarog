@@ -190,7 +190,7 @@ func CreateSessionCollection(db *mongo.Database) (*mongo.Collection, error) {
 	// Create index on modified field
 	index := mongo.IndexModel{
 		Keys:    bson.D{{Key: "modified", Value: int32(1)}},
-		Options: options.Index().SetExpireAfterSeconds(int32(time.Now().Add(time.Hour * 24).Unix())), // Will be removed after 24 Hours.
+		Options: options.Index().SetExpireAfterSeconds(int32(60 * 60 * 24)), // Will be removed after 24 Hours.
 	}
 
 	_, err = collection.Indexes().CreateOne(context.Background(), index)
