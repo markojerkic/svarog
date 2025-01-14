@@ -1,6 +1,5 @@
 import {
 	type RouteDefinition,
-	type RouteSectionProps,
 	useNavigate,
 	useParams,
 	useSearchParams,
@@ -15,6 +14,7 @@ import { createLogSubscription } from "@/lib/store/connection";
 import { SearchCommnad } from "@/components/log-search";
 import { preloadLogStore } from "@/lib/hooks/use-log-store";
 import { Instances } from "@/components/instances";
+import { useInstancesOptions } from "@/lib/hooks/logs/use-instances";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -24,11 +24,12 @@ export const route = {
 			location.query.instances,
 		);
 
+		queryClient.prefetchQuery(useInstancesOptions(clientId));
 		return await preloadLogStore({ clientId, selectedInstances }, queryClient);
 	},
 } satisfies RouteDefinition;
 
-export default (_props: RouteSectionProps) => {
+export default () => {
 	const clientId = useParams<{ clientId: string }>().clientId;
 	const selectedInstances = useSelectedInstances();
 	const [searchParams] = useSearchParams();
@@ -42,15 +43,7 @@ export default (_props: RouteSectionProps) => {
 	return (
 		<div class="flex flex-col justify-start gap-2">
 			<div class="flex-grow">
-				<Instances
-					instances={selectedInstances()}
-					actions={{
-						addSubscription: () => {},
-						close: () => {},
-						removeSubscription: () => {},
-						setInstances: () => {},
-					}}
-				/>
+				<Instances clientId={clientId} />
 				<SearchCommnad
 					search={(searchParams.search as string) ?? ""}
 					onInput={(search) => {

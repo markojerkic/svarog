@@ -2,10 +2,10 @@ import { useLocation, useSearchParams } from "@solidjs/router";
 import { For, Suspense, batch, createMemo, on } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import type { WsActions } from "@/lib/store/connection";
-import { type Instance, useInstances } from "@/lib/hooks/logs/use-instances";
+import { useInstances } from "@/lib/hooks/logs/use-instances";
 
-export const Instances = () => {
-	const instances = useInstances();
+export const Instances = (props: { clientId: string }) => {
+	const instances = useInstances(() => props.clientId);
 
 	return (
 		<nav class="gap-2 border border-sky-700 p-2">
@@ -46,11 +46,9 @@ const AllInstances = () => {
 	);
 };
 
-const Instance = (props: { instance: Instance }) => {
-	const color = () => useInstanceColor(props.instance.ipAddress);
-	const { isActive, toggleInstance } = useInstanceIsActive(
-		props.instance.ipAddress,
-	);
+const Instance = (props: { instance: string }) => {
+	const color = () => useInstanceColor(props.instance);
+	const { isActive, toggleInstance } = useInstanceIsActive(props.instance);
 
 	return (
 		<button
@@ -69,7 +67,7 @@ const Instance = (props: { instance: Instance }) => {
 				<circle cx="50" cy="50" r="25" fill={`rgb(${color()})`} />
 			</svg>
 
-			{props.instance.ipAddress}
+			{props.instance}
 		</button>
 	);
 };

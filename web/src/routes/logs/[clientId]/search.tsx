@@ -40,7 +40,7 @@ export default (_props: RouteSectionProps) => {
 	const searchQuery = () => searchParams.search ?? "";
 	const navigateBack = useNavigateBack(() => ({
 		clientId: clientId,
-		selectedInstances: selectedInstances(),
+		instance: selectedInstances(),
 	}));
 
 	return (
@@ -73,7 +73,7 @@ const SearchInfo = (props: {
 }) => {
 	const navigateBack = useNavigateBack(() => ({
 		clientId: props.clientId,
-		selectedInstances: props.selectedInstances,
+		instance: props.selectedInstances,
 	}));
 	let elementRef: HTMLDivElement | undefined;
 
@@ -94,13 +94,13 @@ const SearchInfo = (props: {
 const useNavigateBack = (
 	props: () => {
 		clientId: string;
-		selectedInstances: string[];
+		instance: string[];
 	},
 ) => {
 	const navigate = useNavigate();
 	return () => {
 		const searchParams = new URLSearchParams();
-		for (const instance of props().selectedInstances) {
+		for (const instance of props().instance) {
 			searchParams.append("instance", instance);
 		}
 		navigate(`/logs/${props().clientId}?${searchParams.toString()}`);

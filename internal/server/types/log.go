@@ -6,9 +6,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type StoredClient struct {
-	ClientId  string `bson:"client_id" json:"clientId"`
-	IpAddress string `bson:"ip_address" json:"ipAddress"`
+type Client struct {
+	ClientId string `json:"clientId"`
 }
 
 type StoredLog struct {
@@ -17,4 +16,9 @@ type StoredLog struct {
 	Timestamp      time.Time          `bson:"timestamp"`
 	Client         StoredClient       `bson:"client"`
 	SequenceNumber int64              `bson:"sequence_number"`
+}
+
+type StoredClient struct {
+	ClientId  string `bson:"client_id" json:"clientId"`
+	IpAddress string `bson:"ip_address" json:"ipAddress"`
 }

@@ -213,6 +213,8 @@ const fetchLogPage = async (
 		params: {
 			...options,
 			...buildCursor(options.cursor),
+			instance: options.selectedInstances,
+			selectedInstances: undefined,
 			cursor: undefined,
 		},
 		signal: abortSignal,

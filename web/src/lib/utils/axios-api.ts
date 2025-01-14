@@ -7,10 +7,19 @@ export const api = axios.create({
 	paramsSerializer: (params) => {
 		const searchParams = new URLSearchParams();
 		for (const key in params) {
-			if (params[key] === undefined) {
+			if (!params[key]) {
 				continue;
 			}
-			searchParams.append(key, params[key]);
+			const value = params[key];
+
+			console.log("Adding key: ", key, " with value: ", params[key]);
+			if (Array.isArray(value)) {
+				for (const val of value) {
+					searchParams.append(key, val);
+				}
+			} else {
+				searchParams.append(key, params[key]);
+			}
 		}
 		return searchParams.toString();
 	},

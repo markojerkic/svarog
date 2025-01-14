@@ -91,7 +91,7 @@ const ContextMenuOptions = (props: {
 }) => {
 	const copyLogLineAddress = () => {
 		const currentDomain = window.location.origin;
-		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}&instances=${props.instanceId}`;
+		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}&instance=${props.instanceId}`;
 		navigator.clipboard.writeText(logLineUrl);
 		toast.success("Log line address copied to clipboard");
 	};

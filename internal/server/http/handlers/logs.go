@@ -30,7 +30,7 @@ type LogsByClientBinding struct {
 	CursorTime           *int64    `query:"cursorTime"`
 	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
 	Direction            *string   `query:"direction"`
-	Instances            *[]string `query:"instances"`
+	Instances            *[]string `query:"instance"`
 }
 
 func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
