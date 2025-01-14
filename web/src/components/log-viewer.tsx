@@ -10,6 +10,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { toast } from "solid-sonner";
+import { useMatch, useNavigate } from "@solidjs/router";
 
 export const LogViewer = (props: {
 	clientId: string;
@@ -89,6 +90,15 @@ const ContextMenuOptions = (props: {
 	clientId: string;
 	instanceId: string;
 }) => {
+	const isSearch = useMatch(() => "/logs/:clientId/search");
+	const navigate = useNavigate();
+
+	const goToLogLine = () => {
+		navigate(
+			`/logs/${props.clientId}?logLine=${props.logLineId}&instance=${props.instanceId}`,
+		);
+	};
+
 	const copyLogLineAddress = () => {
 		const currentDomain = window.location.origin;
 		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}&instance=${props.instanceId}`;
@@ -99,8 +109,13 @@ const ContextMenuOptions = (props: {
 	return (
 		<ContextMenuContent class="w-64">
 			<ContextMenuItem inset onSelect={() => copyLogLineAddress()}>
-				Copy log line address
+				Copy log line link
 			</ContextMenuItem>
+			<Show when={isSearch()}>
+				<ContextMenuItem inset onSelect={() => goToLogLine()}>
+					Go to log line
+				</ContextMenuItem>
+			</Show>
 		</ContextMenuContent>
 	);
 };

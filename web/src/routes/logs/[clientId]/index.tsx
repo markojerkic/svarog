@@ -50,7 +50,7 @@ export default () => {
 						const params = new URLSearchParams();
 						params.set("search", search);
 						for (const instance of selectedInstances()) {
-							params.append("instances", instance);
+							params.append("instance", instance);
 						}
 
 						if (document.startViewTransition) {

@@ -14,6 +14,7 @@ import {
 import { SearchCommnad } from "@/components/log-search";
 import { Button } from "@/components/ui/button";
 import { preloadLogStore } from "@/lib/hooks/use-log-store";
+import { Instances } from "@/components/instances";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -45,6 +46,7 @@ export default (_props: RouteSectionProps) => {
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
+			<Instances clientId={clientId} />
 			<SearchCommnad
 				search={searchQuery()}
 				onInput={(search) => {
