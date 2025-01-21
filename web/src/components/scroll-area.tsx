@@ -44,7 +44,9 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 
 	// @ts-expect-error used in directive
 	// biome-ignore lint/correctness/noUnusedVariables: used in directive
-	const [intersectionObserver] = createViewportObserver({ rootMargin: "10px" });
+	const [intersectionObserverTop] = createViewportObserver({
+		rootMargin: "10px",
+	});
 
 	onMount(() => {
 		const scrollHandler = () => {
@@ -107,6 +109,9 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						id="top"
 						use:intersectionObserver={(el) => {
 							if (el.intersectionRatio > 0.3) {
+								console.log("------");
+								console.log("fetching prevous");
+								console.log("------");
 								props.fetchPrevious();
 							}
 						}}
@@ -119,7 +124,10 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						id="bottom"
 						class="my-[-2rem]"
 						use:intersectionObserver={(el) => {
-							if (el.intersectionRatio > 0.3) {
+							if (el.isIntersecting) {
+								console.log("------");
+								console.log("fetching next");
+								console.log("------");
 								props.fetchNext();
 							}
 						}}

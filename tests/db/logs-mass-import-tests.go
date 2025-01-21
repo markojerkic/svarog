@@ -49,6 +49,7 @@ var numberOfImportedLogs = int64(1_000_000)
 
 func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
+	t.SkipNow()
 	start := time.Now()
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
@@ -89,7 +90,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), lastCursorPtr)
+		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), nil, lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

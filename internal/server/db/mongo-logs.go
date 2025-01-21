@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -59,10 +60,10 @@ func (self *MongoLogRepository) GetClients(ctx context.Context) ([]types.Client,
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	log.Debug("Getting logs for client", "client", clientId)
 
-	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
+	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, logLineId, lastCursor)
 
 	log.Debug("Filter logs", "filter", filter)
 	return self.getAndMapLogs(ctx, filter, projection)
@@ -111,7 +112,7 @@ func (self *MongoLogRepository) WatchInserts(ctx context.Context) {
 func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	log.Debug("Getting logs for client", "clientId", clientId)
 
-	filter, projection := createFilter(clientId, pageSize, instances, lastCursor)
+	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, nil, lastCursor)
 
 	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
 
@@ -152,7 +153,7 @@ func NewLogRepository(db *mongo.Database) *MongoLogRepository {
 // Can be useful if we want to drop clientId for some reason
 var logsByClient = bson.D{}
 
-func createFilter(clientId string, pageSize int64, instances *[]string, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
+func createFilter(collection *mongo.Collection, clientId string, pageSize int64, instances *[]string, logLineId *string, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
 	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
@@ -186,6 +187,18 @@ func createFilter(clientId string, pageSize int64, instances *[]string, lastCurs
 			}},
 		}
 
+	} else if logLineId != nil {
+		// Find page of data where logLineId is in the middle of the page
+		log.Debug("Adding log line id cursor", "logLineId", *logLineId)
+		newFilter, newProjection, err := createFilterForLogLine(collection, clientId, *logLineId, pageSize)
+		if err != nil {
+			log.Error("Failed to create filter for logLineId", "error", err)
+			filter = clientIdFilter
+		} else {
+			filter = newFilter
+			projection = newProjection
+		}
+
 	} else {
 		filter = clientIdFilter
 	}
@@ -216,6 +229,55 @@ func (self *MongoLogRepository) getAndMapLogs(ctx context.Context, filter bson.D
 	}
 
 	return logs, nil
+}
+
+func createFilterForLogLine(collection *mongo.Collection, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
+	sortDirection := -1
+	projection := options.Find().SetProjection(logsByClient).SetSort(bson.D{
+		{Key: "timestamp", Value: sortDirection},
+		{Key: "sequence_number", Value: sortDirection},
+	})
+
+	// Convert logLineId to ObjectID
+	logId, err := primitive.ObjectIDFromHex(logLineId)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid logLineId format: %w", err)
+	}
+
+	// Find the target log to get its timestamp and sequence_number
+	var targetLog struct {
+		Timestamp      primitive.DateTime `bson:"timestamp"`
+		SequenceNumber int64              `bson:"sequence_number"`
+	}
+	err = collection.FindOne(context.Background(), bson.D{
+		{Key: "_id", Value: logId},
+		{Key: "client.client_id", Value: clientId},
+	}).Decode(&targetLog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find target log: %w", err)
+	}
+
+	// Calculate half page size (for logs before and after the target)
+	halfPageSize := pageSize - 1
+
+	// Set limit to half page size + 1 (including the target log)
+	projection.SetLimit(halfPageSize + 1)
+
+	// Create a filter that will find logs around the target log
+	filter := bson.D{
+		{Key: "client.client_id", Value: clientId},
+		{Key: "$or", Value: bson.A{
+			bson.D{
+				{Key: "timestamp", Value: bson.D{{Key: "$lte", Value: targetLog.Timestamp}}},
+			},
+			bson.D{
+				{Key: "timestamp", Value: targetLog.Timestamp},
+				{Key: "sequence_number", Value: bson.D{{Key: "$lte", Value: targetLog.SequenceNumber}}},
+			},
+		}},
+	}
+
+	return filter, projection, nil
 }
 
 func (self *MongoLogRepository) createIndexes() {

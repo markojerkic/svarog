@@ -23,9 +23,13 @@ export const route = {
 		const selectedInstances = getArrayValueOfSearchParam(
 			location.query.instances,
 		);
+		const logLineId = location.query.logLine as string | undefined;
 
 		queryClient.prefetchQuery(useInstancesOptions(clientId));
-		return await preloadLogStore({ clientId, selectedInstances }, queryClient);
+		return await preloadLogStore(
+			{ clientId, selectedInstances, selectedLogLineId: logLineId },
+			queryClient,
+		);
 	},
 } satisfies RouteDefinition;
 

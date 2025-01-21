@@ -16,6 +16,7 @@ type FetchLogPageOptions = {
 	selectedInstances?: string[];
 	search?: string;
 	cursor?: LogPageCursor | null;
+	logLine?: string;
 };
 
 export type Client = {
@@ -54,6 +55,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				props().clientId,
 				props().selectedInstances,
 				props().searchQuery,
+				props().selectedLogLineId,
 				cursor,
 			],
 			queryFn: async ({ signal }) => {
@@ -62,6 +64,7 @@ export const useLogStore = (props: LogStoreProps) => {
 					{
 						selectedInstances: props().selectedInstances,
 						search: props().searchQuery,
+						logLine: props().selectedLogLineId,
 						cursor: cursor,
 					},
 					signal,
@@ -123,11 +126,12 @@ export const useLogStore = (props: LogStoreProps) => {
 					reset: () => {
 						to("initial");
 					},
-					fetchPreviousPage: () => to("fetchingPreviousPage"),
-					fetchNextPage: () => to("fetchingNextPage"),
+					fetchPreviousPage: () => to.fetchingPreviousPage(),
+					fetchNextPage: () => to.fetchingNextPage(),
 				};
 			},
 			fetchingPreviousPage(_, to) {
+				console.warn("previous page");
 				const head = logStore().getHead();
 				const cursor = head
 					? ({
@@ -138,7 +142,7 @@ export const useLogStore = (props: LogStoreProps) => {
 					: null;
 				fetchPage(cursor).then((page) => {
 					logStore().insertMany(page);
-					to("idle");
+					to.idle();
 					scrollEventBus.scrollToIndex(page.length);
 				});
 				return {
@@ -148,8 +152,20 @@ export const useLogStore = (props: LogStoreProps) => {
 				};
 			},
 			fetchingNextPage(_, to) {
-				to("idle");
-				console.warn("fetching next page not implemented");
+				console.warn("next page");
+				const tail = logStore().getTail();
+				const cursor = tail
+					? ({
+							direction: "forward",
+							cursorTime: tail.value.timestamp,
+							cursorSequenceNumber: tail.value.sequenceNumber,
+						} satisfies LogPageCursor)
+					: null;
+				fetchPage(cursor).then((page) => {
+					logStore().insertMany(page);
+					to.idle();
+					scrollEventBus.scrollToIndex(logStore().size - page.length);
+				});
 
 				return {
 					reset: () => {
@@ -184,6 +200,7 @@ export const preloadLogStore = async (
 			props.clientId,
 			props.selectedInstances,
 			props.searchQuery,
+			props.selectedLogLineId,
 			null,
 		],
 		queryFn: async ({ signal }) => {

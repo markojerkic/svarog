@@ -31,6 +31,7 @@ type LogsByClientBinding struct {
 	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
 	Direction            *string   `query:"direction"`
 	Instances            *[]string `query:"instance"`
+	LogLineId            *string   `query:"logLine"`
 }
 
 func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
@@ -68,7 +69,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, params.LogLineId, &nextCursor)
 
 	if err != nil {
 		return err
