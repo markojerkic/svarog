@@ -1,23 +1,23 @@
 import { useLocation, useSearchParams } from "@solidjs/router";
-import { For, batch, createMemo, on } from "solid-js";
+import { For, Suspense, batch, createMemo, on } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import type { WsActions } from "@/lib/store/connection";
+import { useInstances } from "@/lib/hooks/logs/use-instances";
 
-export const Instances = (props: {
-	instances: string[];
-	actions: WsActions;
-}) => {
+export const Instances = (props: { clientId: string }) => {
+	const instances = useInstances(() => props.clientId);
+
 	return (
 		<nav class="gap-2 border border-sky-700 p-2">
 			<p>Instances</p>
-			<div class="scrollbar-thin scrollbar-track-white scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll p-2">
-				<AllInstances />
-				<For each={props.instances}>
-					{(instance) => (
-						<Instance instance={instance} actions={props.actions} />
-					)}
-				</For>
-			</div>
+			<Suspense fallback={<div>Loading...</div>}>
+				<div class="scrollbar-thin scrollbar-track-white scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll p-2">
+					<AllInstances />
+					<For each={instances.data}>
+						{(instance) => <Instance instance={instance} />}
+					</For>
+				</div>
+			</Suspense>
 		</nav>
 	);
 };
@@ -46,7 +46,7 @@ const AllInstances = () => {
 	);
 };
 
-const Instance = (props: { instance: string; actions: WsActions }) => {
+const Instance = (props: { instance: string }) => {
 	const color = () => useInstanceColor(props.instance);
 	const { isActive, toggleInstance } = useInstanceIsActive(props.instance);
 
@@ -64,7 +64,7 @@ const Instance = (props: { instance: string; actions: WsActions }) => {
 				viewBox="0 0 100 100"
 				class="h-4 w-4"
 			>
-				<circle cx="50" cy="50" r="25" fill={color()} />
+				<circle cx="50" cy="50" r="25" fill={`rgb(${color()})`} />
 			</svg>
 
 			{props.instance}

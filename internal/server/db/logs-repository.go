@@ -12,8 +12,8 @@ import (
 
 type LogRepository interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
-	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, cursor *LastCursor) ([]types.StoredLog, error)
-	GetClients(ctx context.Context) ([]AvailableClient, error)
+	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
+	GetClients(ctx context.Context) ([]types.Client, error)
 	GetInstances(ctx context.Context, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 }
@@ -42,13 +42,12 @@ type LogServer struct {
 	logs    chan types.StoredLog
 	backlog backlog.Backlog[types.StoredLog]
 }
-
-var _ AggregatingLogServer = &LogServer{}
-
 type AvailableClient struct {
 	Client   types.StoredClient
 	IsOnline bool
 }
+
+var _ AggregatingLogServer = &LogServer{}
 
 func NewLogServer(dbClient LogRepository) AggregatingLogServer {
 	return &LogServer{

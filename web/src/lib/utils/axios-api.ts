@@ -4,6 +4,25 @@ import { ApiError } from "@/lib/errors/api-error";
 export const api = axios.create({
 	baseURL: import.meta.env.VITE_API_URL,
 	withCredentials: true,
+	paramsSerializer: (params) => {
+		const searchParams = new URLSearchParams();
+		for (const key in params) {
+			if (!params[key]) {
+				continue;
+			}
+			const value = params[key];
+
+			console.log("Adding key: ", key, " with value: ", params[key]);
+			if (Array.isArray(value)) {
+				for (const val of value) {
+					searchParams.append(key, val);
+				}
+			} else {
+				searchParams.append(key, params[key]);
+			}
+		}
+		return searchParams.toString();
+	},
 });
 api.interceptors.response.use(
 	(response) => response,

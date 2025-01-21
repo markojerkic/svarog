@@ -10,11 +10,13 @@ type LogStoreProps = () => {
 	clientId: string;
 	selectedInstances: string[];
 	searchQuery?: string;
+	selectedLogLineId?: string;
 };
 type FetchLogPageOptions = {
 	selectedInstances?: string[];
 	search?: string;
 	cursor?: LogPageCursor | null;
+	logLine?: string;
 };
 
 export type Client = {
@@ -53,6 +55,7 @@ export const useLogStore = (props: LogStoreProps) => {
 				props().clientId,
 				props().selectedInstances,
 				props().searchQuery,
+				props().selectedLogLineId,
 				cursor,
 			],
 			queryFn: async ({ signal }) => {
@@ -61,6 +64,7 @@ export const useLogStore = (props: LogStoreProps) => {
 					{
 						selectedInstances: props().selectedInstances,
 						search: props().searchQuery,
+						logLine: props().selectedLogLineId,
 						cursor: cursor,
 					},
 					signal,
@@ -96,8 +100,18 @@ export const useLogStore = (props: LogStoreProps) => {
 				setLogStore(new SortedList<LogLine>(logsSortFn));
 				fetchPage(null).then((page) => {
 					logStore().insertMany(page);
-					to("idle");
-					scrollEventBus.scrollToBottom();
+					to.idle();
+
+					const selectedLogLineId = props().selectedLogLineId;
+					if (!selectedLogLineId) {
+						scrollEventBus.scrollToBottom();
+					} else {
+						const logsArray = page;
+						const index = logsArray.findIndex(
+							(logLine) => logLine.id === selectedLogLineId,
+						);
+						scrollEventBus.scrollToIndex(index);
+					}
 				});
 
 				return {
@@ -112,11 +126,12 @@ export const useLogStore = (props: LogStoreProps) => {
 					reset: () => {
 						to("initial");
 					},
-					fetchPreviousPage: () => to("fetchingPreviousPage"),
-					fetchNextPage: () => to("fetchingNextPage"),
+					fetchPreviousPage: () => to.fetchingPreviousPage(),
+					fetchNextPage: () => to.fetchingNextPage(),
 				};
 			},
 			fetchingPreviousPage(_, to) {
+				console.warn("previous page");
 				const head = logStore().getHead();
 				const cursor = head
 					? ({
@@ -127,7 +142,7 @@ export const useLogStore = (props: LogStoreProps) => {
 					: null;
 				fetchPage(cursor).then((page) => {
 					logStore().insertMany(page);
-					to("idle");
+					to.idle();
 					scrollEventBus.scrollToIndex(page.length);
 				});
 				return {
@@ -137,8 +152,20 @@ export const useLogStore = (props: LogStoreProps) => {
 				};
 			},
 			fetchingNextPage(_, to) {
-				to("idle");
-				console.warn("fetching next page not implemented");
+				console.warn("next page");
+				const tail = logStore().getTail();
+				const cursor = tail
+					? ({
+							direction: "forward",
+							cursorTime: tail.value.timestamp,
+							cursorSequenceNumber: tail.value.sequenceNumber,
+						} satisfies LogPageCursor)
+					: null;
+				fetchPage(cursor).then((page) => {
+					logStore().insertMany(page);
+					to.idle();
+					scrollEventBus.scrollToIndex(logStore().size - page.length);
+				});
 
 				return {
 					reset: () => {
@@ -167,12 +194,13 @@ export const preloadLogStore = async (
 	props: ReturnType<LogStoreProps>,
 	queryClient: QueryClient,
 ) => {
-	return queryClient.prefetchQuery({
+	return queryClient.ensureQueryData({
 		queryKey: [
 			"logs",
 			props.clientId,
 			props.selectedInstances,
 			props.searchQuery,
+			props.selectedLogLineId,
 			null,
 		],
 		queryFn: async ({ signal }) => {
@@ -202,6 +230,8 @@ const fetchLogPage = async (
 		params: {
 			...options,
 			...buildCursor(options.cursor),
+			instance: options.selectedInstances,
+			selectedInstances: undefined,
 			cursor: undefined,
 		},
 		signal: abortSignal,

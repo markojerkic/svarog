@@ -81,6 +81,14 @@ export class SortedList<T extends { id: string }> {
 		}
 	}
 
+	toArray(): T[] {
+		const result: T[] = [];
+		for (const value of this) {
+			result.push(value);
+		}
+		return result;
+	}
+
 	get size() {
 		return this.countStore[0].count;
 	}

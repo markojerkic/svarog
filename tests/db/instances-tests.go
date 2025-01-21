@@ -100,7 +100,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(logs))
 	for _, log := range logs {
@@ -157,7 +157,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(logs))
 	for _, log := range logs {
@@ -214,7 +214,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil)
+	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(mockLogLines), len(logs))
 }

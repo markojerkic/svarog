@@ -47,7 +47,7 @@ format-web:
 format: format-go format-web
 
 test-server:
-	go test ./tests/... -v
+	go test ./tests/...
 test-web:
 	cd web && bun run test
 

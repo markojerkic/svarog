@@ -52,7 +52,7 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 
 	clientIdsSet := make(map[string]bool)
 	for _, client := range clients {
-		clientIdsSet[client.Client.ClientId] = true
+		clientIdsSet[client.ClientId] = true
 	}
 
 	assert.Equal(t, 2, len(clientIdsSet), fmt.Sprintf("Expected 2 client, got %+v", clientIdsSet))

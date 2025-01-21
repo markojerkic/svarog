@@ -14,6 +14,7 @@ import {
 import { SearchCommnad } from "@/components/log-search";
 import { Button } from "@/components/ui/button";
 import { preloadLogStore } from "@/lib/hooks/use-log-store";
+import { Instances } from "@/components/instances";
 
 export const route = {
 	load: async ({ params, location }) => {
@@ -40,11 +41,12 @@ export default (_props: RouteSectionProps) => {
 	const searchQuery = () => searchParams.search ?? "";
 	const navigateBack = useNavigateBack(() => ({
 		clientId: clientId,
-		selectedInstances: selectedInstances(),
+		instance: selectedInstances(),
 	}));
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
+			<Instances clientId={clientId} />
 			<SearchCommnad
 				search={searchQuery()}
 				onInput={(search) => {
@@ -73,7 +75,7 @@ const SearchInfo = (props: {
 }) => {
 	const navigateBack = useNavigateBack(() => ({
 		clientId: props.clientId,
-		selectedInstances: props.selectedInstances,
+		instance: props.selectedInstances,
 	}));
 	let elementRef: HTMLDivElement | undefined;
 
@@ -94,13 +96,13 @@ const SearchInfo = (props: {
 const useNavigateBack = (
 	props: () => {
 		clientId: string;
-		selectedInstances: string[];
+		instance: string[];
 	},
 ) => {
 	const navigate = useNavigate();
 	return () => {
 		const searchParams = new URLSearchParams();
-		for (const instance of props().selectedInstances) {
+		for (const instance of props().instance) {
 			searchParams.append("instance", instance);
 		}
 		navigate(`/logs/${props().clientId}?${searchParams.toString()}`);

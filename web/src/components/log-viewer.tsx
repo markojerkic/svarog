@@ -2,24 +2,30 @@ import { onMount, Show } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import { newLogLineListener } from "@/lib/store/connection";
 import { ScrollArea } from "./scroll-area";
-import { useScrollEvent } from "@/lib/hooks/use-scroll-event";
 import { useLogStore } from "@/lib/hooks/use-log-store";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { toast } from "solid-sonner";
+import { useMatch, useNavigate } from "@solidjs/router";
 
 export const LogViewer = (props: {
 	clientId: string;
 	selectedInstances: string[];
 	searchQuery?: string;
+	selectedLogLineId?: string;
 }) => {
-	const scrollEventBus = useScrollEvent();
 	const logStore = useLogStore(() => ({
 		clientId: props.clientId,
 		selectedInstances: props.selectedInstances,
 		searchQuery: props.searchQuery,
+		selectedLogLineId: props.selectedLogLineId,
 	}));
 
 	onMount(() => {
-		scrollEventBus.scrollToBottom();
-
 		const unsub = newLogLineListener((lines) => {
 			logStore.logs.insertMany(lines);
 		});
@@ -50,23 +56,66 @@ export const LogViewer = (props: {
 					return (
 						<Show when={item} keyed>
 							{(item) => (
-								<pre
-									data-index={virtualItem.index}
-									class={"border-l-4 pl-2 text-black hover:border-l-8"}
-									style={{
-										"--tw-border-opacity": 1,
-										"border-left-color": useInstanceColor(
-											item.client.ipAddress,
-										),
-									}}
-								>
-									{item.content}
-								</pre>
+								<ContextMenu>
+									<ContextMenuTrigger
+										as="pre"
+										data-log-line
+										data-line-is-selected={item.id === props.selectedLogLineId}
+										class={"border-l-4 pl-2 text-black"}
+										style={{
+											"--instance-color": useInstanceColor(
+												item.client.ipAddress,
+											),
+										}}
+									>
+										{item.content}
+									</ContextMenuTrigger>
+									<ContextMenuOptions
+										logLineId={item.id}
+										clientId={item.client.clientId}
+										instanceId={item.client.ipAddress}
+									/>
+								</ContextMenu>
 							)}
 						</Show>
 					);
 				}}
 			</ScrollArea>
 		</>
+	);
+};
+
+const ContextMenuOptions = (props: {
+	logLineId: string;
+	clientId: string;
+	instanceId: string;
+}) => {
+	const isSearch = useMatch(() => "/logs/:clientId/search");
+	const navigate = useNavigate();
+
+	const goToLogLine = () => {
+		navigate(
+			`/logs/${props.clientId}?logLine=${props.logLineId}&instance=${props.instanceId}`,
+		);
+	};
+
+	const copyLogLineAddress = () => {
+		const currentDomain = window.location.origin;
+		const logLineUrl = `${currentDomain}/logs/${props.clientId}?logLine=${props.logLineId}&instance=${props.instanceId}`;
+		navigator.clipboard.writeText(logLineUrl);
+		toast.success("Log line address copied to clipboard");
+	};
+
+	return (
+		<ContextMenuContent class="w-64">
+			<ContextMenuItem inset onSelect={() => copyLogLineAddress()}>
+				Copy log line link
+			</ContextMenuItem>
+			<Show when={isSearch()}>
+				<ContextMenuItem inset onSelect={() => goToLogLine()}>
+					Go to log line
+				</ContextMenuItem>
+			</Show>
+		</ContextMenuContent>
 	);
 };
