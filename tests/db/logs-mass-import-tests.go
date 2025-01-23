@@ -49,7 +49,6 @@ var numberOfImportedLogs = int64(1_000_000)
 
 func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
-	t.SkipNow()
 	start := time.Now()
 
 	logIngestChannel := make(chan db.LogLineWithIp, 1024)
