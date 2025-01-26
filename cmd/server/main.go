@@ -3,32 +3,33 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/charmbracelet/log"
 
 	envParser "github.com/caarlos0/env/v11"
+	tea "github.com/charmbracelet/bubbletea"
 	dotenv "github.com/joho/godotenv"
-	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/ssh"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func loadEnv() types.ServerEnv {
 	env := types.ServerEnv{}
-	err := dotenv.Load()
-	log.Info("Loading .env file")
+	if os.Getenv("DOCKER") != "true" {
+		err := dotenv.Load()
 
-	if err != nil {
-		log.Warn("Error loading .env file. Falling back to OS env parsing - ", err)
-	} else {
-		return env
+		if err != nil {
+			log.Fatalf("Error loading .env file. %v", err)
+		}
 	}
 
 	if err := envParser.Parse(&env); err != nil {
@@ -71,31 +72,39 @@ func main() {
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
 	logsRepository := db.NewLogRepository(database)
-	logServer := db.NewLogServer(logsRepository)
+	db.NewLogServer(logsRepository)
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
-	certificateService := serverauth.NewCertificateService(filesService, client)
-	projectsService := projects.NewProjectsService(projectsCollection, client)
+	serverauth.NewCertificateService(filesService, client)
+	projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
 
-	httpServer := http.NewServer(
-		http.HttpServerOptions{
-			AllowedOrigins:     env.HttpServerAllowedOrigins,
-			ServerPort:         env.HttpServerPort,
-			SessionStore:       sessionStore,
-			LogRepository:      logsRepository,
-			AuthService:        authService,
-			CertificateService: certificateService,
-			FilesService:       filesService,
-			ProjectsService:    projectsService,
-		})
+	// http.NewServer(
+	// 	http.HttpServerOptions{
+	// 		AllowedOrigins:     env.HttpServerAllowedOrigins,
+	// 		ServerPort:         env.HttpServerPort,
+	// 		SessionStore:       sessionStore,
+	// 		LogRepository:      logsRepository,
+	// 		AuthService:        authService,
+	// 		CertificateService: certificateService,
+	// 		FilesService:       filesService,
+	// 		ProjectsService:    projectsService,
+	// 	})
 
-	logIngestChannel := make(chan db.LogLineWithIp, 1000)
-	grpcServer := grpcserver.NewGrpcServer(certificateService, projectsService, env, logIngestChannel)
+	fmt.Println("Starting SSH server")
+	clientId := "spring-chat"
+	initialModel := ssh.InitialModel(logsRepository, clientId, nil)
+	p := tea.NewProgram(initialModel)
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error running program: %v", err)
+	}
 
-	go logServer.Run(context.Background(), logIngestChannel)
-	go httpServer.Start()
-	grpcServer.Start()
+	// logIngestChannel := make(chan db.LogLineWithIp, 1000)
+	// grpcServer := grpcserver.NewGrpcServer(certificateService, projectsService, env, logIngestChannel)
+	//
+	// go logServer.Run(context.Background(), logIngestChannel)
+	// go httpServer.Start()
+	// grpcServer.Start()
 }

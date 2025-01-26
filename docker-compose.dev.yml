@@ -2,7 +2,6 @@ version: '3'
 services:
   svarog-mongodb:
     image: mongo:7.0
-    container_name: svarog-mongodb
     ports:
       - 27017:27017
     environment:
