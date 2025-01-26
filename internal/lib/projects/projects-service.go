@@ -3,11 +3,11 @@ package projects
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,7 +17,7 @@ import (
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
-	GetProjects(ctx context.Context) ([]types.ProjectDto, error)
+	GetProjects(ctx context.Context) ([]Project, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	RemoveClientFromProject(ctx context.Context, projectId string, client string) error
@@ -70,29 +70,63 @@ func (m *MongoProjectsService) GetProject(ctx context.Context, id string) (Proje
 	return project, nil
 }
 
-func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]types.ProjectDto, error) {
-	cursor, err := m.projectsCollection.Find(ctx, bson.M{})
-	if err != nil {
-		return nil, errors.Join(errors.New("error getting projects"), err)
-	}
-	defer cursor.Close(ctx)
-	projects := []types.ProjectDto{}
-	err = cursor.All(ctx, &projects)
-	if err != nil {
-		return nil, errors.Join(errors.New("error getting projects"), err)
+func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
+	pipeline := mongo.Pipeline{
+		// Lookup stage
+		{
+			{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "log_lines"},
+				{Key: "localField", Value: "clients"},
+				{Key: "foreignField", Value: "client.client_id"},
+				{Key: "as", Value: "log_lines"},
+			}},
+		},
+		// Add fields stage
+		{
+			{Key: "$addFields", Value: bson.D{
+				{Key: "totalSizeBytes", Value: bson.D{
+					{Key: "$sum", Value: bson.D{
+						{Key: "$map", Value: bson.D{
+							{Key: "input", Value: "$log_lines"},
+							{Key: "as", Value: "log_line"},
+							{Key: "in", Value: bson.D{
+								{Key: "$bsonSize", Value: "$$log_line"},
+							}},
+						}},
+					}},
+				}},
+			}},
+		},
+		// Project stage
+		{
+			{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "name", Value: 1},
+				{Key: "clients", Value: 1},
+				{Key: "totalSizeMB", Value: bson.D{
+					{Key: "$round", Value: bson.A{
+						bson.D{
+							{Key: "$divide", Value: bson.A{"$totalSizeBytes", 1024 * 1024}},
+						},
+						2,
+					}},
+				}},
+			}},
+		},
 	}
 
-	for i, project := range projects {
-		size, err := m.GetStorageSizeForProject(ctx, project.ID.Hex())
-		if err != nil {
-			log.Error("Error getting storage size for project", "error", err)
-			continue
-		}
-		log.Debug("Storage size for project", "size", size, "project", project.ID.Hex())
-		project.StorageSize = int64(size)
-		projects[i] = project
+	// Execute aggregation
+	cursor, err := m.projectsCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
 	}
-	log.Debug("Project", "project", projects)
+	defer cursor.Close(ctx)
+
+	// Decode results
+	var projects []Project
+	if err := cursor.All(ctx, &projects); err != nil {
+		return nil, fmt.Errorf("failed to decode results: %w", err)
+	}
 
 	return projects, nil
 }
