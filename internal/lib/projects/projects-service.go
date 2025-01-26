@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,16 +17,18 @@ import (
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
-	GetProjects(ctx context.Context) ([]Project, error)
+	GetProjects(ctx context.Context) ([]types.ProjectDto, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	RemoveClientFromProject(ctx context.Context, projectId string, client string) error
 	AddClientToProject(ctx context.Context, projectId string, client string) error
+	GetStorageSizeForProject(ctx context.Context, projectId string) (float64, error)
 }
 
 type MongoProjectsService struct {
 	mongoClient        *mongo.Client
 	projectsCollection *mongo.Collection
+	logsService        db.LogRepository
 }
 
 const (
@@ -66,17 +70,29 @@ func (m *MongoProjectsService) GetProject(ctx context.Context, id string) (Proje
 	return project, nil
 }
 
-func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
+func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]types.ProjectDto, error) {
 	cursor, err := m.projectsCollection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, errors.Join(errors.New("error getting projects"), err)
 	}
 	defer cursor.Close(ctx)
-	projects := []Project{}
+	projects := []types.ProjectDto{}
 	err = cursor.All(ctx, &projects)
 	if err != nil {
 		return nil, errors.Join(errors.New("error getting projects"), err)
 	}
+
+	for i, project := range projects {
+		size, err := m.GetStorageSizeForProject(ctx, project.ID.Hex())
+		if err != nil {
+			log.Error("Error getting storage size for project", "error", err)
+			continue
+		}
+		log.Debug("Storage size for project", "size", size, "project", project.ID.Hex())
+		project.StorageSize = int64(size)
+		projects[i] = project
+	}
+	log.Debug("Project", "project", projects)
 
 	return projects, nil
 }
@@ -166,12 +182,22 @@ func (m *MongoProjectsService) assertUniqeIndex(ctx context.Context) error {
 	return nil
 }
 
+func (m *MongoProjectsService) GetStorageSizeForProject(ctx context.Context, projectId string) (float64, error) {
+	project, err := m.GetProject(ctx, projectId)
+	if err != nil {
+		log.Error("Error getting project", "error", err)
+		return 0, err
+	}
+	return m.logsService.GetStorageSizeForClients(ctx, project.Clients)
+}
+
 var _ ProjectsService = &MongoProjectsService{}
 
-func NewProjectsService(projectsCollection *mongo.Collection, mongoClient *mongo.Client) ProjectsService {
+func NewProjectsService(projectsCollection *mongo.Collection, logsService db.LogRepository, mongoClient *mongo.Client) ProjectsService {
 	service := &MongoProjectsService{
 		projectsCollection: projectsCollection,
 		mongoClient:        mongoClient,
+		logsService:        logsService,
 	}
 
 	err := service.assertUniqeIndex(context.Background())

@@ -53,6 +53,7 @@ export const ProjectList = (props: { projects: Project[] }) => {
 				<TableRow>
 					<TableHead>Project name</TableHead>
 					<TableHead>Clients</TableHead>
+					<TableHead>Storage</TableHead>
 					<TableHead class="w-[100px]" />
 				</TableRow>
 			</TableHeader>
@@ -64,6 +65,7 @@ export const ProjectList = (props: { projects: Project[] }) => {
 							<TableCell>
 								<Clients clients={project.clients} />
 							</TableCell>
+							<TableCell>{project.storageSize} MB</TableCell>
 							<TableCell>
 								<ProjectActions project={project} />
 							</TableCell>

@@ -16,6 +16,7 @@ type LogRepository interface {
 	GetClients(ctx context.Context) ([]types.Client, error)
 	GetInstances(ctx context.Context, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	GetStorageSizeForClients(ctx context.Context, clientIds []string) (float64, error)
 }
 
 type LastCursor struct {
