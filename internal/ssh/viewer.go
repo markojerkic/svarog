@@ -3,10 +3,10 @@ package ssh
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -31,14 +31,14 @@ var (
 )
 
 type LogViewerModel struct {
+	viewport    viewport.Model
 	logs        []types.StoredLog
 	cursor      *db.LastCursor
 	selectedIdx int
 	repo        db.LogRepository
 	clientId    string
 	instances   *[]string
-	height      int
-	width       int
+	ready       bool
 	loading     bool
 	err         error
 }
@@ -59,30 +59,50 @@ func (m LogViewerModel) Init() tea.Cmd {
 }
 
 func (m LogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.height = msg.Height
-		m.width = msg.Width
-		return m, nil
+		if !m.ready {
+			// Initialize viewport
+			m.viewport = viewport.New(msg.Width, msg.Height-6) // Account for title and help text
+			m.viewport.SetContent(m.logsToString())
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - 6
+		}
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "up":
+		case "up", "k":
 			if m.selectedIdx > 0 {
 				m.selectedIdx--
-				// If we're at the top of the visible list and have more logs to fetch
-				if m.selectedIdx == 0 && !m.loading {
-					return m, m.fetchLogs
+				m.viewport.SetContent(m.logsToString())
+
+				// If we're near the top and not loading, fetch more logs
+				if m.selectedIdx < 3 && !m.loading {
+					cmds = append(cmds, m.fetchLogs)
 				}
 			}
-			return m, nil
-		case "down":
+		case "down", "j":
 			if m.selectedIdx < len(m.logs)-1 {
 				m.selectedIdx++
+				m.viewport.SetContent(m.logsToString())
 			}
-			return m, nil
+		case "g":
+			m.selectedIdx = 0
+			m.viewport.SetContent(m.logsToString())
+			m.viewport.GotoTop()
+		case "G":
+			m.selectedIdx = len(m.logs) - 1
+			m.viewport.SetContent(m.logsToString())
+			m.viewport.GotoBottom()
 		}
 
 	case logsMsg:
@@ -105,15 +125,28 @@ func (m LogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, nil
+		// Update viewport content
+		if m.ready {
+			m.viewport.SetContent(m.logsToString())
+		}
 	}
 
-	return m, nil
+	// Handle viewport updates
+	if m.ready {
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m LogViewerModel) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v", m.err)
+	}
+
+	if !m.ready {
+		return "Initializing..."
 	}
 
 	var b strings.Builder
@@ -127,14 +160,20 @@ func (m LogViewerModel) View() string {
 		b.WriteString("Loading...\n")
 	}
 
-	// Logs
-	visibleLogs := m.logs
-	if len(visibleLogs) > m.height-4 { // Account for title and padding
-		outer := math.Max(math.Min(float64(m.height-4), float64(len(visibleLogs))), 0)
-		visibleLogs = visibleLogs[:int64(outer)]
-	}
+	// Viewport
+	b.WriteString(m.viewport.View() + "\n")
 
-	for i, log := range visibleLogs {
+	// Help
+	help := "↑/k: up • ↓/j: down • g: top • G: bottom • q: quit"
+	b.WriteString(help)
+
+	return b.String()
+}
+
+func (m LogViewerModel) logsToString() string {
+	var b strings.Builder
+
+	for i, log := range m.logs {
 		logLine := fmt.Sprintf("[%s] %s: %s",
 			log.Timestamp.Format(time.RFC3339),
 			log.Client.ClientId,
@@ -149,10 +188,6 @@ func (m LogViewerModel) View() string {
 		b.WriteString("\n")
 	}
 
-	// Help
-	help := "\nup/down: navigate • q: quit"
-	b.WriteString(help)
-
 	return b.String()
 }
 
@@ -162,6 +197,7 @@ type logsMsg struct {
 }
 
 func (m LogViewerModel) fetchLogs() tea.Msg {
+	m.loading = true
 	logs, err := m.repo.GetLogs(context.Background(), m.clientId, m.instances, pageSize, nil, m.cursor)
 	return logsMsg{logs: logs, err: err}
 }
