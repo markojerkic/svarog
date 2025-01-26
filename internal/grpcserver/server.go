@@ -123,7 +123,10 @@ func (gs *GrpcServer) getCaCert(ctx context.Context) (*x509.Certificate, error) 
 	if err != nil {
 		if err.Error() == files.ErrFileNotFound {
 			log.Warn("Ca cert file not found in db, creating a new one")
-			gs.certificatesService.GenerateCaCertificate(ctx)
+			err = gs.certificatesService.GenerateCaCertificate(ctx)
+			if err != nil {
+				log.Fatal("Failed to generate ca cert", "error", err)
+			}
 			return gs.getCaCert(ctx)
 		}
 		log.Error("Failed to get ca cert", "error", err)

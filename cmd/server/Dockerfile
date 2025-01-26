@@ -51,7 +51,7 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/se
 # Stage 3: Copy all needed files and run
 ####################################################################################
 
-FROM scratch
+FROM alpine:3.21.2
 
 # Set the working directory
 WORKDIR /app

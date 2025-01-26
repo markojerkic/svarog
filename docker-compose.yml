@@ -1,7 +1,6 @@
-version: '3'
 services:
   svarog:
-    image: svarog:latest
+    image: markojerkic/svarog:latest
     container_name: svarog
     build:
       context: .
@@ -10,22 +9,32 @@ services:
       - 1324:1323
       - 50052:50051
     environment:
-    - MONGO_URL=mongodb://user:pass@svarog-mongodb:27017/
-    - GPRC_PORT=50051
-    - HTTP_SERVER_PORT=1323
-    - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:3000
-    - BASE_HREF=/svarog/
+      - MONGO_URL=mongodb://svarog-mongodb:27017/
+      - GPRC_PORT=50051
+      - HTTP_SERVER_PORT=1323
     depends_on:
       - svarog-mongodb
+    develop:
+      watch:
+        - path: .
+          target: builder
+          action: rebuild
+
   svarog-mongodb:
-    image: mongodb/mongodb-community-server:6.0-ubi8
-    container_name: svarog-mongodb
-    environment:
-      - MONGODB_INITDB_ROOT_USERNAME=user
-      - MONGODB_INITDB_ROOT_PASSWORD=pass
-    command: ["mongod", "--replSet", "rs0"]
+    image: mongo:7.0
+    command: ["--replSet", "rs0", "--bind_ip_all", "--noauth"]
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status() } catch (err) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'svarog-mongodb:27017'}]}) }"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
-      - dbdata:/data/db
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+
 volumes:
-  dbdata:
+  mongodb_data:
+  mongodb_config:
