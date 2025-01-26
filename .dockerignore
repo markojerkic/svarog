@@ -3,6 +3,7 @@ build
 **/*_templ.txt
 **/tmp/
 .zed
+.env
 
 dist
 .solid

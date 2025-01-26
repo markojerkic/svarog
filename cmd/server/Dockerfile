@@ -58,7 +58,7 @@ WORKDIR /app
 
 # Copy the server binary and web assets from the previous stages
 COPY --from=builder /app/build/server /app/build/server
-COPY --from=web-build /usr/src/app/.output/public /app/public
+COPY --from=web-build /usr/src/app/dist /app/public
 
 ENV DOCKER=true
 

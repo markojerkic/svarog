@@ -56,6 +56,8 @@ test-no-log: test-web
 	go test ./tests/...
 
 docker-build-server:
-	docker build -t svarog -f ./cmd/server/Dockerfile .
+	docker build -t markojerkic/svarog -f ./cmd/server/Dockerfile .
 docker-build-client:
-	docker build -t svarog-client -f ./cmd/client/Dockerfile .
+	docker build -t markojerkic/svarog-client -f ./cmd/client/Dockerfile .
+docker-build: docker-build-server docker-build-client
+
