@@ -63,12 +63,18 @@ func (s *ArchiveSuite) SetupSuite() {
 
 // After each
 func (s *ArchiveSuite) TearDownSubTest() {
+	log.Info("Cleaning up")
 	_, err := s.archiveCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)
 	_, err = s.archiveSettingCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)
 	_, err = s.filesCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)
+}
+
+// TearDownTest implements suite.TearDownTestSuite.
+func (a *ArchiveSuite) TearDownTest() {
+	a.TearDownSubTest()
 }
 
 // After all
@@ -82,3 +88,4 @@ func (s *ArchiveSuite) TearDownSuite() {
 var _ suite.SetupAllSuite = &ArchiveSuite{}
 var _ suite.TearDownAllSuite = &ArchiveSuite{}
 var _ suite.TearDownSubTest = &ArchiveSuite{}
+var _ suite.TearDownTestSuite = &ArchiveSuite{}

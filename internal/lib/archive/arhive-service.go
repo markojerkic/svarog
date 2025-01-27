@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/files"
@@ -142,7 +143,7 @@ func (a *ArchiveServiceImpl) UpdateSetting(ctx context.Context, id string, arhiv
 	_, err = a.archiveSettingCollection.UpdateByID(ctx, oid,
 		bson.M{
 			"$set": bson.M{
-				"arhiveAfterWeeks": arhiveAfterWeeks,
+				"arhive_after_weeks": arhiveAfterWeeks,
 			},
 		})
 
@@ -152,20 +153,24 @@ func (a *ArchiveServiceImpl) UpdateSetting(ctx context.Context, id string, arhiv
 	return err
 }
 
-func (a *ArchiveServiceImpl) createIndexes() {
-	// Create indexes for arhive settings by projectID and clientID, with unique constraint
-	_, err := a.archiveSettingCollection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
-		Keys: bson.M{
-			"projectID": 1,
-			"clientID":  1,
+func (a *ArchiveServiceImpl) createIndexes(ctx context.Context) error {
+	// Create compound index for archive settings
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "projectID", Value: 1},
+			{Key: "clientID", Value: 1},
 		},
-		Options: options.Index().SetUnique(true),
-	})
-
-	if err != nil {
-		log.Fatal("Error creating index", "err", err)
+		Options: options.Index().
+			SetUnique(true).
+			SetName("projectID_clientID_unique"),
 	}
 
+	_, err := a.archiveSettingCollection.Indexes().CreateOne(ctx, indexModel)
+	if err != nil {
+		return fmt.Errorf("failed to create index: %w", err)
+	}
+
+	return nil
 }
 
 var _ ArhiveService = &ArchiveServiceImpl{}
@@ -185,12 +190,13 @@ func NewArchiveService(mongoClient *mongo.Client,
 	}
 
 	service := &ArchiveServiceImpl{
-		mongoClient:       mongoClient,
-		archiveCollection: archiveCollection,
-		filesService:      filesService,
+		mongoClient:              mongoClient,
+		archiveCollection:        archiveCollection,
+		archiveSettingCollection: archiveSettingCollection,
+		filesService:             filesService,
 	}
 
-	service.createIndexes()
+	service.createIndexes(context.Background())
 
 	return service
 }
