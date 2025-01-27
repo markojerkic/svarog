@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/charmbracelet/log"
 
@@ -22,13 +23,12 @@ import (
 
 func loadEnv() types.ServerEnv {
 	env := types.ServerEnv{}
-	err := dotenv.Load()
-	log.Info("Loading .env file")
+	if os.Getenv("DOCKER") != "true" {
+		err := dotenv.Load()
 
-	if err != nil {
-		log.Warn("Error loading .env file. Falling back to OS env parsing - ", err)
-	} else {
-		return env
+		if err != nil {
+			log.Fatalf("Error loading .env file. %v", err)
+		}
 	}
 
 	if err := envParser.Parse(&env); err != nil {

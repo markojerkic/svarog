@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/util"
@@ -67,15 +68,61 @@ func (m *MongoProjectsService) GetProject(ctx context.Context, id string) (Proje
 }
 
 func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
-	cursor, err := m.projectsCollection.Find(ctx, bson.M{})
+	pipeline := mongo.Pipeline{
+		// Lookup stage
+		{
+			{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "log_lines"},
+				{Key: "localField", Value: "clients"},
+				{Key: "foreignField", Value: "client.client_id"},
+				{Key: "as", Value: "log_lines"},
+			}},
+		},
+		// Add fields stage
+		{
+			{Key: "$addFields", Value: bson.D{
+				{Key: "totalSizeBytes", Value: bson.D{
+					{Key: "$sum", Value: bson.D{
+						{Key: "$map", Value: bson.D{
+							{Key: "input", Value: "$log_lines"},
+							{Key: "as", Value: "log_line"},
+							{Key: "in", Value: bson.D{
+								{Key: "$bsonSize", Value: "$$log_line"},
+							}},
+						}},
+					}},
+				}},
+			}},
+		},
+		// Project stage
+		{
+			{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "name", Value: 1},
+				{Key: "clients", Value: 1},
+				{Key: "totalSizeMB", Value: bson.D{
+					{Key: "$round", Value: bson.A{
+						bson.D{
+							{Key: "$divide", Value: bson.A{"$totalSizeBytes", 1024 * 1024}},
+						},
+						2,
+					}},
+				}},
+			}},
+		},
+	}
+
+	// Execute aggregation
+	cursor, err := m.projectsCollection.Aggregate(ctx, pipeline)
 	if err != nil {
-		return nil, errors.Join(errors.New("error getting projects"), err)
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
 	}
 	defer cursor.Close(ctx)
-	projects := []Project{}
-	err = cursor.All(ctx, &projects)
-	if err != nil {
-		return nil, errors.Join(errors.New("error getting projects"), err)
+
+	// Decode results
+	var projects []Project
+	if err := cursor.All(ctx, &projects); err != nil {
+		return nil, fmt.Errorf("failed to decode results: %w", err)
 	}
 
 	return projects, nil

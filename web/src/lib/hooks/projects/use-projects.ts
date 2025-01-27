@@ -5,6 +5,7 @@ export type Project = {
 	id: string;
 	name: string;
 	clients: string[];
+	totalStorageSize: number;
 };
 
 export const useProjectsOptions = () =>
