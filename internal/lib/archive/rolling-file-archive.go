@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +47,6 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 		}
 
 		for _, log := range logs {
-
 			line := fmt.Sprintf("[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.IpAddress, log.LogLine)
 			fileContent = append(fileContent, []byte(line)...)
 			if result.toDate.Before(log.Timestamp) {
@@ -66,6 +66,11 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 			SequenceNumber: int(logs[len(logs)-1].SequenceNumber),
 			IsBackward:     true,
 		}
+
+	}
+	err := a.logsService.DeleteLogBeforeTimestamp(ctx, cuttoffDate)
+	if err != nil {
+		return archivingResult{}, errors.Join(errors.New("error deleting log lines while archiving"), err)
 	}
 
 	zipDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))

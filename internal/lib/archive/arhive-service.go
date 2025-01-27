@@ -47,7 +47,8 @@ func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectI
 			return struct{}{}, err
 		}
 
-		cuttoffDate := time.Now().AddDate(0, 0, -7*settings.ArhiveAfterWeeks)
+		cuttoffDate := time.Now().Add(-time.Duration(settings.ArhiveAfterWeeks) * 7 * 24 * time.Hour)
+		log.Debug("Creating archive for client", "projectID", projectID, "clientID", "arhiveAfterWeeks", settings.ArhiveAfterWeeks, clientID, "cuttoffDate", cuttoffDate)
 		tempDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))
 		if err != nil {
 			log.Error("Error creating temp dir", "error", err)
@@ -129,8 +130,9 @@ func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string
 	}
 
 	archiveSetting := types.ArchiveSetting{
-		ProjectID: projectOID,
-		ClientID:  clientID,
+		ProjectID:        projectOID,
+		ClientID:         clientID,
+		ArhiveAfterWeeks: arhiveAfterWeeks,
 	}
 
 	_, err = a.archiveSettingCollection.InsertOne(ctx, archiveSetting)

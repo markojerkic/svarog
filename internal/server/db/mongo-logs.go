@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -57,6 +58,21 @@ func (self *MongoLogService) GetClients(ctx context.Context) ([]types.Client, er
 	}
 
 	return clients, nil
+}
+
+// DeleteLogAfterTimestamp implements LogService.
+func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error {
+	deleteResult, err := self.logCollection.DeleteMany(ctx, bson.D{{Key: "timestamp", Value: bson.D{{
+		Key:   "$lte",
+		Value: primitive.NewDateTimeFromTime(timestamp),
+	}}}})
+	log.Debug("Deleting logs before timestamp", "timestamp", timestamp, "deleted", deleteResult.DeletedCount)
+	if err != nil {
+		log.Error("Error deleting logs", "error", err)
+		return err
+	}
+
+	return nil
 }
 
 // GetLogs implements LogRepository.
