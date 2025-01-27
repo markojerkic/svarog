@@ -301,12 +301,12 @@ func (c *CertificateServiceImpl) GetCertificatesZip(ctx context.Context, groupId
 // Save files to mongodb
 func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string, privateKeyPath string) error {
 	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
+		_, err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
 		if err != nil {
 			log.Error("Failed saving ca.cert", "err", err)
 			return struct{}{}, errors.Join(errors.New("Failed saving ca.cert"), err)
 		}
-		err = c.fileService.SaveFile(ctx, "ca.key", privateKeyPath)
+		_, err = c.fileService.SaveFile(ctx, "ca.key", privateKeyPath)
 		if err != nil {
 			return struct{}{}, errors.Join(errors.New("Failed saving ca.key"), err)
 		}

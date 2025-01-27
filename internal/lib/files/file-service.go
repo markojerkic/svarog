@@ -14,7 +14,7 @@ import (
 )
 
 type FileService interface {
-	SaveFile(ctx context.Context, name string, path string) error
+	SaveFile(ctx context.Context, name string, path string) (primitive.ObjectID, error)
 	GetFile(ctx context.Context, name string) ([]byte, error)
 	GetFileById(ctx context.Context, id string) ([]byte, error)
 	DeleteFile(ctx context.Context, id primitive.ObjectID) error
@@ -69,20 +69,20 @@ func (f *FileServiceImpl) DeleteFile(ctx context.Context, id primitive.ObjectID)
 }
 
 // SaveFile implements FileService.
-func (f *FileServiceImpl) SaveFile(ctx context.Context, name string, path string) error {
+func (f *FileServiceImpl) SaveFile(ctx context.Context, name string, path string) (primitive.ObjectID, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		log.Error("Error reading file", "err", err)
-		return errors.New(ErrFileNotFound)
+		return primitive.NilObjectID, errors.New(ErrFileNotFound)
 	}
 
-	_, err = f.fileCollection.InsertOne(ctx, types.SavedFile{
+	result, err := f.fileCollection.InsertOne(ctx, types.SavedFile{
 		File:      file,
 		Name:      name,
 		CreatedAt: primitive.NewDateTimeFromTime(time.Now()),
 	})
 
-	return err
+	return result.InsertedID.(primitive.ObjectID), err
 }
 
 var _ FileService = &FileServiceImpl{}

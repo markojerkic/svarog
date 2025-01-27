@@ -72,8 +72,9 @@ func (s *ArchiveSuite) SetupSuite() {
 
 // After each
 func (s *ArchiveSuite) TearDownSubTest() {
-	log.Info("Cleaning up")
-	_, err := s.archiveCollection.DeleteMany(context.Background(), bson.M{})
+	_, err := s.logCollection.DeleteMany(context.Background(), bson.M{})
+	assert.NoError(s.T(), err)
+	_, err = s.archiveCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)
 	_, err = s.archiveSettingCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)

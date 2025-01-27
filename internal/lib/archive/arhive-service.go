@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,8 +40,7 @@ type ArchiveServiceImpl struct {
 // CreateArhiveForClient implements ArhiveService.
 func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (types.ArchiveEntry, error) {
 
-	util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-
+	archive, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
 		settings, err := a.GetSettings(ctx, projectID, clientID)
 		if err != nil {
 			log.Error("Error getting settings", "error", err)
@@ -54,14 +54,19 @@ func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectI
 			return struct{}{}, err
 		}
 		defer os.RemoveAll(tempDir)
-		zipFilePath, err := a.createRollingArchive(sc, tempDir, projectID, clientID, cuttoffDate)
+		archiveResult, err := a.createRollingArchive(sc, tempDir, projectID, clientID, cuttoffDate)
 		if err != nil {
 			log.Error("Error creating rolling archive", "error", err)
 			return struct{}{}, err
 		}
 
-		zipFileName := filepath.Base(zipFilePath)
-		err = a.filesService.SaveFile(sc, zipFileName, zipFilePath)
+		if archiveResult.toDate.IsZero() {
+			log.Debug("No logs found for client", "projectID", projectID, "clientID", clientID)
+			return struct{}{}, errors.New("no logs found for period")
+		}
+
+		zipFileName := filepath.Base(archiveResult.zipFilePath)
+		fileId, err := a.filesService.SaveFile(sc, zipFileName, archiveResult.zipFilePath)
 		if err != nil {
 			log.Error("Error saving file", "error", err)
 			return struct{}{}, err
@@ -69,11 +74,39 @@ func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectI
 
 		log.Debug("Successfully created archive for client", "projectID", projectID, "clientID", clientID)
 
-		return struct{}{}, nil
+		archive := types.ArchiveEntry{
+			FileID:    fileId,
+			CreatedAt: primitive.DateTime(time.Now().UnixNano() / int64(time.Millisecond)),
+			FromDate:  primitive.DateTime(archiveResult.fromDate.UnixNano() / int64(time.Millisecond)),
+			ToDate:    primitive.DateTime(archiveResult.toDate.UnixNano() / int64(time.Millisecond)),
+		}
+
+		insertResult, err := a.archiveCollection.InsertOne(sc, archive)
+		if err != nil {
+			log.Error("Error inserting archive", "error", err)
+			return struct{ archive types.ArchiveEntry }{}, err
+		}
+
+		archiveId, ok := insertResult.InsertedID.(primitive.ObjectID)
+		if !ok {
+			log.Error("Error converting InsertedID to ObjectID", "error", err)
+			return struct{}{}, err
+		}
+
+		archive.ID = archiveId
+
+		return struct {
+			archive types.ArchiveEntry
+		}{archive}, nil
 
 	}, a.mongoClient)
 
-	panic("unimplemented")
+	if err != nil {
+		log.Error("Error creating archive", "error", err)
+		return types.ArchiveEntry{}, err
+	}
+
+	return archive.(struct{ archive types.ArchiveEntry }).archive, nil
 
 }
 
@@ -117,7 +150,7 @@ func (a *ArchiveServiceImpl) GetSettings(ctx context.Context, projectID string, 
 		return archiveSetting, err
 	}
 
-	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"projectID": projectOID, "clientID": clientID}).Decode(&archiveSetting)
+	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"project_id": projectOID, "client_id": clientID}).Decode(&archiveSetting)
 	if err != nil {
 		log.Error("Error finding archive setting", "error", err)
 		return archiveSetting, err
