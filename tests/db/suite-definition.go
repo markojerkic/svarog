@@ -55,7 +55,7 @@ func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 
 	database := mongoClient.Database("svarog")
 
-	suite.logService = db.NewLogRepository(database)
+	suite.logService = db.NewLogService(database)
 	suite.logServer = db.NewLogServer(suite.logService)
 	suite.logsCollection = database.Collection("log_lines")
 

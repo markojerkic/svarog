@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
@@ -24,9 +25,11 @@ type ArchiveSuite struct {
 	filesCollection          *mongo.Collection
 	archiveCollection        *mongo.Collection
 	archiveSettingCollection *mongo.Collection
+	logCollection            *mongo.Collection
 
 	filesService   files.FileService
 	archiveService archive.ArhiveService
+	logService     logs.LogService
 }
 
 // SetupSuite implements suite.SetupAllSuite.
@@ -55,9 +58,15 @@ func (s *ArchiveSuite) SetupSuite() {
 	s.filesCollection = db.Collection("files")
 	s.archiveCollection = db.Collection("archive")
 	s.archiveSettingCollection = db.Collection("archive_settings")
+	s.logCollection = db.Collection("log_lines")
 
 	s.filesService = files.NewFileService(s.filesCollection)
-	s.archiveService = archive.NewArchiveService(mongoClient, s.archiveCollection, s.archiveSettingCollection, s.filesService)
+	s.logService = logs.NewLogService(db)
+	s.archiveService = archive.NewArchiveService(mongoClient,
+		s.archiveCollection,
+		s.archiveSettingCollection,
+		s.logService,
+		s.filesService)
 
 }
 

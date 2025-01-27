@@ -137,7 +137,7 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 	return nil
 }
 
-func NewLogRepository(db *mongo.Database) *MongoLogService {
+func NewLogService(db *mongo.Database) *MongoLogService {
 	collection := db.Collection("log_lines")
 
 	repo := &MongoLogService{

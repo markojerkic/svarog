@@ -3,11 +3,14 @@ package archive
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
-	"github.com/markojerkic/svarog/internal/server/db"
+	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -20,6 +23,7 @@ type ArhiveService interface {
 	GetArhiveFileID(ctx context.Context, projectID string, clientID string) (primitive.ObjectID, error)
 	DeleteArchiveForClient(ctx context.Context, projectID string, clientID string, olderThanWeeks int) error
 	CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error
+	GetSettings(ctx context.Context, projectID string, clientID string) (types.ArchiveSetting, error)
 	UpdateSetting(ctx context.Context, id string, arhiveAfterWeeks int) error
 	DeleteSetting(ctx context.Context, id string) error
 }
@@ -29,12 +33,48 @@ type ArchiveServiceImpl struct {
 	archiveCollection        *mongo.Collection
 	archiveSettingCollection *mongo.Collection
 	filesService             files.FileService
-	logsService              db.LogService
+	logsService              logs.LogService
 }
 
 // CreateArhiveForClient implements ArhiveService.
 func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (types.ArchiveEntry, error) {
+
+	util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+
+		settings, err := a.GetSettings(ctx, projectID, clientID)
+		if err != nil {
+			log.Error("Error getting settings", "error", err)
+			return struct{}{}, err
+		}
+
+		cuttoffDate := time.Now().AddDate(0, 0, -7*settings.ArhiveAfterWeeks)
+		tempDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))
+		if err != nil {
+			log.Error("Error creating temp dir", "error", err)
+			return struct{}{}, err
+		}
+		defer os.RemoveAll(tempDir)
+		zipFilePath, err := a.createRollingArchive(sc, tempDir, projectID, clientID, cuttoffDate)
+		if err != nil {
+			log.Error("Error creating rolling archive", "error", err)
+			return struct{}{}, err
+		}
+
+		zipFileName := filepath.Base(zipFilePath)
+		err = a.filesService.SaveFile(sc, zipFileName, zipFilePath)
+		if err != nil {
+			log.Error("Error saving file", "error", err)
+			return struct{}{}, err
+		}
+
+		log.Debug("Successfully created archive for client", "projectID", projectID, "clientID", clientID)
+
+		return struct{}{}, nil
+
+	}, a.mongoClient)
+
 	panic("unimplemented")
+
 }
 
 // DeleteArchiveForClient implements ArhiveService.
@@ -67,6 +107,23 @@ func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string
 	}
 
 	return nil
+}
+
+func (a *ArchiveServiceImpl) GetSettings(ctx context.Context, projectID string, clientID string) (types.ArchiveSetting, error) {
+	var archiveSetting types.ArchiveSetting
+	projectOID, err := primitive.ObjectIDFromHex(projectID)
+	if err != nil {
+		log.Error("Error converting projectID to ObjectID", "error", err)
+		return archiveSetting, err
+	}
+
+	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"projectID": projectOID, "clientID": clientID}).Decode(&archiveSetting)
+	if err != nil {
+		log.Error("Error finding archive setting", "error", err)
+		return archiveSetting, err
+	}
+
+	return archiveSetting, nil
 }
 
 // DeleteSetting implements ArhiveService.
@@ -180,6 +237,7 @@ var _ ArhiveService = &ArchiveServiceImpl{}
 func NewArchiveService(mongoClient *mongo.Client,
 	archiveCollection *mongo.Collection,
 	archiveSettingCollection *mongo.Collection,
+	logService logs.LogService,
 	filesService files.FileService) *ArchiveServiceImpl {
 	if mongoClient == nil {
 		log.Fatal("mongoClient is nil")
@@ -196,6 +254,7 @@ func NewArchiveService(mongoClient *mongo.Client,
 		archiveCollection:        archiveCollection,
 		archiveSettingCollection: archiveSettingCollection,
 		filesService:             filesService,
+		logsService:              logService,
 	}
 
 	service.createIndexes(context.Background())
