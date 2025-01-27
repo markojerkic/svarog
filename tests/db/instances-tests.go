@@ -47,10 +47,10 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	instances, err := self.logsRepository.GetInstances(context.Background(), "marko")
+	instances, err := self.logService.GetInstances(context.Background(), "marko")
 	assert.NoError(t, err)
 
 	sort.Sort(sort.StringSlice(instances))
@@ -97,10 +97,10 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil, nil)
+	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(logs))
 	for _, log := range logs {
@@ -154,10 +154,10 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil, nil)
+	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(logs))
 	for _, log := range logs {
@@ -211,10 +211,10 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 			LogLine:   "jerkić",
 		},
 	}
-	err := self.logsRepository.SaveLogs(context.Background(), mockLogLines)
+	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logsRepository.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil, nil)
+	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(mockLogLines), len(logs))
 }

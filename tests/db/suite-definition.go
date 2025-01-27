@@ -18,8 +18,8 @@ type LogsCollectionRepositorySuite struct {
 	container        *mongodb.MongoDBContainer
 	connectionString string
 
-	logsRepository *db.MongoLogRepository
-	logServer      db.AggregatingLogServer
+	logService *db.MongoLogService
+	logServer  db.AggregatingLogServer
 
 	logsCollection *mongo.Collection
 
@@ -55,8 +55,8 @@ func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 
 	database := mongoClient.Database("svarog")
 
-	suite.logsRepository = db.NewLogRepository(database)
-	suite.logServer = db.NewLogServer(suite.logsRepository)
+	suite.logService = db.NewLogRepository(database)
+	suite.logServer = db.NewLogServer(suite.logService)
 	suite.logsCollection = database.Collection("log_lines")
 
 	if err != nil {
@@ -92,7 +92,7 @@ func (self *LogsCollectionRepositorySuite) initiateReplicaSet(client *mongo.Clie
 // Before each
 func (suite *LogsCollectionRepositorySuite) SetupTest() {
 	log.Info("Setting up test. Recreating context")
-	suite.logServer = db.NewLogServer(suite.logsRepository)
+	suite.logServer = db.NewLogServer(suite.logService)
 	num := suite.countNumberOfLogsInDb()
 	if ok := assert.Equal(suite.T(), int64(0), num, "Database should be empty before each test"); !ok {
 		suite.T().FailNow()

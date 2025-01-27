@@ -13,11 +13,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type MongoLogRepository struct {
+type MongoLogService struct {
 	logCollection *mongo.Collection
 }
 
-var _ LogRepository = &MongoLogRepository{}
+var _ LogService = &MongoLogService{}
 
 var instancesPipeline = mongo.Pipeline{
 	bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$client.client_id"}}}},
@@ -25,7 +25,7 @@ var instancesPipeline = mongo.Pipeline{
 }
 
 // GetInstances implements LogRepository.
-func (self *MongoLogRepository) GetInstances(ctx context.Context, clientId string) ([]string, error) {
+func (self *MongoLogService) GetInstances(ctx context.Context, clientId string) ([]string, error) {
 	rawInstances, err := self.logCollection.Distinct(ctx, "client.ip_address", bson.D{{Key: "client.client_id", Value: clientId}})
 	if err != nil {
 		return []string{}, err
@@ -40,7 +40,7 @@ func (self *MongoLogRepository) GetInstances(ctx context.Context, clientId strin
 }
 
 // GetClients implements LogRepository.
-func (self *MongoLogRepository) GetClients(ctx context.Context) ([]types.Client, error) {
+func (self *MongoLogService) GetClients(ctx context.Context) ([]types.Client, error) {
 	results, err := self.logCollection.Distinct(ctx, "client.client_id", bson.D{})
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (self *MongoLogRepository) GetClients(ctx context.Context) ([]types.Client,
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogService) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	log.Debug("Getting logs for client", "client", clientId)
 
 	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, logLineId, lastCursor)
@@ -69,7 +69,7 @@ func (self *MongoLogRepository) GetLogs(ctx context.Context, clientId string, in
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
-func (self *MongoLogRepository) WatchInserts(ctx context.Context) {
+func (self *MongoLogService) WatchInserts(ctx context.Context) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{
 			{Key: "operationType", Value: "insert"},
@@ -109,7 +109,7 @@ func (self *MongoLogRepository) WatchInserts(ctx context.Context) {
 	}
 }
 
-func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	log.Debug("Getting logs for client", "clientId", clientId)
 
 	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, nil, lastCursor)
@@ -119,7 +119,7 @@ func (self *MongoLogRepository) SearchLogs(ctx context.Context, query string, cl
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
-func (self *MongoLogRepository) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
+func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
 	saveableLogs := make([]interface{}, len(logs))
 	for i, log := range logs {
 		saveableLogs[i] = log
@@ -137,10 +137,10 @@ func (self *MongoLogRepository) SaveLogs(ctx context.Context, logs []types.Store
 	return nil
 }
 
-func NewLogRepository(db *mongo.Database) *MongoLogRepository {
+func NewLogRepository(db *mongo.Database) *MongoLogService {
 	collection := db.Collection("log_lines")
 
-	repo := &MongoLogRepository{
+	repo := &MongoLogService{
 		logCollection: collection,
 	}
 
@@ -215,7 +215,7 @@ func createFilter(collection *mongo.Collection, clientId string, pageSize int64,
 	return filter, projection
 }
 
-func (self *MongoLogRepository) getAndMapLogs(ctx context.Context, filter bson.D, projection *options.FindOptions) ([]types.StoredLog, error) {
+func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, projection *options.FindOptions) ([]types.StoredLog, error) {
 	cursor, err := self.logCollection.Find(ctx, filter, projection)
 	if err != nil {
 		log.Printf("Error getting logs: %v\n", err)
@@ -280,7 +280,7 @@ func createFilterForLogLine(collection *mongo.Collection, clientId string, logLi
 	return filter, projection, nil
 }
 
-func (self *MongoLogRepository) createIndexes() {
+func (self *MongoLogService) createIndexes() {
 	_, err := self.logCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
 		{
 			Keys: bson.D{{Key: "client.client_id", Value: 1}},

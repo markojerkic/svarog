@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,6 +29,7 @@ type ArchiveServiceImpl struct {
 	archiveCollection        *mongo.Collection
 	archiveSettingCollection *mongo.Collection
 	filesService             files.FileService
+	logsService              db.LogService
 }
 
 // CreateArhiveForClient implements ArhiveService.

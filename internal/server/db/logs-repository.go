@@ -10,7 +10,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-type LogRepository interface {
+type LogService interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
 	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
 	GetClients(ctx context.Context) ([]types.Client, error)
@@ -37,7 +37,7 @@ type AggregatingLogServer interface {
 
 type LogServer struct {
 	ctx        context.Context
-	repository LogRepository
+	logService LogService
 
 	logs    chan types.StoredLog
 	backlog backlog.Backlog[types.StoredLog]
@@ -49,16 +49,16 @@ type AvailableClient struct {
 
 var _ AggregatingLogServer = &LogServer{}
 
-func NewLogServer(dbClient LogRepository) AggregatingLogServer {
+func NewLogServer(dbClient LogService) AggregatingLogServer {
 	return &LogServer{
-		repository: dbClient,
+		logService: dbClient,
 		logs:       make(chan types.StoredLog, 1024*1024),
 		backlog:    backlog.NewBacklog[types.StoredLog](1024 * 1024),
 	}
 }
 
 func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.StoredLog) {
-	err := self.repository.SaveLogs(ctx, logsToSave)
+	err := self.logService.SaveLogs(ctx, logsToSave)
 	if err != nil {
 		log.Fatalf("Could not save logs: %v", err)
 	}

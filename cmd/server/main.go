@@ -85,7 +85,7 @@ func main() {
 			AllowedOrigins:     env.HttpServerAllowedOrigins,
 			ServerPort:         env.HttpServerPort,
 			SessionStore:       sessionStore,
-			LogRepository:      logsRepository,
+			LogService:         logsRepository,
 			AuthService:        authService,
 			CertificateService: certificateService,
 			FilesService:       filesService,

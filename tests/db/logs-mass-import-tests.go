@@ -69,7 +69,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 		}
 	}
 
-	clients, err := suite.logsRepository.GetClients(context.Background())
+	clients, err := suite.logService.GetClients(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(clients))
 
@@ -89,7 +89,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.logsRepository.GetLogs(context.Background(), "marko", nil, int64(pageSize), nil, lastCursorPtr)
+		logPage, err := suite.logService.GetLogs(context.Background(), "marko", nil, int64(pageSize), nil, lastCursorPtr)
 		assert.NoError(t, err)
 		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
 		index -= pageSize

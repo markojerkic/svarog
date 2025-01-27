@@ -12,7 +12,7 @@ import (
 func (s *LogsCollectionRepositorySuite) TestNoClients() {
 	t := s.T()
 
-	clients, err := s.logsRepository.GetClients(context.Background())
+	clients, err := s.logService.GetClients(context.Background())
 
 	assert.NoError(t, err)
 
@@ -41,10 +41,10 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 		},
 	}
 
-	err := s.logsRepository.SaveLogs(context.Background(), mockLogLines)
+	err := s.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	clients, err := s.logsRepository.GetClients(context.Background())
+	clients, err := s.logService.GetClients(context.Background())
 
 	assert.NoError(t, err)
 

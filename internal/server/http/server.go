@@ -22,7 +22,7 @@ import (
 )
 
 type HttpServer struct {
-	logRepository      db.LogRepository
+	logService         db.LogService
 	sessionStore       sessions.Store
 	authService        auth.AuthService
 	certificateService serverauth.CertificateService
@@ -34,7 +34,7 @@ type HttpServer struct {
 }
 
 type HttpServerOptions struct {
-	LogRepository      db.LogRepository
+	LogService         db.LogService
 	SessionStore       sessions.Store
 	AuthService        auth.AuthService
 	CertificateService serverauth.CertificateService
@@ -69,7 +69,7 @@ func (self *HttpServer) Start() {
 	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
-	handlers.NewLogsRouter(self.logRepository, privateApi)
+	handlers.NewLogsRouter(self.logService, privateApi)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
 	e.GET("/*", func(c echo.Context) error {
@@ -90,7 +90,7 @@ func (self *HttpServer) Start() {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logRepository:      options.LogRepository,
+		logService:         options.LogService,
 		sessionStore:       options.SessionStore,
 		allowedOrigins:     options.AllowedOrigins,
 		serverPort:         options.ServerPort,

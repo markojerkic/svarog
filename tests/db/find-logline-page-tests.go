@@ -38,7 +38,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 	// Find logline page
 	logLineId := randomLogLine.ID.Hex()
-	logs, err := suite.logsRepository.GetLogs(logServerContext, randomLogLine.Client.ClientId, nil, 300, &logLineId, nil)
+	logs, err := suite.logService.GetLogs(logServerContext, randomLogLine.Client.ClientId, nil, 300, &logLineId, nil)
 	assert.NoError(t, err)
 
 	// Asserrt logs page contains randomLogLine and rest of the items are correctly sorted
