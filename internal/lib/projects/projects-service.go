@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/util"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,13 +21,11 @@ type ProjectsService interface {
 	DeleteProject(ctx context.Context, id string) error
 	RemoveClientFromProject(ctx context.Context, projectId string, client string) error
 	AddClientToProject(ctx context.Context, projectId string, client string) error
-	GetStorageSizeForProject(ctx context.Context, projectId string) (float64, error)
 }
 
 type MongoProjectsService struct {
 	mongoClient        *mongo.Client
 	projectsCollection *mongo.Collection
-	logsService        db.LogRepository
 }
 
 const (
@@ -216,22 +213,12 @@ func (m *MongoProjectsService) assertUniqeIndex(ctx context.Context) error {
 	return nil
 }
 
-func (m *MongoProjectsService) GetStorageSizeForProject(ctx context.Context, projectId string) (float64, error) {
-	project, err := m.GetProject(ctx, projectId)
-	if err != nil {
-		log.Error("Error getting project", "error", err)
-		return 0, err
-	}
-	return m.logsService.GetStorageSizeForClients(ctx, project.Clients)
-}
-
 var _ ProjectsService = &MongoProjectsService{}
 
-func NewProjectsService(projectsCollection *mongo.Collection, logsService db.LogRepository, mongoClient *mongo.Client) ProjectsService {
+func NewProjectsService(projectsCollection *mongo.Collection, mongoClient *mongo.Client) ProjectsService {
 	service := &MongoProjectsService{
 		projectsCollection: projectsCollection,
 		mongoClient:        mongoClient,
-		logsService:        logsService,
 	}
 
 	err := service.assertUniqeIndex(context.Background())
