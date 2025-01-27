@@ -18,9 +18,9 @@ type LogLine struct {
 }
 
 type LogsRouter struct {
-	logRepository db.LogRepository
-	parentRouter  *echo.Group
-	api           *echo.Group
+	logService   db.LogService
+	parentRouter *echo.Group
+	api          *echo.Group
 }
 
 var DEFAULT_PAGE_SIZE = int64(300)
@@ -41,7 +41,7 @@ func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
 	}
 	log.Debug("Getting instances by client", "clientId", clientId)
 
-	instances, err := self.logRepository.GetInstances(c.Request().Context(), clientId)
+	instances, err := self.logService.GetInstances(c.Request().Context(), clientId)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	logs, err := self.logRepository.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, params.LogLineId, &nextCursor)
+	logs, err := self.logService.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, params.LogLineId, &nextCursor)
 
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ type SearchLogsByClientBinding struct {
 }
 
 func (self *LogsRouter) clientsHandler(c echo.Context) error {
-	clients, err := self.logRepository.GetClients(c.Request().Context())
+	clients, err := self.logService.GetClients(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	}
 
 	log.Debug("next", "cursor", nextCursor)
-	logs, err := self.logRepository.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
 		return err
@@ -144,13 +144,13 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	return c.JSON(200, mappedLogs)
 }
 
-func NewLogsRouter(logRepository db.LogRepository, e *echo.Group) *LogsRouter {
+func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
 	logsApi := e.Group("/logs")
 
 	logsRouter := &LogsRouter{
-		logRepository: logRepository,
-		parentRouter:  e,
-		api:           logsApi,
+		logService:   logService,
+		parentRouter: e,
+		api:          logsApi,
 	}
 
 	logsRouter.api.GET("/clients", logsRouter.clientsHandler)

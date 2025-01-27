@@ -70,7 +70,7 @@ func main() {
 	projectsCollection := database.Collection("projects")
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
-	logsRepository := db.NewLogRepository(database)
+	logsRepository := db.NewLogService(database)
 	logServer := db.NewLogServer(logsRepository)
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
@@ -85,7 +85,7 @@ func main() {
 			AllowedOrigins:     env.HttpServerAllowedOrigins,
 			ServerPort:         env.HttpServerPort,
 			SessionStore:       sessionStore,
-			LogRepository:      logsRepository,
+			LogService:         logsRepository,
 			AuthService:        authService,
 			CertificateService: certificateService,
 			FilesService:       filesService,

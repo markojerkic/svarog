@@ -36,6 +36,60 @@ func ZipFiles(path string, files []string) error {
 	return nil
 }
 
+func ZipDir(src string, dest string) error {
+	file, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	zipWriter := zip.NewWriter(file)
+	defer zipWriter.Close()
+
+	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		header.Name = path
+
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		_, err = io.Copy(writer, f)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return err
+}
+
 func Unzip(src string, dest string) (string, error) {
 	r, err := zip.OpenReader(src)
 	if err != nil {
