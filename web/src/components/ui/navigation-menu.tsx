@@ -67,11 +67,11 @@ export const NavigationMenu = <T extends ValidComponent = "ul">(
 			{local.children}
 			<NavigationMenuPrimitive.Viewport
 				class={cn(
-					"pointer-events-none z-50 overflow-x-clip overflow-y-visible rounded-md border bg-popover text-popover-foreground shadow",
-					"h-[--kb-navigation-menu-viewport-height] w-[--kb-navigation-menu-viewport-width] transition-[width,height] duration-300",
-					"origin-[--kb-menu-content-transform-origin]",
-					"data-[expanded]:fade-in data-[expanded]:zoom-in-95 data-[expanded]:animate-in data-[expanded]:duration-300",
-					"data-[closed]:fade-out data-[closed]:zoom-out-95 data-[closed]:animate-out data-[closed]:duration-300",
+					"pointer-events-none z-50 overflow-x-clip overflow-y-visible rounded-md border bg-popover text-popover-foreground shadow-sm",
+					"h-(--kb-navigation-menu-viewport-height) w-(--kb-navigation-menu-viewport-width) transition-[width,height] duration-300",
+					"origin-(--kb-menu-content-transform-origin)",
+					"data-expanded:fade-in data-expanded:zoom-in-95 data-expanded:animate-in data-expanded:duration-300",
+					"data-closed:fade-out data-closed:zoom-out-95 data-closed:animate-out data-closed:duration-300",
 				)}
 			>
 				<Show when={local.withArrow}>
@@ -110,7 +110,7 @@ export const NavigationMenuTrigger = <T extends ValidComponent = "button">(
 	return (
 		<NavigationMenuPrimitive.Trigger
 			class={cn(
-				"inline-flex w-max items-center justify-center rounded-md bg-background px-4 py-2 font-medium text-sm outline-none transition-colors duration-300 hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
+				"inline-flex w-max items-center justify-center rounded-md bg-background px-4 py-2 font-medium text-sm outline-hidden transition-colors duration-300 hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
 				local.class,
 			)}
 			{...rest}
@@ -118,7 +118,7 @@ export const NavigationMenuTrigger = <T extends ValidComponent = "button">(
 			{local.children}
 			<Show when={local.withArrow}>
 				<NavigationMenuPrimitive.Icon
-					class="ml-1 size-3 transition-transform duration-300 data-[expanded]:rotate-180"
+					class="ml-1 size-3 transition-transform duration-300 data-expanded:rotate-180"
 					as="svg"
 					xmlns="http://www.w3.org/2000/svg"
 					viewBox="0 0 24 24"
@@ -155,7 +155,7 @@ export const NavigationMenuContent = <T extends ValidComponent = "ul">(
 		<NavigationMenuPrimitive.Portal>
 			<NavigationMenuPrimitive.Content
 				class={cn(
-					"absolute top-0 left-0 p-4 outline-none",
+					"absolute top-0 left-0 p-4 outline-hidden",
 					"data-[motion^=from-]:fade-in data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52 data-[motion^=from-]:animate-in data-[motion^=from-]:duration-300",
 					"data-[motion^=to-]:fade-out data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52 data-[motion^=to-]:animate-out data-[motion^=to-]:duration-300",
 					local.class,

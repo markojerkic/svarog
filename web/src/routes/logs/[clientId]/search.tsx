@@ -58,7 +58,7 @@ export default (_props: RouteSectionProps) => {
 				}}
 			/>
 			<SearchInfo clientId={clientId} selectedInstances={selectedInstances()} />
-			<div class="flex-grow">
+			<div class="grow">
 				<LogViewer
 					selectedInstances={selectedInstances()}
 					clientId={clientId}

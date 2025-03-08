@@ -11,7 +11,7 @@ export const ScrollToBottomButton = (props: {
 			<button
 				type="button"
 				id="scroll-to-bottom"
-				class="fixed right-4 bottom-4 z-[1000] flex size-10 cursor-pointer rounded-full bg-primary"
+				class="fixed right-4 bottom-4 z-1000 flex size-10 cursor-pointer rounded-full bg-primary"
 				onClick={() => scrollEventBus.scrollToBottom()}
 			>
 				<svg

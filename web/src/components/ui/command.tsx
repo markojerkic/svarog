@@ -63,7 +63,7 @@ export const CommandInput = (props: VoidProps<CommandInputProps>) => {
 			</svg>
 			<CommandPrimitive.Input
 				class={cn(
-					"flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+					"flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
 					local.class,
 				)}
 				{...rest}
@@ -78,7 +78,7 @@ export const CommandItem = (props: CommandItemProps) => {
 	return (
 		<CommandPrimitive.Item
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-selected:bg-accent aria-selected:text-accent-foreground",
+				"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-hidden aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-selected:bg-accent aria-selected:text-accent-foreground",
 				local.class,
 			)}
 			{...rest}

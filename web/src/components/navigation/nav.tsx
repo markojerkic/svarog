@@ -19,7 +19,7 @@ export function Nav() {
 	return (
 		<NavigationMenu class="w-full gap-3 border-b border-b-secondary p-3">
 			<NavigationMenuTrigger
-				class="transition-[box-shadow,background-color] focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-ring data-[expanded]:bg-accent"
+				class="transition-[box-shadow,background-color] focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring data-expanded:bg-accent"
 				as="a"
 				href="/"
 			>
@@ -65,7 +65,7 @@ const ListItem = (props: ParentProps<{ title: string; href: string }>) => {
 	return (
 		<NavigationMenuLink
 			href={props.href}
-			class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-[box-shadow,background-color] duration-200 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-ring"
+			class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-hidden transition-[box-shadow,background-color] duration-200 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring"
 		>
 			<NavigationMenuItemLabel class="font-medium text-sm leading-none">
 				{props.title}

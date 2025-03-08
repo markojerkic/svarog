@@ -46,7 +46,7 @@ export default () => {
 
 	return (
 		<div class="flex flex-col justify-start gap-2">
-			<div class="flex-grow">
+			<div class="grow">
 				<Instances clientId={clientId} />
 				<SearchCommnad
 					search={(searchParams.search as string) ?? ""}

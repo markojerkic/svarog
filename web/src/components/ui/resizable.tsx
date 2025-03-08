@@ -36,7 +36,7 @@ export const ResizableHandle = <T extends ValidComponent = "button">(
 	return (
 		<ResizablePrimitive.Handle
 			class={cn(
-				"flex w-px items-center justify-center bg-border transition-shadow focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-ring focus-visible:ring-offset-1 data-[orientation=vertical]:h-px data-[orientation=vertical]:w-full",
+				"flex w-px items-center justify-center bg-border transition-shadow focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring focus-visible:ring-offset-1 data-[orientation=vertical]:h-px data-[orientation=vertical]:w-full",
 				local.class,
 			)}
 			{...rest}

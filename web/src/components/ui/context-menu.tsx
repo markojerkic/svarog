@@ -45,7 +45,7 @@ export const ContextMenuSubTrigger = <T extends ValidComponent = "div">(
 	return (
 		<ContextMenuPrimitive.SubTrigger
 			class={cn(
-				"flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[expanded]:bg-accent data-[expanded]:text-accent-foreground",
+				"flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-expanded:bg-accent data-expanded:text-accent-foreground",
 				local.inset && "pl-8",
 				local.class,
 			)}
@@ -87,7 +87,7 @@ export const ContextMenuSubContent = <T extends ValidComponent = "div">(
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.SubContent
 				class={cn(
-					"data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95 z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[closed]:animate-out data-[expanded]:animate-in",
+					"data-closed:fade-out-0 data-expanded:fade-in-0 data-closed:zoom-out-95 data-expanded:zoom-in-95 z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-closed:animate-out data-expanded:animate-in",
 					local.class,
 				)}
 				{...rest}
@@ -110,7 +110,7 @@ export const ContextMenuContent = <T extends ValidComponent = "div">(
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.Content
 				class={cn(
-					"data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95 z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-ring data-[closed]:animate-out data-[expanded]:animate-in",
+					"data-closed:fade-out-0 data-expanded:fade-in-0 data-closed:zoom-out-95 data-expanded:zoom-in-95 z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md transition-shadow focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring data-closed:animate-out data-expanded:animate-in",
 					local.class,
 				)}
 				{...rest}
@@ -136,7 +136,7 @@ export const ContextMenuItem = <T extends ValidComponent = "div">(
 	return (
 		<ContextMenuPrimitive.Item
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
 				local.inset && "pl-8",
 				local.class,
 			)}
@@ -163,7 +163,7 @@ export const ContextMenuCheckboxItem = <T extends ValidComponent = "div">(
 	return (
 		<ContextMenuPrimitive.CheckboxItem
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
 				local.class,
 			)}
 			{...rest}
@@ -207,7 +207,7 @@ export const ContextMenuRadioItem = <T extends ValidComponent = "div">(
 	return (
 		<ContextMenuPrimitive.RadioItem
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
 				local.class,
 			)}
 			{...rest}
