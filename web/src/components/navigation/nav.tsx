@@ -1,9 +1,7 @@
 import {
 	NavigationMenu,
 	NavigationMenuContent,
-	NavigationMenuDescription,
 	NavigationMenuItem,
-	NavigationMenuItemLabel,
 	NavigationMenuLink,
 	NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
@@ -11,6 +9,7 @@ import {
 	type LoggedInUser,
 	useCurrentUser,
 } from "@/lib/hooks/auth/use-current-user";
+import { Link } from "@tanstack/solid-router";
 import { Match, type ParentProps, Show, Suspense, Switch } from "solid-js";
 
 export function Nav() {
@@ -18,13 +17,11 @@ export function Nav() {
 
 	return (
 		<NavigationMenu class="w-full gap-3 border-b border-b-secondary p-3">
-			<NavigationMenuTrigger
-				class="transition-[box-shadow,background-color] focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring data-expanded:bg-accent"
-				as="a"
-				href="/"
-			>
-				Home
-			</NavigationMenuTrigger>
+			<NavigationMenuItem>
+				<NavigationMenuTrigger withArrow={false}>
+					<Link to="/">Home</Link>
+				</NavigationMenuTrigger>
+			</NavigationMenuItem>
 			<Suspense>
 				<NavigationMenuItem>
 					<Switch>
@@ -63,16 +60,16 @@ const AuthMenuItem = (props: { user: LoggedInUser }) => {
 
 const ListItem = (props: ParentProps<{ title: string; href: string }>) => {
 	return (
-		<NavigationMenuLink
-			href={props.href}
-			class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-hidden transition-[box-shadow,background-color] duration-200 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring"
-		>
-			<NavigationMenuItemLabel class="font-medium text-sm leading-none">
-				{props.title}
-			</NavigationMenuItemLabel>
-			<NavigationMenuDescription class="line-clamp-2 text-muted-foreground text-sm leading-snug">
-				{props.children}
-			</NavigationMenuDescription>
-		</NavigationMenuLink>
+		<NavigationMenuItem>
+			<Link
+				to={props.href}
+				class="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-hidden transition-[box-shadow,background-color] duration-200 hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-[1.5px] focus-visible:ring-ring"
+			>
+				<span class="font-medium text-sm leading-none">{props.title}</span>
+				<span class="line-clamp-2 text-muted-foreground text-sm leading-snug">
+					{props.children}
+				</span>
+			</Link>
+		</NavigationMenuItem>
 	);
 };
