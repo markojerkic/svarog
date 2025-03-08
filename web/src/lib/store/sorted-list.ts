@@ -40,7 +40,11 @@ export class SortedListIterator<T extends { id: string }>
 				this.stack.push(this.current);
 				this.current = this.current.left;
 			}
-			this.current = this.stack.pop()!;
+			const node = this.stack.pop();
+			if (!node) {
+				return { value: null, done: true };
+			}
+			this.current = node;
 			return { value: this.current.value, done: false };
 		}
 		return { value: null, done: true };
