@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { Card, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
 export const ServiceListItem = (props: { clientId: string }) => {
@@ -6,9 +5,9 @@ export const ServiceListItem = (props: { clientId: string }) => {
 		<Card>
 			<CardHeader>
 				<CardTitle>
-					<A href={`/logs/${props.clientId}`} class="hover:underline">
+					<a href={`/logs/${props.clientId}`} class="hover:underline">
 						{props.clientId}
-					</A>
+					</a>
 				</CardTitle>
 				<CardDescription>Client ID</CardDescription>
 			</CardHeader>

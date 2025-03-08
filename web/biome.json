@@ -15,11 +15,7 @@
 			},
 
 			"correctness": {
-				"noUnusedImports": {
-					"level": "error",
-					"fix": "safe"
-				},
-
+				"noUnusedImports": "error",
 				"noUnusedVariables": "error"
 			},
 			"nursery": {
