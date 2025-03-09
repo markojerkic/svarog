@@ -29,7 +29,7 @@ const queryClient = new QueryClient({
 	},
 });
 
-export const router = createRouter({
+const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
 	scrollRestoration: true,

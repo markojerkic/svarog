@@ -43,6 +43,7 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 
 export const useLoginWithToken = () => {
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	return createMutation(() => ({
 		mutationKey: ["login"],
@@ -55,6 +56,15 @@ export const useLoginWithToken = () => {
 			await queryClient.invalidateQueries({
 				queryKey: [useCurrentUser.QUERY_KEY],
 			});
+		},
+		onError: (error) => {
+			if (
+				error instanceof ApiError &&
+				error.status === 401 &&
+				error.message === "password_reset_required"
+			) {
+				navigate({ to: "/auth/reset-password" });
+			}
 		},
 	}));
 };

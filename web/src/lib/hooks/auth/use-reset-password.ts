@@ -3,8 +3,8 @@ import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { api } from "@/lib/utils/axios-api";
-import { router } from "@/main";
 import { useCurrentUser } from "./use-current-user";
+import { useRouter } from "@tanstack/solid-router";
 
 export const resetPasswordSchema = v.object({
 	password: v.pipe(
@@ -22,6 +22,7 @@ export type ResetPasswordInput = v.InferInput<typeof resetPasswordSchema>;
 
 export const useResetPassword = (form: FormStore<ResetPasswordInput>) => {
 	const queryClient = useQueryClient();
+	const router = useRouter();
 
 	return createMutation(() => ({
 		mutationKey: ["reset-password"],

@@ -1,10 +1,10 @@
 import { ApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import { createMutation } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { api } from "@/lib/utils/axios-api";
-import { useUsers } from "./users";
 import type { AxiosResponse } from "axios";
+import { useRouter } from "@tanstack/solid-router";
 
 export const registerSchema = v.object({
 	username: v.pipe(
@@ -27,7 +27,7 @@ export const registerSchema = v.object({
 export type RegisterInput = v.InferInput<typeof registerSchema>;
 
 export const useRegister = (form: FormStore<RegisterInput>) => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
 
 	return createMutation(() => ({
 		mutationKey: ["register"],
@@ -42,9 +42,7 @@ export const useRegister = (form: FormStore<RegisterInput>) => {
 			return response.data.loginToken;
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
-				queryKey: useUsers.QUERY_KEY(0),
-			});
+			router.invalidate();
 		},
 		onError: (error) => {
 			if (error instanceof ApiError) {

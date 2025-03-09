@@ -12,7 +12,7 @@ const schema = v.object({
 	redirectSearch: v.optional(v.any()),
 });
 
-export const Route = createFileRoute("/auth/login")({
+export const Route = createFileRoute("/auth/login/")({
 	component: RouteComponent,
 	validateSearch: schema,
 });
