@@ -4,7 +4,6 @@ import { createSignal, type ParentProps } from "solid-js";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable";
 import { cn } from "@/lib/cn";
 import Gauge from "lucide-solid/icons/gauge";
-import Settings from "lucide-solid/icons/settings";
 import User from "lucide-solid/icons/user";
 import { NavListItems } from "@/components/admin/admin-nav";
 
@@ -36,19 +35,24 @@ export const AdminLayout = (props: ParentProps) => {
 					links={[
 						{
 							title: "Dashboard",
-							href: "/admin",
+							to: "/admin",
 							icon: <Gauge />,
 						},
 						{
 							title: "Users",
-							href: "/admin/users",
+							to: "/admin/users",
 							icon: <User />,
 						},
-						{
-							title: "Projects",
-							href: "/admin/projects",
-							icon: <Settings />,
-						},
+						//{
+						//	title: "Users",
+						//	href: "/admin/users",
+						//	icon: <User />,
+						//},
+						//{
+						//	title: "Projects",
+						//	href: "/admin/projects",
+						//	icon: <Settings />,
+						//},
 					]}
 				/>
 			</ResizablePanel>

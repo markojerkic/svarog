@@ -6,14 +6,13 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { For, type JSX, Show } from "solid-js";
-import { A, useMatch } from "@solidjs/router";
+import { Link, type LinkComponentProps } from "@tanstack/solid-router";
 
 export type NavListItem = {
 	title: string;
 	label?: string;
 	icon: JSX.Element;
-	href: string;
-};
+} & LinkComponentProps;
 type Props = {
 	isCollapsed: boolean;
 	links: NavListItem[];
@@ -37,39 +36,51 @@ export const NavListItems = (props: Props) => {
 };
 
 const NavListItem = (props: { item: NavListItem; isCollapsed: boolean }) => {
-	const match = useMatch(() => props.item.href);
-	const variant = () => (match() ? "default" : "ghost");
-
 	return (
 		<Show
 			when={props.isCollapsed}
 			fallback={
-				<A
-					href={props.item.href}
-					class={cn(
-						buttonVariants({
-							variant: variant(),
-							size: "sm",
-							class: "text-sm",
-						}),
-						variant() === "default" &&
+				<Link
+					to={props.item.href}
+					inactiveProps={{
+						class: cn(
+							buttonVariants({
+								variant: "ghost",
+								size: "sm",
+								class: "text-sm",
+							}),
+							"justify-start",
+						),
+					}}
+					activeProps={{
+						class: cn(
+							buttonVariants({
+								variant: "default",
+								size: "sm",
+								class: "text-sm",
+							}),
 							"dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white",
-						"justify-start",
-					)}
+							"justify-start",
+						),
+					}}
 				>
-					<div class="mr-2">{props.item.icon}</div>
-					{props.item.title}
-					{props.item.label && (
-						<span
-							class={cn(
-								"ml-auto",
-								variant() === "default" && "text-background dark:text-white",
+					{(linkProps) => (
+						<>
+							<div class="mr-2">{props.item.icon}</div>
+							{props.item.title}
+							{props.item.label && (
+								<span
+									class={cn(
+										"ml-auto",
+										linkProps.isActive && "text-background dark:text-white",
+									)}
+								>
+									{props.item.label}
+								</span>
 							)}
-						>
-							{props.item.label}
-						</span>
+						</>
 					)}
-				</A>
+				</Link>
 			}
 		>
 			<Tooltip openDelay={0} closeDelay={0} placement="right">
@@ -77,10 +88,11 @@ const NavListItem = (props: { item: NavListItem; isCollapsed: boolean }) => {
 					as="a"
 					href={props.item.href}
 					class={cn(
-						buttonVariants({ variant: variant(), size: "icon" }),
+						//buttonVariants({ variant: variant(), size: "icon" }),
+						buttonVariants({ size: "icon" }),
 						"h-9 w-9",
-						variant() === "default" &&
-							"dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white",
+						//variant() === "default" &&
+						//	"dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white",
 					)}
 				>
 					{props.item.icon}

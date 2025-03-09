@@ -1,3 +1,5 @@
+import type { LoggedInUser } from "@/lib/hooks/auth/use-current-user";
+import type { QueryClient } from "@tanstack/solid-query";
 import {
 	HeadContent,
 	Outlet,
@@ -6,7 +8,12 @@ import {
 } from "@tanstack/solid-router";
 // import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 
-export const Route = createRootRouteWithContext()({
+interface RouterContext {
+	auth?: LoggedInUser;
+	queryClient: QueryClient;
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
 	component: RootComponent,
 	head: () => ({
 		meta: [

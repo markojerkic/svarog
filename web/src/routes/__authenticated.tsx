@@ -6,10 +6,13 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/solid-router";
 
 export const Route = createFileRoute("/__authenticated")({
 	component: RouteComponent,
-	beforeLoad: async ({ location }) => {
+	beforeLoad: async ({ location, context }) => {
 		try {
 			const response = await api.get<LoggedInUser>("/v1/auth/current-user");
-			return response.data;
+			const user = response.data;
+			return {
+				auth: user,
+			};
 		} catch (e) {
 			console.log("error", e);
 			if (e instanceof ApiError && e.status === 401) {
@@ -22,13 +25,13 @@ export const Route = createFileRoute("/__authenticated")({
 						},
 					});
 				}
-					throw redirect({
-						to: "/auth/login",
-						search: {
-							redirect: location.pathname,
-							redirectSearch: location.search,
-						},
-					});
+				throw redirect({
+					to: "/auth/login",
+					search: {
+						redirect: location.pathname,
+						redirectSearch: location.search,
+					},
+				});
 			}
 		}
 	},

@@ -27,12 +27,13 @@ const queryClient = new QueryClient({
 	},
 });
 
-const router = createRouter({
+export const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
 	scrollRestoration: true,
 	context: {
 		queryClient,
+		auth: undefined,
 	},
 });
 
