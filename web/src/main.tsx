@@ -7,6 +7,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { SolidQueryDevtools } from "@tanstack/solid-query-devtools";
 import { ApiError } from "./lib/errors/api-error";
 import { Toaster } from "solid-sonner";
+import { Show } from "solid-js";
+import { useCurrentUser } from "./lib/hooks/auth/use-current-user";
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -31,9 +33,9 @@ export const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
 	scrollRestoration: true,
+	defaultStaleTime: 1000,
 	context: {
 		queryClient,
-		auth: undefined,
 	},
 });
 
@@ -55,10 +57,27 @@ if (!root) {
 	throw Error("No root element");
 }
 
+const AuthProvider = () => {
+	const currentUser = useCurrentUser();
+
+	return (
+		<Show when={!currentUser.isPending}>
+			<RouterProvider
+				router={router}
+				context={{
+					auth: currentUser.data,
+					authError: currentUser.error,
+					queryClient,
+				}}
+			/>
+		</Show>
+	);
+};
+
 const App = () => {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<RouterProvider router={router} />
+			<AuthProvider />
 			<Toaster />
 			<SolidQueryDevtools />
 		</QueryClientProvider>

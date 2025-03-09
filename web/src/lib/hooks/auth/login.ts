@@ -4,7 +4,7 @@ import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
-import { useNavigate } from "@solidjs/router";
+import { useNavigate } from "@tanstack/solid-router";
 
 export const loginSchema = v.object({
 	username: v.pipe(
@@ -28,8 +28,8 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 		mutationFn: async (input: LoginInput) => {
 			return api.post<void, TApiError>("/v1/auth/login", input);
 		},
-		onSuccess: () => {
-			return queryClient.invalidateQueries({
+		onSuccess: async () => {
+			return await queryClient.invalidateQueries({
 				queryKey: [useCurrentUser.QUERY_KEY],
 			});
 		},
@@ -51,8 +51,8 @@ export const useLoginWithToken = () => {
 				token,
 			});
 		},
-		onSuccess: () => {
-			return queryClient.invalidateQueries({
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
 				queryKey: [useCurrentUser.QUERY_KEY],
 			});
 		},
@@ -69,13 +69,11 @@ export const useLogout = () => {
 			return api.post<void>("/v1/auth/logout");
 		},
 		onSuccess: async () => {
-			return queryClient
-				.invalidateQueries({
-					queryKey: [useCurrentUser.QUERY_KEY],
-				})
-				.then(() => {
-					navigate("/auth/login", { replace: true });
-				});
+			console.warn("on logout success");
+			await queryClient.invalidateQueries({
+				queryKey: [useCurrentUser.QUERY_KEY],
+			});
+			navigate({ to: "/auth/login" });
 		},
 	}));
 };

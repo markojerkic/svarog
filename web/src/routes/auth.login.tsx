@@ -1,11 +1,6 @@
-import { createFileRoute, } from "@tanstack/solid-router";
+import { createFileRoute } from "@tanstack/solid-router";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TextFormField } from "@/components/ui/textfield";
 import { type LoginInput, loginSchema, useLogin } from "@/lib/hooks/auth/login";
 import { createForm, valiForm } from "@modular-forms/solid";
@@ -49,12 +44,12 @@ const LoginForm = () => {
 	const handleSubmit = (values: LoginInput) => {
 		login.mutate(values, {
 			onSuccess: () => {
+				console.log("Login successful", searchParams().redirect);
 				if (searchParams().redirect) {
-					navigate({
+					return navigate({
 						to: searchParams().redirect,
 						search: searchParams().redirectSearch,
 					});
-					return;
 				}
 				navigate({
 					to: "/",

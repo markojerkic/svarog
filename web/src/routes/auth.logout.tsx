@@ -1,16 +1,17 @@
-import { api } from "@/lib/utils/axios-api";
-import { createFileRoute, redirect } from "@tanstack/solid-router";
+import { createFileRoute } from "@tanstack/solid-router";
+import { useLogout } from "@/lib/hooks/auth/login";
+import { onMount } from "solid-js";
 
 export const Route = createFileRoute("/auth/logout")({
 	component: RouteComponent,
-	loader: async () => {
-		await api.post<void>("/v1/auth/logout").catch(() => {});
-		throw redirect({
-			to: "/auth/login",
-		});
-	},
 });
 
 function RouteComponent() {
-	return <div>Hello "/auth/logout"!</div>;
+	const logout = useLogout();
+
+	onMount(() => {
+		logout.mutate();
+	});
+
+	return <div>Logging out...</div>;
 }

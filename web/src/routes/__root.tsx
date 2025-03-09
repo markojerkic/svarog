@@ -1,3 +1,4 @@
+import type { ApiError } from "@/lib/errors/api-error";
 import type { LoggedInUser } from "@/lib/hooks/auth/use-current-user";
 import type { QueryClient } from "@tanstack/solid-query";
 import {
@@ -10,6 +11,7 @@ import {
 
 interface RouterContext {
 	auth?: LoggedInUser;
+	authError?: ApiError | null;
 	queryClient: QueryClient;
 }
 

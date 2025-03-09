@@ -9,7 +9,7 @@
 		"lint:fix": "biome lint --write --unsafe",
 		"lint:fix-safe": "biome lint --write",
 		"format:check": "biome format",
-		"format": "biome format --write",
+		"format": "biome lint --write && biome format --write",
 		"test": "vitest",
 		"test:watch": "vitest --watch"
 	},

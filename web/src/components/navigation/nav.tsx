@@ -2,19 +2,13 @@ import {
 	NavigationMenu,
 	NavigationMenuContent,
 	NavigationMenuItem,
-	NavigationMenuLink,
 	NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import {
-	type LoggedInUser,
-	useCurrentUser,
-} from "@/lib/hooks/auth/use-current-user";
+import type { LoggedInUser } from "@/lib/hooks/auth/use-current-user";
 import { Link } from "@tanstack/solid-router";
-import { Match, type ParentProps, Show, Suspense, Switch } from "solid-js";
+import { type ParentProps, Show, Suspense } from "solid-js";
 
-export function Nav() {
-	const currentUser = useCurrentUser();
-
+export function Nav(props: { currentUser: LoggedInUser }) {
 	return (
 		<NavigationMenu class="w-full gap-3 border-b border-b-secondary p-3">
 			<NavigationMenuItem>
@@ -24,14 +18,7 @@ export function Nav() {
 			</NavigationMenuItem>
 			<Suspense>
 				<NavigationMenuItem>
-					<Switch>
-						<Match when={currentUser.isSuccess && currentUser.data}>
-							<AuthMenuItem user={currentUser.data!} />
-						</Match>
-						<Match when={currentUser.isError}>
-							<NavigationMenuLink href="/auth/login">Login</NavigationMenuLink>
-						</Match>
-					</Switch>
+					<AuthMenuItem user={props.currentUser} />
 				</NavigationMenuItem>
 			</Suspense>
 		</NavigationMenu>

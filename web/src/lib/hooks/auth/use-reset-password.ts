@@ -2,8 +2,9 @@ import { ApiError, type TApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
-import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
+import { router } from "@/main";
+import { useCurrentUser } from "./use-current-user";
 
 export const resetPasswordSchema = v.object({
 	password: v.pipe(
@@ -28,9 +29,10 @@ export const useResetPassword = (form: FormStore<ResetPasswordInput>) => {
 			return api.post<void, TApiError>("/v1/auth/reset-password", input);
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
+			queryClient.invalidateQueries({
 				queryKey: [useCurrentUser.QUERY_KEY],
 			});
+			router.invalidate();
 		},
 		onError: (error) => {
 			if (error instanceof ApiError) {
