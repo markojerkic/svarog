@@ -217,7 +217,7 @@ export const preloadLogStore = async (
 	});
 };
 
-const fetchLogPage = async (
+export const fetchLogPage = async (
 	clientId: string,
 	options: FetchLogPageOptions,
 	abortSignal: AbortSignal,

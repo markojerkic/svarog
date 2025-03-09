@@ -31,6 +31,9 @@ const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
 	scrollRestoration: true,
+	context: {
+		queryClient,
+	},
 });
 
 declare module "@tanstack/solid-router" {

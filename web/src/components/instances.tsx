@@ -1,8 +1,8 @@
-import { useLocation, useSearchParams } from "@solidjs/router";
 import { For, Suspense, batch, createMemo, on } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import type { WsActions } from "@/lib/store/connection";
 import { useInstances } from "@/lib/hooks/logs/use-instances";
+import { Route } from "@/routes/logs.$clientId.index";
 
 export const Instances = (props: { clientId: string }) => {
 	const instances = useInstances(() => props.clientId);
@@ -77,16 +77,19 @@ const mergeInstancesMap = (instancesMap: Record<string, boolean>): string[] => {
 };
 
 const useInstanceIsActive = (instance: string | "all") => {
-	const [searchParams, setSearchParams] = useSearchParams<{
-		instance: string | string[];
-	}>();
+	const searchParams = Route.useSearch();
+	const navigate = Route.useNavigate();
+
+	//const [searchParams, setSearchParams] = useSearchParams<{
+	//	instance: string | string[];
+	//}>();
 
 	const allActive = createMemo(
 		on(
-			() => useLocation().search,
+			() => searchParams().search,
 			() => {
 				const instanceSelected =
-					Object.keys(mapInstances(searchParams.instance ?? [])).length > 0;
+					Object.keys(mapInstances(searchParams().instances)).length > 0;
 				return !instanceSelected;
 			},
 		),
@@ -97,21 +100,22 @@ const useInstanceIsActive = (instance: string | "all") => {
 			return allActive();
 		}
 
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+		const instanceSearchParams = mapInstances(searchParams().instances);
 		return instanceSearchParams[instance] ?? false;
 	};
 
 	const addInstance = () => {
 		if (instance === "all") {
-			setSearchParams({ instance: undefined });
+			navigate({
+				search: { instances: undefined },
+			});
 			return;
 		}
 
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+		const instanceSearchParams = mapInstances(searchParams().instances);
 		instanceSearchParams[instance] = true;
-		setSearchParams({
-			instance: mergeInstancesMap(instanceSearchParams),
-			// all: undefined,
+		navigate({
+			search: { instances: mergeInstancesMap(instanceSearchParams) },
 		});
 	};
 
@@ -121,11 +125,13 @@ const useInstanceIsActive = (instance: string | "all") => {
 			return;
 		}
 
-		const instanceSearchParams = mapInstances(searchParams.instance ?? []);
+		const instanceSearchParams = mapInstances(searchParams().instances);
 		instanceSearchParams[instance] = false;
 		const newInstances = mergeInstancesMap(instanceSearchParams);
 		batch(() => {
-			setSearchParams({ instance: newInstances });
+			navigate({
+				search: { instances: newInstances },
+			});
 			if (newInstances.length === 0) {
 				// setSearchParams({ all: "true" });
 			}
