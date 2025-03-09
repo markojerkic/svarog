@@ -1,4 +1,3 @@
-import { Nav } from "@/components/navigation/nav";
 import {
 	HeadContent,
 	Outlet,
@@ -21,7 +20,6 @@ function RootComponent() {
 	return (
 		<>
 			<HeadContent />
-			<Nav />
 			<Outlet />
 			<Scripts />
 			{/* <TanStackRouterDevtools /> */}

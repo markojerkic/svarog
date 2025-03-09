@@ -18,7 +18,7 @@ const searchParamsSchema = v.object({
 	search: v.optional(v.string()),
 });
 
-export const Route = createFileRoute("/logs/$clientId/")({
+export const Route = createFileRoute("/__authenticated/logs/$clientId/")({
 	component: RouteComponent,
 	validateSearch: searchParamsSchema,
 	loaderDeps: ({ search }) => ({

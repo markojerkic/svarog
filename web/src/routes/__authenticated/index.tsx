@@ -4,7 +4,7 @@ import { api } from "@/lib/utils/axios-api";
 import { createFileRoute } from "@tanstack/solid-router";
 import { For } from "solid-js";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/__authenticated/")({
 	component: Home,
 	loader: async ({ abortController }) => {
 		return api

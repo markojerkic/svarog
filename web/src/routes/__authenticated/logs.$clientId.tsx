@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/solid-router";
 
-export const Route = createFileRoute("/logs/$clientId")({
+export const Route = createFileRoute("/__authenticated/logs/$clientId")({
 	component: RouteComponent,
 	head: ({ params }) => ({
 		meta: [{ title: `Client: ${params.clientId}` }],
