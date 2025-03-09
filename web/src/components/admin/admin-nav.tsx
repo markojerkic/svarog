@@ -1,11 +1,6 @@
 import { cn } from "@/lib/cn";
 import { buttonVariants } from "@/components/ui/button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { For, type JSX, Show } from "solid-js";
+import { For, type JSX } from "solid-js";
 import { Link, type LinkComponentProps } from "@tanstack/solid-router";
 
 export type NavListItem = {
@@ -37,76 +32,47 @@ export const NavListItems = (props: Props) => {
 
 const NavListItem = (props: { item: NavListItem; isCollapsed: boolean }) => {
 	return (
-		<Show
-			when={props.isCollapsed}
-			fallback={
-				<Link
-					to={props.item.href}
-					inactiveProps={{
-						class: cn(
-							buttonVariants({
-								variant: "ghost",
-								size: "sm",
-								class: "text-sm",
-							}),
-							"justify-start",
-						),
-					}}
-					activeProps={{
-						class: cn(
-							buttonVariants({
-								variant: "default",
-								size: "sm",
-								class: "text-sm",
-							}),
-							"dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white",
-							"justify-start",
-						),
-					}}
-				>
-					{(linkProps) => (
-						<>
-							<div class="mr-2">{props.item.icon}</div>
-							{props.item.title}
-							{props.item.label && (
-								<span
-									class={cn(
-										"ml-auto",
-										linkProps.isActive && "text-background dark:text-white",
-									)}
-								>
-									{props.item.label}
-								</span>
-							)}
-						</>
-					)}
-				</Link>
-			}
+		<Link
+			to={props.item.to}
+			inactiveProps={{
+				class: cn(
+					buttonVariants({
+						variant: "ghost",
+						size: "sm",
+						class: "text-sm",
+					}),
+					"justify-start",
+				),
+			}}
+			link
+			activeProps={{
+				class: cn(
+					buttonVariants({
+						variant: "default",
+						size: "sm",
+						class: "text-sm",
+					}),
+					"dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white",
+					"justify-start",
+				),
+			}}
 		>
-			<Tooltip openDelay={0} closeDelay={0} placement="right">
-				<TooltipTrigger
-					as="a"
-					href={props.item.href}
-					class={cn(
-						//buttonVariants({ variant: variant(), size: "icon" }),
-						buttonVariants({ size: "icon" }),
-						"h-9 w-9",
-						//variant() === "default" &&
-						//	"dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white",
-					)}
-				>
-					{props.item.icon}
-					<span class="sr-only">{props.item.title}</span>
-				</TooltipTrigger>
-				<TooltipContent class="flex items-center gap-4">
+			{(linkProps) => (
+				<>
+					<div class="mr-2">{props.item.icon}</div>
 					{props.item.title}
-					<Show when={props.item.label}>
-						<span class="ml-auto text-muted-foreground">
+					{props.item.label && (
+						<span
+							class={cn(
+								"ml-auto",
+								linkProps.isActive && "text-background dark:text-white",
+							)}
+						>
 							{props.item.label}
 						</span>
-					</Show>
-				</TooltipContent>
-			</Tooltip>
-		</Show>
+					)}
+				</>
+			)}
+		</Link>
 	);
 };

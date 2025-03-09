@@ -35,7 +35,7 @@ export const AdminLayout = (props: ParentProps) => {
 					links={[
 						{
 							title: "Dashboard",
-							to: "/admin",
+							to: "/admin/dashboard",
 							icon: <Gauge />,
 						},
 						{
