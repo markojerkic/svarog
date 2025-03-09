@@ -1,6 +1,6 @@
 import type { RouteDefinition } from "@solidjs/router";
 import { lazy } from "solid-js";
-import { route as indexRoute } from "@/routes/index";
+import { route as indexRoute } from "@/routes/__authenticated/index";
 import { route as clientLogsRoute } from "@/routes/logs/[clientId]/index";
 import { useQueryClient } from "@tanstack/solid-query";
 import { currentUserQueryOptions } from "./lib/hooks/auth/use-current-user";
@@ -21,7 +21,7 @@ const routes = [
 			{
 				path: "",
 				...indexRoute,
-				component: lazy(() => import("@/routes/index.tsx")),
+				component: lazy(() => import("@/routes/__authenticated/index")),
 			},
 			{
 				path: "/logs",

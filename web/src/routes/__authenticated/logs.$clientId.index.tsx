@@ -9,11 +9,6 @@ import * as v from "valibot";
 
 const searchParamsSchema = v.object({
 	instances: v.optional(v.array(v.string()), []),
-	//instances: v.pipe(
-	//	v.optional(v.string(), "[]"),
-	//	v.transform((value) => JSON.parse(value)),
-	//	v.array(v.string()),
-	//),
 	logLine: v.optional(v.string()),
 	search: v.optional(v.string()),
 });

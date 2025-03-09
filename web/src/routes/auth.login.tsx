@@ -1,9 +1,8 @@
-import { createFileRoute, useRouter } from "@tanstack/solid-router";
+import { createFileRoute, } from "@tanstack/solid-router";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
-	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
@@ -14,7 +13,8 @@ import { Show } from "solid-js";
 import * as v from "valibot";
 
 const schema = v.object({
-	redirect: v.optional(v.pipe(v.string(), v.url())),
+	redirect: v.optional(v.pipe(v.string())),
+	redirectSearch: v.optional(v.any()),
 });
 
 export const Route = createFileRoute("/auth/login")({
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/auth/login")({
 
 function RouteComponent() {
 	return (
-		<Card class="container w-full md:w-[70%] lg:w-[50%]">
+		<Card class="container my-16 w-full md:w-[70%] lg:w-[50%]">
 			<CardHeader>
 				<CardTitle>Login</CardTitle>
 			</CardHeader>
@@ -33,16 +33,13 @@ function RouteComponent() {
 					<LoginForm />
 				</div>
 			</CardContent>
-			<CardFooter>
-				<p>Card Footer</p>
-			</CardFooter>
 		</Card>
 	);
 }
 
 const LoginForm = () => {
 	const navigate = Route.useNavigate();
-	const search = Route.useSearch();
+	const searchParams = Route.useSearch();
 
 	const [form, { Form, Field }] = createForm<LoginInput>({
 		validate: valiForm(loginSchema),
@@ -52,10 +49,10 @@ const LoginForm = () => {
 	const handleSubmit = (values: LoginInput) => {
 		login.mutate(values, {
 			onSuccess: () => {
-				search().redirect;
-				if (search().redirect) {
+				if (searchParams().redirect) {
 					navigate({
-						to: search().redirect,
+						to: searchParams().redirect,
+						search: searchParams().redirectSearch,
 					});
 					return;
 				}
@@ -67,7 +64,7 @@ const LoginForm = () => {
 	};
 
 	return (
-		<Form onSubmit={handleSubmit}>
+		<Form class="flex flex-col gap-2" onSubmit={handleSubmit}>
 			<Field type="string" name="username">
 				{(field, props) => (
 					<TextFormField

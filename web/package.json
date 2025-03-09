@@ -7,6 +7,7 @@
 		"preview": "vite preview",
 		"lint": "tsc && biome lint --error-on-warnings",
 		"lint:fix": "biome lint --write --unsafe",
+		"lint:fix-safe": "biome lint --write",
 		"format:check": "biome format",
 		"format": "biome format --write",
 		"test": "vitest",

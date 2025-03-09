@@ -10,7 +10,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { toast } from "solid-sonner";
-import { Route } from "@/routes/logs.$clientId.index";
+import { Route } from "@/routes/__authenticated/logs.$clientId.index";
 
 export const LogViewer = (props: {
 	clientId: string;

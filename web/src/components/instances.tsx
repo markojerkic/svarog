@@ -2,7 +2,7 @@ import { For, Suspense, batch, createMemo, on } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import type { WsActions } from "@/lib/store/connection";
 import { useInstances } from "@/lib/hooks/logs/use-instances";
-import { Route } from "@/routes/logs.$clientId.index";
+import { Route } from "@/routes/__authenticated/logs.$clientId.index";
 
 export const Instances = (props: { clientId: string }) => {
 	const instances = useInstances(() => props.clientId);
