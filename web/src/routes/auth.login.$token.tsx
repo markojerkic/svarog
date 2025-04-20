@@ -24,7 +24,6 @@ function RouteComponent() {
 				toast.error("Unable to login with given token");
 			},
 			onSuccess: () => {
-				console.log("Navigating to /");
 				navigate({
 					to: "/",
 					replace: true,

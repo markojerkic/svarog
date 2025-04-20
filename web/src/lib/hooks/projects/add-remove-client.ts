@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/errors/api-error";
 import { api } from "@/lib/utils/axios-api";
 import type { FormStore } from "@modular-forms/solid";
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 
 export const clientNameSchema = v.pipe(
@@ -38,7 +38,7 @@ export type RemoveClientInput = v.InferInput<typeof removeClientSchema>;
 
 export const useAddClient = (form: FormStore<AddClientInput>) => {
 	const queryClient = useQueryClient();
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["add-client"],
 		mutationFn: async (input: AddClientInput) => {
 			const response = await api.post("/v1/projects/add-client", input);
@@ -59,7 +59,7 @@ export const useAddClient = (form: FormStore<AddClientInput>) => {
 
 export const useRemoveClient = (form: FormStore<RemoveClientInput>) => {
 	const queryClient = useQueryClient();
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["remove-client"],
 		mutationFn: async (input: RemoveClientInput) => {
 			const response = await api.post("/v1/projects/remove-client", input);

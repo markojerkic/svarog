@@ -1,6 +1,6 @@
 import { ApiError, type TApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
@@ -23,7 +23,7 @@ export type LoginInput = v.InferInput<typeof loginSchema>;
 export const useLogin = (form: FormStore<LoginInput>) => {
 	const queryClient = useQueryClient();
 
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["login"],
 		mutationFn: async (input: LoginInput) => {
 			return api.post<void, TApiError>("/v1/auth/login", input);
@@ -45,7 +45,7 @@ export const useLoginWithToken = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["login"],
 		mutationFn: async (token: string) => {
 			return api.post<void, TApiError>("/v1/auth/login/token", {
@@ -73,7 +73,7 @@ export const useLogout = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["logout"],
 		mutationFn: async () => {
 			return api.post<void>("/v1/auth/logout");

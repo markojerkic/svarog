@@ -1,5 +1,5 @@
 import { api } from "@/lib/utils/axios-api";
-import { createQuery, type QueryOptions } from "@tanstack/solid-query";
+import { useQuery, type QueryOptions } from "@tanstack/solid-query";
 
 export type User = {
 	username: string;
@@ -9,7 +9,7 @@ export type User = {
 	role: string;
 };
 export const useUsers = (page: () => number) => {
-	return createQuery(() => ({
+	return useQuery(() => ({
 		...useUsers.QUERY_OPTIONS(page()),
 		enabled: !Number.isNaN(page()),
 	}));

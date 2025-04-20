@@ -1,5 +1,5 @@
 import { api } from "@/lib/utils/axios-api";
-import { createQuery, type QueryOptions } from "@tanstack/solid-query";
+import { useQuery, type QueryOptions } from "@tanstack/solid-query";
 
 export type Project = {
 	id: string;
@@ -19,5 +19,5 @@ export const useProjectsOptions = () =>
 	}) satisfies QueryOptions;
 
 export const useProjects = () => {
-	return createQuery(useProjectsOptions);
+	return useQuery(useProjectsOptions);
 };

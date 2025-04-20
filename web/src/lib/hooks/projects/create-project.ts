@@ -1,4 +1,4 @@
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import type { Project } from "./use-projects";
 import { api } from "@/lib/utils/axios-api";
 import * as v from "valibot";
@@ -18,7 +18,7 @@ export type NewProjectInput = v.InferInput<typeof newProjectSchema>;
 
 export const useCreateProject = (form: FormStore<NewProjectInput>) => {
 	const queryClient = useQueryClient();
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["projects"],
 		mutationFn: async (project: NewProjectInput) => {
 			const response = await api.post<Project>("/v1/projects", project);

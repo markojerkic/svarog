@@ -61,6 +61,7 @@ const RestPasswordForm = () => {
 					});
 					return;
 				}
+				console.log("redirecting to /");
 				navigate({
 					to: "/",
 				});

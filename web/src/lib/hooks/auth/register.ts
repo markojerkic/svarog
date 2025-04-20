@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
-import { createMutation } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { api } from "@/lib/utils/axios-api";
 import type { AxiosResponse } from "axios";
@@ -29,7 +29,7 @@ export type RegisterInput = v.InferInput<typeof registerSchema>;
 export const useRegister = (form: FormStore<RegisterInput>) => {
 	const router = useRouter();
 
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["register"],
 		mutationFn: async (input: RegisterInput) => {
 			const response = await api.post<

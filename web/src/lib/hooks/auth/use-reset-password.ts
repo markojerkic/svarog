@@ -1,6 +1,6 @@
 import { ApiError, type TApiError } from "@/lib/errors/api-error";
 import type { FormStore } from "@modular-forms/solid";
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { api } from "@/lib/utils/axios-api";
 import { useCurrentUser } from "./use-current-user";
@@ -24,7 +24,7 @@ export const useResetPassword = (form: FormStore<ResetPasswordInput>) => {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 
-	return createMutation(() => ({
+	return useMutation(() => ({
 		mutationKey: ["reset-password"],
 		mutationFn: async (input: ResetPasswordInput) => {
 			return api.post<void, TApiError>("/v1/auth/reset-password", input);

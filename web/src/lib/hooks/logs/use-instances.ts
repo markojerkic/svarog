@@ -1,5 +1,5 @@
 import { api } from "@/lib/utils/axios-api";
-import { createQuery, type QueryOptions } from "@tanstack/solid-query";
+import { useQuery, type QueryOptions } from "@tanstack/solid-query";
 
 export const useInstancesOptions = (clientId: string) =>
 	({
@@ -12,5 +12,5 @@ export const useInstancesOptions = (clientId: string) =>
 	}) satisfies QueryOptions;
 
 export const useInstances = (clientId: () => string) => {
-	return createQuery(() => useInstancesOptions(clientId()));
+	return useQuery(() => useInstancesOptions(clientId()));
 };

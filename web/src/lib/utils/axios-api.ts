@@ -1,5 +1,7 @@
 import axios, { AxiosError } from "axios";
 import { ApiError } from "@/lib/errors/api-error";
+import { Router, useRouter } from "@tanstack/solid-router";
+import { router } from "@/main";
 
 export const api = axios.create({
 	baseURL: import.meta.env.VITE_API_URL,
@@ -29,6 +31,14 @@ api.interceptors.response.use(
 	(error) => {
 		if (axios.isAxiosError(error)) {
 			const apiError = error.response?.data;
+
+			if (
+				error.status === 401 &&
+				apiError?.message === "password_reset_required"
+			) {
+				router.navigate({ to: "/auth/reset-password" });
+			}
+
 			if (apiError) {
 				throw new ApiError(apiError, error.response?.status ?? 500);
 			}

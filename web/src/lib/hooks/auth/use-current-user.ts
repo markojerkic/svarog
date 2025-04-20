@@ -1,4 +1,4 @@
-import { createQuery, type QueryOptions } from "@tanstack/solid-query";
+import { useQuery, type QueryOptions } from "@tanstack/solid-query";
 import { api } from "@/lib/utils/axios-api";
 
 export type LoggedInUser = {
@@ -8,7 +8,7 @@ export type LoggedInUser = {
 };
 
 export const useCurrentUser = () => {
-	const user = createQuery(() => currentUserQueryOptions);
+	const user = useQuery(() => currentUserQueryOptions);
 
 	return user;
 };
