@@ -1,17 +1,8 @@
-import { useLocation, useSearchParams } from "@solidjs/router";
-import { createMemo, on } from "solid-js";
+import { Route as logsRoute } from "@/routes/__authenticated/logs.$clientId.index";
 
 export const useSelectedInstances = () => {
-	const [searchParams] = useSearchParams();
-	const selectedInstances = createMemo(
-		on(
-			() => useLocation().search,
-			() => {
-				return getArrayValueOfSearchParam(searchParams.instance);
-			},
-		),
-	);
-	return selectedInstances;
+	const searchParams = logsRoute.useSearch();
+	return searchParams().instances;
 };
 
 export const getArrayValueOfSearchParam = (

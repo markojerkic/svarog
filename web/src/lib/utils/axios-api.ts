@@ -1,6 +1,5 @@
 import axios, { AxiosError } from "axios";
 import { ApiError } from "@/lib/errors/api-error";
-import { Router, useRouter } from "@tanstack/solid-router";
 import { router } from "@/main";
 
 export const api = axios.create({
