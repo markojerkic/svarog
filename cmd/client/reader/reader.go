@@ -44,10 +44,10 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 
 	var logLine *rpc.LogLine
 	i := 0
-	var message string
 	for r.hasNext() {
 		line, err := r.next()
 		timestamp := time.Now()
+		var message string
 		if err != nil {
 			message = err.Error()
 		} else {
@@ -55,7 +55,7 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 		}
 
 		fmt.Println(message)
-		message := ansiRegex.ReplaceAllString(message, "")
+		message = ansiRegex.ReplaceAllString(message, "")
 		logLine = &rpc.LogLine{
 			Client:    r.clientId,
 			Message:   message,
