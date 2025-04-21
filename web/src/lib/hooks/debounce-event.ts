@@ -19,7 +19,7 @@ export function useDebounceEventListener(
 		};
 		target()?.addEventListener(eventName, wrappedListener);
 		return () => {
-			target().removeEventListener(eventName, wrappedListener);
+			target()?.removeEventListener(eventName, wrappedListener);
 		};
 	});
 }
