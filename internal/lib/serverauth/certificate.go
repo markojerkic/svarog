@@ -35,9 +35,9 @@ type CertificateService interface {
 }
 
 type CertificateServiceImpl struct {
-	mongoClinet   *mongo.Client
-	fileService   files.FileService
-	serverDnsName string
+	mongoClinet    *mongo.Client
+	fileService    files.FileService
+	serverDnsNames []string
 }
 
 // GetCaCertificate implements CertificateService.
@@ -195,7 +195,7 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 		NotAfter:    time.Now().AddDate(10, 0, 0),
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
-		DNSNames:    []string{"*", c.serverDnsName},
+		DNSNames:    c.serverDnsNames,
 		IPAddresses: []net.IP{net.ParseIP("0.0.0.0"), net.ParseIP("::"), net.IPv6loopback},
 	}
 
@@ -321,10 +321,10 @@ var _ CertificateService = &CertificateServiceImpl{}
 
 func NewCertificateService(fileService files.FileService,
 	mongoClinet *mongo.Client,
-	serverDnsName string) CertificateService {
+	serverDnsNames []string) CertificateService {
 	return &CertificateServiceImpl{
-		fileService:   fileService,
-		mongoClinet:   mongoClinet,
-		serverDnsName: serverDnsName,
+		fileService:    fileService,
+		mongoClinet:    mongoClinet,
+		serverDnsNames: serverDnsNames,
 	}
 }

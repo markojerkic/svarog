@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 
@@ -75,7 +76,7 @@ func main() {
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
-	certificateService := serverauth.NewCertificateService(filesService, client, env.ServerDnsName)
+	certificateService := serverauth.NewCertificateService(filesService, client, strings.Split(env.ServerDnsName, ","))
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())

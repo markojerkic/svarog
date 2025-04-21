@@ -57,7 +57,7 @@ func (s *ServerauthSuite) SetupSuite() {
 	s.projectsCollection = db.Collection("projects")
 
 	s.filesService = files.NewFileService(s.filesCollection)
-	s.certificatesService = serverauth.NewCertificateService(s.filesService, mongoClient, "0.0.0.0")
+	s.certificatesService = serverauth.NewCertificateService(s.filesService, mongoClient, []string{"0.0.0.0"})
 	s.projectsService = projects.NewProjectsService(s.projectsCollection, mongoClient)
 
 }

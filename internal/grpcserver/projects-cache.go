@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"slices"
 )
 
 // projectId to clientIds mapping
@@ -21,13 +22,7 @@ func (g *GrpcServer) isAuthorized(ctx context.Context, projectId string, clientN
 		return false
 	}
 
-	for _, clientId := range clientIds {
-		if clientId == clientName {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(clientIds, clientName)
 
 }
 

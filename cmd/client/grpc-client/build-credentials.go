@@ -3,7 +3,6 @@ package grpcclient
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"os"
 
 	"github.com/charmbracelet/log"
@@ -14,17 +13,20 @@ func BuildCredentials(caCertPath string, certPath string) *tls.Config {
 	if err != nil {
 		log.Fatal("Failed to read ca cert", "error", err)
 	}
-	certBlock, _ := pem.Decode(cacertBytes)
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
 
 	caPool := x509.NewCertPool()
-	caPool.AddCert(cert)
+	if ok := caPool.AppendCertsFromPEM(cacertBytes); !ok {
+		log.Fatal("Failed to add CA certificate to pool")
+	}
 
 	clientCert, err := tls.LoadX509KeyPair(certPath, certPath)
+	if err != nil {
+		log.Fatal("Failed to load client certificate", "error", err)
+	}
 
-	// Configure TLS
 	return &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caPool,
+		ServerName:   "grpc.svarog.jerkic.dev", // Add this line
 	}
 }
