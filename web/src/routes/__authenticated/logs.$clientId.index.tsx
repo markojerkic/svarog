@@ -51,8 +51,8 @@ function RouteComponent() {
 	}));
 
 	return (
-		<div class="flex flex-col justify-start gap-2">
-			<div class="grow">
+		<div class="flex flex-col justify-start gap-2 pb-4">
+			<div class="sticky top-0 bg-white p-4">
 				<Instances clientId={clientId()} />
 				<SearchCommnad
 					search={search()}
@@ -72,12 +72,12 @@ function RouteComponent() {
 						}
 					}}
 				/>
-				<LogViewer
-					selectedInstances={selectedInstances()}
-					clientId={clientId()}
-					selectedLogLineId={searchParams().logLine}
-				/>
 			</div>
+			<LogViewer
+				selectedInstances={selectedInstances()}
+				clientId={clientId()}
+				selectedLogLineId={searchParams().logLine}
+			/>
 		</div>
 	);
 }

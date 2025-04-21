@@ -9,7 +9,7 @@ export const Route = createFileRoute("/__authenticated/logs/$clientId")({
 
 function RouteComponent() {
 	return (
-		<div class="grow overflow-y-hidden">
+		<div class="grow">
 			<Outlet />
 		</div>
 	);

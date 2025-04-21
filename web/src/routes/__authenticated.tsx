@@ -1,5 +1,10 @@
 import { Nav } from "@/components/navigation/nav";
-import { createFileRoute, Outlet, redirect } from "@tanstack/solid-router";
+import {
+	createFileRoute,
+	Outlet,
+	redirect,
+	useMatch,
+} from "@tanstack/solid-router";
 
 export const Route = createFileRoute("/__authenticated")({
 	component: RouteComponent,
@@ -29,11 +34,19 @@ export const Route = createFileRoute("/__authenticated")({
 
 function RouteComponent() {
 	const context = Route.useRouteContext();
+	const match = useMatch({ from: "/__authenticated/logs/$clientId" });
+	const isLogsRoute = () => match();
+
 	console.warn("Layout pripaziti za log ekran", context().auth);
 	return (
-		<>
+		<div
+			class="flex flex-col justify-start"
+			classList={{
+				"h-screen": Boolean(isLogsRoute()),
+			}}
+		>
 			<Nav currentUser={context().auth!} />
 			<Outlet />
-		</>
+		</div>
 	);
 }
