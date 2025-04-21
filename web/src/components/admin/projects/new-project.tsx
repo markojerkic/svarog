@@ -20,9 +20,11 @@ import {
 } from "@/components/ui/textfield";
 import { createSignal, For, Show } from "solid-js";
 import { toast } from "solid-sonner";
+import { useRouter } from "@tanstack/solid-router";
 
 export const NewProject = () => {
 	const [open, setOpen] = createSignal(false);
+	const router = useRouter();
 
 	return (
 		<Dialog open={open()} onOpenChange={setOpen}>
@@ -40,7 +42,11 @@ export const NewProject = () => {
 						Enter the name of the new project
 					</DialogDescription>
 				</DialogHeader>
-				<NewProjectForm onSuccess={() => setOpen(false)} />
+				<NewProjectForm
+					onSuccess={() => {
+						router.invalidate();
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

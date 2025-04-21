@@ -1,11 +1,12 @@
-import Resizable from "@corvu/resizable";
-import { cookieStorage, makePersisted } from "@solid-primitives/storage";
-import { createSignal, type ParentProps } from "solid-js";
+import { NavListItems } from "@/components/admin/admin-nav";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable";
 import { cn } from "@/lib/cn";
+import Resizable from "@corvu/resizable";
+import { cookieStorage, makePersisted } from "@solid-primitives/storage";
 import Gauge from "lucide-solid/icons/gauge";
 import User from "lucide-solid/icons/user";
-import { NavListItems } from "@/components/admin/admin-nav";
+import Settings from "lucide-solid/icons/settings";
+import { type ParentProps, createSignal } from "solid-js";
 
 export const AdminLayout = (props: ParentProps) => {
 	const [sizes, setSizes] = makePersisted(createSignal<number[]>([]), {
@@ -39,20 +40,15 @@ export const AdminLayout = (props: ParentProps) => {
 							icon: <Gauge />,
 						},
 						{
+							title: "Projects",
+							to: "/admin/projects",
+							icon: <Settings />,
+						},
+						{
 							title: "Users",
 							to: "/admin/users",
 							icon: <User />,
 						},
-						//{
-						//	title: "Users",
-						//	href: "/admin/users",
-						//	icon: <User />,
-						//},
-						//{
-						//	title: "Projects",
-						//	href: "/admin/projects",
-						//	icon: <Settings />,
-						//},
 					]}
 				/>
 			</ResizablePanel>

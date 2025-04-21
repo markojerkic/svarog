@@ -29,7 +29,7 @@ export const Route = createFileRoute("/__authenticated")({
 
 function RouteComponent() {
 	const context = Route.useRouteContext();
-	console.warn("Layout pripaziti za log ekran");
+	console.warn("Layout pripaziti za log ekran", context().auth);
 	return (
 		<>
 			<Nav currentUser={context().auth!} />

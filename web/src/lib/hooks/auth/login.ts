@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import * as v from "valibot";
 import { useCurrentUser } from "./use-current-user";
 import { api } from "@/lib/utils/axios-api";
-import { useNavigate } from "@tanstack/solid-router";
+import { useNavigate, useRouter } from "@tanstack/solid-router";
 
 export const loginSchema = v.object({
 	username: v.pipe(
@@ -42,7 +42,7 @@ export const useLogin = (form: FormStore<LoginInput>) => {
 };
 
 export const useLoginWithToken = () => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
 	const navigate = useNavigate();
 
 	return useMutation(() => ({
@@ -53,9 +53,7 @@ export const useLoginWithToken = () => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: [useCurrentUser.QUERY_KEY],
-			});
+			return await router.invalidate();
 		},
 		onError: (error) => {
 			if (
@@ -70,7 +68,7 @@ export const useLoginWithToken = () => {
 };
 
 export const useLogout = () => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
 	const navigate = useNavigate();
 
 	return useMutation(() => ({
@@ -80,9 +78,7 @@ export const useLogout = () => {
 		},
 		onSuccess: async () => {
 			console.warn("on logout success");
-			await queryClient.invalidateQueries({
-				queryKey: [useCurrentUser.QUERY_KEY],
-			});
+			await router.invalidate();
 			navigate({ to: "/auth/login" });
 		},
 	}));

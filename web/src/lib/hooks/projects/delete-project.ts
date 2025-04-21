@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import { api } from "@/lib/utils/axios-api";
 import { toast } from "solid-sonner";
+import { useRouter } from "@tanstack/solid-router";
 
 export const useDeleteProject = () => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
+
 	return useMutation(() => ({
 		mutationKey: ["delete-project"],
 		mutationFn: async (projectId: string) => {
@@ -11,9 +13,7 @@ export const useDeleteProject = () => {
 			return response.data;
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
-				queryKey: ["projects"],
-			});
+			router.invalidate();
 		},
 		onError: () => {
 			toast.error("Failed to delete project");

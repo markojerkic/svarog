@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/errors/api-error";
 import { api } from "@/lib/utils/axios-api";
 import type { FormStore } from "@modular-forms/solid";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
+import { useRouter } from "@tanstack/solid-router";
 import * as v from "valibot";
 
 export const clientNameSchema = v.pipe(
@@ -37,7 +38,8 @@ export type AddClientInput = v.InferInput<typeof addClientSchema>;
 export type RemoveClientInput = v.InferInput<typeof removeClientSchema>;
 
 export const useAddClient = (form: FormStore<AddClientInput>) => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
+
 	return useMutation(() => ({
 		mutationKey: ["add-client"],
 		mutationFn: async (input: AddClientInput) => {
@@ -45,9 +47,7 @@ export const useAddClient = (form: FormStore<AddClientInput>) => {
 			return response.data;
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
-				queryKey: ["projects"],
-			});
+			return router.invalidate();
 		},
 		onError: (error) => {
 			if (error instanceof ApiError) {
@@ -58,7 +58,8 @@ export const useAddClient = (form: FormStore<AddClientInput>) => {
 };
 
 export const useRemoveClient = (form: FormStore<RemoveClientInput>) => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
+
 	return useMutation(() => ({
 		mutationKey: ["remove-client"],
 		mutationFn: async (input: RemoveClientInput) => {
@@ -66,9 +67,7 @@ export const useRemoveClient = (form: FormStore<RemoveClientInput>) => {
 			return response.data;
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
-				queryKey: ["projects"],
-			});
+			return router.invalidate();
 		},
 		onError: (error) => {
 			if (error instanceof ApiError) {

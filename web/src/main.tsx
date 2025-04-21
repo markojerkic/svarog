@@ -10,17 +10,17 @@ import { Toaster } from "solid-sonner";
 import { Show } from "solid-js";
 import { useCurrentUser } from "./lib/hooks/auth/use-current-user";
 
+// Create query client
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
 			refetchOnWindowFocus: true,
 			throwOnError: true,
-			retry: (faliureCount, error) => {
+			retry: (failureCount, error) => {
 				if (error instanceof ApiError) {
 					return error.status !== 401 && error.status !== 403;
 				}
-
-				return !import.meta.env.DEV && faliureCount < 3;
+				return !import.meta.env.DEV && failureCount < 3;
 			},
 		},
 		mutations: {
@@ -29,6 +29,7 @@ const queryClient = new QueryClient({
 	},
 });
 
+// Create router with context
 export const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
@@ -39,6 +40,7 @@ export const router = createRouter({
 	},
 });
 
+// Type declarations
 declare module "@tanstack/solid-router" {
 	interface Register {
 		router: typeof router;
@@ -51,17 +53,16 @@ declare module "@tanstack/solid-query" {
 	}
 }
 
-const root = document.getElementById("root");
-
-if (!root) {
-	throw Error("No root element");
-}
-
+// Authentication wrapper
 const AuthProvider = () => {
 	const currentUser = useCurrentUser();
 
+	// Add optional loading state here
 	return (
-		<Show when={!currentUser.isPending}>
+		<Show
+			when={!currentUser.isPending}
+			fallback={<div>Loading authentication...</div>}
+		>
 			<RouterProvider
 				router={router}
 				context={{
@@ -74,14 +75,23 @@ const AuthProvider = () => {
 	);
 };
 
+// Main app component
 const App = () => {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<AuthProvider />
 			<Toaster />
-			<SolidQueryDevtools />
+			<Show when={!import.meta.env.PROD}>
+				<SolidQueryDevtools />
+			</Show>
 		</QueryClientProvider>
 	);
 };
 
-render(App, root);
+// Get root element and render
+const root = document.getElementById("root");
+if (!root) {
+	throw Error("No root element");
+}
+
+render(() => <App />, root);

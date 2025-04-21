@@ -44,7 +44,6 @@ const NavListItem = (props: { item: NavListItem; isCollapsed: boolean }) => {
 					"justify-start",
 				),
 			}}
-			link
 			activeProps={{
 				class: cn(
 					buttonVariants({
