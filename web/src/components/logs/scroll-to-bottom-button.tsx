@@ -3,6 +3,7 @@ import { Show } from "solid-js";
 
 export const ScrollToBottomButton = (props: {
 	isLockedInBottom: boolean;
+	click: () => void;
 }) => {
 	const scrollEventBus = useScrollEvent();
 
@@ -12,7 +13,10 @@ export const ScrollToBottomButton = (props: {
 				type="button"
 				id="scroll-to-bottom"
 				class="fixed right-4 bottom-4 z-1000 flex size-10 cursor-pointer rounded-full bg-primary"
-				onClick={() => scrollEventBus.scrollToBottom()}
+				onClick={() => {
+					scrollEventBus.scrollToBottom();
+					props.click();
+				}}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"

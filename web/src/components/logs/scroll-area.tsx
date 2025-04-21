@@ -8,6 +8,7 @@ import {
 	useOnScrollToIndex,
 } from "@/lib/hooks/use-scroll-event";
 import { newLogLineListener } from "@/lib/store/connection";
+import { useDebounceEventListener } from "@/lib/hooks/debounce-event";
 
 type ScrollAreaProps = {
 	itemCount: number;
@@ -48,25 +49,17 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 		rootMargin: "10px",
 	});
 
-	onMount(() => {
-		const scrollHandler = () => {
+	useDebounceEventListener(
+		() => logsRef,
+		"scroll",
+		() => {
 			const el = logsRef!;
 			const isLockedInBotton =
-				el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+				el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
 			setIsLockedInBotton(isLockedInBotton);
-		};
-		(logsRef as HTMLDivElement | undefined)?.addEventListener(
-			"scroll",
-			scrollHandler,
-		);
-
-		return () => {
-			(logsRef as HTMLDivElement | undefined)?.removeEventListener(
-				"scroll",
-				scrollHandler,
-			);
-		};
-	});
+		},
+		100,
+	);
 
 	onMount(() => {
 		newLogLineListener(() => {
@@ -84,7 +77,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 			class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700 ml-4 rounded-l-md border border-black"
 			style={{
 				height: scrollViewerHeight(),
-				width: "90vw%",
+				width: "90vw",
 				"overflow-y": "auto",
 			}}
 		>
@@ -95,7 +88,10 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 					position: "relative",
 				}}
 			>
-				<ScrollToBottomButton isLockedInBottom={isLockedInBottom()} />
+				<ScrollToBottomButton
+					isLockedInBottom={isLockedInBottom()}
+					click={() => setIsLockedInBotton(true)}
+				/>
 				<div
 					style={{
 						position: "absolute",
@@ -121,7 +117,7 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 						id="bottom"
 						class="my-[-2rem]"
 						use:intersectionObserver={(el) => {
-							if (el.isIntersecting) {
+							if (el.intersectionRatio > 0.3) {
 								props.fetchNext();
 							}
 						}}

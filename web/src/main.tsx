@@ -4,7 +4,6 @@ import { RouterProvider, createRouter } from "@tanstack/solid-router";
 import { routeTree } from "./routeTree.gen";
 import "./app.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
-import { SolidQueryDevtools } from "@tanstack/solid-query-devtools";
 import { ApiError } from "./lib/errors/api-error";
 import { Toaster } from "solid-sonner";
 import { Show } from "solid-js";
@@ -81,9 +80,9 @@ const App = () => {
 		<QueryClientProvider client={queryClient}>
 			<AuthProvider />
 			<Toaster />
-			<Show when={!import.meta.env.PROD}>
-				<SolidQueryDevtools />
-			</Show>
+			{/* <Show when={!import.meta.env.PROD}> */}
+			{/* <SolidQueryDevtools /> */}
+			{/* </Show> */}
 		</QueryClientProvider>
 	);
 };
