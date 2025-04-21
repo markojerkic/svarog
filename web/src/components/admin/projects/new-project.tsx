@@ -45,6 +45,7 @@ export const NewProject = () => {
 				<NewProjectForm
 					onSuccess={() => {
 						router.invalidate();
+						setOpen(false);
 					}}
 				/>
 			</DialogContent>
@@ -59,7 +60,6 @@ const NewProjectForm = (props: { onSuccess: () => void }) => {
 	const createProject = useCreateProject(form);
 
 	const handleSubmit = async (values: NewProjectInput) => {
-		console.log("submit", values);
 		createProject.mutateAsync(values).then(() => {
 			props.onSuccess();
 			toast.success("Project created");

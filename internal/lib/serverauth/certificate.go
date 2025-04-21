@@ -35,13 +35,14 @@ type CertificateService interface {
 }
 
 type CertificateServiceImpl struct {
-	mongoClinet *mongo.Client
-	fileService files.FileService
+	mongoClinet   *mongo.Client
+	fileService   files.FileService
+	serverDnsName string
 }
 
 // GetCaCertificate implements CertificateService.
 func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
 		caCert, err := c.fileService.GetFile(ctx, "ca.crt")
 		if err != nil {
 			log.Error("Failed getting ca.crt", "err", err)
@@ -194,7 +195,7 @@ func (c *CertificateServiceImpl) GenerateCertificate(ctx context.Context, groupI
 		NotAfter:    time.Now().AddDate(10, 0, 0),
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
-		DNSNames:    []string{"*"},
+		DNSNames:    []string{"*", c.serverDnsName},
 		IPAddresses: []net.IP{net.ParseIP("0.0.0.0"), net.ParseIP("::"), net.IPv6loopback},
 	}
 
@@ -300,7 +301,7 @@ func (c *CertificateServiceImpl) GetCertificatesZip(ctx context.Context, groupId
 
 // Save files to mongodb
 func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string, privateKeyPath string) error {
-	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
 		_, err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
 		if err != nil {
 			log.Error("Failed saving ca.cert", "err", err)
@@ -318,9 +319,12 @@ func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string,
 
 var _ CertificateService = &CertificateServiceImpl{}
 
-func NewCertificateService(fileService files.FileService, mongoClinet *mongo.Client) CertificateService {
+func NewCertificateService(fileService files.FileService,
+	mongoClinet *mongo.Client,
+	serverDnsName string) CertificateService {
 	return &CertificateServiceImpl{
-		fileService: fileService,
-		mongoClinet: mongoClinet,
+		fileService:   fileService,
+		mongoClinet:   mongoClinet,
+		serverDnsName: serverDnsName,
 	}
 }

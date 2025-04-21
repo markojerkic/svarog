@@ -1,10 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation, } from "@tanstack/solid-query";
 import type { Project } from "./use-projects";
 import { api } from "@/lib/utils/axios-api";
 import * as v from "valibot";
 import type { FormStore } from "@modular-forms/solid";
 import { ApiError } from "@/lib/errors/api-error";
 import { clientNameSchema } from "./add-remove-client";
+import { useRouter } from "@tanstack/solid-router";
 
 export const newProjectSchema = v.object({
 	name: v.pipe(
@@ -17,7 +18,8 @@ export const newProjectSchema = v.object({
 export type NewProjectInput = v.InferInput<typeof newProjectSchema>;
 
 export const useCreateProject = (form: FormStore<NewProjectInput>) => {
-	const queryClient = useQueryClient();
+	const router = useRouter();
+
 	return useMutation(() => ({
 		mutationKey: ["projects"],
 		mutationFn: async (project: NewProjectInput) => {
@@ -25,9 +27,7 @@ export const useCreateProject = (form: FormStore<NewProjectInput>) => {
 			return response.data;
 		},
 		onSuccess: () => {
-			return queryClient.invalidateQueries({
-				queryKey: ["projects"],
-			});
+			return router.invalidate();
 		},
 		onError: (error) => {
 			if (error instanceof ApiError) {

@@ -75,7 +75,7 @@ func main() {
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
-	certificateService := serverauth.NewCertificateService(filesService, client)
+	certificateService := serverauth.NewCertificateService(filesService, client, env.ServerDnsName)
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
