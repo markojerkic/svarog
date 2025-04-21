@@ -74,10 +74,10 @@ export const ScrollArea = (props: ScrollAreaProps) => {
 	return (
 		<div
 			ref={logsRef}
-			class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700 ml-4 rounded-l-md border border-black"
+			class="scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700 mx-auto rounded-l-md border border-black"
 			style={{
 				height: scrollViewerHeight(),
-				width: "90vw",
+				width: "95vw",
 				"overflow-y": "auto",
 			}}
 		>

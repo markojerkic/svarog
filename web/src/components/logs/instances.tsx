@@ -8,10 +8,11 @@ export const Instances = (props: { clientId: string }) => {
 	const instances = useInstances(() => props.clientId);
 
 	return (
-		<nav class="gap-2 border border-sky-700 p-2">
-			<p>Instances</p>
-			<Suspense fallback={<div>Loading...</div>}>
-				<div class="scrollbar-thin scrollbar-track-white scrollbar-thumb-zinc-700 flex gap-2 overflow-x-scroll p-2">
+		<nav class="border-sky-600 border-l-2 bg-gray-50 py-2">
+			<Suspense
+				fallback={<div class="px-3 py-2 text-gray-500 text-xs">Loading...</div>}
+			>
+				<div class="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 flex gap-1.5 overflow-x-auto px-3 py-2">
 					<AllInstances />
 					<For each={instances.data}>
 						{(instance) => <Instance instance={instance} />}
@@ -35,9 +36,10 @@ const AllInstances = () => {
 	return (
 		<button
 			type="button"
-			class="flex items-center gap-2 rounded-md border border-gray-900 p-1.5 text-black hover:bg-gray-200"
+			class="flex h-7 items-center rounded-full border border-gray-200 px-2.5 font-medium text-gray-700 text-xs shadow-sm transition-all hover:bg-gray-100"
 			classList={{
-				"bg-gray-300": isActive(),
+				"bg-gray-100 ring-1 ring-gray-300": isActive(),
+				"bg-white": !isActive(),
 			}}
 			onClick={toggleInstance}
 		>
@@ -53,20 +55,17 @@ const Instance = (props: { instance: string }) => {
 	return (
 		<button
 			type="button"
-			class="flex items-center gap-2 rounded-md border border-gray-900 p-1.5 text-black hover:bg-gray-200"
+			class="flex h-7 items-center gap-1.5 rounded-full border border-gray-200 px-2.5 font-medium text-gray-700 text-xs shadow-sm transition-all hover:bg-gray-100"
 			classList={{
-				"bg-gray-300": isActive(),
+				"bg-gray-100 ring-1 ring-gray-300": isActive(),
+				"bg-white": !isActive(),
 			}}
 			onClick={toggleInstance}
 		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				viewBox="0 0 100 100"
-				class="h-4 w-4"
-			>
-				<circle cx="50" cy="50" r="25" fill={`rgb(${color()})`} />
-			</svg>
-
+			<span
+				class="inline-block h-2.5 w-2.5 rounded-full"
+				style={{ "background-color": `rgb(${color()})` }}
+			/>
 			{props.instance}
 		</button>
 	);
@@ -79,10 +78,6 @@ const mergeInstancesMap = (instancesMap: Record<string, boolean>): string[] => {
 const useInstanceIsActive = (instance: string | "all") => {
 	const searchParams = Route.useSearch();
 	const navigate = Route.useNavigate();
-
-	//const [searchParams, setSearchParams] = useSearchParams<{
-	//	instance: string | string[];
-	//}>();
 
 	const allActive = createMemo(
 		on(
