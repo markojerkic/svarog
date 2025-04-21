@@ -34,7 +34,10 @@ export const Route = createFileRoute("/__authenticated")({
 
 function RouteComponent() {
 	const context = Route.useRouteContext();
-	const match = useMatch({ from: "/__authenticated/logs/$clientId" });
+	const match = useMatch({
+		from: "/__authenticated/logs/$clientId",
+		shouldThrow: false,
+	});
 	const isLogsRoute = () => match();
 
 	console.warn("Layout pripaziti za log ekran", context().auth);
