@@ -52,7 +52,7 @@ function RouteComponent() {
 
 	return (
 		<div class="flex flex-col justify-start gap-2 pb-4">
-			<div class="sticky top-0 bg-white p-4">
+			<div class="sticky top-0 flex items-center gap-2 bg-white px-4 py-1">
 				<Instances clientId={clientId()} />
 				<SearchCommnad
 					search={search()}

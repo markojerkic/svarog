@@ -40,7 +40,6 @@ function RouteComponent() {
 	});
 	const isLogsRoute = () => match();
 
-	console.warn("Layout pripaziti za log ekran", context().auth);
 	return (
 		<div
 			class="flex flex-col justify-start"

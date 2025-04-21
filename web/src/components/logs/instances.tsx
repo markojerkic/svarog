@@ -3,23 +3,33 @@ import { useInstanceColor } from "@/lib/hooks/instance-color";
 import type { WsActions } from "@/lib/store/connection";
 import { useInstances } from "@/lib/hooks/logs/use-instances";
 import { Route } from "@/routes/__authenticated/logs.$clientId.index";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+	DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 
 export const Instances = (props: { clientId: string }) => {
 	const instances = useInstances(() => props.clientId);
 
 	return (
-		<nav class="border-sky-600 border-l-2 bg-gray-50 py-2">
-			<Suspense
-				fallback={<div class="px-3 py-2 text-gray-500 text-xs">Loading...</div>}
-			>
-				<div class="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 flex gap-1.5 overflow-x-auto px-3 py-2">
-					<AllInstances />
+		<DropdownMenu>
+			<DropdownMenuTrigger class="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 font-medium text-gray-700 text-sm shadow-sm hover:bg-gray-50">
+				Instances
+			</DropdownMenuTrigger>
+			<DropdownMenuContent class="min-w-[180px] p-1">
+				<Suspense
+					fallback={<DropdownMenuItem disabled>Loading...</DropdownMenuItem>}
+				>
+					<InstanceCheckboxItem instance="all" />
 					<For each={instances.data}>
-						{(instance) => <Instance instance={instance} />}
+						{(instance) => <InstanceCheckboxItem instance={instance} />}
 					</For>
-				</div>
-			</Suspense>
-		</nav>
+				</Suspense>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };
 
@@ -30,44 +40,29 @@ export const NOOP_WS_ACTIONS: WsActions = {
 	close: () => {},
 };
 
-const AllInstances = () => {
-	const { isActive, toggleInstance } = useInstanceIsActive("all");
-
-	return (
-		<button
-			type="button"
-			class="flex h-7 items-center rounded-full border border-gray-200 px-2.5 font-medium text-gray-700 text-xs shadow-sm transition-all hover:bg-gray-100"
-			classList={{
-				"bg-gray-100 ring-1 ring-gray-300": isActive(),
-				"bg-white": !isActive(),
-			}}
-			onClick={toggleInstance}
-		>
-			All
-		</button>
-	);
-};
-
-const Instance = (props: { instance: string }) => {
-	const color = () => useInstanceColor(props.instance);
+const InstanceCheckboxItem = (props: { instance: string | "all" }) => {
 	const { isActive, toggleInstance } = useInstanceIsActive(props.instance);
+	const color = () =>
+		props.instance !== "all" ? useInstanceColor(props.instance) : null;
 
 	return (
-		<button
-			type="button"
-			class="flex h-7 items-center gap-1.5 rounded-full border border-gray-200 px-2.5 font-medium text-gray-700 text-xs shadow-sm transition-all hover:bg-gray-100"
-			classList={{
-				"bg-gray-100 ring-1 ring-gray-300": isActive(),
-				"bg-white": !isActive(),
-			}}
-			onClick={toggleInstance}
+		<DropdownMenuCheckboxItem
+			checked={isActive()}
+			onChange={toggleInstance}
+			class="flex items-center gap-2"
 		>
-			<span
-				class="inline-block h-2.5 w-2.5 rounded-full"
-				style={{ "background-color": `rgb(${color()})` }}
-			/>
-			{props.instance}
-		</button>
+			{props.instance !== "all" && (
+				<span
+					class="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+					style={{
+						"background-color": color() ? `rgb(${color()})` : undefined,
+					}}
+				/>
+			)}
+			<span class="text-sm">
+				{props.instance === "all" ? "All" : props.instance}
+			</span>
+		</DropdownMenuCheckboxItem>
 	);
 };
 

@@ -29,37 +29,35 @@ export const SearchCommnad = (props: {
 	});
 
 	return (
-		<>
-			<form
-				class="p-4"
-				onSubmit={(e) => {
-					e.preventDefault();
-					props.onInput(searchQuery() ?? "");
-					searchInputRef?.blur();
-				}}
-			>
-				<TextFieldRoot>
-					<div class="relative">
-						{/* Placeholder always visible */}
-						<span class="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 transform text-gray-400">
-							Press ⌘{SEARCH_KEY.toUpperCase()}
-						</span>
+		<form
+			class="grow p-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				props.onInput(searchQuery() ?? "");
+				searchInputRef?.blur();
+			}}
+		>
+			<TextFieldRoot>
+				<div class="relative">
+					{/* Placeholder always visible */}
+					<span class="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 transform text-gray-400">
+						Press ⌘{SEARCH_KEY.toUpperCase()}
+					</span>
 
-						{/* Input field */}
-						<TextField
-							ref={(el) => {
-								searchInputRef = el as HTMLInputElement;
-							}}
-							value={searchQuery()}
-							placeholder="search..."
-							onInput={(e) =>
-								setSearchQuery((e.target as HTMLInputElement).value)
-							}
-							class="pl-[7em] text-black"
-						/>
-					</div>
-				</TextFieldRoot>
-			</form>
-		</>
+					{/* Input field */}
+					<TextField
+						ref={(el) => {
+							searchInputRef = el as HTMLInputElement;
+						}}
+						value={searchQuery()}
+						placeholder="search..."
+						onInput={(e) =>
+							setSearchQuery((e.target as HTMLInputElement).value)
+						}
+						class="pl-[7em] text-black"
+					/>
+				</div>
+			</TextFieldRoot>
+		</form>
 	);
 };
