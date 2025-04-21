@@ -56,10 +56,10 @@ func getEnv() Env {
 		return osEnv
 	}
 
-	debugLogEnabled := flag.Bool("SVAROG_DEBUG_ENABLED", osEnv.debugLogEnabled, "Enable debug mode")
-	serverAddr := flag.String("SVAROG_SERVER_ADDR", osEnv.serverAddr, "Server address")
-	clientId := flag.String("SVAROG_CLIENT_ID", osEnv.clientId, "Client ID")
-	certificatePath := flag.String("SVAROG_CERTIFICATE_PATH", osEnv.certificatePath, "Path to certificates zip file")
+	debugLogEnabled := flag.Bool("DEBUG_ENABLED", false, "Enable debug mode")
+	serverAddr := flag.String("SERVER_ADDR", "", "Server address")
+	clientId := flag.String("CLIENT_ID", "", "Client ID")
+	certificatePath := flag.String("CERTIFICATE_PATH", "", "Path to certificates zip file")
 	flag.Parse()
 
 	if serverAddr == nil || *serverAddr == "" {
@@ -68,6 +68,10 @@ func getEnv() Env {
 
 	if clientId == nil || *clientId == "" {
 		log.Fatal("Client ID must be provided")
+	}
+
+	if certificatePath == nil || *certificatePath == "" {
+		log.Fatal("Certificate path must be provided")
 	}
 
 	return Env{
