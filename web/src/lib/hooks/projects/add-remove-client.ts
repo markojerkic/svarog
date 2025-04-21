@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/errors/api-error";
 import { api } from "@/lib/utils/axios-api";
 import type { FormStore } from "@modular-forms/solid";
-import { useMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import { useRouter } from "@tanstack/solid-router";
 import * as v from "valibot";
 

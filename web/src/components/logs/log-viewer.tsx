@@ -1,7 +1,7 @@
 import { onMount, Show } from "solid-js";
 import { useInstanceColor } from "@/lib/hooks/instance-color";
 import { newLogLineListener } from "@/lib/store/connection";
-import { ScrollArea } from "./scroll-area";
+import { ScrollArea } from "@/components/logs/scroll-area";
 import { useLogStore } from "@/lib/hooks/use-log-store";
 import {
 	ContextMenu,

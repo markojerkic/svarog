@@ -6,15 +6,15 @@ import {
 	useSearchParams,
 } from "@solidjs/router";
 import { useQueryClient } from "@tanstack/solid-query";
-import { LogViewer } from "@/components/log-viewer";
+import { LogViewer } from "@/components/logs/log-viewer";
 import {
 	getArrayValueOfSearchParam,
 	useSelectedInstances,
 } from "@/lib/hooks/use-selected-instances";
-import { SearchCommnad } from "@/components/log-search";
+import { SearchCommnad } from "@/components/logs/log-search";
 import { Button } from "@/components/ui/button";
 import { preloadLogStore } from "@/lib/hooks/use-log-store";
-import { Instances } from "@/components/instances";
+import { Instances } from "@/components/logs/instances";
 
 export const route = {
 	load: async ({ params, location }) => {

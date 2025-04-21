@@ -2,7 +2,7 @@ import { useWindowHeight } from "@/lib/hooks/use-window-height";
 import { createViewportObserver } from "@solid-primitives/intersection-observer";
 import { type VirtualItem, createVirtualizer } from "@tanstack/solid-virtual";
 import { For, type JSXElement, createSignal, onMount } from "solid-js";
-import { ScrollToBottomButton } from "./scroll-to-bottom-button";
+import { ScrollToBottomButton } from "@/components/logs/scroll-to-bottom-button";
 import {
 	useOnScrollToBottom,
 	useOnScrollToIndex,

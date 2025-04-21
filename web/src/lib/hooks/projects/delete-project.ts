@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import { api } from "@/lib/utils/axios-api";
 import { toast } from "solid-sonner";
 import { useRouter } from "@tanstack/solid-router";

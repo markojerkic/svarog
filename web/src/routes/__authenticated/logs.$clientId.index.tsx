@@ -1,6 +1,6 @@
-import { Instances } from "@/components/instances";
-import { SearchCommnad } from "@/components/log-search";
-import { LogViewer } from "@/components/log-viewer";
+import { Instances } from "@/components/logs/instances";
+import { SearchCommnad } from "@/components/logs/log-search";
+import { LogViewer } from "@/components/logs/log-viewer";
 import { fetchLogPage } from "@/lib/hooks/use-log-store";
 import { getArrayValueOfSearchParam } from "@/lib/hooks/use-selected-instances";
 import { createLogSubscription } from "@/lib/store/connection";
