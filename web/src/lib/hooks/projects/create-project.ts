@@ -1,4 +1,4 @@
-import { useMutation, } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import type { Project } from "./use-projects";
 import { api } from "@/lib/utils/axios-api";
 import * as v from "valibot";

@@ -5,6 +5,7 @@
 @custom-variant dark (&:is([data-kb-theme="dark"] *));
 
 @theme {
+	--color-test: #ff0000;
 	--color-border: hsl(var(--border));
 	--color-input: hsl(var(--input));
 	--color-ring: hsl(var(--ring));
