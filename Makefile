@@ -1,14 +1,18 @@
+PROTOC_GEN_GO_VERSION := v1.36.9
+PROTOC_GEN_GO_GRPC_VERSION := v1.5.1
+BUF_VERSION := v1.57.2
+
 build-dependencies:
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install github.com/cosmtrek/air@latest
+	go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
 
 deps: build-dependencies
 	go mod tidy
 	cd web && bun install
 
 build-proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/proto/schema.proto
+	PATH=$(shell go env GOPATH)/bin:$$PATH buf generate internal/proto/schema.proto
 
 build-client-dev:
 	go build -o build/client ./cmd/client
@@ -26,7 +30,6 @@ run-server: build-server-dev
 watch:
 	@docker compose -f ./docker-compose.dev.yml up -d
 	@watchexec -r -e go -d 1s -- go run cmd/server/main.go
-	# @go run github.com/cosmtrek/air@v1.51.0
 
 build-dev: build-server-dev
 

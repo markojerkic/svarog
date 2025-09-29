@@ -1,3 +1,19 @@
+# Svarog
+
+A log aggregation system with gRPC-based client and HTTP/WebSocket server.
+
+## Development
+
+```bash
+make deps
+make watch
+```
+
+In a separate terminal:
+```bash
+cd web && bun run dev
+```
+
 # Client usage
 
 ```Dockerfile
