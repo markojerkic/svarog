@@ -18,8 +18,7 @@ function RouteComponent() {
 	const projects = Route.useLoaderData();
 
 	return (
-		<>
-			<Suspense fallback={<div>Loading...</div>}>
+		<Suspense fallback={<div>Loading...</div>}>
 				<div class="grid grid-cols-1 p-4">
 					<span class="flex justify-end">
 						<NewProject />
@@ -27,6 +26,5 @@ function RouteComponent() {
 					<ProjectList projects={projects() ?? []} />
 				</div>
 			</Suspense>
-		</>
 	);
 }

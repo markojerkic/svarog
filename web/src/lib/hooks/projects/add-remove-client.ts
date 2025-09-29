@@ -12,7 +12,7 @@ export const clientNameSchema = v.pipe(
 	// no sapces
 	v.regex(/^[^\s]*$/, "Client name must not contain spaces"),
 	v.regex(
-		/^[a-zA-Z0-9\_\-]*$/,
+		/^[a-zA-Z0-9_-]*$/,
 		"Client name must not contain special characters aside from _ and -",
 	),
 );

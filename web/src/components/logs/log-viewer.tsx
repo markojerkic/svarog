@@ -36,8 +36,7 @@ export const LogViewer = (props: {
 	});
 
 	return (
-		<>
-			<ScrollArea
+		<ScrollArea
 				fetchPrevious={() => {
 					if (logStore.state.type === "idle") {
 						logStore.state.value.fetchPreviousPage();
@@ -81,7 +80,6 @@ export const LogViewer = (props: {
 					);
 				}}
 			</ScrollArea>
-		</>
 	);
 };
 

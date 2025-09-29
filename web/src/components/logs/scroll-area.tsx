@@ -25,10 +25,8 @@ type ScrollAreaProps = {
 };
 
 export const ScrollArea = (props: ScrollAreaProps) => {
-	// biome-ignore lint/style/useConst: Needs to be let for solidjs to be able to track it
-	let logsRef: HTMLDivElement | undefined = undefined;
-	// biome-ignore lint/style/useConst: Needs to be let for solidjs to be able to track it
-	let containerRef: HTMLDivElement | undefined = undefined;
+	let logsRef: HTMLDivElement | undefined;
+	let containerRef: HTMLDivElement | undefined;
 	const windowHeight = useWindowHeight();
 	const [scrollHeight, setScrollHeight] = createSignal("auto");
 

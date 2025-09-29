@@ -7,7 +7,7 @@ import {
 	Scripts,
 	createRootRouteWithContext,
 } from "@tanstack/solid-router";
-// import { TanStackRouterDevtools } from '@tanstack/router-devtools'
+import { TanStackRouterDevtools } from "@tanstack/solid-router-devtools";
 
 interface RouterContext {
 	auth?: LoggedInUser;
@@ -31,7 +31,7 @@ function RootComponent() {
 			<HeadContent />
 			<Outlet />
 			<Scripts />
-			{/* <TanStackRouterDevtools /> */}
+			<TanStackRouterDevtools />
 		</>
 	);
 }

@@ -10,6 +10,7 @@
 		"lint:fix-safe": "biome lint --write",
 		"format:check": "biome format",
 		"format": "biome lint --write && biome format --write",
+		"format:unsafe": "biome lint --write --unsafe",
 		"test": "vitest",
 		"test:watch": "vitest --watch"
 	},
@@ -29,6 +30,7 @@
 		"@tanstack/solid-query": "^5.90.3",
 		"@tanstack/solid-query-devtools": "^5.90.3",
 		"@tanstack/solid-router": "^1.132.23",
+		"@tanstack/solid-router-devtools": "^1.132.23",
 		"@tanstack/solid-virtual": "3.13.12",
 		"axios": "^1.12.2",
 		"caniuse-lite": "^1.0.30001745",

@@ -34,7 +34,7 @@ export const createLogSubscription = (
 	const ws = createReconnectingWS(
 		`${import.meta.env.VITE_WS_URL}/v1/ws/${props().clientId}`,
 	);
-	const buffer = new Array<LogLine>();
+	const buffer: LogLine[] = [];
 
 	onMount(() => {
 		ws.addEventListener("message", (e) => {
