@@ -26,10 +26,14 @@ build-server:
 run-server: build-server-dev
 	build/server
 
-
-watch:
-	@docker compose -f ./docker-compose.dev.yml up -d
+dev-web:
+	@cd web && bun dev
+dev-server:
 	@watchexec -r -e go -d 1s -- go run cmd/server/main.go
+
+dev:
+	@docker compose -f ./docker-compose.dev.yml up -d
+	@make -j dev-server dev-web
 
 build-dev: build-server-dev
 

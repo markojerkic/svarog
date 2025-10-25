@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func BuildCredentials(caCertPath string, certPath string) *tls.Config {
+func BuildCredentials(caCertPath string, certPath string, serverName string) *tls.Config {
 	cacertBytes, err := os.ReadFile(caCertPath)
 	if err != nil {
 		log.Fatal("Failed to read ca cert", "error", err)
@@ -27,6 +27,6 @@ func BuildCredentials(caCertPath string, certPath string) *tls.Config {
 	return &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caPool,
-		ServerName:   "grpc.svarog.jerkic.dev", // Add this line
+		ServerName:   serverName,
 	}
 }

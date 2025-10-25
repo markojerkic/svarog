@@ -63,8 +63,10 @@ func (s *ServerauthSuite) SetupSuite() {
 }
 
 // After each
-func (s *ServerauthSuite) TearDownSubTest() {
+func (s *ServerauthSuite) TearDownTest() {
 	_, err := s.filesCollection.DeleteMany(context.Background(), bson.M{})
+	assert.NoError(s.T(), err)
+	_, err = s.projectsCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(s.T(), err)
 }
 
@@ -78,4 +80,4 @@ func (s *ServerauthSuite) TearDownSuite() {
 
 var _ suite.SetupAllSuite = &ServerauthSuite{}
 var _ suite.TearDownAllSuite = &ServerauthSuite{}
-var _ suite.TearDownSubTest = &ServerauthSuite{}
+var _ suite.TearDownTestSuite = &ServerauthSuite{}

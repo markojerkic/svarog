@@ -36,6 +36,7 @@ type Env struct {
 	serverAddr      string
 	clientId        string
 	certificatePath string
+	serverName      string
 }
 
 func getOsEnv() Env {
@@ -44,6 +45,7 @@ func getOsEnv() Env {
 		serverAddr:      os.Getenv("SVAROG_SERVER_ADDR"),
 		clientId:        os.Getenv("SVAROG_CLIENT_ID"),
 		certificatePath: os.Getenv("SVAROG_CERTIFICATE_PATH"),
+		serverName:      os.Getenv("SVAROG_SERVER_NAME"),
 	}
 
 	return env
@@ -60,6 +62,7 @@ func getEnv() Env {
 	serverAddr := flag.String("SERVER_ADDR", "", "Server address")
 	clientId := flag.String("CLIENT_ID", "", "Client ID")
 	certificatePath := flag.String("CERTIFICATE_PATH", "", "Path to certificates zip file")
+	serverName := flag.String("SERVER_NAME", "", "Server name for TLS verification (defaults to localhost)")
 	flag.Parse()
 
 	if serverAddr == nil || *serverAddr == "" {
@@ -74,11 +77,17 @@ func getEnv() Env {
 		log.Fatal("Certificate path must be provided")
 	}
 
+	sn := *serverName
+	if sn == "" {
+		sn = "localhost"
+	}
+
 	return Env{
 		debugLogEnabled: *debugLogEnabled,
 		serverAddr:      *serverAddr,
 		clientId:        *clientId,
 		certificatePath: *certificatePath,
+		serverName:      sn,
 	}
 }
 
@@ -107,7 +116,7 @@ func main() {
 		os.Remove(caCertPath)
 		os.Remove(certPath)
 	}()
-	tlsConfig := grpcclient.BuildCredentials(caCertPath, certPath)
+	tlsConfig := grpcclient.BuildCredentials(caCertPath, certPath, env.serverName)
 
 	grpcClient := grpcclient.NewClient(env.serverAddr, credentials.NewTLS(tlsConfig))
 
