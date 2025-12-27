@@ -12,7 +12,6 @@ type BaseProps struct {
 	Title string
 }
 
-// BaseLayout provides just the HTML head with scripts and styling
 templ BaseLayout(props BaseProps) {
 	<!DOCTYPE html>
 	<html lang="en" hx-boost="true">
@@ -48,15 +47,6 @@ type Props struct {
 	Class string
 }
 
-// Layout is kept for backwards compatibility - wraps BaseLayout with simple body styling
-templ Layout(props Props) {
-	@BaseLayout(BaseProps{Title: props.Title}) {
-		<div class={ props.Class }>
-			{ children... }
-		</div>
-	}
-}
-
 type NavItem struct {
 	Title    string
 	Href     string
@@ -69,7 +59,6 @@ type AdminLayoutProps struct {
 	CurrentPath string
 }
 
-// AdminLayout provides a sidebar navigation layout similar to the React AdminLayout
 templ AdminLayout(props AdminLayoutProps) {
 	@BaseLayout(BaseProps{Title: props.Title}) {
 		@sidebar.Layout() {
@@ -132,11 +121,11 @@ templ AdminLayout(props AdminLayoutProps) {
 					@sidebar.Menu() {
 						@sidebar.MenuItem() {
 							@sidebar.MenuButton(sidebar.MenuButtonProps{
-								Href:    "/admin/settings",
+								Href:    "/logout",
 								Tooltip: "Settings",
 							}) {
-								@icon.Settings(icon.Props{Class: "size-4"})
-								<span>Settings</span>
+								@icon.UserMinus(icon.Props{Class: "size-4"})
+								<span>Logout</span>
 							}
 						}
 					}

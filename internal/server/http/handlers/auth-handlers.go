@@ -106,7 +106,7 @@ func (a *AuthRouter) logout(c echo.Context) error {
 	if err != nil {
 		return c.JSON(500, types.ApiError{Message: "Error logging out"})
 	}
-	return c.JSON(200, "Logged out")
+	return utils.HxRedirect(c, "/")
 }
 
 func (a *AuthRouter) register(c echo.Context) error {
@@ -153,11 +153,10 @@ func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publi
 		panic("No authService")
 	}
 
-	authRequiredGroup := privateGroup.Group("/auth")
-	authRequiredGroup.GET("/current-user", router.getCurrentUser)
-	authRequiredGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	authRequiredGroup.POST("/logout", router.logout)
-	authRequiredGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	privateGroup.GET("/current-user", router.getCurrentUser)
+	privateGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	privateGroup.GET("/logout", router.logout)
+	privateGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	privateGroup.GET("/reset-password", router.resetPasswordPage)
 	privateGroup.POST("/reset-password", router.resetPassword)

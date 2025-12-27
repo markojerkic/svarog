@@ -1,0 +1,98 @@
+package pages
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "strconv"
+
+type ErrorPageProps struct {
+	StatusCode int
+	Title      string
+	Message    string
+}
+
+func (p ErrorPageProps) GetTitle() string {
+	if p.Title != "" {
+		return p.Title
+	}
+	switch p.StatusCode {
+	case 400:
+		return "Bad Request"
+	case 401:
+		return "Unauthorized"
+	case 403:
+		return "Forbidden"
+	case 404:
+		return "Not Found"
+	case 500:
+		return "Internal Server Error"
+	case 502:
+		return "Bad Gateway"
+	case 503:
+		return "Service Unavailable"
+	default:
+		return "Error"
+	}
+}
+
+func (p ErrorPageProps) GetMessage() string {
+	if p.Message != "" {
+		return p.Message
+	}
+	switch p.StatusCode {
+	case 400:
+		return "The request could not be understood by the server."
+	case 401:
+		return "You need to be logged in to access this resource."
+	case 403:
+		return "You don't have permission to access this resource."
+	case 404:
+		return "The page you are looking for could not be found."
+	case 500:
+		return "Something went wrong on our end. Please try again later."
+	case 502:
+		return "The server received an invalid response from an upstream server."
+	case 503:
+		return "The service is temporarily unavailable. Please try again later."
+	default:
+		return "An unexpected error occurred."
+	}
+}
+
+templ ErrorPage(props ErrorPageProps) {
+	@BaseLayout(BaseProps{Title: props.GetTitle()}) {
+		<div class="min-h-screen flex items-center justify-center p-4">
+			<div class="max-w-md w-full space-y-6">
+				<div class="text-center">
+					<h1 class="text-6xl font-bold text-muted-foreground">{ strconv.Itoa(props.StatusCode) }</h1>
+				</div>
+				@alert.Alert(alert.Props{Variant: alert.VariantDestructive}) {
+					@icon.TriangleAlert(icon.Props{Class: "size-4"})
+					@alert.Title() {
+						{ props.GetTitle() }
+					}
+					@alert.Description() {
+						{ props.GetMessage() }
+					}
+				}
+				<div class="flex justify-center gap-4">
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+						Attributes: templ.Attributes{
+							"onclick": "history.back()",
+						},
+					}) {
+						@icon.ArrowLeft(icon.Props{Class: "size-4"})
+						Go Back
+					}
+					@button.Button(button.Props{
+						Href: "/",
+					}) {
+						@icon.House(icon.Props{Class: "size-4"})
+						Home
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

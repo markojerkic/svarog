@@ -48,6 +48,7 @@ type HttpServerOptions struct {
 func (self *HttpServer) Start() {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
+	e.HTTPErrorHandler = customMiddleware.CustomHTTPErrorHandler
 
 	sessionMiddleware := session.MiddlewareWithConfig(session.Config{
 		Store: self.sessionStore,
