@@ -4,13 +4,16 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/label"
+import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
+import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
-type Props struct {
+type BaseProps struct {
 	Title string
-	Class string
 }
 
-templ Layout(props Props) {
+// BaseLayout provides just the HTML head with scripts and styling
+templ BaseLayout(props BaseProps) {
 	<!DOCTYPE html>
 	<html lang="en" hx-boost="true">
 		<head>
@@ -18,9 +21,9 @@ templ Layout(props Props) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>
 				if props.Title != "" {
-					{ props.Title } - Bookase
+					{ props.Title } - Svarog
 				} else {
-					Bookase
+					Svarog
 				}
 			</title>
 			<link href="/assets/css/output.css" rel="stylesheet"/>
@@ -29,12 +32,127 @@ templ Layout(props Props) {
 			@input.Script()
 			@label.Script()
 			@dialog.Script()
+			@sidebar.Script()
+			@popover.Script()
 		</head>
-		<body class={ "bg-background text-foreground min-h-screen", props.Class }>
+		<body class="bg-background text-foreground min-h-screen">
 			{ children... }
 			@ConfirmDialog()
 		</body>
 	</html>
+}
+
+type Props struct {
+	Title string
+	Class string
+}
+
+// Layout is kept for backwards compatibility - wraps BaseLayout with simple body styling
+templ Layout(props Props) {
+	@BaseLayout(BaseProps{Title: props.Title}) {
+		<div class={ props.Class }>
+			{ children... }
+		</div>
+	}
+}
+
+type NavItem struct {
+	Title    string
+	Href     string
+	Icon     templ.Component
+	IsActive bool
+}
+
+type AdminLayoutProps struct {
+	Title       string
+	CurrentPath string
+}
+
+// AdminLayout provides a sidebar navigation layout similar to the React AdminLayout
+templ AdminLayout(props AdminLayoutProps) {
+	@BaseLayout(BaseProps{Title: props.Title}) {
+		@sidebar.Layout() {
+			@sidebar.Sidebar(sidebar.Props{
+				Collapsible: sidebar.CollapsibleIcon,
+				Variant:     sidebar.VariantFloating,
+			}) {
+				@sidebar.Header() {
+					@sidebar.Menu() {
+						@sidebar.MenuItem() {
+							@sidebar.MenuButton(sidebar.MenuButtonProps{
+								Href: "/",
+							}) {
+								@icon.LayoutDashboard(icon.Props{Class: "size-4"})
+								<span class="font-semibold">Svarog</span>
+							}
+						}
+					}
+				}
+				@sidebar.Content() {
+					@sidebar.Group() {
+						@sidebar.GroupLabel() {
+							Admin
+						}
+						@sidebar.Menu() {
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:     "/admin/dashboard",
+									Tooltip:  "Dashboard",
+									IsActive: props.CurrentPath == "/admin/dashboard",
+								}) {
+									@icon.Gauge(icon.Props{Class: "size-4"})
+									<span>Dashboard</span>
+								}
+							}
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:     "/admin/projects",
+									Tooltip:  "Projects",
+									IsActive: props.CurrentPath == "/admin/projects",
+								}) {
+									@icon.FolderKanban(icon.Props{Class: "size-4"})
+									<span>Projects</span>
+								}
+							}
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:     "/admin/users",
+									Tooltip:  "Users",
+									IsActive: props.CurrentPath == "/admin/users",
+								}) {
+									@icon.Users(icon.Props{Class: "size-4"})
+									<span>Users</span>
+								}
+							}
+						}
+					}
+				}
+				@sidebar.Footer() {
+					@sidebar.Menu() {
+						@sidebar.MenuItem() {
+							@sidebar.MenuButton(sidebar.MenuButtonProps{
+								Href:    "/admin/settings",
+								Tooltip: "Settings",
+							}) {
+								@icon.Settings(icon.Props{Class: "size-4"})
+								<span>Settings</span>
+							}
+						}
+					}
+				}
+			}
+			@sidebar.Inset() {
+				<div class="flex h-full flex-col">
+					<div class="flex h-14 items-center gap-4 border-b px-6">
+						@sidebar.Trigger()
+					</div>
+					<div class="flex-1 p-6">
+						{ children... }
+					</div>
+				</div>
+			}
+		}
+	}
 }
 
 templ ConfirmDialog() {

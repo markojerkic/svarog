@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
+	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 type AuthRouter struct {
@@ -137,7 +141,10 @@ func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publi
 	authRequiredGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	authRequiredGroup.POST("/reset-password", router.resetPassword)
-	publicGroup.POST("/auth/login", router.login)
+	publicGroup.GET("/login", func(c echo.Context) error {
+		return utils.Render(c, http.StatusOK, authpages.LoginPage())
+	})
+	publicGroup.POST("/login", router.login)
 	publicGroup.POST("/auth/login/token", router.loginWithToken)
 
 	return router

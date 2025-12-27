@@ -1,0 +1,29 @@
+package auth
+
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/card"
+import "github.com/markojerkic/svarog/internal/server/ui/components/form"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+
+templ LoginPage() {
+	@pages.Layout(pages.Props{Title: "Login"}) {
+		@card.Card(card.Props{Class: "max-w-md m-auto p-4"}) {
+			@form.Item() {
+				@form.Label(form.LabelProps{
+					For: "username",
+				}) {
+					Username
+				}
+				@input.Input(input.Props{
+					ID:          "username",
+					Name:        "username",
+					Type:        input.TypeText,
+					Placeholder: "username",
+				})
+				@form.Description() {
+					Enter your username
+				}
+			}
+		}
+	}
+}
