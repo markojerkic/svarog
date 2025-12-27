@@ -10,7 +10,7 @@ tasks:
   tailwind:
     desc: Watch Tailwind CSS changes
     cmds:
-      - "{{.TAILWIND_CMD}} -i .internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch"
+      - "{{.TAILWIND_CMD}} -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch"
 
   templ:
     desc: Run templ with integrated server and hot reload

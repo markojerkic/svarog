@@ -66,12 +66,14 @@ func (self *HttpServer) Start() {
 		customMiddleware.RestPasswordMiddleware())
 	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
 
-	handlers.NewHomeHandler(privateApi)
+	handlers.NewHomeHandler(publicApi)
 	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
+
+	e.Static("/assets", "internal/server/ui/assets")
 
 	e.GET("/*", func(c echo.Context) error {
 		// Serve requested file or fallback to index.html
