@@ -4,6 +4,9 @@ import "github.com/markojerkic/svarog/internal/lib/projects"
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/table"
 import "strings"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -30,6 +33,8 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					@table.Head() {
 						Storage
 					}
+					@table.Head() {
+					}
 				}
 			}
 		</div>
@@ -50,6 +55,63 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 				}
 				@table.Cell() {
 					{ project.TotalStorageSize } MB
+				}
+				@table.Cell() {
+					@projectActions(project)
+				}
+			}
+		}
+	}
+}
+
+templ projectActions(props projects.Project) {
+	@dropdown.Dropdown() {
+		@dropdown.Trigger() {
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+			}) {
+				@icon.EllipsisVertical()
+			}
+		}
+		@dropdown.Content(dropdown.ContentProps{
+			Class: "w-56",
+		}) {
+			@dropdown.Group() {
+				@dropdown.Item() {
+					<span class="flex items-center">
+						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+						Edit
+					</span>
+				}
+				@dropdown.Item() {
+					<span class="flex items-center">
+						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
+						Delete project
+					</span>
+				}
+				@dropdown.Item() {
+					<span class="flex items-center">
+						@icon.HardDriveDownload(icon.Props{Size: 16, Class: "mr-2"})
+						Download certificates
+					</span>
+				}
+				@dropdown.Separator()
+				@dropdown.Group() {
+					@dropdown.Label() {
+						Clients
+					}
+					@dropdown.Item() {
+						<span class="flex items-center">
+							@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
+							Add client
+						</span>
+					}
+					@dropdown.Item() {
+						<span class="flex items-center">
+							@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
+							Remove client
+						</span>
+					}
 				}
 			}
 		}
