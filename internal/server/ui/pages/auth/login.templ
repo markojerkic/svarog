@@ -5,11 +5,11 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/card"
 import "github.com/markojerkic/svarog/internal/server/ui/components/form"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
-import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
 type LoginPageProps struct {
-	Error string
+	Error    string
+	Username string
+	Password string
 }
 
 templ LoginPage(props ...LoginPageProps) {
@@ -31,16 +31,11 @@ templ LoginPage(props ...LoginPageProps) {
 				@card.Content() {
 					<form
 						hx-post="/login"
-						hx-target="#login-error"
-						hx-swap="innerHTML"
+						hx-swap="body"
+						hx-target="body"
 						hx-disabled-elt="input, button"
 						class="space-y-4"
 					>
-						<div id="login-error">
-							if p.Error != "" {
-								@LoginError(p.Error)
-							}
-						</div>
 						@form.Item() {
 							@form.Label(form.LabelProps{For: "username"}) {
 								Username
@@ -49,12 +44,19 @@ templ LoginPage(props ...LoginPageProps) {
 								ID:          "username",
 								Name:        "username",
 								Type:        input.TypeText,
+								Value:       p.Username,
 								Placeholder: "Enter your username",
+								HasError:    p.Error != "",
 								Attributes: templ.Attributes{
 									"required":     true,
 									"autocomplete": "username",
 								},
 							})
+							if p.Error != "" {
+								@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+									{ p.Error }
+								}
+							}
 						}
 						@form.Item() {
 							@form.Label(form.LabelProps{For: "password"}) {
@@ -64,12 +66,19 @@ templ LoginPage(props ...LoginPageProps) {
 								ID:          "password",
 								Name:        "password",
 								Type:        input.TypePassword,
+								Value:       p.Password,
 								Placeholder: "Enter your password",
+								HasError:    p.Error != "",
 								Attributes: templ.Attributes{
 									"required":     true,
 									"autocomplete": "current-password",
 								},
 							})
+							if p.Error != "" {
+								@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+									{ p.Error }
+								}
+							}
 						}
 						@button.Button(button.Props{
 							Type:      button.TypeSubmit,
@@ -82,17 +91,5 @@ templ LoginPage(props ...LoginPageProps) {
 				}
 			}
 		</div>
-	}
-}
-
-templ LoginError(message string) {
-	@alert.Alert(alert.Props{Variant: alert.VariantDestructive}) {
-		@icon.CircleAlert(icon.Props{Class: "size-4"})
-		@alert.Title() {
-			Error
-		}
-		@alert.Description() {
-			{ message }
-		}
 	}
 }
