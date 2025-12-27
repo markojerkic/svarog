@@ -22,8 +22,9 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 		class="space-y-4"
 		id="new-project-form"
 		hx-post="/admin/projects"
-		hx-swap="outerHTML"
-		hx-target="#new-project-dialog"
+		hx-swap="beforeend"
+		hx-select="tr"
+		hx-target="#projects-list-table-body"
 		hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
 	>
 		<div class="space-y-2">

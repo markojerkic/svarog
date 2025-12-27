@@ -7,6 +7,7 @@ import (
 type ErrorReswapProps struct {
 	Swap   string
 	Target string
+	Select string
 }
 
 func ErrorReswap(c echo.Context, props ...ErrorReswapProps) {
@@ -25,5 +26,8 @@ func ErrorReswap(c echo.Context, props ...ErrorReswapProps) {
 	}
 
 	c.Response().Header().Set("HX-Reswap", p.Swap)
-	c.Response().Header().Set("HX-Target", p.Target)
+	c.Response().Header().Set("HX-Retarget", p.Target)
+	if p.Select != "" {
+		c.Response().Header().Set("HX-Reselect", p.Select)
+	}
 }

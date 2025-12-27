@@ -72,7 +72,11 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}
 	if err := c.Validate(&createProjectForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
-			htmx.ErrorReswap(c)
+			htmx.ErrorReswap(c, htmx.ErrorReswapProps{
+				Swap:   "outerHTML",
+				Target: "this",
+				Select: "form",
+			})
 			return utils.Render(c, http.StatusBadRequest, admin.NewProjectForm(admin.NewProjectFormProps{
 				ApiError: apiErr,
 				Value:    createProjectForm,
@@ -84,7 +88,11 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 
 	project, err := p.projectsService.CreateProject(c.Request().Context(), createProjectForm.Name, createProjectForm.Clients)
 	if err != nil {
-		htmx.ErrorReswap(c)
+		htmx.ErrorReswap(c, htmx.ErrorReswapProps{
+			Swap:   "outerHTML",
+			Target: "this",
+			Select: "form",
+		})
 		if err.Error() == projects.ErrProjectExists {
 			return utils.Render(c, http.StatusConflict, admin.NewProjectForm(admin.NewProjectFormProps{
 				ApiError: types.ApiError{
@@ -104,6 +112,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}
 
 	htmx.CloseDialog(c)
+	htmx.AddSuccessToast(c, "Project created")
 	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
 		Projects: []projects.Project{project},
 	}))
