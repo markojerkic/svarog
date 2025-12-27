@@ -2,11 +2,12 @@ package admin
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
-import "github.com/markojerkic/svarog/internal/lib/projects"
+import "github.com/markojerkic/svarog/internal/server/types"
 
-templ editProjectDialog(project projects.Project) {
+templ editProjectDialog() {
 	@dialog.Dialog(dialog.Props{
 		Class: "max-w-md",
+		ID:    "edit-project-dialog",
 	}) {
 		{ children... }
 		@dialog.Content() {
@@ -16,7 +17,7 @@ templ editProjectDialog(project projects.Project) {
 				}
 			}
 			@NewProjectForm(NewProjectFormProps{
-				Value: project.ToCreateProjectForm(),
+				Value: types.CreateProjectForm{},
 			})
 			@dialog.Footer() {
 				@dialog.Close() {

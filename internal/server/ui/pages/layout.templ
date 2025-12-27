@@ -8,6 +8,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 
 type BaseProps struct {
 	Title string
@@ -36,6 +37,7 @@ templ BaseLayout(props BaseProps) {
 			@input.Script()
 			@label.Script()
 			@dialog.Script()
+			@dropdown.Script()
 			@sidebar.Script()
 			@popover.Script()
 			@tagsinput.Script()
