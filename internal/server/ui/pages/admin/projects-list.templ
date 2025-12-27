@@ -19,6 +19,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				@table.Caption() {
 					A list of your projects.
 				}
+				@ProjectsTableBody(props)
 				@table.Header() {
 					@table.Head() {
 						Project name
@@ -30,22 +31,27 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 						Storage
 					}
 				}
-				@table.Body() {
-					for _, project := range props.Projects {
-						@table.Row() {
-							@table.Cell() {
-								{ 	project.Name }
-							}
-							@table.Cell() {
-								{ strings.Join(project.Clients, ", ") }
-							}
-							@table.Cell() {
-								{ project.TotalStorageSize } MB
-							}
-						}
-					}
-				}
 			}
 		</div>
+	}
+}
+
+templ ProjectsTableBody(props ProjectsListPageProps) {
+	@table.Body(table.BodyProps{
+		ID: "projects-list-table-body",
+	}) {
+		for _, project := range props.Projects {
+			@table.Row() {
+				@table.Cell() {
+					{ 	project.Name }
+				}
+				@table.Cell() {
+					{ strings.Join(project.Clients, ", ") }
+				}
+				@table.Cell() {
+					{ project.TotalStorageSize } MB
+				}
+			}
+		}
 	}
 }

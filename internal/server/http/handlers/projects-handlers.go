@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -71,6 +72,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}
 	if err := c.Validate(&createProjectForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
+			htmx.ErrorReswap(c)
 			return utils.Render(c, http.StatusBadRequest, admin.NewProjectForm(admin.NewProjectFormProps{
 				ApiError: apiErr,
 				Value:    createProjectForm,
@@ -82,6 +84,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 
 	project, err := p.projectsService.CreateProject(c.Request().Context(), createProjectForm.Name, createProjectForm.Clients)
 	if err != nil {
+		htmx.ErrorReswap(c)
 		if err.Error() == projects.ErrProjectExists {
 			return utils.Render(c, http.StatusConflict, admin.NewProjectForm(admin.NewProjectFormProps{
 				ApiError: types.ApiError{
@@ -100,7 +103,10 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 		}))
 	}
 
-	return c.JSON(200, project)
+	htmx.CloseDialog(c)
+	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
+		Projects: []projects.Project{project},
+	}))
 }
 
 func (p *ProjectsRouter) deleteProject(c echo.Context) error {
