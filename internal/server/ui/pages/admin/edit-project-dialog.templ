@@ -1,0 +1,40 @@
+package admin
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/lib/projects"
+import "fmt"
+
+templ editProjectDialog(project projects.Project) {
+	@dialog.Dialog(dialog.Props{
+		ID:    fmt.Sprintf("edit-project-dialog-%s", project.ID.Hex()),
+		Class: "max-w-md",
+	}) {
+		{ children... }
+		@dialog.Content() {
+			@dialog.Header() {
+				@dialog.Title() {
+					Edit project
+				}
+			}
+			<div>todo...</div>
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+					}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Type: button.TypeSubmit,
+					Attributes: templ.Attributes{
+						"form": "new-project-form",
+					},
+				}) {
+					Save
+				}
+			}
+		}
+	}
+}

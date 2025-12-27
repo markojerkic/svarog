@@ -7,6 +7,7 @@ import "strings"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -78,10 +79,14 @@ templ projectActions(props projects.Project) {
 		}) {
 			@dropdown.Group() {
 				@dropdown.Item() {
-					<span class="flex items-center">
-						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
-						Edit
-					</span>
+					@editProjectDialog(props) {
+						@dialog.Trigger(dialog.TriggerProps{
+							Class: "flex items-center",
+						}) {
+							@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+							Edit
+						}
+					}
 				}
 				@dropdown.Item() {
 					<span class="flex items-center">
