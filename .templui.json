@@ -1,0 +1,7 @@
+{
+  "componentsDir": "internal/server/ui/components",
+  "utilsDir": "internal/server/ui/utils",
+  "moduleName": "github.com/markojerkic/svarog",
+  "jsDir": "internal/server/ui/assets/js",
+  "jsPublicPath": "/asserts/js"
+}

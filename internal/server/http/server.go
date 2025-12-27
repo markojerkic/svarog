@@ -59,13 +59,14 @@ func (self *HttpServer) Start() {
 		AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
 	})
 
-	privateApi := e.Group("/api/v1",
+	privateApi := e.Group("",
 		corsMiddleware,
 		sessionMiddleware,
 		customMiddleware.AuthContextMiddleware(self.authService),
 		customMiddleware.RestPasswordMiddleware())
-	publicApi := e.Group("/api/v1", corsMiddleware, sessionMiddleware)
+	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
 
+	handlers.NewHomeHandler(publicApi)
 	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)

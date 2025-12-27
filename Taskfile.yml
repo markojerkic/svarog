@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+vars:
+  TAILWIND_CMD:
+    sh: command -v tailwindcss >/dev/null 2>&1 && echo "tailwindcss" || echo "bunx @tailwindcss/cli"
+
+tasks:
+  tailwind:
+    desc: Watch Tailwind CSS changes
+    cmds:
+      - "{{.TAILWIND_CMD}} -i ./assets/css/input.css -o ./assets/css/output.css --watch"
+
+  templ:
+    desc: Run templ with integrated server and hot reload
+    cmds:
+      - templ generate --watch --proxy="http://localhost:1323" --cmd="go run cmd/server/main.go" --open-browser=false
+
+  dev:
+    desc: Start development server with hot reload
+    cmds:
+      - task --parallel templ
+
+  default:
+    desc: Print a greeting message
+    cmds:
+      - echo "{{.TAILWIND_CMD}}"
+    silent: true
