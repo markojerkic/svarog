@@ -59,27 +59,42 @@ func (a *AuthRouter) loginWithToken(c echo.Context) error {
 	return c.JSON(200, "Logged in")
 }
 
+func (a *AuthRouter) resetPasswordPage(c echo.Context) error {
+	redirect := c.QueryParam("redirect")
+	return utils.Render(c, http.StatusOK, authpages.ResetPasswordPage(authpages.ResetPasswordPageProps{
+		Redirect: redirect,
+	}))
+}
+
 func (a *AuthRouter) resetPassword(c echo.Context) error {
 	var resetPasswordForm types.ResetPasswordForm
 	if err := c.Bind(&resetPasswordForm); err != nil {
-		return c.JSON(400, err)
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Invalid form data"))
 	}
 	if err := c.Validate(&resetPasswordForm); err != nil {
-		return err
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Password must be at least 8 characters"))
+	}
+
+	if resetPasswordForm.Password != resetPasswordForm.RepeatedPassword {
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Passwords do not match"))
 	}
 
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
-		return c.JSON(401, types.ApiError{Message: "Not logged in"})
+		return utils.HxRedirect(c, "/login")
 	}
 
 	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
 	if err != nil {
 		log.Error("Error resetting password", "error", err)
-		return c.JSON(500, types.ApiError{Message: "Error resetting password, try again"})
+		return utils.Render(c, http.StatusInternalServerError, authpages.ResetPasswordError("Error resetting password, try again"))
 	}
 
-	return c.JSON(200, "Success")
+	redirect := c.FormValue("redirect")
+	if redirect != "" {
+		return utils.HxRedirect(c, redirect)
+	}
+	return utils.HxRedirect(c, "/")
 }
 
 func (a *AuthRouter) logout(c echo.Context) error {
@@ -140,7 +155,9 @@ func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publi
 	authRequiredGroup.POST("/logout", router.logout)
 	authRequiredGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
+	authRequiredGroup.GET("/reset-password", router.resetPasswordPage)
 	authRequiredGroup.POST("/reset-password", router.resetPassword)
+
 	publicGroup.GET("/login", func(c echo.Context) error {
 		return utils.Render(c, http.StatusOK, authpages.LoginPage())
 	})
