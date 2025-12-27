@@ -66,7 +66,7 @@ func (self *HttpServer) Start() {
 		customMiddleware.RestPasswordMiddleware())
 	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
 
-	handlers.NewHomeHandler(publicApi)
+	handlers.NewHomeHandler(privateApi)
 	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
