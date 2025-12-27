@@ -15,3 +15,11 @@ func Render(ctx echo.Context, statusCode int, t templ.Component) error {
 
 	return ctx.HTML(statusCode, buf.String())
 }
+
+func HxRedirect(ctx echo.Context, url string) error {
+	if ctx.Request().Header.Get("HX-Request") == "true" {
+		ctx.Response().Header().Set("HX-Redirect", url)
+		return ctx.NoContent(200)
+	}
+	return ctx.Redirect(302, url)
+}

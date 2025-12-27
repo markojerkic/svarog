@@ -4,26 +4,94 @@ import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/card"
 import "github.com/markojerkic/svarog/internal/server/ui/components/form"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
-templ LoginPage() {
-	@pages.Layout(pages.Props{Title: "Login"}) {
-		@card.Card(card.Props{Class: "max-w-md m-auto p-4"}) {
-			@form.Item() {
-				@form.Label(form.LabelProps{
-					For: "username",
-				}) {
-					Username
+type LoginPageProps struct {
+	Error string
+}
+
+templ LoginPage(props ...LoginPageProps) {
+	{{ var p LoginPageProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@pages.BaseLayout(pages.BaseProps{Title: "Login"}) {
+		<div class="min-h-screen flex items-center justify-center p-4">
+			@card.Card(card.Props{Class: "w-full max-w-md"}) {
+				@card.Header() {
+					@card.Title() {
+						Welcome back
+					}
+					@card.Description() {
+						Sign in to your account
+					}
 				}
-				@input.Input(input.Props{
-					ID:          "username",
-					Name:        "username",
-					Type:        input.TypeText,
-					Placeholder: "username",
-				})
-				@form.Description() {
-					Enter your username
+				@card.Content() {
+					<form
+						hx-post="/login"
+						hx-target="#login-error"
+						hx-swap="innerHTML"
+						class="space-y-4"
+					>
+						<div id="login-error">
+							if p.Error != "" {
+								@LoginError(p.Error)
+							}
+						</div>
+						@form.Item() {
+							@form.Label(form.LabelProps{For: "username"}) {
+								Username
+							}
+							@input.Input(input.Props{
+								ID:          "username",
+								Name:        "username",
+								Type:        input.TypeText,
+								Placeholder: "Enter your username",
+								Attributes: templ.Attributes{
+									"required":     true,
+									"autocomplete": "username",
+								},
+							})
+						}
+						@form.Item() {
+							@form.Label(form.LabelProps{For: "password"}) {
+								Password
+							}
+							@input.Input(input.Props{
+								ID:          "password",
+								Name:        "password",
+								Type:        input.TypePassword,
+								Placeholder: "Enter your password",
+								Attributes: templ.Attributes{
+									"required":     true,
+									"autocomplete": "current-password",
+								},
+							})
+						}
+						@button.Button(button.Props{
+							Type:      button.TypeSubmit,
+							FullWidth: true,
+							Class:     "mt-6",
+						}) {
+							Sign in
+						}
+					</form>
 				}
 			}
+		</div>
+	}
+}
+
+templ LoginError(message string) {
+	@alert.Alert(alert.Props{Variant: alert.VariantDestructive}) {
+		@icon.CircleAlert(icon.Props{Class: "size-4"})
+		@alert.Title() {
+			Error
+		}
+		@alert.Description() {
+			{ message }
 		}
 	}
 }

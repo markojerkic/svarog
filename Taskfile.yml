@@ -7,6 +7,16 @@ vars:
     sh: command -v tailwindcss >/dev/null 2>&1 && echo "tailwindcss" || echo "bunx @tailwindcss/cli"
 
 tasks:
+  reset-db:
+    desc: Resets the database
+    cmds:
+      - docker compose -f docker-compose.dev.yml down -v
+
+  db:
+    desc: Starts the database
+    cmds:
+      - docker compose -f docker-compose.dev.yml up -d
+
   tailwind:
     desc: Watch Tailwind CSS changes
     cmds:

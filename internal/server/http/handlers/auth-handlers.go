@@ -28,18 +28,18 @@ func (a *AuthRouter) getCurrentUser(c echo.Context) error {
 func (a *AuthRouter) login(c echo.Context) error {
 	var loginForm types.LoginForm
 	if err := c.Bind(&loginForm); err != nil {
-		return c.JSON(400, err)
+		return utils.Render(c, http.StatusBadRequest, authpages.LoginError("Invalid form data"))
 	}
 	if err := c.Validate(&loginForm); err != nil {
-		return err
+		return utils.Render(c, http.StatusBadRequest, authpages.LoginError("Username and password are required"))
 	}
 
 	err := a.authService.Login(c, loginForm.Username, loginForm.Password)
 	if err != nil {
-		return c.JSON(401, types.ApiError{Message: "Invalid credentials"})
+		return utils.Render(c, http.StatusUnauthorized, authpages.LoginError("Invalid credentials"))
 	}
 
-	return c.JSON(200, "Logged in")
+	return utils.HxRedirect(c, "/")
 }
 
 func (a *AuthRouter) loginWithToken(c echo.Context) error {
