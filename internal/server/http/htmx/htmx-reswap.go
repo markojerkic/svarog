@@ -4,16 +4,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type ErrorReswapProps struct {
+type ReswapProps struct {
 	Swap   string
 	Target string
 	Select string
 }
 
-func ErrorReswap(c echo.Context, props ...ErrorReswapProps) {
-	var p ErrorReswapProps
+func Reswap(c echo.Context, props ...ReswapProps) {
+	var p ReswapProps
 	if len(props) == 0 {
-		p = ErrorReswapProps{
+		p = ReswapProps{
 			Swap:   "outerHTML",
 			Target: "this",
 		}

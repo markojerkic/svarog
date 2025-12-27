@@ -5,6 +5,7 @@ import (
 )
 
 type CreateProjectForm struct {
+	ID      string   `json:"id" form:"id"`
 	Name    string   `json:"name" form:"name" validate:"required,gte=3"`
 	Clients []string `json:"clients" form:"clients"`
 }

@@ -27,6 +27,9 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 		hx-target="#projects-list-table-body"
 		hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
 	>
+		if p.Value.ID != "" {
+			<input type="hidden" name="id" value={ p.Value.ID }/>
+		}
 		<div class="space-y-2">
 			@form.Item(form.ItemProps{
 				Class: "space-y-2",
@@ -35,7 +38,6 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Project name
 				}
 				@input.Input(input.Props{
-					ID:          "name",
 					Name:        "name",
 					Placeholder: "Enter project name",
 					Value:       p.Value.Name,
@@ -57,7 +59,6 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Clients
 				}
 				@tagsinput.TagsInput(tagsinput.Props{
-					ID:          "clients",
 					Name:        "clients",
 					Placeholder: "Client name, e.g. client1, client2",
 					Value:       p.Value.Clients,

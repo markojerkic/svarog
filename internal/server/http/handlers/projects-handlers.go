@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/charmbracelet/log"
@@ -72,7 +73,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}
 	if err := c.Validate(&createProjectForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
-			htmx.ErrorReswap(c, htmx.ErrorReswapProps{
+			htmx.Reswap(c, htmx.ReswapProps{
 				Swap:   "outerHTML",
 				Target: "this",
 				Select: "form",
@@ -86,9 +87,9 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 		return err
 	}
 
-	project, err := p.projectsService.CreateProject(c.Request().Context(), createProjectForm.Name, createProjectForm.Clients)
+	project, err := p.projectsService.CreateOrUpdateProject(c.Request().Context(), createProjectForm)
 	if err != nil {
-		htmx.ErrorReswap(c, htmx.ErrorReswapProps{
+		htmx.Reswap(c, htmx.ReswapProps{
 			Swap:   "outerHTML",
 			Target: "this",
 			Select: "form",
@@ -113,6 +114,14 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 
 	htmx.CloseDialog(c)
 	htmx.AddSuccessToast(c, "Project created")
+	if createProjectForm.ID != "" {
+		htmx.Reswap(c, htmx.ReswapProps{
+			Swap:   "outerHTML",
+			Target: fmt.Sprint("[data-project-id=%s]", createProjectForm.ID),
+			Select: "tr",
+		})
+	}
+
 	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
 		Projects: []projects.Project{project},
 	}))

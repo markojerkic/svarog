@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -15,6 +16,8 @@ import (
 
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
+	UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error)
+	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
@@ -33,6 +36,32 @@ const (
 	ErrClientNotFound  = "client not found"
 	ErrProjectExists   = "project already exists"
 )
+
+func (m *MongoProjectsService) CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error) {
+	if project.ID != "" {
+		parsedId, err := primitive.ObjectIDFromHex(project.ID)
+		if err != nil {
+			return Project{}, err
+		}
+		return m.UpdateProject(ctx, parsedId, project.Name, project.Clients)
+	}
+
+	return m.CreateProject(ctx, project.Name, project.Clients)
+
+}
+
+func (m *MongoProjectsService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error) {
+	result, err := m.projectsCollection.UpdateByID(ctx, id, bson.M{"$set": bson.M{"name": name, "clients": clients}})
+	if err != nil {
+		log.Error("Error creating project", "error", err)
+		return Project{}, err
+	}
+	return Project{
+		ID:      result.UpsertedID.(primitive.ObjectID),
+		Name:    name,
+		Clients: uniqueStrings(clients),
+	}, nil
+}
 
 // CreateProject implements ProjectsService.
 func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {

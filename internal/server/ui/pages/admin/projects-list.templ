@@ -8,7 +8,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
-import "fmt"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -48,7 +47,9 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 		ID: "projects-list-table-body",
 	}) {
 		for _, project := range props.Projects {
-			@table.Row() {
+			@table.Row(table.RowProps{
+				Attributes: templ.Attributes{"data-project-id": project.ID.Hex()},
+			}) {
 				@table.Cell() {
 					{ 	project.Name }
 				}
@@ -80,9 +81,7 @@ templ projectActions(project projects.Project) {
 		}) {
 			@dropdown.Group() {
 				@editProjectDialog(project) {
-					@dialog.Trigger(dialog.TriggerProps{
-						For: fmt.Sprintf("edit-project-dialog-%s", project.ID.Hex()),
-					}) {
+					@dialog.Trigger(dialog.TriggerProps{}) {
 						@dropdown.Item() {
 							<span class="flex items-center">
 								@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
