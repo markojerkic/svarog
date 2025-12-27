@@ -1,0 +1,22 @@
+package erroralert
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+
+type Props struct {
+	Message string
+}
+
+templ ErrorAlert(props Props) {
+	if props.Message != "" {
+		@alert.Alert(alert.Props{Variant: alert.VariantDestructive, Class: "border-none items-center"}) {
+			@icon.TriangleAlert(icon.Props{Class: "size-4"})
+			@alert.Title() {
+				Error
+			}
+			@alert.Description() {
+				{ props.Message }
+			}
+		}
+	}
+}

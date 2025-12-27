@@ -6,8 +6,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/form"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/types"
-import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
-import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
 
 type NewProjectFormProps struct {
 	ApiError types.ApiError
@@ -70,17 +69,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 				}
 			}
 		</div>
-		if p.ApiError.Message != "" {
-			@alert.Alert(alert.Props{Variant: alert.VariantDestructive, Class: "border-none"}) {
-				@icon.TriangleAlert(icon.Props{Class: "size-4 my-auto"})
-				@alert.Title() {
-					Error
-				}
-				@alert.Description() {
-					{ p.ApiError.Message }
-				}
-			}
-		}
+		@erroralert.ErrorAlert(erroralert.Props{Message: p.ApiError.Message})
 	</form>
 }
 
