@@ -6,3 +6,6 @@ build
 public
 .idea/
 deploy
+node_modules/
+assets/css/output.css
+.task
