@@ -1,7 +1,10 @@
 package htmx
 
 import (
+	"net/http"
+
 	"github.com/a-h/templ"
+	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/ui/components/toast"
 )
@@ -9,9 +12,11 @@ import (
 func Redirect(c echo.Context, url string) error {
 	if c.Request().Header.Get("HX-Request") == "true" {
 		c.Response().Header().Set("HX-Redirect", url)
+		log.Debug("Redirecting with htmx", "url", url)
 		return c.NoContent(200)
 	}
-	return c.Redirect(302, url)
+	log.Debug("Redirecting without htmx", "url", url)
+	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
 func Render(c echo.Context, statusCode int, t templ.Component) error {
