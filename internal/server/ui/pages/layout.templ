@@ -1,0 +1,68 @@
+package pages
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/label"
+
+type Props struct {
+	Title string
+	Class string
+}
+
+templ Layout(props Props) {
+	<!DOCTYPE html>
+	<html lang="en" hx-boost="true">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>
+				if props.Title != "" {
+					{ props.Title } - Bookase
+				} else {
+					Bookase
+				}
+			</title>
+			<link href="/assets/css/output.css" rel="stylesheet"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script defer src="/assets/js/confirm.js"></script>
+			@input.Script()
+			@label.Script()
+			@dialog.Script()
+		</head>
+		<body class={ "bg-background text-foreground min-h-screen", props.Class }>
+			{ children... }
+			@ConfirmDialog()
+		</body>
+	</html>
+}
+
+templ ConfirmDialog() {
+	@dialog.Dialog(dialog.Props{ID: "confirm-dialog"}) {
+		@dialog.Content(dialog.ContentProps{}) {
+			@dialog.Header() {
+				@dialog.Title() {
+					Confirm Action
+				}
+				@dialog.Description() {
+					<span id="confirm-message"></span>
+				}
+			}
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{Variant: button.VariantOutline}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Variant: button.VariantDefault,
+					Attributes: templ.Attributes{
+						"id": "confirm-button",
+					},
+				}) {
+					Confirm
+				}
+			}
+		}
+	}
+}
