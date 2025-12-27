@@ -59,6 +59,10 @@ func (a *AuthRouter) loginWithToken(c echo.Context) error {
 	return c.JSON(200, "Logged in")
 }
 
+func (a *AuthRouter) loginPage(c echo.Context) error {
+	return utils.Render(c, http.StatusOK, authpages.LoginPage())
+}
+
 func (a *AuthRouter) resetPasswordPage(c echo.Context) error {
 	redirect := c.QueryParam("redirect")
 	return utils.Render(c, http.StatusOK, authpages.ResetPasswordPage(authpages.ResetPasswordPageProps{
@@ -155,12 +159,10 @@ func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publi
 	authRequiredGroup.POST("/logout", router.logout)
 	authRequiredGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
-	authRequiredGroup.GET("/reset-password", router.resetPasswordPage)
-	authRequiredGroup.POST("/reset-password", router.resetPassword)
+	privateGroup.GET("/reset-password", router.resetPasswordPage)
+	privateGroup.POST("/reset-password", router.resetPassword)
 
-	publicGroup.GET("/login", func(c echo.Context) error {
-		return utils.Render(c, http.StatusOK, authpages.LoginPage())
-	})
+	publicGroup.GET("/login", router.loginPage)
 	publicGroup.POST("/login", router.login)
 	publicGroup.POST("/auth/login/token", router.loginWithToken)
 
