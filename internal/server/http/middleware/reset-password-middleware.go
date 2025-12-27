@@ -18,7 +18,7 @@ func RestPasswordMiddleware() echo.MiddlewareFunc {
 
 			if user.NeedsPasswordReset && c.Path() != "/reset-password" {
 				log.Debug("User needs password reset, redirecting to reset password page")
-				htmx.ShowWarningToast(c, "Password reset required", "You need to reset your password to continue")
+				htmx.AddWarningToast(c, "You need to reset your password to continue")
 				return htmx.Redirect(c, "/reset-password")
 			}
 			return next(c)
