@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"os"
 	"sync"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/markojerkic/svarog/cmd/client/retry"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -51,46 +51,6 @@ func getOsEnv() Env {
 	return env
 }
 
-func getEnv() Env {
-	osEnv := getOsEnv()
-
-	if osEnv.serverAddr != "" && osEnv.clientId != "" {
-		return osEnv
-	}
-
-	debugLogEnabled := flag.Bool("DEBUG_ENABLED", false, "Enable debug mode")
-	serverAddr := flag.String("SERVER_ADDR", "", "Server address")
-	clientId := flag.String("CLIENT_ID", "", "Client ID")
-	certificatePath := flag.String("CERTIFICATE_PATH", "", "Path to certificates zip file")
-	serverName := flag.String("SERVER_NAME", "", "Server name for TLS verification (defaults to localhost)")
-	flag.Parse()
-
-	if serverAddr == nil || *serverAddr == "" {
-		log.Fatal("Server address must be provided")
-	}
-
-	if clientId == nil || *clientId == "" {
-		log.Fatal("Client ID must be provided")
-	}
-
-	if certificatePath == nil || *certificatePath == "" {
-		log.Fatal("Certificate path must be provided")
-	}
-
-	sn := *serverName
-	if sn == "" {
-		sn = "localhost"
-	}
-
-	return Env{
-		debugLogEnabled: *debugLogEnabled,
-		serverAddr:      *serverAddr,
-		clientId:        *clientId,
-		certificatePath: *certificatePath,
-		serverName:      sn,
-	}
-}
-
 func configureLogging(env Env) {
 	log.SetReportCaller(true)
 
@@ -99,11 +59,9 @@ func configureLogging(env Env) {
 	} else {
 		log.SetLevel(log.ErrorLevel)
 	}
-
 }
 
-func main() {
-	env := getEnv()
+func run(env Env) {
 	configureLogging(env)
 
 	processedLines := make(chan *rpc.LogLine, 1024*1024)
@@ -130,4 +88,62 @@ func main() {
 	go grpcClient.Run(context.Background(), processedLines, backlog.AddToBacklog)
 
 	readStdin(env.clientId, processedLines)
+}
+
+func main() {
+	var debugLogEnabled bool
+	var serverAddr string
+	var clientId string
+	var certificatePath string
+	var serverName string
+
+	rootCmd := &cobra.Command{
+		Use:   "svarog-client",
+		Short: "Svarog log client",
+		Long:  "Client for streaming logs to Svarog server",
+		Run: func(cmd *cobra.Command, args []string) {
+			osEnv := getOsEnv()
+
+			if osEnv.serverAddr != "" && osEnv.clientId != "" {
+				run(osEnv)
+				return
+			}
+
+			if serverAddr == "" {
+				log.Fatal("Server address must be provided")
+			}
+
+			if clientId == "" {
+				log.Fatal("Client ID must be provided")
+			}
+
+			if certificatePath == "" {
+				log.Fatal("Certificate path must be provided")
+			}
+
+			if serverName == "" {
+				serverName = "localhost"
+			}
+
+			env := Env{
+				debugLogEnabled: debugLogEnabled,
+				serverAddr:      serverAddr,
+				clientId:        clientId,
+				certificatePath: certificatePath,
+				serverName:      serverName,
+			}
+
+			run(env)
+		},
+	}
+
+	rootCmd.Flags().BoolVar(&debugLogEnabled, "debug", false, "Enable debug mode")
+	rootCmd.Flags().StringVar(&serverAddr, "server", "", "Server address")
+	rootCmd.Flags().StringVar(&clientId, "client-id", "", "Client ID")
+	rootCmd.Flags().StringVar(&certificatePath, "cert", "", "Path to certificates zip file")
+	rootCmd.Flags().StringVar(&serverName, "server-name", "", "Server name for TLS verification (defaults to localhost)")
+
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
 }
