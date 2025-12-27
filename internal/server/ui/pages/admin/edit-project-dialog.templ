@@ -4,30 +4,37 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/lib/projects"
 
-templ EditProjectDialogContent(project projects.Project) {
-	@dialog.Header() {
-		@dialog.Title() {
-			Edit project
-		}
-	}
-	@NewProjectForm(NewProjectFormProps{
-		Value: project.ToCreateProjectForm(),
-	})
-	@dialog.Footer() {
-		@dialog.Close() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-			}) {
-				Cancel
+templ editProjectDialog(project projects.Project) {
+	@dialog.Dialog(dialog.Props{
+		Class: "max-w-md",
+	}) {
+		{ children... }
+		@dialog.Content() {
+			@dialog.Header() {
+				@dialog.Title() {
+					Edit project
+				}
 			}
-		}
-		@button.Button(button.Props{
-			Type: button.TypeSubmit,
-			Attributes: templ.Attributes{
-				"form": "new-project-form",
-			},
-		}) {
-			Save
+			@NewProjectForm(NewProjectFormProps{
+				Value: project.ToCreateProjectForm(),
+			})
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+					}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Type: button.TypeSubmit,
+					Attributes: templ.Attributes{
+						"form": "new-project-form",
+					},
+				}) {
+					Save
+				}
+			}
 		}
 	}
 }

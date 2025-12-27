@@ -43,7 +43,6 @@ func (m *MongoProjectsService) CreateOrUpdateProject(ctx context.Context, projec
 		if err != nil {
 			return Project{}, err
 		}
-		log.Debug("Update project", "id", project.ID)
 		return m.UpdateProject(ctx, parsedId, project.Name, project.Clients)
 	}
 

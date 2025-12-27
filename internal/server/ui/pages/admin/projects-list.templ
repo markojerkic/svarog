@@ -8,7 +8,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
-import "fmt"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -40,8 +39,6 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				}
 			}
 		</div>
-		// Single edit dialog for all projects - content loaded lazily
-		@editProjectDialogContainer()
 	}
 }
 
@@ -83,19 +80,14 @@ templ projectActions(project projects.Project) {
 			Class: "w-56",
 		}) {
 			@dropdown.Group() {
-				@dropdown.Item() {
-					@dialog.Trigger(dialog.TriggerProps{
-						For: "edit-project-dialog",
-						Attributes: templ.Attributes{
-							"hx-get":    fmt.Sprintf("/admin/projects/%s/edit", project.ID.Hex()),
-							"hx-target": "#edit-project-content",
-							"hx-swap":   "innerHTML",
-						},
-					}) {
-						<span class="flex items-center">
-							@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
-							Edit
-						</span>
+				@editProjectDialog(project) {
+					@dialog.Trigger(dialog.TriggerProps{}) {
+						@dropdown.Item() {
+							<span class="flex items-center">
+								@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+								Edit
+							</span>
+						}
 					}
 				}
 				@dropdown.Item() {
@@ -129,20 +121,6 @@ templ projectActions(project projects.Project) {
 					}
 				}
 			}
-		}
-	}
-}
-
-templ editProjectDialogContainer() {
-	@dialog.Dialog(dialog.Props{
-		ID: "edit-project-dialog",
-	}) {
-		@dialog.Content(dialog.ContentProps{
-			Class: "max-w-md",
-		}) {
-			<div id="edit-project-content">
-				// Content loaded via HTMX
-			</div>
 		}
 	}
 }
