@@ -39,7 +39,7 @@ func (v *Validator) Validate(i interface{}) error {
 			// Use the json tag name instead of the struct field name
 			apiError.Fields[jsonName] = e.Tag()
 		}
-		return echo.NewHTTPError(400, apiError)
+		return apiError
 	}
 	return nil
 }

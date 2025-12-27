@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -20,7 +21,13 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
 		if msg, ok := he.Message.(string); ok {
+			log.Debug("HTTP error", "code", code, "message", msg)
 			message = msg
+		}
+		if apiErr, ok := he.Message.(types.ApiError); ok {
+			log.Debug("API error", "fields", apiErr.Fields)
+			c.JSON(code, apiErr)
+			return
 		}
 	}
 

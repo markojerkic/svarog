@@ -1,6 +1,7 @@
 package types
 
 type ApiError struct {
+	error
 	Message string            `json:"message"`
 	Fields  map[string]string `json:"fields"`
 }

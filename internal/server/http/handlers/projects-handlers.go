@@ -70,17 +70,25 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 		return c.JSON(400, err)
 	}
 	if err := c.Validate(&createProjectForm); err != nil {
+		if apiErr, ok := err.(types.ApiError); ok {
+			return utils.Render(c, http.StatusBadRequest, admin.NewProjectForm(admin.NewProjectFormProps{ApiError: apiErr}))
+		}
+
 		return err
 	}
 
 	project, err := p.projectsService.CreateProject(c.Request().Context(), createProjectForm.Name, createProjectForm.Clients)
 	if err != nil {
 		if err.Error() == projects.ErrProjectExists {
-			return c.JSON(409, types.ApiError{Message: "Project already exists", Fields: map[string]string{"name": "Project with this name already exists"}})
+			return utils.Render(c, http.StatusConflict, admin.NewProjectForm(admin.NewProjectFormProps{ApiError: types.ApiError{
+				Message: "Project already exists",
+				Fields:  map[string]string{"name": "Project with this name already exists"}}}))
 		}
 
 		log.Error("Error creating project", "error", err)
-		return c.JSON(500, types.ApiError{Message: "Error creating project"})
+		return utils.Render(c, http.StatusInternalServerError, admin.NewProjectForm(admin.NewProjectFormProps{ApiError: types.ApiError{
+			Message: "Error creating project",
+		}}))
 	}
 
 	return c.JSON(200, project)

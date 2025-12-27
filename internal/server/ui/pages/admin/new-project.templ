@@ -5,6 +5,84 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/form"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
+import "github.com/markojerkic/svarog/internal/server/types"
+import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+
+type NewProjectFormProps struct {
+	ApiError types.ApiError
+	Value    types.CreateProjectForm
+}
+
+templ NewProjectForm(props ...NewProjectFormProps) {
+	{{ var p NewProjectFormProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	<form
+		class="space-y-4"
+		id="new-project-form"
+		hx-post="/admin/projects"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
+	>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "name"}) {
+					Project name
+				}
+				@input.Input(input.Props{
+					ID:          "name",
+					Name:        "name",
+					Placeholder: "Enter project name",
+					Value:       p.Value.Name,
+					HasError:    p.ApiError.Fields["name"] != "",
+					Attributes:  templ.Attributes{"required": ""},
+				})
+				if p.ApiError.Fields["name"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["name"] }
+					}
+				}
+			}
+		</div>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "clients"}) {
+					Clients
+				}
+				@tagsinput.TagsInput(tagsinput.Props{
+					ID:          "clients",
+					Name:        "clients",
+					Placeholder: "Client name, e.g. client1, client2",
+					Value:       p.Value.Clients,
+					HasError:    p.ApiError.Fields["clients"] != "",
+				})
+				if p.ApiError.Fields["clients"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["clients"] }
+					}
+				}
+			}
+		</div>
+		if p.ApiError.Message != "" {
+			@alert.Alert(alert.Props{Variant: alert.VariantDestructive, Class: "border-none"}) {
+				@icon.TriangleAlert(icon.Props{Class: "size-4 my-auto"})
+				@alert.Title() {
+					Error
+				}
+				@alert.Description() {
+					{ p.ApiError.Message }
+				}
+			}
+		}
+	</form>
+}
 
 templ newProject() {
 	@dialog.Dialog(dialog.Props{
@@ -28,33 +106,7 @@ templ newProject() {
 					Enter the name of the new project
 				}
 			}
-			<form
-				class="space-y-4"
-				id="new-project-form"
-				hx-post="/admin/projects"
-				hx-target="this"
-				hx-swap="outerHTML"
-				hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
-			>
-				<div class="space-y-2">
-					@form.Label(form.LabelProps{For: "name"}) {
-						Project name
-					}
-					@input.Input(input.Props{
-						ID:          "name",
-						Placeholder: "Enter project name",
-					})
-				</div>
-				<div class="space-y-2">
-					@form.Label(form.LabelProps{For: "clients"}) {
-						Clients
-					}
-					@tagsinput.TagsInput(tagsinput.Props{
-						ID:          "clients",
-						Placeholder: "Client name, e.g. client1, client2",
-					})
-				</div>
-			</form>
+			@NewProjectForm()
 			@dialog.Footer() {
 				@dialog.Close() {
 					@button.Button(button.Props{
