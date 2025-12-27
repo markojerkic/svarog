@@ -34,11 +34,12 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 			@form.Item(form.ItemProps{
 				Class: "space-y-2",
 			}) {
-				@form.Label(form.LabelProps{For: "name"}) {
+				@form.Label(form.LabelProps{For: "project-name"}) {
 					Project name
 				}
 				@input.Input(input.Props{
 					Name:        "name",
+					ID:          "project-name",
 					Placeholder: "Enter project name",
 					Value:       p.Value.Name,
 					HasError:    p.ApiError.Fields["name"] != "",
@@ -55,11 +56,12 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 			@form.Item(form.ItemProps{
 				Class: "space-y-2",
 			}) {
-				@form.Label(form.LabelProps{For: "clients"}) {
+				@form.Label(form.LabelProps{For: "project-clients"}) {
 					Clients
 				}
 				@tagsinput.TagsInput(tagsinput.Props{
 					Name:        "clients",
+					ID:          "project-clients",
 					Placeholder: "Client name, e.g. client1, client2",
 					Value:       p.Value.Clients,
 					HasError:    p.ApiError.Fields["clients"] != "",

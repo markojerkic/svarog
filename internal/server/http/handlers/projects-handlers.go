@@ -48,6 +48,23 @@ func (p *ProjectsRouter) getProject(c echo.Context) error {
 	return c.JSON(200, project)
 }
 
+func (p *ProjectsRouter) getEditProjectDialog(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
+	}
+	project, err := p.projectsService.GetProject(c.Request().Context(), id)
+	if err != nil {
+		log.Error("Error fetching project", "error", err)
+		if err.Error() == projects.ErrProjectNotFound {
+			return c.JSON(404, types.ApiError{Message: "Project not found"})
+		}
+		return c.JSON(500, types.ApiError{Message: "Error getting project"})
+	}
+
+	return utils.Render(c, http.StatusOK, admin.EditProjectDialogContent(project))
+}
+
 func (p *ProjectsRouter) getProjectByClient(c echo.Context) error {
 	client := c.Param("client")
 	if client == "" {
@@ -215,6 +232,7 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group := e.Group("/projects")
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
+	group.GET("/:id/edit", router.getEditProjectDialog)
 	group.GET("/:groupId/certificate", router.getCertificatesZip)
 	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
