@@ -2,15 +2,50 @@ package admin
 
 import "github.com/markojerkic/svarog/internal/lib/projects"
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/table"
+import "strings"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
 }
 
-templ ProjectsListPage(props ...ProjectsListPageProps) {
+templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
-		<div class="min-h-screen flex items-center justify-center p-4">
-			Projekti
+		<div class="grid grid-cols-1 p-4">
+			<span class="flex justify-end">
+				@newProject()
+			</span>
+			@table.Table() {
+				@table.Caption() {
+					A list of your projects.
+				}
+				@table.Header() {
+					@table.Head() {
+						Project name
+					}
+					@table.Head() {
+						Clients
+					}
+					@table.Head() {
+						Storage
+					}
+				}
+				@table.Body() {
+					for _, project := range props.Projects {
+						@table.Row() {
+							@table.Cell() {
+								{ 	project.Name }
+							}
+							@table.Cell() {
+								{ strings.Join(project.Clients, ", ") }
+							}
+							@table.Cell() {
+								{ project.TotalStorageSize } MB
+							}
+						}
+					}
+				}
+			}
 		</div>
 	}
 }

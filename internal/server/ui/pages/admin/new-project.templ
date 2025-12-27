@@ -1,0 +1,77 @@
+package admin
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/form"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
+
+templ newProject() {
+	@dialog.Dialog(dialog.Props{
+		ID: "new-project-dialog",
+	}) {
+		@dialog.Trigger() {
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+			}) {
+				Open Dialog
+			}
+		}
+		@dialog.Content(dialog.ContentProps{
+			Class: "max-w-md",
+		}) {
+			@dialog.Header() {
+				@dialog.Title() {
+					Create a new project
+				}
+				@dialog.Description() {
+					Enter the name of the new project
+				}
+			}
+			<form
+				class="space-y-4"
+				id="new-project-form"
+				hx-post="/admin/projects"
+				hx-target="this"
+				hx-swap="outerHTML"
+				hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
+			>
+				<div class="space-y-2">
+					@form.Label(form.LabelProps{For: "name"}) {
+						Project name
+					}
+					@input.Input(input.Props{
+						ID:          "name",
+						Placeholder: "Enter project name",
+					})
+				</div>
+				<div class="space-y-2">
+					@form.Label(form.LabelProps{For: "clients"}) {
+						Clients
+					}
+					@tagsinput.TagsInput(tagsinput.Props{
+						ID:          "clients",
+						Placeholder: "Client name, e.g. client1, client2",
+					})
+				</div>
+			</form>
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+					}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Type: button.TypeSubmit,
+					Attributes: templ.Attributes{
+						"form": "new-project-form",
+					},
+				}) {
+					Save
+				}
+			}
+		}
+	}
+}
