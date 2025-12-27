@@ -33,6 +33,7 @@ templ LoginPage(props ...LoginPageProps) {
 						hx-post="/login"
 						hx-target="#login-error"
 						hx-swap="innerHTML"
+						hx-disabled-elt="input, button"
 						class="space-y-4"
 					>
 						<div id="login-error">

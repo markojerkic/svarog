@@ -61,14 +61,14 @@ func (self *HttpServer) Start() {
 	})
 
 	privateApi := e.Group("",
-		corsMiddleware,
 		sessionMiddleware,
 		customMiddleware.AuthContextMiddleware(self.authService),
 		customMiddleware.RestPasswordMiddleware())
 	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
+	adminApi := e.Group("/admin", corsMiddleware, sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	handlers.NewHomeHandler(privateApi)
-	handlers.NewProjectsRouter(self.projectsService, self.certificateService, privateApi)
+	handlers.NewProjectsRouter(self.projectsService, self.certificateService, adminApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
 	handlers.NewLogsRouter(self.logService, privateApi)

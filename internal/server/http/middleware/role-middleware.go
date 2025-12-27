@@ -3,19 +3,22 @@ package middleware
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/http/htmx"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 func RequiresRoleMiddleware(role auth.Role) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			user := c.Get("user").(*auth.LoggedInUser)
-			if user == nil {
-				return c.JSON(401, types.ApiError{Message: "Not logged in"})
+			user, ok := c.Get("user").(*auth.LoggedInUser)
+			if !ok || user == nil {
+				htmx.AddErrorToast(c, "You are not logged in")
+				return utils.HxRedirect(c, "/login")
 			}
 
 			if user.Role != role {
-				return c.JSON(403, types.ApiError{Message: "Forbidden"})
+				htmx.AddErrorToast(c, "You don't have permission to access this page")
+				return utils.HxRedirect(c, "/")
 			}
 			return next(c)
 		}

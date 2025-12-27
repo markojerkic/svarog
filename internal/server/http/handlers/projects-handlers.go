@@ -1,13 +1,15 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
-	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 type ProjectsRouter struct {
@@ -19,10 +21,12 @@ func (p *ProjectsRouter) getProjects(c echo.Context) error {
 	projects, err := p.projectsService.GetProjects(c.Request().Context())
 	if err != nil {
 		log.Error("Error fetching project", "error", err)
-		return c.JSON(401, types.ApiError{Message: "Error getting projects"})
+		return c.JSON(500, types.ApiError{Message: "Error getting projects"})
 	}
 
-	return c.JSON(200, projects)
+	return utils.Render(c, http.StatusOK, admin.ProjectsListPage(admin.ProjectsListPageProps{
+		Projects: projects,
+	}))
 }
 
 func (p *ProjectsRouter) getProject(c echo.Context) error {
@@ -167,7 +171,7 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 		panic("No projectsService")
 	}
 
-	group := e.Group("/projects", middleware.RequiresRoleMiddleware(auth.ADMIN))
+	group := e.Group("/projects")
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
 	group.GET("/:groupId/certificate", router.getCertificatesZip)

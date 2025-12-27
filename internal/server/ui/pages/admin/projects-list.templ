@@ -1,0 +1,16 @@
+package admin
+
+import "github.com/markojerkic/svarog/internal/lib/projects"
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+
+type ProjectsListPageProps struct {
+	Projects []projects.Project
+}
+
+templ ProjectsListPage(props ...ProjectsListPageProps) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
+		<div class="min-h-screen flex items-center justify-center p-4">
+			Projekti
+		</div>
+	}
+}
