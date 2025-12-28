@@ -32,6 +32,12 @@ tasks:
     cmds:
       - task --parallel templ tailwind
 
+  clean-tmp:
+    desc: Clean Go temporary build files from /tmp
+    cmds:
+      - find /tmp -maxdepth 1 -name "go-build*" -exec rm -rf {} +
+      - echo "Cleaned /tmp/go-build* directories"
+
   default:
     desc: Print a greeting message
     cmds:

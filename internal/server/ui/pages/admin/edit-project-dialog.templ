@@ -2,12 +2,8 @@ package admin
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
-import "github.com/markojerkic/svarog/internal/server/types"
-
-var editProjectDialogScriptHandle = templ.NewOnceHandle()
 
 templ editProjectDialog() {
-	@editProjectDialogScript()
 	@dialog.Dialog(dialog.Props{
 		Class: "max-w-md",
 		ID:    "edit-project-dialog",
@@ -19,9 +15,9 @@ templ editProjectDialog() {
 					Edit project
 				}
 			}
-			@NewProjectForm(NewProjectFormProps{
-				Value: types.CreateProjectForm{},
-			})
+			<div id="edit-project-form-container">
+				@NewProjectForm()
+			</div>
 			@dialog.Footer() {
 				@dialog.Close() {
 					@button.Button(button.Props{
@@ -33,7 +29,7 @@ templ editProjectDialog() {
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,
 					Attributes: templ.Attributes{
-						"form": "new-project-form",
+						"form": "edit-project-form",
 					},
 				}) {
 					Save
@@ -41,22 +37,4 @@ templ editProjectDialog() {
 			}
 		}
 	}
-}
-
-templ editProjectDialogScript() {
-	<script>
-		function openEditProjectDialog(event) {
-			const project = JSON.parse(
-				event.srcElement
-					.querySelector("[data-project-form]")
-					.getAttribute("data-project-form"),
-			);
-			const dialog = document.getElementById("edit-project-dialog");
-			console.log("dialog", dialog);
-			console.log("id", dialog.querySelector("[name=id]"));
-			dialog.querySelector("[name=id]").value = project.id;
-			dialog.querySelector("[name=name]").value = project.name;
-			dialog.querySelector("[name=clients]").value = project.clients.join(", ");
-		}
-	</script>
 }

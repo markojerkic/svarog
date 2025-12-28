@@ -7,7 +7,6 @@ import "strings"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -81,22 +80,18 @@ templ projectActions(project projects.Project) {
 			Class: "w-56",
 		}) {
 			@dropdown.Group() {
-				@dialog.Trigger(dialog.TriggerProps{
-					For: "edit-project-dialog",
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-get":    "/admin/projects/" + project.ID.Hex() + "/edit",
+						"hx-target": "#edit-project-form-container",
+						"hx-swap":   "innerHTML",
+						"onclick":   "window.tui.dialog.open('edit-project-dialog')",
+					},
 				}) {
-					@dropdown.Item(dropdown.ItemProps{
-						Attributes: templ.Attributes{
-							"onclick": "openEditProjectDialog(event)",
-						},
-					}) {
-						<span
-							class="flex items-center"
-							data-project-form={ templ.JSONString(project) }
-						>
-							@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
-							Edit
-						</span>
-					}
+					<span class="flex items-center">
+						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+						Edit
+					</span>
 				}
 				@dropdown.Item() {
 					<span class="flex items-center">
