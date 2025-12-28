@@ -8,7 +8,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
-import "fmt"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -87,12 +86,13 @@ templ projectActions(project projects.Project) {
 				}) {
 					@dropdown.Item(dropdown.ItemProps{
 						Attributes: templ.Attributes{
-							"hx-get":    fmt.Sprintf("/admin/projects/%s/edit", project.ID.Hex()),
-							"hx-target": "#edit-project-content",
-							"hx-swap":   "innerHTML",
+							"onclick": "openEditProjectDialog(event)",
 						},
 					}) {
-						<span class="flex items-center">
+						<span
+							class="flex items-center"
+							data-project-form={ templ.JSONString(project) }
+						>
 							@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
 							Edit
 						</span>
