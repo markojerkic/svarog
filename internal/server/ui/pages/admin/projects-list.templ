@@ -7,6 +7,7 @@ import "strings"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "fmt"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -93,13 +94,22 @@ templ projectActions(project projects.Project) {
 						Edit
 					</span>
 				}
-				@dropdown.Item() {
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-delete":       "/admin/projects/" + project.ID.Hex(),
+						"hx-confirm":      "Are you sure you want to delete this project?",
+						"hx-target":       fmt.Sprintf("tr[data-project-id='%s']", project.ID.Hex()),
+						"hx-disabled-elt": "input, button, #new-project-dialog &> button[type=submit]",
+					},
+				}) {
 					<span class="flex items-center">
 						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
 						Delete project
 					</span>
 				}
-				@dropdown.Item() {
+				@dropdown.Item(dropdown.ItemProps{
+					Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
+				}) {
 					<span class="flex items-center">
 						@icon.HardDriveDownload(icon.Props{Size: 16, Class: "mr-2"})
 						Download certificates

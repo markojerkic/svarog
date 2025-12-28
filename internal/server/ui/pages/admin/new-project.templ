@@ -7,6 +7,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
 type NewProjectFormProps struct {
 	FormID   string
@@ -19,7 +20,9 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 	if len(props) > 0 {
 		{{ p = props[0] }}
 	}
-	{{ if p.FormID == "" { p.FormID = "new-project-form" } }}
+	{{ if p.FormID == "" {
+	p.FormID = "new-project-form"
+} }}
 	<form
 		class="space-y-4"
 		id={ p.FormID }
@@ -83,7 +86,10 @@ templ newProject() {
 			@button.Button(button.Props{
 				Variant: button.VariantOutline,
 			}) {
-				Open Dialog
+				<span class="flex items-center">
+					@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
+					Create a new project
+				</span>
 			}
 		}
 		@dialog.Content(dialog.ContentProps{

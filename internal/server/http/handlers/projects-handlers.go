@@ -167,7 +167,9 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 		}
 		return c.JSON(500, types.ApiError{Message: "Error deleting project"})
 	}
-	return c.JSON(200, "Project deleted")
+
+	htmx.AddSuccessToast(c, "Project deleted")
+	return c.HTML(200, "")
 }
 
 func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
