@@ -51,13 +51,13 @@ func (m *MongoProjectsService) CreateOrUpdateProject(ctx context.Context, projec
 }
 
 func (m *MongoProjectsService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error) {
-	result, err := m.projectsCollection.UpdateByID(ctx, id, bson.M{"$set": bson.M{"name": name, "clients": clients}})
+	_, err := m.projectsCollection.UpdateByID(ctx, id, bson.M{"$set": bson.M{"name": name, "clients": clients}})
 	if err != nil {
-		log.Error("Error creating project", "error", err)
+		log.Error("Error updating project", "error", err)
 		return Project{}, err
 	}
 	return Project{
-		ID:      result.UpsertedID.(primitive.ObjectID),
+		ID:      id,
 		Name:    name,
 		Clients: uniqueStrings(clients),
 	}, nil
