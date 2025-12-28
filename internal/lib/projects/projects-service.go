@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -22,8 +21,6 @@ type ProjectsService interface {
 	GetProjects(ctx context.Context) ([]Project, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
-	RemoveClientFromProject(ctx context.Context, projectId string, client string) error
-	AddClientToProject(ctx context.Context, projectId string, client string) error
 }
 
 type MongoProjectsService struct {
@@ -171,22 +168,6 @@ func (m *MongoProjectsService) GetProjectByClient(ctx context.Context, client st
 	return project, nil
 }
 
-// AddClientToProject implements ProjectsService.
-func (m *MongoProjectsService) AddClientToProject(ctx context.Context, projectId string, client string) error {
-	_, err := util.StartTransaction(ctx, func(c mongo.SessionContext) (interface{}, error) {
-		project, err := m.GetProject(ctx, projectId)
-		if err != nil {
-			return struct{}{}, err
-		}
-		clients := uniqueStrings(append(project.Clients, client))
-		_, err = m.projectsCollection.UpdateOne(ctx, bson.M{"_id": project.ID}, bson.M{"$set": bson.M{"clients": clients}})
-		return struct{}{}, err
-
-	}, m.mongoClient)
-
-	return err
-}
-
 // DeleteProject implements ProjectsService.
 func (m *MongoProjectsService) DeleteProject(ctx context.Context, id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -198,20 +179,6 @@ func (m *MongoProjectsService) DeleteProject(ctx context.Context, id string) err
 		return errors.New(ErrProjectNotFound)
 	}
 
-	return err
-}
-
-// RemoveClientFromProject implements ProjectsService.
-func (m *MongoProjectsService) RemoveClientFromProject(ctx context.Context, projectId string, client string) error {
-	objID, err := primitive.ObjectIDFromHex(projectId)
-	if err != nil {
-		return err
-	}
-
-	_, err = m.projectsCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$pull": bson.M{"clients": client}})
-	if err != nil && err == mongo.ErrNoDocuments {
-		return errors.New(ErrProjectNotFound)
-	}
 	return err
 }
 

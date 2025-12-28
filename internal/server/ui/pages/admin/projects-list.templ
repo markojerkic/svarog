@@ -105,24 +105,6 @@ templ projectActions(project projects.Project) {
 						Download certificates
 					</span>
 				}
-				@dropdown.Separator()
-				@dropdown.Group() {
-					@dropdown.Label() {
-						Clients
-					}
-					@dropdown.Item() {
-						<span class="flex items-center">
-							@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
-							Add client
-						</span>
-					}
-					@dropdown.Item() {
-						<span class="flex items-center">
-							@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
-							Remove client
-						</span>
-					}
-				}
 			}
 		}
 	}

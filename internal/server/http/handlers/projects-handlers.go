@@ -170,48 +170,6 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	return c.JSON(200, "Project deleted")
 }
 
-func (p *ProjectsRouter) removeClientFromProject(c echo.Context) error {
-	var removeClientForm types.RemoveClientForm
-	if err := c.Bind(&removeClientForm); err != nil {
-		return c.JSON(400, err)
-	}
-
-	if err := c.Validate(&removeClientForm); err != nil {
-		return err
-	}
-
-	err := p.projectsService.RemoveClientFromProject(c.Request().Context(), removeClientForm.ProjectId, removeClientForm.ClientId)
-	if err != nil {
-		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
-		}
-		return c.JSON(500, types.ApiError{Message: "Error removing client project"})
-	}
-
-	return c.JSON(200, "Client removed from project")
-}
-
-func (p *ProjectsRouter) addClientToProject(c echo.Context) error {
-	var addClientForm types.AddClientForm
-	if err := c.Bind(&addClientForm); err != nil {
-		return c.JSON(400, err)
-	}
-
-	if err := c.Validate(&addClientForm); err != nil {
-		return err
-	}
-
-	err := p.projectsService.AddClientToProject(c.Request().Context(), addClientForm.ProjectId, addClientForm.ClientName)
-	if err != nil {
-		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
-		}
-		return c.JSON(500, types.ApiError{Message: "Error adding client to project"})
-	}
-
-	return c.JSON(200, "Client added to project")
-}
-
 func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
 	groupId := c.Param("groupId")
 	if groupId == "" {
@@ -246,8 +204,6 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group.GET("/:groupId/certificate", router.getCertificatesZip)
 	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
-	group.POST("/remove-client", router.removeClientFromProject)
-	group.POST("/add-client", router.addClientToProject)
 	group.DELETE("/:id", router.deleteProject)
 
 	return router
