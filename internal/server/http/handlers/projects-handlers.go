@@ -138,13 +138,15 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}
 
 	htmx.CloseDialog(c)
-	htmx.AddSuccessToast(c, "Project created")
 	if createProjectForm.ID != "" {
+		htmx.AddSuccessToast(c, "Project updated")
 		htmx.Reswap(c, htmx.ReswapProps{
 			Swap:   "outerHTML",
-			Target: fmt.Sprintf("[data-project-id=%s]", createProjectForm.ID),
+			Target: fmt.Sprintf("[data-project-id='%s']", createProjectForm.ID),
 			Select: "tr",
 		})
+	} else {
+		htmx.AddSuccessToast(c, "Project created")
 	}
 
 	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
