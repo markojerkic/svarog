@@ -74,10 +74,15 @@ func (n *NatsAuthCalloutHandler) Run() error {
 		claims, err := n.ValidateJWT(token)
 		if err != nil {
 			log.Error("JWT validation failed", "err", err)
+			n.respondWithError(msg, reqClaim, "invalid token")
 			return
 		}
 
-		log.Debug("JWT validated", "username", claims.Username)
+		log.Debug("JWT validated", "username", claims.Username, "topic", claims.Topic)
+
+		if err := n.respondWithSuccess(msg, reqClaim, claims); err != nil {
+			log.Error("Failed to respond with success", "err", err)
+		}
 	})
 
 	return err
@@ -101,6 +106,54 @@ func (n *NatsAuthCalloutHandler) GenerateToken(username, topic string) (string, 
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(n.jwtSecret)
+}
+
+func (n *NatsAuthCalloutHandler) respondWithSuccess(msg *nats.Msg, reqClaim *natsjwt.AuthorizationRequestClaims, claims *NatsAuthClaims) error {
+	userClaim := natsjwt.NewUserClaims(reqClaim.UserNkey)
+	userClaim.Audience = "APP"
+	userClaim.Name = claims.Username
+
+	// Grant publish permission only to the topic from JWT
+	userClaim.Permissions.Pub.Allow.Add(claims.Topic)
+
+	// Sign the response
+	response, err := userClaim.Encode(n.natsIssuerKeyPair)
+	if err != nil {
+		return fmt.Errorf("failed to encode user claims: %w", err)
+	}
+
+	// Create authorization response
+	authResponse := natsjwt.NewAuthorizationResponseClaims(reqClaim.UserNkey)
+	authResponse.Audience = reqClaim.Server.ID
+	authResponse.Jwt = response
+
+	responseJwt, err := authResponse.Encode(n.natsIssuerKeyPair)
+	if err != nil {
+		return fmt.Errorf("failed to encode auth response: %w", err)
+	}
+
+	if err := msg.Respond([]byte(responseJwt)); err != nil {
+		return fmt.Errorf("failed to send response: %w", err)
+	}
+
+	log.Debug("Auth success", "username", claims.Username, "topic", claims.Topic)
+	return nil
+}
+
+func (n *NatsAuthCalloutHandler) respondWithError(msg *nats.Msg, reqClaim *natsjwt.AuthorizationRequestClaims, errorMsg string) {
+	authResponse := natsjwt.NewAuthorizationResponseClaims(reqClaim.UserNkey)
+	authResponse.Audience = reqClaim.Server.ID
+	authResponse.Error = errorMsg
+
+	responseJwt, err := authResponse.Encode(n.natsIssuerKeyPair)
+	if err != nil {
+		log.Error("Failed to encode error response", "err", err)
+		return
+	}
+
+	if err := msg.Respond([]byte(responseJwt)); err != nil {
+		log.Error("Failed to send error response", "err", err)
+	}
 }
 
 // ValidateJWT validates the JWT token and returns the claims if valid.
