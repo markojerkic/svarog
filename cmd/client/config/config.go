@@ -42,6 +42,10 @@ func (c *ClientConfig) GetConnString() string {
 	return c.connString
 }
 
+func (c *ClientConfig) GetNatsUrl() string {
+	return fmt.Sprintf("nats://%s", c.ServerAddr)
+}
+
 func (c ClientConfig) Validate() error {
 	if c.Protocol != "svarog" {
 		return fmt.Errorf("invalid protocol: %s, should be 'svarog'", c.Protocol)
