@@ -12,12 +12,12 @@ import (
 	"github.com/markojerkic/svarog/internal/commontypes"
 )
 
-func readStdin(ctx context.Context, output chan *commontypes.LogLineDto) {
+func readStdin(output chan *commontypes.LogLineDto) {
 	r := reader.NewReader(os.Stdin, output)
 
 	waitGroup := &sync.WaitGroup{}
 	waitGroup.Add(1)
-	go r.Run(ctx, waitGroup)
+	go r.Run(context.Background(), waitGroup)
 
 	waitGroup.Wait()
 }
@@ -41,9 +41,6 @@ func main() {
 
 	log.Debug("Parsed config", "config", config)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	processedLines := make(chan *commontypes.LogLineDto, 1024*1024)
 	natsClient := natsclient.NewNatsClient(config, processedLines)
 
@@ -51,11 +48,10 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		natsClient.Run(ctx)
+		natsClient.Run()
 	}()
 
-	readStdin(ctx, processedLines)
-	close(processedLines)
-	cancel() // Signal NATS client to stop (in case it's still connecting)
+	readStdin(processedLines)
+	close(processedLines) // Signal NATS client to drain and exit
 	wg.Wait()
 }

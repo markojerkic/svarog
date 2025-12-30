@@ -26,39 +26,24 @@ func NewNatsClient(cfg config.ClientConfig, logLines <-chan *commontypes.LogLine
 	}
 }
 
-func (n *NatsClient) Run(ctx context.Context) {
+func (n *NatsClient) Run() {
 	defer n.Close()
 
-	nc, js := n.connectNats(ctx)
-	if nc == nil {
-		log.Debug("NATS connection cancelled")
-		return
-	}
-	n.nc = nc
-	n.js = js
+	n.connectNats()
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Debug("NATS client context done")
-			return
-		case logLine, ok := <-n.logLines:
-			if !ok {
-				log.Debug("Log lines channel closed, exiting")
-				return
-			}
+	for logLine := range n.logLines {
+		data, err := json.Marshal(logLine)
+		if err != nil {
+			log.Error("Failed to marshal log line", "err", err)
+			continue
+		}
 
-			data, err := json.Marshal(logLine)
-			if err != nil {
-				log.Error("Failed to marshal log line", "err", err)
-				continue
-			}
-
-			if _, err := n.js.Publish(ctx, n.config.Topic, data); err != nil {
-				log.Error("Failed to publish log line", "err", err)
-			}
+		if _, err := n.js.Publish(context.Background(), n.config.Topic, data); err != nil {
+			log.Error("Failed to publish log line", "err", err)
 		}
 	}
+
+	log.Debug("Log lines channel closed, all messages published")
 }
 
 func (n *NatsClient) Close() {
@@ -69,7 +54,7 @@ func (n *NatsClient) Close() {
 	}
 }
 
-func (n *NatsClient) connectNats(ctx context.Context) (*nats.Conn, jetstream.JetStream) {
+func (n *NatsClient) connectNats() {
 	opts := []nats.Option{
 		nats.Token(n.config.Token),
 		nats.MaxReconnects(-1),
@@ -90,12 +75,6 @@ func (n *NatsClient) connectNats(ctx context.Context) (*nats.Conn, jetstream.Jet
 	retryDelay := time.Second * 2
 
 	for {
-		select {
-		case <-ctx.Done():
-			return nil, nil
-		default:
-		}
-
 		nc, err := nats.Connect(n.config.GetNatsUrl(), opts...)
 		if err == nil {
 			log.Debug("Connected to NATS", "url", n.config.GetNatsUrl())
@@ -104,22 +83,16 @@ func (n *NatsClient) connectNats(ctx context.Context) (*nats.Conn, jetstream.Jet
 			if err != nil {
 				log.Error("Failed to create JetStream context, retrying...", "err", err)
 				nc.Close()
-				select {
-				case <-ctx.Done():
-					return nil, nil
-				case <-time.After(retryDelay):
-				}
+				time.Sleep(retryDelay)
 				continue
 			}
 
-			return nc, js
+			n.nc = nc
+			n.js = js
+			return
 		}
 
 		log.Warn("Failed to connect to NATS, retrying in 2s...", "err", err)
-		select {
-		case <-ctx.Done():
-			return nil, nil
-		case <-time.After(retryDelay):
-		}
+		time.Sleep(retryDelay)
 	}
 }
