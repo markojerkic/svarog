@@ -109,6 +109,10 @@ templ projectActions(project projects.Project) {
 				}
 				@dropdown.Item(dropdown.ItemProps{
 					Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
+					Attributes: templ.Attributes{
+						"target":   "_blank",
+						"download": fmt.Sprintf("%s-certificates.zip", project.Name),
+					},
 				}) {
 					<span class="flex items-center">
 						@icon.HardDriveDownload(icon.Props{Size: 16, Class: "mr-2"})

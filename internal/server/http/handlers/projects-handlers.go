@@ -185,7 +185,6 @@ func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
 	}
 	defer cleanup()
 
-	// Name attacment so it can download
 	c.Response().Header().Add("Content-Disposition", "attachment")
 	c.Response().Header().Add("filename", "certificates.zip")
 
