@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	natsjwt "github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 )
@@ -36,7 +37,7 @@ func NewNatsAuthCalloutHandler() *NatsAuthCalloutHandler {
 	}
 }
 
-func (n *NatsAuthCalloutHandler) run() error {
+func (n *NatsAuthCalloutHandler) Run() error {
 	nc, err := nats.Connect(n.natsAddr,
 		nats.UserInfo(n.natsAuthUser, n.natsAuthPassword),
 		nats.MaxReconnects(-1),
@@ -47,7 +48,14 @@ func (n *NatsAuthCalloutHandler) run() error {
 	}
 
 	_, err = nc.Subscribe("$SYS.REQ.USER.AUTH", func(msg *nats.Msg) {
-		log.Debug("nats auth callout", "msg", msg)
+		reqClaim, err := natsjwt.DecodeAuthorizationRequestClaims(string(msg.Data))
+		if err != nil {
+			log.Error("nats auth callout", "err", err)
+			return
+		}
+		token := reqClaim.ConnectOptions.Token
+		log.Debug("Auth request", "user_nkey", reqClaim.UserNkey, "token_present", token != "", "server", reqClaim.Server.ID)
+
 	})
 
 	return err

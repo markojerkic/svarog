@@ -80,6 +80,7 @@ func main() {
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
+	natsAuthService := serverauth.NewNatsAuthCalloutHandler()
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
@@ -96,6 +97,7 @@ func main() {
 	logIngestChannel := make(chan db.LogLineWithIp, 1000)
 	grpcServer := grpcserver.NewGrpcServer(certificateService, projectsService, env, logIngestChannel)
 
+	go natsAuthService.Run()
 	go logServer.Run(context.Background(), logIngestChannel)
 	go httpServer.Start()
 	grpcServer.Start()

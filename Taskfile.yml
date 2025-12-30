@@ -6,12 +6,12 @@ tasks:
   reset-db:
     desc: Resets the database and nats
     cmds:
-      - docker compose -f docker-compose.dev.yml down -v
+      - docker compose  -f docker-compose.dev.yml down -v
 
   db:
     desc: Starts the database and nats
     cmds:
-      - docker compose -f docker-compose.dev.yml up -d
+      - docker compose --env-file .env -f docker-compose.dev.yml up -d
 
   tailwind:
     desc: Watch Tailwind CSS changes
