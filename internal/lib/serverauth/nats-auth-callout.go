@@ -102,7 +102,6 @@ func (n *NatsAuthCalloutHandler) respondWithSuccess(msg *nats.Msg, reqClaim *nat
 		return fmt.Errorf("failed to send response: %w", err)
 	}
 
-	log.Debug("Auth success", "username", claims.Username, "topic", claims.Topic)
 	return nil
 }
 

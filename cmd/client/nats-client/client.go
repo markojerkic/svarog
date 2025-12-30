@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/cmd/client/config"
-	"github.com/markojerkic/svarog/internal/commontypes"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -16,10 +16,10 @@ type NatsClient struct {
 	config   config.ClientConfig
 	nc       *nats.Conn
 	js       jetstream.JetStream
-	logLines <-chan *commontypes.LogLineDto
+	logLines <-chan *rpc.LogLine
 }
 
-func NewNatsClient(cfg config.ClientConfig, logLines <-chan *commontypes.LogLineDto) *NatsClient {
+func NewNatsClient(cfg config.ClientConfig, logLines <-chan *rpc.LogLine) *NatsClient {
 	return &NatsClient{
 		config:   cfg,
 		logLines: logLines,

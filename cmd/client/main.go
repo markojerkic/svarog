@@ -41,7 +41,7 @@ func main() {
 
 	log.Debug("Parsed config", "config", config)
 
-	processedLines := make(chan *commontypes.LogLineDto, 1024*1024)
+	processedLines := make(chan *rpc.LogLine, 1024*1024)
 	natsClient := natsclient.NewNatsClient(config, processedLines)
 
 	var wg sync.WaitGroup
