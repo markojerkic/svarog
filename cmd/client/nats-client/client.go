@@ -51,9 +51,9 @@ func (n *NatsClient) Run(ctx context.Context) {
 	}
 }
 
-func connectNats(config config.ClientConfig) (jetstream.JetStream, error) {
-	nc, err := nats.Connect(config.GetNatsUrl(),
-		nats.Token(config.Token),
+func connectNats(cfg config.ClientConfig) (jetstream.JetStream, error) {
+	opts := []nats.Option{
+		nats.Token(cfg.Token),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
@@ -67,9 +67,20 @@ func connectNats(config config.ClientConfig) (jetstream.JetStream, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			log.Error("NATS error", "err", err)
 		}),
-	)
-	if err != nil {
-		return nil, err
+	}
+
+	var nc *nats.Conn
+	var err error
+
+	for {
+		nc, err = nats.Connect(cfg.GetNatsUrl(), opts...)
+		if err == nil {
+			log.Info("Connected to NATS", "url", cfg.GetNatsUrl())
+			break
+		}
+
+		log.Warn("Failed to connect to NATS, retrying in 2s...", "err", err)
+		time.Sleep(time.Second * 2)
 	}
 
 	return jetstream.New(nc)

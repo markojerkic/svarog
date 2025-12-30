@@ -81,13 +81,23 @@ func main() {
 
 	authService.CreateInitialAdminUser(context.Background())
 
-	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
-		IssuerSeed:     env.NatsIssuerSeed,
-		JwtSecret:      env.NatsJwtSecret,
+	tokenService, err := serverauth.NewTokenService(env.NatsJwtSecret)
+	if err != nil {
+		log.Fatalf("Failed to create token service: %v", err)
+	}
+
+	natsConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+		NatsAddr:       env.NatsAddr,
 		SystemUser:     env.NatsSystemUser,
 		SystemPassword: env.NatsSystemPassword,
-		NatsAddr:       env.NatsAddr,
 	})
+	if err != nil {
+		log.Fatalf("Failed to connect to NATS: %v", err)
+	}
+
+	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+		IssuerSeed: env.NatsIssuerSeed,
+	}, natsConn.Conn, tokenService)
 	if err != nil {
 		log.Fatalf("Failed to create NATS auth handler: %v", err)
 	}

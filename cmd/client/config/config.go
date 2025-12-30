@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/charmbracelet/log"
 )
@@ -26,7 +27,7 @@ func NewClientConfig(connString string) (ClientConfig, error) {
 		connString: connString,
 		Protocol:   url.Scheme,
 		ServerAddr: url.Host,
-		Topic:      url.Path,
+		Topic:      strings.TrimPrefix(url.Path, "/"),
 		Token:      url.Query().Get("token"),
 		Debug:      url.Query().Get("debug") == "true",
 	}

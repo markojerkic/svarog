@@ -23,9 +23,11 @@ const (
 type NatsAuthSuite struct {
 	suite.Suite
 
-	container   *nats.NATSContainer
-	natsAddr    string
-	authHandler *serverauth.NatsAuthCalloutHandler
+	container    *nats.NATSContainer
+	natsAddr     string
+	natsConn     *serverauth.NatsConnection
+	tokenService *serverauth.TokenService
+	authHandler  *serverauth.NatsAuthCalloutHandler
 }
 
 func (s *NatsAuthSuite) SetupSuite() {
@@ -57,14 +59,22 @@ func (s *NatsAuthSuite) SetupSuite() {
 	s.natsAddr, err = container.ConnectionString(ctx)
 	require.NoError(t, err, "failed to get NATS connection string")
 
-	// Create auth handler with explicit config
-	s.authHandler, err = serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
-		IssuerSeed:     string(issuerSeed),
-		JwtSecret:      jwtSecret,
+	// Create token service
+	s.tokenService, err = serverauth.NewTokenService(jwtSecret)
+	require.NoError(t, err, "failed to create token service")
+
+	// Create NATS connection with JetStream
+	s.natsConn, err = serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+		NatsAddr:       s.natsAddr,
 		SystemUser:     systemUser,
 		SystemPassword: systemPassword,
-		NatsAddr:       s.natsAddr,
 	})
+	require.NoError(t, err, "failed to create NATS connection")
+
+	// Create auth handler with explicit config
+	s.authHandler, err = serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+		IssuerSeed: string(issuerSeed),
+	}, s.natsConn.Conn, s.tokenService)
 	require.NoError(t, err, "failed to create auth handler")
 
 	// Start the auth callout handler
@@ -73,6 +83,9 @@ func (s *NatsAuthSuite) SetupSuite() {
 }
 
 func (s *NatsAuthSuite) TearDownSuite() {
+	if s.natsConn != nil {
+		s.natsConn.Close()
+	}
 	if s.container != nil {
 		_ = s.container.Terminate(context.Background())
 	}

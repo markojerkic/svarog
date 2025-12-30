@@ -16,24 +16,18 @@ func main() {
 		panic(err)
 	}
 
-	authhandler, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
-		IssuerSeed:     os.Getenv("NATS_ISSUER_SEED"),
-		JwtSecret:      os.Getenv("NATS_JWT_SECRET"),
-		SystemUser:     os.Getenv("NATS_SYSTEM_USER"),
-		SystemPassword: os.Getenv("NATS_SYSTEM_PASSWORD"),
-		NatsAddr:       os.Getenv("NATS_ADDR"),
-	})
-	if err != nil {
-		panic(err)
-	}
-
 	topic := flag.String("topic", "", "Topic to grant access to")
 	flag.Parse()
 	if *topic == "" {
 		panic("Topic is required")
 	}
 
-	token, err := authhandler.GenerateToken("svarog-temp", *topic)
+	tokenService, err := serverauth.NewTokenService(os.Getenv("NATS_JWT_SECRET"))
+	if err != nil {
+		panic(err)
+	}
+
+	token, err := tokenService.GenerateToken("svarog-temp", *topic)
 	if err != nil {
 		panic(err)
 	}

@@ -12,7 +12,7 @@ func (s *NatsAuthSuite) TestAuthCalloutValidToken() {
 	t := s.T()
 
 	// Generate a valid token for a specific topic
-	token, err := s.authHandler.GenerateToken("testuser", "logs.myapp")
+	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
 	require.NoError(t, err)
 
 	// Connect to NATS with the token
@@ -56,7 +56,7 @@ func (s *NatsAuthSuite) TestAuthCalloutPublishToAllowedTopic() {
 	t := s.T()
 
 	topic := "logs.myapp"
-	token, err := s.authHandler.GenerateToken("testuser", topic)
+	token, err := s.tokenService.GenerateToken("testuser", topic)
 	require.NoError(t, err)
 
 	nc, err := nats.Connect(s.natsAddr, nats.Token(token))
@@ -75,7 +75,7 @@ func (s *NatsAuthSuite) TestAuthCalloutPublishToDisallowedTopic() {
 	t := s.T()
 
 	// Token grants access to "logs.myapp"
-	token, err := s.authHandler.GenerateToken("testuser", "logs.myapp")
+	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
 	require.NoError(t, err)
 
 	nc, err := nats.Connect(s.natsAddr, nats.Token(token))

@@ -18,7 +18,7 @@ func TestNatsAuthSuite(t *testing.T) {
 func (s *NatsAuthSuite) TestGenerateToken() {
 	t := s.T()
 
-	token, err := s.authHandler.GenerateToken("testuser", "logs.myapp")
+	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
@@ -26,7 +26,7 @@ func (s *NatsAuthSuite) TestGenerateToken() {
 func (s *NatsAuthSuite) TestGenerateTokenEmptyTopicFails() {
 	t := s.T()
 
-	token, err := s.authHandler.GenerateToken("testuser", "")
+	token, err := s.tokenService.GenerateToken("testuser", "")
 	assert.Error(t, err)
 	assert.Empty(t, token)
 	assert.Contains(t, err.Error(), "topic is required")
@@ -35,10 +35,10 @@ func (s *NatsAuthSuite) TestGenerateTokenEmptyTopicFails() {
 func (s *NatsAuthSuite) TestValidateJWT() {
 	t := s.T()
 
-	token, err := s.authHandler.GenerateToken("testuser", "logs.myapp")
+	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
 	require.NoError(t, err)
 
-	claims, err := s.authHandler.ValidateJWT(token)
+	claims, err := s.tokenService.ValidateJWT(token)
 	require.NoError(t, err)
 	assert.Equal(t, "testuser", claims.Username)
 	assert.Equal(t, "logs.myapp", claims.Topic)
@@ -47,7 +47,7 @@ func (s *NatsAuthSuite) TestValidateJWT() {
 func (s *NatsAuthSuite) TestValidateJWTEmptyToken() {
 	t := s.T()
 
-	claims, err := s.authHandler.ValidateJWT("")
+	claims, err := s.tokenService.ValidateJWT("")
 	assert.Error(t, err)
 	assert.Nil(t, claims)
 	assert.Contains(t, err.Error(), "token is empty")
@@ -56,7 +56,7 @@ func (s *NatsAuthSuite) TestValidateJWTEmptyToken() {
 func (s *NatsAuthSuite) TestValidateJWTInvalidToken() {
 	t := s.T()
 
-	claims, err := s.authHandler.ValidateJWT("invalid.token.here")
+	claims, err := s.tokenService.ValidateJWT("invalid.token.here")
 	assert.Error(t, err)
 	assert.Nil(t, claims)
 }
@@ -77,7 +77,7 @@ func (s *NatsAuthSuite) TestValidateJWTWrongSecret() {
 	tokenString, err := token.SignedString([]byte("wrong-secret"))
 	require.NoError(t, err)
 
-	result, err := s.authHandler.ValidateJWT(tokenString)
+	result, err := s.tokenService.ValidateJWT(tokenString)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
@@ -98,7 +98,7 @@ func (s *NatsAuthSuite) TestValidateJWTExpiredToken() {
 	tokenString, err := token.SignedString([]byte("test-jwt-secret"))
 	require.NoError(t, err)
 
-	result, err := s.authHandler.ValidateJWT(tokenString)
+	result, err := s.tokenService.ValidateJWT(tokenString)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
@@ -109,10 +109,10 @@ func (s *NatsAuthSuite) TestGenerateAndValidateRoundTrip() {
 	username := "myuser"
 	topic := "logs.service.production"
 
-	token, err := s.authHandler.GenerateToken(username, topic)
+	token, err := s.tokenService.GenerateToken(username, topic)
 	require.NoError(t, err)
 
-	claims, err := s.authHandler.ValidateJWT(token)
+	claims, err := s.tokenService.ValidateJWT(token)
 	require.NoError(t, err)
 
 	assert.Equal(t, username, claims.Username)

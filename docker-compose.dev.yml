@@ -1,4 +1,3 @@
-version: "3"
 services:
   svarog-mongodb:
     image: mongo:7.0
@@ -24,6 +23,7 @@ services:
     command: ["--config", "/config/nats-server.conf"]
     volumes:
       - ./nats-server.conf:/config/nats-server.conf:ro
+      - nats_data:/data/jetstream
     environment:
       - NATS_WS_PORT=${NATS_WS_PORT:-9222}
       - NATS_SYSTEM_USER=${NATS_SYSTEM_USER:-auth_service}
@@ -33,3 +33,4 @@ services:
 volumes:
   dbdata:
   mongo1_config:
+  nats_data:
