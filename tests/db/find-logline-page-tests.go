@@ -15,7 +15,7 @@ import (
 func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	t := suite.T()
 
-	logIngestChannel := make(chan db.LogLineWithIp, 1024)
+	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
 	logServerContext := context.Background()
 	defer logServerContext.Done()

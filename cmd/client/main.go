@@ -9,10 +9,10 @@ import (
 	"github.com/markojerkic/svarog/cmd/client/config"
 	natsclient "github.com/markojerkic/svarog/cmd/client/nats-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
-	"github.com/markojerkic/svarog/internal/commontypes"
+	"github.com/markojerkic/svarog/internal/rpc"
 )
 
-func readStdin(output chan *commontypes.LogLineDto) {
+func readStdin(output chan *rpc.LogLine) {
 	r := reader.NewReader(os.Stdin, output)
 
 	waitGroup := &sync.WaitGroup{}

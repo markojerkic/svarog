@@ -1,8 +1,10 @@
-package commontypes
+package rpc
 
-import "time"
+import (
+	"time"
+)
 
-type LogLineDto struct {
+type LogLine struct {
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
 	Sequence  int       `json:"sequence"`

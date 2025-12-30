@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/grpcserver"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +34,7 @@ func (s *ServerauthSuite) TestBatchLog_UnauthorizedClient() {
 	env := types.ServerEnv{
 		GrpcServerPort: randomFreePort,
 	}
-	logIngestChan := make(chan db.LogLineWithIp)
+	logIngestChan := make(chan db.LogLineWithHost)
 
 	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, s.projectsService, env, logIngestChan)
 
@@ -110,7 +110,7 @@ func (s *ServerauthSuite) TestBatchLog_AuthorizedClient() {
 	env := types.ServerEnv{
 		GrpcServerPort: randomFreePort,
 	}
-	logIngestChan := make(chan db.LogLineWithIp, 10)
+	logIngestChan := make(chan db.LogLineWithHost, 10)
 
 	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, s.projectsService, env, logIngestChan)
 

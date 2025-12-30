@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/log"
 	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
 	"github.com/markojerkic/svarog/internal/lib/optional"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

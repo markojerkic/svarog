@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -25,13 +25,14 @@ type LastCursor struct {
 	IsBackward     bool
 }
 
-type LogLineWithIp struct {
+type LogLineWithHost struct {
 	*rpc.LogLine
-	Ip string
+	ClientId string
+	Hostname string
 }
 
 type AggregatingLogServer interface {
-	Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp)
+	Run(ctx context.Context, logIngestChannel <-chan LogLineWithHost)
 	IsBacklogEmpty() bool
 	BacklogCount() int
 }
@@ -65,7 +66,7 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 	}
 }
 
-func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithIp) {
+func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithHost) {
 	log.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
@@ -75,11 +76,11 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 		case line := <-logIngestChannel:
 			logLine := types.StoredLog{
 				LogLine:        line.Message,
-				Timestamp:      line.Timestamp.AsTime(),
+				Timestamp:      line.Timestamp,
 				SequenceNumber: line.Sequence,
 				Client: types.StoredClient{
-					ClientId:  line.Client,
-					IpAddress: line.Ip,
+					ClientId:  line.ClientId,
+					IpAddress: line.Hostname,
 				},
 			}
 			self.backlog.AddToBacklog(logLine)

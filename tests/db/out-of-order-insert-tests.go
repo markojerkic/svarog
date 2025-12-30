@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImportedLogs int64) {
+func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
 	generatedLogLines := make([]*rpc.LogLine, numberOfImportedLogs)
 
 	for i := 0; i < int(numberOfImportedLogs); i++ {
@@ -33,7 +33,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 		if i%1000 == 0 {
 			log.Debugf("Sending even line %d", i)
 		}
-		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
+		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], Hostname: "::1"}
 		i += 2
 	}
 	log.Printf("Done with even lines")
@@ -47,7 +47,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithIp, numberOfI
 		if i%1000 == 0 {
 			log.Debug("Sending odd line %d", i)
 		}
-		logIngestChannel <- db.LogLineWithIp{LogLine: generatedLogLines[i], Ip: "::1"}
+		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], Hostname: "::1"}
 		i += 2
 	}
 	log.Printf("Done with odd lines")
@@ -58,7 +58,7 @@ func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
 
-	logIngestChannel := make(chan db.LogLineWithIp, 1024)
+	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
 	logServerContext := context.Background()
 	defer logServerContext.Done()

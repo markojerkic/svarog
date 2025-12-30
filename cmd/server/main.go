@@ -13,12 +13,11 @@ import (
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
-	"github.com/markojerkic/svarog/internal/commontypes"
-	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -116,7 +115,7 @@ func main() {
 	})
 	consumer.Consume(func(msg jetstream.Msg) {
 		// log.Debug("Received message on logs.> subject", "msg", string(msg.Data()))
-		var logLine commontypes.LogLineDto
+		var logLine rpc.LogLine
 		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
 			log.Error("Failed to unmarshal log line", "err", err)
 			return
@@ -149,11 +148,9 @@ func main() {
 			ProjectsService:    projectsService,
 		})
 
-	logIngestChannel := make(chan db.LogLineWithIp, 1000)
-	grpcServer := grpcserver.NewGrpcServer(certificateService, projectsService, env, logIngestChannel)
+	logIngestChannel := make(chan db.LogLineWithHost, 1000)
 
 	go natsAuthService.Run()
 	go logServer.Run(context.Background(), logIngestChannel)
-	go httpServer.Start()
-	grpcServer.Start()
+	httpServer.Start()
 }

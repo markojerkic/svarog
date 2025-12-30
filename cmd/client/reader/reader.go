@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/commontypes"
+	"github.com/markojerkic/svarog/internal/rpc"
 )
 
 type Reader interface {
@@ -28,7 +28,7 @@ type Line struct {
 type ReaderImpl struct {
 	input    *bufio.Scanner
 	file     *os.File
-	output   chan<- *commontypes.LogLineDto
+	output   chan<- *rpc.LogLine
 	fileName string
 }
 
@@ -39,7 +39,7 @@ var ansiRegex = regexp.MustCompile(ansi)
 func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	var logLine *commontypes.LogLineDto
+	var logLine *rpc.LogLine
 	i := 0
 	for r.hasNext() {
 		line, err := r.next()
@@ -53,7 +53,7 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 
 		fmt.Println(message)
 		message = ansiRegex.ReplaceAllString(message, "")
-		logLine = &commontypes.LogLineDto{
+		logLine = &rpc.LogLine{
 			Message:   message,
 			Timestamp: timestamp,
 			Sequence:  i,
@@ -77,7 +77,7 @@ func (r *ReaderImpl) next() (string, error) {
 	return r.input.Text(), nil
 }
 
-func NewReader(input *os.File, output chan<- *commontypes.LogLineDto) Reader {
+func NewReader(input *os.File, output chan<- *rpc.LogLine) Reader {
 	return &ReaderImpl{
 		input:    bufio.NewScanner(input),
 		file:     input,

@@ -13,7 +13,7 @@ type LogLine struct {
 	ID             string             `json:"id"`
 	Timestamp      int64              `json:"timestamp"`
 	Content        string             `json:"content"`
-	SequenceNumber int64              `json:"sequenceNumber"`
+	SequenceNumber int                `json:"sequenceNumber"`
 	Client         types.StoredClient `json:"client"`
 }
 

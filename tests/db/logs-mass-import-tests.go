@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -27,16 +27,16 @@ func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
 	return count
 }
 
-func generateLogLines(logIngestChannel chan<- db.LogLineWithIp, numberOfImportedLogs int64) {
+func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
 	for i := 0; i < int(numberOfImportedLogs); i++ {
-		logIngestChannel <- db.LogLineWithIp{
+		logIngestChannel <- db.LogLineWithHost{
 			LogLine: &rpc.LogLine{
 				Message:   fmt.Sprintf("Log line %d", i),
 				Timestamp: timestamppb.New(time.Now()),
 				Sequence:  int64(i) % math.MaxInt64,
 				Client:    "marko",
 			},
-			Ip: "::1",
+			Hostname: "::1",
 		}
 
 		if i%500_000 == 0 {
@@ -51,7 +51,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
-	logIngestChannel := make(chan db.LogLineWithIp, 1024)
+	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
 	logServerContext := context.Background()
 	defer logServerContext.Done()

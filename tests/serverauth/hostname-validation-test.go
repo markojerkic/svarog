@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/grpcserver"
-	rpc "github.com/markojerkic/svarog/internal/proto"
+	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ func (s *ServerauthSuite) TestGrpcConnection_WrongHostname() {
 	env := types.ServerEnv{
 		GrpcServerPort: randomFreePort,
 	}
-	logIngestChan := make(chan db.LogLineWithIp)
+	logIngestChan := make(chan db.LogLineWithHost)
 
 	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, s.projectsService, env, logIngestChan)
 
@@ -88,7 +88,7 @@ func (s *ServerauthSuite) TestGrpcConnection_CorrectHostname() {
 	env := types.ServerEnv{
 		GrpcServerPort: randomFreePort,
 	}
-	logIngestChan := make(chan db.LogLineWithIp)
+	logIngestChan := make(chan db.LogLineWithHost)
 
 	grpcServer := grpcserver.NewGrpcServer(s.certificatesService, s.projectsService, env, logIngestChan)
 

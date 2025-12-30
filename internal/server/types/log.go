@@ -15,7 +15,7 @@ type StoredLog struct {
 	LogLine        string             `bson:"log_line"`
 	Timestamp      time.Time          `bson:"timestamp"`
 	Client         StoredClient       `bson:"client"`
-	SequenceNumber int64              `bson:"sequence_number"`
+	SequenceNumber int                `bson:"sequence_number"`
 }
 
 type StoredClient struct {
