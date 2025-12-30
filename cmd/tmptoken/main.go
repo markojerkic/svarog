@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 
@@ -15,7 +16,16 @@ func main() {
 		panic(err)
 	}
 
-	authhandler := serverauth.NewNatsAuthCalloutHandler()
+	authhandler, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+		IssuerSeed:     os.Getenv("NATS_ISSUER_SEED"),
+		JwtSecret:      os.Getenv("NATS_JWT_SECRET"),
+		SystemUser:     os.Getenv("NATS_SYSTEM_USER"),
+		SystemPassword: os.Getenv("NATS_SYSTEM_PASSWORD"),
+		NatsAddr:       os.Getenv("NATS_ADDR"),
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	topic := flag.String("topic", "", "Topic to grant access to")
 	flag.Parse()

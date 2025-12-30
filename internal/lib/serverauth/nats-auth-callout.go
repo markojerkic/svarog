@@ -3,7 +3,6 @@ package serverauth
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -12,6 +11,14 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 )
+
+type NatsAuthConfig struct {
+	IssuerSeed     string
+	JwtSecret      string
+	SystemUser     string
+	SystemPassword string
+	NatsAddr       string
+}
 
 type NatsAuthCalloutHandler struct {
 	natsIssuerKeyPair nkeys.KeyPair
@@ -27,29 +34,26 @@ type NatsAuthClaims struct {
 	Topic    string `json:"topic,omitempty"`
 }
 
-func NewNatsAuthCalloutHandler() *NatsAuthCalloutHandler {
-	issuerSeed := os.Getenv("NATS_ISSUER_SEED")
-	if issuerSeed == "" {
-		panic("NATS_ISSUER_SEED is not set")
+func NewNatsAuthCalloutHandler(config NatsAuthConfig) (*NatsAuthCalloutHandler, error) {
+	if config.IssuerSeed == "" {
+		return nil, errors.New("IssuerSeed is required")
+	}
+	if config.JwtSecret == "" {
+		return nil, errors.New("JwtSecret is required")
 	}
 
-	jwtSecret := os.Getenv("NATS_JWT_SECRET")
-	if jwtSecret == "" {
-		panic("NATS_JWT_SECRET is not set")
-	}
-
-	issuerKp, err := nkeys.FromSeed([]byte(issuerSeed))
+	issuerKp, err := nkeys.FromSeed([]byte(config.IssuerSeed))
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to parse issuer seed: %w", err)
 	}
 
 	return &NatsAuthCalloutHandler{
 		natsIssuerKeyPair: issuerKp,
-		natsAuthUser:      os.Getenv("NATS_SYSTEM_USER"),
-		natsAuthPassword:  os.Getenv("NATS_SYSTEM_PASSWORD"),
-		natsAddr:          os.Getenv("NATS_ADDR"),
-		jwtSecret:         []byte(jwtSecret),
-	}
+		natsAuthUser:      config.SystemUser,
+		natsAuthPassword:  config.SystemPassword,
+		natsAddr:          config.NatsAddr,
+		jwtSecret:         []byte(config.JwtSecret),
+	}, nil
 }
 
 func (n *NatsAuthCalloutHandler) Run() error {

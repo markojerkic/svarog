@@ -80,7 +80,17 @@ func main() {
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
-	natsAuthService := serverauth.NewNatsAuthCalloutHandler()
+
+	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+		IssuerSeed:     env.NatsIssuerSeed,
+		JwtSecret:      env.NatsJwtSecret,
+		SystemUser:     env.NatsSystemUser,
+		SystemPassword: env.NatsSystemPassword,
+		NatsAddr:       env.NatsAddr,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create NATS auth handler: %v", err)
+	}
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{

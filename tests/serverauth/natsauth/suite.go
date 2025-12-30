@@ -3,6 +3,7 @@ package natsauth
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -10,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
+)
+
+const (
+	systemUser     = "system"
+	systemPassword = "password"
+	jwtSecret      = "test-jwt-secret"
+	natsWsPort     = "9222"
 )
 
 type NatsAuthSuite struct {
@@ -36,36 +44,55 @@ func (s *NatsAuthSuite) SetupSuite() {
 	issuerPublicKey, err := issuerKp.PublicKey()
 	require.NoError(t, err, "failed to get issuer public key")
 
-	// Set environment variables for NatsAuthCalloutHandler
-	os.Setenv("NATS_ISSUER_SEED", string(issuerSeed))
-	os.Setenv("NATS_JWT_SECRET", "test-jwt-secret")
-	os.Setenv("NATS_SYSTEM_USER", "system")
-	os.Setenv("NATS_SYSTEM_PASSWORD", "password")
-	os.Setenv("NATS_ISSUER_PUBLIC_KEY", issuerPublicKey)
+	// Read and substitute variables in nats-server.conf
+	natsConfig := s.loadNatsConfig(issuerPublicKey)
 
-	// Start NATS container
-	container, err := nats.Run(ctx, "nats:2.9")
+	// Start NATS container with config (2.10+ required for auth_callout)
+	container, err := nats.Run(ctx, "nats:latest",
+		nats.WithConfigFile(strings.NewReader(natsConfig)),
+	)
 	require.NoError(t, err, "failed to start NATS container")
 	s.container = container
 
 	s.natsAddr, err = container.ConnectionString(ctx)
 	require.NoError(t, err, "failed to get NATS connection string")
 
-	os.Setenv("NATS_ADDR", s.natsAddr)
+	// Create auth handler with explicit config
+	s.authHandler, err = serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+		IssuerSeed:     string(issuerSeed),
+		JwtSecret:      jwtSecret,
+		SystemUser:     systemUser,
+		SystemPassword: systemPassword,
+		NatsAddr:       s.natsAddr,
+	})
+	require.NoError(t, err, "failed to create auth handler")
 
-	s.authHandler = serverauth.NewNatsAuthCalloutHandler()
+	// Start the auth callout handler
+	err = s.authHandler.Run()
+	require.NoError(t, err, "failed to start auth callout handler")
 }
 
 func (s *NatsAuthSuite) TearDownSuite() {
 	if s.container != nil {
 		_ = s.container.Terminate(context.Background())
 	}
+}
 
-	// Clean up environment variables
-	os.Unsetenv("NATS_ISSUER_SEED")
-	os.Unsetenv("NATS_JWT_SECRET")
-	os.Unsetenv("NATS_SYSTEM_USER")
-	os.Unsetenv("NATS_SYSTEM_PASSWORD")
-	os.Unsetenv("NATS_ISSUER_PUBLIC_KEY")
-	os.Unsetenv("NATS_ADDR")
+func (s *NatsAuthSuite) loadNatsConfig(issuerPublicKey string) string {
+	t := s.T()
+
+	configBytes, err := os.ReadFile("../../../nats-server.conf")
+	require.NoError(t, err, "failed to read nats-server.conf")
+
+	config := string(configBytes)
+
+	// Substitute environment variables
+	replacer := strings.NewReplacer(
+		"$NATS_WS_PORT", natsWsPort,
+		"$NATS_SYSTEM_USER", systemUser,
+		"$NATS_SYSTEM_PASSWORD", systemPassword,
+		"$NATS_ISSUER_PUBLIC_KEY", issuerPublicKey,
+	)
+
+	return replacer.Replace(config)
 }
