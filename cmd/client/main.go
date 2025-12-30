@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/cmd/client/config"
+	natsclient "github.com/markojerkic/svarog/cmd/client/nats-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
 	"github.com/markojerkic/svarog/internal/commontypes"
 )
@@ -47,6 +48,9 @@ func main() {
 	log.Debug("Parsed config", "config", config)
 
 	processedLines := make(chan *commontypes.LogLineDto, 1024*1024)
+	natsClient := natsclient.NewNatsClient(config, processedLines)
 
+	go natsClient.Run(context.Background())
 	readStdin(context.Background(), processedLines)
+
 }
