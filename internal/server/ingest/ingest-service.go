@@ -46,6 +46,7 @@ func (i *IngestService) Run(ctx context.Context) error {
 		parts := strings.Split(subject, ".")
 		clientId := parts[len(parts)-1]
 
+		log.Debug("Received log line", "clientId", clientId, "subject", subject)
 		i.ingestCh <- db.LogLineWithHost{
 			LogLine:  &logLine,
 			ClientId: clientId,

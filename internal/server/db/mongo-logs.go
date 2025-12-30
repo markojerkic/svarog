@@ -151,7 +151,7 @@ func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clien
 }
 
 func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
-	saveableLogs := make([]interface{}, len(logs))
+	saveableLogs := make([]any, len(logs))
 	for i, log := range logs {
 		saveableLogs[i] = log
 	}
