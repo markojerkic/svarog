@@ -58,7 +58,6 @@ func (n *NatsAuthCalloutHandler) Run() error {
 			return
 		}
 		token := reqClaim.ConnectOptions.Token
-		log.Debug("Auth request", "user_nkey", reqClaim.UserNkey, "token_present", token != "", "server", reqClaim.Server.ID)
 
 		claims, err := n.tokenService.ValidateJWT(token)
 		if err != nil {
@@ -67,15 +66,9 @@ func (n *NatsAuthCalloutHandler) Run() error {
 			return
 		}
 
-		log.Debug("JWT validated", "username", claims.Username, "topic", claims.Topic)
-
 		if err := n.respondWithSuccess(msg, reqClaim, claims); err != nil {
 			log.Error("Failed to respond with success", "err", err)
 		}
-	})
-
-	_, err = n.conn.Subscribe("logs.*", func(msg *nats.Msg) {
-		log.Debug("Received message", "msg", string(msg.Data))
 	})
 
 	return err

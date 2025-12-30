@@ -13,17 +13,11 @@ import (
 )
 
 func readStdin(ctx context.Context, output chan *commontypes.LogLineDto) {
-	readers := []reader.Reader{
-		reader.NewReader(os.Stdin, output),
-		reader.NewReader(os.Stderr, output),
-	}
+	r := reader.NewReader(os.Stdin, output)
 
 	waitGroup := &sync.WaitGroup{}
-
-	for _, reader := range readers {
-		waitGroup.Add(1)
-		go reader.Run(ctx, waitGroup)
-	}
+	waitGroup.Add(1)
+	go r.Run(ctx, waitGroup)
 
 	waitGroup.Wait()
 }
@@ -47,10 +41,21 @@ func main() {
 
 	log.Debug("Parsed config", "config", config)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	processedLines := make(chan *commontypes.LogLineDto, 1024*1024)
 	natsClient := natsclient.NewNatsClient(config, processedLines)
 
-	go natsClient.Run(context.Background())
-	readStdin(context.Background(), processedLines)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		natsClient.Run(ctx)
+	}()
 
+	readStdin(ctx, processedLines)
+	close(processedLines)
+	cancel() // Signal NATS client to stop (in case it's still connecting)
+	wg.Wait()
 }

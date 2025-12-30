@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
+	"github.com/markojerkic/svarog/internal/commontypes"
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
@@ -106,10 +109,22 @@ func main() {
 		log.Fatalf("Failed to connect to NATS APP account: %v", err)
 	}
 	// _ = natsAppConn // TODO: use for consuming logs
-	sub, err := natsAppConn.JetStream.Conn().Subscribe("logs.>", func(msg *nats.Msg) {
-		log.Debug("Received message on logs.> subject", "msg", string(msg.Data))
+	consumer, _ := natsAppConn.JetStream.CreateOrUpdateConsumer(context.Background(), "LOGS", jetstream.ConsumerConfig{
+		Durable:       "log-processor",
+		FilterSubject: "logs.>",
+		AckPolicy:     jetstream.AckExplicitPolicy,
 	})
-	defer sub.Unsubscribe()
+	consumer.Consume(func(msg jetstream.Msg) {
+		// log.Debug("Received message on logs.> subject", "msg", string(msg.Data()))
+		var logLine commontypes.LogLineDto
+		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
+			log.Error("Failed to unmarshal log line", "err", err)
+			return
+		}
+
+		fmt.Println(logLine.Message)
+		msg.Ack()
+	})
 
 	natsAuthConfig := serverauth.NatsAuthConfig{
 		IssuerSeed: env.NatsIssuerSeed,

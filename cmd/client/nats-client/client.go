@@ -14,27 +14,40 @@ import (
 
 type NatsClient struct {
 	config   config.ClientConfig
+	nc       *nats.Conn
 	js       jetstream.JetStream
-	logLines chan *commontypes.LogLineDto
+	logLines <-chan *commontypes.LogLineDto
 }
 
-func NewNatsClient(cfg config.ClientConfig, logLines chan *commontypes.LogLineDto) NatsClient {
-	_, js := connectNats(cfg)
-
-	return NatsClient{
+func NewNatsClient(cfg config.ClientConfig, logLines <-chan *commontypes.LogLineDto) *NatsClient {
+	return &NatsClient{
 		config:   cfg,
-		js:       js,
 		logLines: logLines,
 	}
 }
 
 func (n *NatsClient) Run(ctx context.Context) {
+	defer n.Close()
+
+	nc, js := n.connectNats(ctx)
+	if nc == nil {
+		log.Debug("NATS connection cancelled")
+		return
+	}
+	n.nc = nc
+	n.js = js
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Debug("NATS client context done")
 			return
-		case logLine := <-n.logLines:
+		case logLine, ok := <-n.logLines:
+			if !ok {
+				log.Debug("Log lines channel closed, exiting")
+				return
+			}
+
 			data, err := json.Marshal(logLine)
 			if err != nil {
 				log.Error("Failed to marshal log line", "err", err)
@@ -48,9 +61,17 @@ func (n *NatsClient) Run(ctx context.Context) {
 	}
 }
 
-func connectNats(cfg config.ClientConfig) (*nats.Conn, jetstream.JetStream) {
+func (n *NatsClient) Close() {
+	if n.nc != nil {
+		n.nc.Drain()
+		n.nc.Close()
+		log.Debug("NATS connection closed")
+	}
+}
+
+func (n *NatsClient) connectNats(ctx context.Context) (*nats.Conn, jetstream.JetStream) {
 	opts := []nats.Option{
-		nats.Token(cfg.Token),
+		nats.Token(n.config.Token),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
@@ -66,16 +87,28 @@ func connectNats(cfg config.ClientConfig) (*nats.Conn, jetstream.JetStream) {
 		}),
 	}
 
+	retryDelay := time.Second * 2
+
 	for {
-		nc, err := nats.Connect(cfg.GetNatsUrl(), opts...)
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		default:
+		}
+
+		nc, err := nats.Connect(n.config.GetNatsUrl(), opts...)
 		if err == nil {
-			log.Info("Connected to NATS", "url", cfg.GetNatsUrl())
+			log.Debug("Connected to NATS", "url", n.config.GetNatsUrl())
 
 			js, err := jetstream.New(nc)
 			if err != nil {
 				log.Error("Failed to create JetStream context, retrying...", "err", err)
 				nc.Close()
-				time.Sleep(time.Second * 2)
+				select {
+				case <-ctx.Done():
+					return nil, nil
+				case <-time.After(retryDelay):
+				}
 				continue
 			}
 
@@ -83,6 +116,10 @@ func connectNats(cfg config.ClientConfig) (*nats.Conn, jetstream.JetStream) {
 		}
 
 		log.Warn("Failed to connect to NATS, retrying in 2s...", "err", err)
-		time.Sleep(time.Second * 2)
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		case <-time.After(retryDelay):
+		}
 	}
 }
