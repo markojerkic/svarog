@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "tw": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch"
+    "tw": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch",
+    "tw:build": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.18",
