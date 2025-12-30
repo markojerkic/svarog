@@ -11,9 +11,10 @@ import (
 )
 
 type NatsConnectionConfig struct {
-	NatsAddr       string
-	SystemUser     string
-	SystemPassword string
+	NatsAddr        string
+	User            string
+	Password        string
+	EnableJetStream bool
 }
 
 type NatsConnection struct {
@@ -23,7 +24,7 @@ type NatsConnection struct {
 
 func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 	nc, err := nats.Connect(cfg.NatsAddr,
-		nats.UserInfo(cfg.SystemUser, cfg.SystemPassword),
+		nats.UserInfo(cfg.User, cfg.Password),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
@@ -39,20 +40,26 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
-	js, err := jetstream.New(nc)
-	if err != nil {
-		nc.Close()
-		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
-	}
-
 	conn := &NatsConnection{
-		Conn:      nc,
-		JetStream: js,
+		Conn: nc,
 	}
 
-	if err := conn.ensureLogsStream(); err != nil {
-		log.Warn("Failed to create JetStream LOGS stream", "err", err)
+	// Only setup JetStream if enabled
+	if cfg.EnableJetStream {
+		js, err := jetstream.New(nc)
+		if err != nil {
+			nc.Close()
+			return nil, fmt.Errorf("failed to create JetStream context: %w", err)
+		}
+		conn.JetStream = js
+
+		// Create the LOGS stream for log ingestion
+		if err := conn.ensureLogsStream(); err != nil {
+			log.Warn("Failed to create JetStream LOGS stream", "err", err)
+		}
 	}
+
+	log.Info("Connected to NATS", "addr", cfg.NatsAddr, "jetstream", cfg.EnableJetStream)
 
 	return conn, nil
 }

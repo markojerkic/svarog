@@ -16,6 +16,8 @@ import (
 const (
 	systemUser     = "system"
 	systemPassword = "password"
+	appUser        = "app"
+	appPassword    = "apppass"
 	jwtSecret      = "test-jwt-secret"
 	natsWsPort     = "9222"
 )
@@ -63,11 +65,12 @@ func (s *NatsAuthSuite) SetupSuite() {
 	s.tokenService, err = serverauth.NewTokenService(jwtSecret)
 	require.NoError(t, err, "failed to create token service")
 
-	// Create NATS connection with JetStream
+	// Create NATS connection for auth callout (SYSTEM account)
 	s.natsConn, err = serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
-		NatsAddr:       s.natsAddr,
-		SystemUser:     systemUser,
-		SystemPassword: systemPassword,
+		NatsAddr:        s.natsAddr,
+		User:            systemUser,
+		Password:        systemPassword,
+		EnableJetStream: true, // Enable for tests
 	})
 	require.NoError(t, err, "failed to create NATS connection")
 
@@ -104,6 +107,8 @@ func (s *NatsAuthSuite) loadNatsConfig(issuerPublicKey string) string {
 		"$NATS_WS_PORT", natsWsPort,
 		"$NATS_SYSTEM_USER", systemUser,
 		"$NATS_SYSTEM_PASSWORD", systemPassword,
+		"$NATS_APP_USER", appUser,
+		"$NATS_APP_PASSWORD", appPassword,
 		"$NATS_ISSUER_PUBLIC_KEY", issuerPublicKey,
 	)
 

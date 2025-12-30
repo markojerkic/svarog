@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
+	"github.com/nats-io/nats.go"
 
 	envParser "github.com/caarlos0/env/v11"
 	dotenv "github.com/joho/godotenv"
@@ -86,18 +87,37 @@ func main() {
 		log.Fatalf("Failed to create token service: %v", err)
 	}
 
-	natsConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
-		NatsAddr:       env.NatsAddr,
-		SystemUser:     env.NatsSystemUser,
-		SystemPassword: env.NatsSystemPassword,
+	natsSystemConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+		NatsAddr: env.NatsAddr,
+		User:     env.NatsSystemUser,
+		Password: env.NatsSystemPassword,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to NATS: %v", err)
+		log.Fatalf("Failed to connect to NATS SYSTEM account: %v", err)
 	}
 
-	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
+	natsAppConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+		NatsAddr:        env.NatsAddr,
+		User:            env.NatsAppUser,
+		Password:        env.NatsAppPassword,
+		EnableJetStream: true,
+	})
+	if err != nil {
+		log.Fatalf("Failed to connect to NATS APP account: %v", err)
+	}
+	// _ = natsAppConn // TODO: use for consuming logs
+	sub, err := natsAppConn.JetStream.Conn().Subscribe("logs.>", func(msg *nats.Msg) {
+		log.Debug("Received message on logs.> subject", "msg", string(msg.Data))
+	})
+	defer sub.Unsubscribe()
+
+	natsAuthConfig := serverauth.NatsAuthConfig{
 		IssuerSeed: env.NatsIssuerSeed,
-	}, natsConn.Conn, tokenService)
+	}
+	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(
+		natsAuthConfig,
+		natsSystemConn.Conn,
+		tokenService)
 	if err != nil {
 		log.Fatalf("Failed to create NATS auth handler: %v", err)
 	}

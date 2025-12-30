@@ -12,4 +12,6 @@ type ServerEnv struct {
 	NatsJwtSecret      string `env:"NATS_JWT_SECRET"`
 	NatsSystemUser     string `env:"NATS_SYSTEM_USER"`
 	NatsSystemPassword string `env:"NATS_SYSTEM_PASSWORD"`
+	NatsAppUser        string `env:"NATS_APP_USER"`
+	NatsAppPassword    string `env:"NATS_APP_PASSWORD"`
 }
