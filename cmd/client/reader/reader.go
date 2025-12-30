@@ -10,8 +10,7 @@ import (
 	"sync"
 	"time"
 
-	rpc "github.com/markojerkic/svarog/internal/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/markojerkic/svarog/internal/commontypes"
 )
 
 type Reader interface {
@@ -29,10 +28,8 @@ type Line struct {
 type ReaderImpl struct {
 	input    *bufio.Scanner
 	file     *os.File
-	output   chan *rpc.LogLine
+	output   chan<- *commontypes.LogLineDto
 	fileName string
-
-	clientId string
 }
 
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
@@ -42,7 +39,7 @@ var ansiRegex = regexp.MustCompile(ansi)
 func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	var logLine *rpc.LogLine
+	var logLine *commontypes.LogLineDto
 	i := 0
 	for r.hasNext() {
 		line, err := r.next()
@@ -56,11 +53,10 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 
 		fmt.Println(message)
 		message = ansiRegex.ReplaceAllString(message, "")
-		logLine = &rpc.LogLine{
-			Client:    r.clientId,
+		logLine = &commontypes.LogLineDto{
 			Message:   message,
-			Timestamp: timestamppb.New(timestamp),
-			Sequence:  int64(i),
+			Timestamp: timestamp,
+			Sequence:  i,
 		}
 		r.output <- logLine
 		i = (i + 1) % math.MaxInt64
@@ -81,11 +77,11 @@ func (r *ReaderImpl) next() (string, error) {
 	return r.input.Text(), nil
 }
 
-func NewReader(input *os.File, clientId string, output chan *rpc.LogLine) Reader {
-	return &ReaderImpl{bufio.NewScanner(input),
-		input,
-		output,
-		input.Name(),
-		clientId,
+func NewReader(input *os.File, output chan<- *commontypes.LogLineDto) Reader {
+	return &ReaderImpl{
+		input:    bufio.NewScanner(input),
+		file:     input,
+		fileName: input.Name(),
+		output:   output,
 	}
 }
