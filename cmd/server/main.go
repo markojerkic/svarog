@@ -20,6 +20,7 @@ import (
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
+	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -74,8 +75,8 @@ func main() {
 	projectsCollection := database.Collection("projects")
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
-	logsRepository := db.NewLogService(database)
-	logServer := db.NewLogServer(logsRepository)
+	logsService := db.NewLogService(database)
+	logServer := db.NewLogServer(logsService)
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
@@ -107,23 +108,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to NATS APP account: %v", err)
 	}
-	// _ = natsAppConn // TODO: use for consuming logs
-	consumer, _ := natsAppConn.JetStream.CreateOrUpdateConsumer(context.Background(), "LOGS", jetstream.ConsumerConfig{
-		Durable:       "log-processor",
-		FilterSubject: "logs.>",
-		AckPolicy:     jetstream.AckExplicitPolicy,
-	})
-	consumer.Consume(func(msg jetstream.Msg) {
-		// log.Debug("Received message on logs.> subject", "msg", string(msg.Data()))
-		var logLine rpc.LogLine
-		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
-			log.Error("Failed to unmarshal log line", "err", err)
-			return
-		}
 
-		fmt.Println(logLine.Message)
-		msg.Ack()
-	})
+	logIngestChannel := make(chan db.LogLineWithHost, 1000)
+	ingestService := ingest.NewIngestService(logIngestChannel, natsAppConn)
 
 	natsAuthConfig := serverauth.NatsAuthConfig{
 		IssuerSeed: env.NatsIssuerSeed,
@@ -141,16 +128,15 @@ func main() {
 			AllowedOrigins:     env.HttpServerAllowedOrigins,
 			ServerPort:         env.HttpServerPort,
 			SessionStore:       sessionStore,
-			LogService:         logsRepository,
+			LogService:         logsService,
 			AuthService:        authService,
 			CertificateService: certificateService,
 			FilesService:       filesService,
 			ProjectsService:    projectsService,
 		})
 
-	logIngestChannel := make(chan db.LogLineWithHost, 1000)
-
 	go natsAuthService.Run()
 	go logServer.Run(context.Background(), logIngestChannel)
+	go ingestService.Run(context.Background())
 	httpServer.Start()
 }

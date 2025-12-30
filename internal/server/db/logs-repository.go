@@ -10,21 +10,6 @@ import (
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-type LogService interface {
-	SaveLogs(ctx context.Context, logs []types.StoredLog) error
-	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
-	GetClients(ctx context.Context) ([]types.Client, error)
-	GetInstances(ctx context.Context, clientId string) ([]string, error)
-	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
-	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
-}
-
-type LastCursor struct {
-	Timestamp      time.Time
-	SequenceNumber int
-	IsBackward     bool
-}
-
 type LogLineWithHost struct {
 	*rpc.LogLine
 	ClientId string
@@ -71,6 +56,7 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
 
+outer:
 	for {
 		select {
 		case line := <-logIngestChannel:
@@ -93,7 +79,7 @@ func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineW
 
 		case <-ctx.Done():
 			log.Debug("Context done")
-			break
+			break outer
 		}
 	}
 }

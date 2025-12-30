@@ -14,6 +14,21 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type LogService interface {
+	SaveLogs(ctx context.Context, logs []types.StoredLog) error
+	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
+	GetClients(ctx context.Context) ([]types.Client, error)
+	GetInstances(ctx context.Context, clientId string) ([]string, error)
+	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
+}
+
+type LastCursor struct {
+	Timestamp      time.Time
+	SequenceNumber int
+	IsBackward     bool
+}
+
 type MongoLogService struct {
 	logCollection *mongo.Collection
 }
