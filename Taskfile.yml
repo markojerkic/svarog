@@ -2,25 +2,21 @@
 
 version: "3"
 
-vars:
-  TAILWIND_CMD:
-    sh: command -v tailwindcss >/dev/null 2>&1 && echo "tailwindcss" || echo "bunx @tailwindcss/cli"
-
 tasks:
   reset-db:
-    desc: Resets the database
+    desc: Resets the database and nats
     cmds:
       - docker compose -f docker-compose.dev.yml down -v
 
   db:
-    desc: Starts the database
+    desc: Starts the database and nats
     cmds:
       - docker compose -f docker-compose.dev.yml up -d
 
   tailwind:
     desc: Watch Tailwind CSS changes
     cmds:
-      - "{{.TAILWIND_CMD}} -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch"
+      - bun run tw
 
   templ:
     desc: Run templ with integrated server and hot reload
@@ -29,6 +25,8 @@ tasks:
 
   dev:
     desc: Start development server with hot reload
+    deps:
+      - db
     cmds:
       - task --parallel templ tailwind
 

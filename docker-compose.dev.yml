@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 services:
   svarog-mongodb:
     image: mongo:7.0
@@ -15,6 +15,21 @@ services:
       - dbdata:/data/db
       - mongo1_config:/data/configdb
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+  nats:
+    image: nats:latest
+    container_name: svarog-nats
+    ports:
+      - "4222:4222"
+      - "${NATS_WS_PORT:-9222}:${NATS_WS_PORT:-9222}"
+    command: ["--config", "/config/nats-server.conf"]
+    volumes:
+      - ./nats-server.conf:/config/nats-server.conf:ro
+    environment:
+      - NATS_WS_PORT=${NATS_WS_PORT:-9222}
+      - NATS_SYSTEM_USER=${NATS_SYSTEM_USER:-auth_service}
+      - NATS_SYSTEM_PASSWORD=${NATS_SYSTEM_PASSWORD:-auth-service-secret-789}
+      - NATS_ISSUER_PUBLIC_KEY=${NATS_ISSUER_PUBLIC_KEY:-ACOAJABFNQGIVX7KATSTGKAD6ALP6END7576EM2VSUZ53M26CXR2OSLK}
+    restart: unless-stopped
 volumes:
   dbdata:
   mongo1_config:
