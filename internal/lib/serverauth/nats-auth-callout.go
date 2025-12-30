@@ -23,8 +23,8 @@ type NatsAuthCalloutHandler struct {
 
 type NatsAuthClaims struct {
 	jwt.RegisteredClaims
-	UserID   string `json:"user_id,omitempty"`
 	Username string `json:"username,omitempty"`
+	Topic    string `json:"topic,omitempty"`
 }
 
 func NewNatsAuthCalloutHandler() *NatsAuthCalloutHandler {
@@ -77,12 +77,33 @@ func (n *NatsAuthCalloutHandler) Run() error {
 			return
 		}
 
-		log.Debug("JWT validated", "user_id", claims.UserID, "username", claims.Username)
+		log.Debug("JWT validated", "username", claims.Username)
 	})
 
 	return err
 }
 
+// GenerateToken creates a signed JWT token that grants access to a specific topic.
+func (n *NatsAuthCalloutHandler) GenerateToken(username, topic string) (string, error) {
+	if topic == "" {
+		return "", errors.New("topic is required")
+	}
+
+	claims := NatsAuthClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+		Username: username,
+		Topic:    topic,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(n.jwtSecret)
+}
+
+// ValidateJWT validates the JWT token and returns the claims if valid.
 func (n *NatsAuthCalloutHandler) ValidateJWT(tokenString string) (*NatsAuthClaims, error) {
 	if tokenString == "" {
 		return nil, errors.New("token is empty")
