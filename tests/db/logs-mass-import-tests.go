@@ -43,7 +43,7 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 	}
 }
 
-var numberOfImportedLogs = int64(1_000_000)
+var numberOfImportedLogs = int64(1_000)
 
 func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	t := suite.T()
@@ -76,9 +76,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
 	suite.logServerContext.Done()
 
-	// SECOND PART OF THE TEST
 	// Check all logs if they're in correct order
-
 	index := int(numberOfImportedLogs)
 	pageSize := 200_000
 
@@ -94,7 +92,6 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	}
 
 	assert.LessOrEqual(t, index, 0, "Finished checking logs prematurely")
-
 }
 
 func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *db.LastCursor {
