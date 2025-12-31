@@ -12,9 +12,6 @@ type LogLine struct {
 }
 
 func (l *LogLine) Validate() error {
-	if l.Message == "" {
-		return errors.New("message is required")
-	}
 	if l.Timestamp.IsZero() {
 		return errors.New("timestamp is required")
 	}
