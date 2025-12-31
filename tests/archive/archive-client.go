@@ -81,7 +81,7 @@ func (a *ArchiveSuite) prepopulateLogs(n int, cuttoffDate time.Time, clientID st
 	for i := 0; i < n; i++ {
 		logLines[i] = types.StoredLog{
 			Timestamp:      cuttoffDate.Add(-time.Duration(i) * time.Millisecond),
-			SequenceNumber: int64(i),
+			SequenceNumber: i,
 			LogLine:        "log line",
 			Client: types.StoredClient{
 				IpAddress: clientInstance,
