@@ -10,7 +10,7 @@ type LogsPageProps struct {
 templ LogsPage(props LogsPageProps) {
 	@AdminLayout(AdminLayoutProps{Title: "Svarog"}) {
 		<div
-			class="flex flex-col-reverse gap-y-8 overflow-auto h-full"
+			class="flex flex-col-reverse overflow-auto h-full"
 			id="logs-container"
 		>
 			for _, log := range props.Logs {

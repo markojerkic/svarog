@@ -1,13 +1,21 @@
 package logs
 
 import "github.com/markojerkic/svarog/internal/server/types"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
 type LogLineProps struct {
 	LogLine types.StoredLog
 }
 
 templ LogLine(props LogLineProps) {
-	<pre class="border-l-4 pl-2 text-black">
-		{ props.LogLine.LogLine }
+	<pre class="group border-l-4 pl-2 text-black hover:bg-accent flex justify-between">
+		<span>{ props.LogLine.LogLine }</span>
+		@button.Button(button.Props{
+			Size:  button.SizeSm,
+			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0",
+		}) {
+			@icon.Copy()
+		}
 	</pre>
 }
