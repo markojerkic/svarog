@@ -39,9 +39,16 @@ func (i *IngestService) Run(ctx context.Context) error {
 		var logLine rpc.LogLine
 		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
 			log.Error("Failed to unmarshal log line", "err", err)
+			msg.Nak()
 			return
 		}
-		msg.Ack()
+
+		if err := logLine.Validate(); err != nil {
+			log.Error("Invalid log line", "err", err)
+			msg.Term()
+			return
+		}
+
 		subject := msg.Subject()
 		parts := strings.Split(subject, ".")
 		clientId := parts[len(parts)-1]
@@ -52,8 +59,8 @@ func (i *IngestService) Run(ctx context.Context) error {
 			ClientId: clientId,
 			Hostname: "<TODO>",
 		}
-
-	})
+		msg.Ack()
+	}, jetstream.PullMaxMessages(100))
 
 	return err
 }
