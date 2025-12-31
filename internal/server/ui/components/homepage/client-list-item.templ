@@ -1,18 +1,32 @@
 package homepage
 
-import "github.com/markojerkic/svarog/internal/server/ui/components/card"
+import (
+	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/ui/components/card"
+)
 
-templ ClientListItem(client string) {
-	@card.Card() {
-		@card.Header() {
-			@card.Title() {
-				<a href="#" class="hover:underline">
-					{ client }
-				</a>
-			}
-			@card.Description() {
-				Client ID
-			}
+templ ProjectGroup(project projects.Project) {
+	<section>
+		<div class="flex items-center gap-3 mb-4">
+			<h2 class="text-sm font-medium text-muted-foreground">{ project.Name }</h2>
+			<div class="flex-1 h-px bg-border"></div>
+		</div>
+		if len(project.Clients) == 0 {
+			<p class="text-sm text-muted-foreground">No clients connected.</p>
+		} else {
+			<div class="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+				for _, client := range project.Clients {
+					@ClientCard(client)
+				}
+			</div>
 		}
-	}
+	</section>
+}
+
+templ ClientCard(client string) {
+	<a href={ templ.SafeURL("/logs?client=" + client) }>
+		@card.Card(card.Props{Class: "p-3 hover:bg-accent transition-colors cursor-pointer"}) {
+			<span class="font-medium text-sm">{ client }</span>
+		}
+	</a>
 }
