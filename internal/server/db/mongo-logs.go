@@ -277,7 +277,7 @@ func createFilterForLogLine(collection *mongo.Collection, clientId string, logLi
 		{Key: "client.client_id", Value: clientId},
 		{Key: "$or", Value: bson.A{
 			bson.D{
-				{Key: "timestamp", Value: bson.D{{Key: "$lte", Value: targetLog.Timestamp}}},
+				{Key: "timestamp", Value: bson.D{{Key: "$lt", Value: targetLog.Timestamp}}},
 			},
 			bson.D{
 				{Key: "timestamp", Value: targetLog.Timestamp},
