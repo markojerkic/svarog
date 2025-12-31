@@ -1,4 +1,4 @@
-package natsauth
+package serverauth
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func (s *NatsAuthSuite) SetupSuite() {
 	util.SetupLogger()
 
 	config := testutils.DefaultNATSTestConfig()
-	config.ConfigPath = "../../../nats-server.conf"
+	config.ConfigPath = "../../nats-server.conf"
 
 	natsContainer, err := testutils.NewNATSTestContainer(ctx, config)
 	require.NoError(t, err, "failed to start NATS container")

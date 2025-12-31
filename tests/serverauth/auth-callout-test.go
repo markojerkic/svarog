@@ -1,4 +1,4 @@
-package natsauth
+package serverauth
 
 import (
 	"time"

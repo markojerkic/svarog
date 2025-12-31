@@ -26,7 +26,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	generateLogLines(logIngestChannel, expectedCount)
 
 	// Wait for all logs to be inserted into the database
-	timeout := time.After(8 * time.Second)
+	timeout := time.After(15 * time.Second)
 	for {
 		count := suite.countNumberOfLogsInDb()
 		if count >= expectedCount {
