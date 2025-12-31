@@ -14,6 +14,7 @@ import (
 
 func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	t := suite.T()
+	expectedCount := int64(10_000)
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
@@ -22,17 +23,26 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 
-	generateLogLines(logIngestChannel, 10_000)
+	generateLogLines(logIngestChannel, expectedCount)
 
+	// Wait for all logs to be inserted into the database
+	timeout := time.After(8 * time.Second)
 	for {
-		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has items. Waiting 6s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(6 * time.Second)
-		} else {
-			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+		count := suite.countNumberOfLogsInDb()
+		if count >= expectedCount {
+			slog.Info("All logs inserted", "count", count)
 			break
 		}
+
+		select {
+		case <-timeout:
+			t.Fatalf("Timeout waiting for logs to be inserted. Expected %d, got %d", expectedCount, count)
+		default:
+			slog.Info("Waiting for logs to be inserted", "current", count, "expected", expectedCount)
+			time.Sleep(1 * time.Second)
+		}
 	}
+
 	randomLogLine, err := suite.findRandomLogLine()
 	assert.NoError(t, err)
 
@@ -41,7 +51,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	logs, err := suite.logService.GetLogs(logServerContext, randomLogLine.Client.ClientId, nil, 300, &logLineId, nil)
 	assert.NoError(t, err)
 
-	// Asserrt logs page contains randomLogLine and rest of the items are correctly sorted
+	// Assert logs page contains randomLogLine and rest of the items are correctly sorted
 	assert.Equal(t, 300, len(logs))
 	assert.True(t, findLogLine(logs, logLineId) >= 0)
 }

@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/assert"
-	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 	t := suite.T()
+	expectedCount := int64(10)
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
@@ -25,7 +27,7 @@ func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 
 	go func() {
 		markoUpdates := make([]types.StoredLog, 0, 20)
-		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		for {
 			isDone := false
@@ -41,18 +43,26 @@ func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 			}
 		}
 
-		assert.Equal(t, 10, len(markoUpdates), fmt.Sprintf("Got %+v", markoUpdates))
+		assert.Equal(t, int(expectedCount), len(markoUpdates), fmt.Sprintf("Got %+v", markoUpdates))
 	}()
 
-	generateLogLines(logIngestChannel, 10)
+	generateLogLines(logIngestChannel, expectedCount)
 
+	// Wait for all logs to be inserted into the database
+	timeout := time.After(8 * time.Second)
 	for {
-		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(1 * time.Second)
-		} else {
-			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+		count := suite.countNumberOfLogsInDb()
+		if count >= expectedCount {
+			slog.Info("All logs inserted", "count", count)
 			break
+		}
+
+		select {
+		case <-timeout:
+			t.Fatalf("Timeout waiting for logs to be inserted. Expected %d, got %d", expectedCount, count)
+		default:
+			slog.Info("Waiting for logs to be inserted", "current", count, "expected", expectedCount)
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 }

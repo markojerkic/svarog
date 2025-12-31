@@ -37,7 +37,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberO
 	slog.Info("Done with even lines")
 
 	if int(numberOfImportedLogs) != len(generatedLogLines) {
-		panic("Expected 1 000 000 logs")
+		panic("Expected matching log counts")
 	}
 
 	i = 1
@@ -55,6 +55,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberO
 func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
+	expectedCount := int64(10_000)
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
@@ -63,27 +64,37 @@ func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 
-	generateOddAndEvenLines(logIngestChannel, 10_000)
+	generateOddAndEvenLines(logIngestChannel, expectedCount)
+
+	// Wait for all logs to be inserted into the database
+	// The backlog dumps asynchronously, so we need to poll the actual DB count
+	timeout := time.After(10 * time.Second)
 	for {
-		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has items. Waiting 6s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(6 * time.Second)
-		} else {
-			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+		count := suite.countNumberOfLogsInDb()
+		if count >= expectedCount {
+			slog.Info("All logs inserted", "count", count)
 			break
+		}
+
+		select {
+		case <-timeout:
+			t.Fatalf("Timeout waiting for logs to be inserted. Expected %d, got %d", expectedCount, count)
+		default:
+			slog.Info("Waiting for logs to be inserted", "current", count, "expected", expectedCount)
+			time.Sleep(1 * time.Second)
 		}
 	}
 
 	suite.logServerContext.Done()
 
 	elapsed := time.Since(start)
-	slog.Info("Imported logs", "count", 10_000, "elapsed", elapsed)
+	slog.Info("Imported logs", "count", expectedCount, "elapsed", elapsed)
 
 	count := suite.countNumberOfLogsInDb()
 	slog.Info("Number of logs in db", "count", count)
-	assert.Equal(t, int64(10_000), count, "Expected 10 000 logs in db")
+	assert.Equal(t, expectedCount, count, "Expected logs in db")
 
-	index := int(10_000)
+	index := int(expectedCount)
 	pageSize := 2_000
 
 	var lastCursorPtr *db.LastCursor
