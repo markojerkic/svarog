@@ -14,6 +14,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
@@ -28,20 +29,19 @@ func loadEnv() types.ServerEnv {
 		err := dotenv.Load()
 
 		if err != nil {
-			log.Fatalf("Error loading .env file. %v", err)
+			log.Fatal("Error loading .env file", "error", err)
 		}
 	}
 
 	if err := envParser.Parse(&env); err != nil {
-		log.Fatalf("Error parsing env: %+v\n", err)
+		log.Fatal("Error parsing env", "error", err)
 	}
 
 	return env
 }
 
 func setupLogger() {
-	log.SetLevel(log.DebugLevel)
-	log.SetReportCaller(true)
+	util.SetupLogger()
 }
 
 func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
@@ -62,7 +62,7 @@ func main() {
 
 	client, database, err := newMongoDB(env.MongoUrl)
 	if err != nil {
-		log.Fatalf("Couldn't connect to Mongodb: %+v", err)
+		log.Fatal("Couldn't connect to Mongodb", "error", err)
 	}
 
 	userCollection := database.Collection("users")
@@ -83,7 +83,7 @@ func main() {
 
 	tokenService, err := serverauth.NewTokenService(env.NatsJwtSecret)
 	if err != nil {
-		log.Fatalf("Failed to create token service: %v", err)
+		log.Fatal("Failed to create token service", "error", err)
 	}
 
 	natsSystemConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
@@ -92,7 +92,7 @@ func main() {
 		Password: env.NatsSystemPassword,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to NATS SYSTEM account: %v", err)
+		log.Fatal("Failed to connect to NATS SYSTEM account", "error", err)
 	}
 
 	natsAppConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
@@ -102,7 +102,7 @@ func main() {
 		EnableJetStream: true,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to NATS APP account: %v", err)
+		log.Fatal("Failed to connect to NATS APP account", "error", err)
 	}
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
@@ -116,7 +116,7 @@ func main() {
 		natsSystemConn.Conn,
 		tokenService)
 	if err != nil {
-		log.Fatalf("Failed to create NATS auth handler: %v", err)
+		log.Fatal("Failed to create NATS auth handler", "error", err)
 	}
 
 	httpServer := http.NewServer(

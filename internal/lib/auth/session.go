@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"go.mongodb.org/mongo-driver/bson"
@@ -130,10 +130,10 @@ func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		}
 		if session.Options.MaxAge <= 0 {
 			// Delete session from DB
-			log.Debug("Deleting session")
+			slog.Debug("Deleting session")
 
 			count, err := self.sessionCollection.DeleteOne(ctx, bson.M{"_id": sessionId})
-			log.Debug("Deleted session", "count", count, "err", err)
+			slog.Debug("Deleted session", "count", count, "err", err)
 
 		} else {
 			// Update existing session

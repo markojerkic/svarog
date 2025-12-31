@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
 )
@@ -37,12 +37,12 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 		fileContent := make([]byte, 0, 1024*1024)
 		logs, err := a.logsService.GetLogs(ctx, clientID, nil, 5000, nil, cursor)
 		if err != nil {
-			log.Error("Error getting logs", "error", err)
+			slog.Error("Error getting logs", "error", err)
 			return archivingResult{}, err
 		}
 
 		if len(logs) == 0 {
-			log.Debug("No logs found")
+			slog.Debug("No logs found")
 			break
 		}
 
@@ -56,7 +56,7 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 
 		err = os.WriteFile(tempFile, fileContent, 0644)
 		if err != nil {
-			log.Error("Error writing file", "error", err)
+			slog.Error("Error writing file", "error", err)
 			return archivingResult{}, err
 		}
 		fileIndex++
@@ -75,14 +75,14 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 
 	zipDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))
 	if err != nil {
-		log.Error("Error creating temp dir", "error", err)
+		slog.Error("Error creating temp dir", "error", err)
 		return archivingResult{}, err
 	}
 
 	zipFile := filepath.Join(zipDir, fmt.Sprintf("archive_%s_%s.zip", projectID, clientID))
 	err = util.ZipDir(tempDir, zipFile)
 	if err != nil {
-		log.Error("Error zipping dir", "error", err)
+		slog.Error("Error zipping dir", "error", err)
 	}
 
 	result.zipFilePath = zipFile

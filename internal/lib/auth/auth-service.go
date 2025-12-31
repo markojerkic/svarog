@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/charmbracelet/log"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -16,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
+	"log/slog"
 )
 
 type AuthService interface {
@@ -166,14 +166,14 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 	userId, ok := session.Values["user_id"].(string)
 
 	if !ok {
-		log.Error("User ID is not a string")
+		slog.Error("User ID is not a string")
 		return LoggedInUser{}, errors.New(ErrUserNotFound)
 	}
 
 	user, err := m.GetUserByID(ctx.Request().Context(), userId)
 
 	if err != nil {
-		log.Error("Failed to get user by ID", "userId", userId, "error", err)
+		slog.Error("Failed to get user by ID", "userId", userId, "error", err)
 		return LoggedInUser{}, errors.Join(errors.New(ErrUserNotFound), err)
 	}
 
@@ -306,7 +306,7 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 		"username": "admin",
 	})
 	if existingUserResult.Err() == nil {
-		log.Warn("Admin user already exists, not creating")
+		slog.Warn("Admin user already exists, not creating")
 		return nil
 	}
 
@@ -335,7 +335,8 @@ func hashPassword(password string) (string, error) {
 func generateRandomPassword() string {
 	res, err := password.Generate(64, 10, 10, false, false)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Failed to generate password", "error", err)
+		panic(err)
 	}
 
 	return res

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,7 +35,7 @@ func (f *FileServiceImpl) GetFile(ctx context.Context, name string) ([]byte, err
 		"name": name,
 	}).Decode(&savedFile)
 	if err != nil {
-		log.Error("Error reading file", "err", err)
+		slog.Error("Error reading file", "err", err)
 		return nil, errors.New(ErrFileNotFound)
 	}
 
@@ -72,7 +72,7 @@ func (f *FileServiceImpl) DeleteFile(ctx context.Context, id primitive.ObjectID)
 func (f *FileServiceImpl) SaveFile(ctx context.Context, name string, path string) (primitive.ObjectID, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		log.Error("Error reading file", "err", err)
+		slog.Error("Error reading file", "err", err)
 		return primitive.NilObjectID, errors.New(ErrFileNotFound)
 	}
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -29,11 +29,11 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			if err != nil {
-				log.Error("NATS disconnected", "err", err)
+				slog.Error("NATS disconnected", "err", err)
 			}
 		}),
 		nats.ReconnectHandler(func(_ *nats.Conn) {
-			log.Info("NATS reconnected")
+			slog.Info("NATS reconnected")
 		}),
 	)
 	if err != nil {
@@ -55,11 +55,11 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 
 		// Create the LOGS stream for log ingestion
 		if err := conn.ensureLogsStream(); err != nil {
-			log.Warn("Failed to create JetStream LOGS stream", "err", err)
+			slog.Warn("Failed to create JetStream LOGS stream", "err", err)
 		}
 	}
 
-	log.Info("Connected to NATS", "addr", cfg.NatsAddr, "jetstream", cfg.EnableJetStream)
+	slog.Info("Connected to NATS", "addr", cfg.NatsAddr, "jetstream", cfg.EnableJetStream)
 
 	return conn, nil
 }
@@ -81,7 +81,7 @@ func (n *NatsConnection) ensureLogsStream() error {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	log.Info("JetStream LOGS stream ready")
+	slog.Info("JetStream LOGS stream ready")
 	return nil
 }
 

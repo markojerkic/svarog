@@ -8,7 +8,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -32,7 +34,7 @@ func (m *mockClient) BatchLog(ctx context.Context, in *rpc.Backlog, tlsConfig *t
 
 	connection, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
-		log.Fatal("Error connecting to server", "err", err)
+		panic(fmt.Errorf("Error connecting to server: %w", err))
 	}
 
 	client := rpc.NewLoggAggregatorClient(connection)
@@ -42,14 +44,14 @@ func (m *mockClient) BatchLog(ctx context.Context, in *rpc.Backlog, tlsConfig *t
 }
 
 func (s *ServerauthSuite) TestGrpcConnection() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	env := types.ServerEnv{
@@ -70,19 +72,19 @@ func (s *ServerauthSuite) TestGrpcConnection() {
 
 	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), "mock-client")
 	if err != nil {
-		log.Fatal("failed to generate server certificate", "err", err)
+		panic(fmt.Errorf("failed to generate server certificate: %w", err))
 	}
 	defer cleanup()
 
 	// Load client certificate and key from the PEM file
 	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
 	if err != nil {
-		log.Fatal("failed to load client certificate", "err", err)
+		panic(fmt.Errorf("failed to load client certificate: %w", err))
 	}
 
 	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
 	if err != nil {
-		log.Fatal("Failed to get ca.crt", "err", err)
+		panic(fmt.Errorf("Failed to get ca.crt: %w", err))
 	}
 
 	// Create certificate pool and add CA certificate

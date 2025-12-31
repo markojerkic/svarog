@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -48,10 +48,10 @@ func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			log.Info("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount())
+			slog.Info("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount())
 			time.Sleep(1 * time.Second)
 		} else {
-			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}

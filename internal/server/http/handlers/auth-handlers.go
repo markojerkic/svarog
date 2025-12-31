@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -106,7 +106,7 @@ func (a *AuthRouter) resetPassword(c echo.Context) error {
 
 	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
 	if err != nil {
-		log.Error("Error resetting password", "error", err)
+		slog.Error("Error resetting password", "error", err)
 		return utils.Render(c, http.StatusInternalServerError, authpages.ResetPasswordError("Error resetting password, try again"))
 	}
 

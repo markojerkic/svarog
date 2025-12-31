@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/util"
 	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -45,8 +45,7 @@ func (s *ArchiveSuite) SetupSuite() {
 		s.T().Fatal(fmt.Sprintf("Could not get connection string: %s", err))
 	}
 
-	log.SetLevel(log.DebugLevel)
-	log.SetReportCaller(true)
+	util.SetupLogger()
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(s.connectionString))
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/nats-io/nats.go"
@@ -34,23 +34,23 @@ func (n *NatsClient) Run() {
 	for logLine := range n.logLines {
 		data, err := json.Marshal(logLine)
 		if err != nil {
-			log.Error("Failed to marshal log line", "err", err)
+			slog.Error("Failed to marshal log line", "err", err)
 			continue
 		}
 
 		if _, err := n.js.Publish(context.Background(), n.config.Topic, data); err != nil {
-			log.Error("Failed to publish log line", "err", err)
+			slog.Error("Failed to publish log line", "err", err)
 		}
 	}
 
-	log.Debug("Log lines channel closed, all messages published")
+	slog.Debug("Log lines channel closed, all messages published")
 }
 
 func (n *NatsClient) Close() {
 	if n.nc != nil {
 		n.nc.Drain()
 		n.nc.Close()
-		log.Debug("NATS connection closed")
+		slog.Debug("NATS connection closed")
 	}
 }
 
@@ -61,14 +61,14 @@ func (n *NatsClient) connectNats() {
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			if err != nil {
-				log.Error("Disconnected from NATS", "err", err)
+				slog.Error("Disconnected from NATS", "err", err)
 			}
 		}),
 		nats.ReconnectHandler(func(_ *nats.Conn) {
-			log.Debug("Reconnected to NATS")
+			slog.Debug("Reconnected to NATS")
 		}),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			log.Error("NATS error", "err", err)
+			slog.Error("NATS error", "err", err)
 		}),
 	}
 
@@ -77,11 +77,11 @@ func (n *NatsClient) connectNats() {
 	for {
 		nc, err := nats.Connect(n.config.GetNatsUrl(), opts...)
 		if err == nil {
-			log.Debug("Connected to NATS", "url", n.config.GetNatsUrl())
+			slog.Debug("Connected to NATS", "url", n.config.GetNatsUrl())
 
 			js, err := jetstream.New(nc)
 			if err != nil {
-				log.Error("Failed to create JetStream context, retrying...", "err", err)
+				slog.Error("Failed to create JetStream context, retrying...", "err", err)
 				nc.Close()
 				time.Sleep(retryDelay)
 				continue
@@ -92,7 +92,7 @@ func (n *NatsClient) connectNats() {
 			return
 		}
 
-		log.Warn("Failed to connect to NATS, retrying in 2s...", "err", err)
+		slog.Warn("Failed to connect to NATS, retrying in 2s...", "err", err)
 		time.Sleep(retryDelay)
 	}
 }

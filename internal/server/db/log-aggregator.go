@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"log/slog"
 )
 
 type LogLineWithHost struct {
@@ -47,12 +47,13 @@ func NewLogServer(dbClient LogService) AggregatingLogServer {
 func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.StoredLog) {
 	err := self.logService.SaveLogs(ctx, logsToSave)
 	if err != nil {
-		log.Fatalf("Could not save logs: %v", err)
+		slog.Error("Could not save logs", "error", err)
+		panic(err)
 	}
 }
 
 func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithHost) {
-	log.Debug("Starting log server")
+	slog.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
 
@@ -78,7 +79,7 @@ outer:
 			self.backlog.ForceDump()
 
 		case <-ctx.Done():
-			log.Debug("Context done")
+			slog.Debug("Context done")
 			break outer
 		}
 	}

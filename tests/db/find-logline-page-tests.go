@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -26,10 +26,10 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			log.Info("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount())
+			slog.Info("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount())
 			time.Sleep(6 * time.Second)
 		} else {
-			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}

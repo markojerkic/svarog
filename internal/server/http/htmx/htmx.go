@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 )
 
@@ -43,7 +43,7 @@ func AddToast(c echo.Context, message string, level ToastLevel) {
 
 	if currentTrigger != "" {
 		if err := json.Unmarshal([]byte(currentTrigger), &triggers); err != nil {
-			log.Error("Error parsing existing HX-Trigger header", "error", err)
+			slog.Error("Error parsing existing HX-Trigger header", "error", err)
 			triggers = make(map[string]any)
 		}
 	} else {
@@ -57,7 +57,7 @@ func AddToast(c echo.Context, message string, level ToastLevel) {
 
 	jsonData, err := json.Marshal(triggers)
 	if err != nil {
-		log.Error("Error encoding toast message", "error", err)
+		slog.Error("Error encoding toast message", "error", err)
 		return
 	}
 

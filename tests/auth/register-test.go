@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -36,7 +36,7 @@ func (suite *AuthSuite) TestRegisterNewUser() {
 	assert.Equal(t, authlayer.USER, savedUser.Role)
 	assert.NotEmpty(t, savedUser.Password)
 
-	log.Info("User saved", "user", savedUser)
+	slog.Info("User saved", "user", savedUser)
 }
 
 func (suite *AuthSuite) TestRegisterExistingUser() {

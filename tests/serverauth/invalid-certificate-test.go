@@ -14,7 +14,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -23,14 +25,14 @@ import (
 )
 
 func (s *ServerauthSuite) TestGrpcConnection_WrongCA() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	env := types.ServerEnv{
@@ -132,14 +134,14 @@ func (s *ServerauthSuite) TestGrpcConnection_WrongCA() {
 }
 
 func (s *ServerauthSuite) TestGrpcConnection_ExpiredCertificate() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	env := types.ServerEnv{

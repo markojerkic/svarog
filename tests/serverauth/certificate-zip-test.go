@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +24,7 @@ func (s *ServerauthSuite) TestGenerateCertZip() {
 
 	groupId := "test-group"
 	zipPath, cleanup, err := s.certificatesService.GetCertificatesZip(ctx, groupId)
-	log.Debug("zipPath", "zipPath", zipPath)
+	slog.Debug("zipPath", "zipPath", zipPath)
 	assert.NoError(t, err)
 	defer cleanup()
 

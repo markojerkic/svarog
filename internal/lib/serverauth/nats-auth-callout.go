@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/golang-jwt/jwt/v5"
 	natsjwt "github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
@@ -54,20 +54,20 @@ func (n *NatsAuthCalloutHandler) Run() error {
 	_, err := n.conn.Subscribe("$SYS.REQ.USER.AUTH", func(msg *nats.Msg) {
 		reqClaim, err := natsjwt.DecodeAuthorizationRequestClaims(string(msg.Data))
 		if err != nil {
-			log.Error("nats auth callout", "err", err)
+			slog.Error("nats auth callout", "err", err)
 			return
 		}
 		token := reqClaim.ConnectOptions.Token
 
 		claims, err := n.tokenService.ValidateJWT(token)
 		if err != nil {
-			log.Error("JWT validation failed", "err", err)
+			slog.Error("JWT validation failed", "err", err)
 			n.respondWithError(msg, reqClaim, "invalid token")
 			return
 		}
 
 		if err := n.respondWithSuccess(msg, reqClaim, claims); err != nil {
-			log.Error("Failed to respond with success", "err", err)
+			slog.Error("Failed to respond with success", "err", err)
 		}
 	})
 
@@ -112,11 +112,11 @@ func (n *NatsAuthCalloutHandler) respondWithError(msg *nats.Msg, reqClaim *natsj
 
 	responseJwt, err := authResponse.Encode(n.natsIssuerKeyPair)
 	if err != nil {
-		log.Error("Failed to encode error response", "err", err)
+		slog.Error("Failed to encode error response", "err", err)
 		return
 	}
 
 	if err := msg.Respond([]byte(responseJwt)); err != nil {
-		log.Error("Failed to send error response", "err", err)
+		slog.Error("Failed to send error response", "err", err)
 	}
 }

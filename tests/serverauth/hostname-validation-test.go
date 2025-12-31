@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -15,14 +17,14 @@ import (
 )
 
 func (s *ServerauthSuite) TestGrpcConnection_WrongHostname() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	env := types.ServerEnv{
@@ -43,18 +45,18 @@ func (s *ServerauthSuite) TestGrpcConnection_WrongHostname() {
 
 	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), "mock-client")
 	if err != nil {
-		log.Fatal("failed to generate server certificate", "err", err)
+		panic(fmt.Errorf("failed to generate server certificate: %w", err))
 	}
 	defer cleanup()
 
 	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
 	if err != nil {
-		log.Fatal("failed to load client certificate", "err", err)
+		panic(fmt.Errorf("failed to load client certificate: %w", err))
 	}
 
 	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
 	if err != nil {
-		log.Fatal("Failed to get ca.crt", "err", err)
+		panic(fmt.Errorf("Failed to get ca.crt: %w", err))
 	}
 
 	caPool := x509.NewCertPool()
@@ -75,14 +77,14 @@ func (s *ServerauthSuite) TestGrpcConnection_WrongHostname() {
 }
 
 func (s *ServerauthSuite) TestGrpcConnection_CorrectHostname() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	env := types.ServerEnv{
@@ -103,18 +105,18 @@ func (s *ServerauthSuite) TestGrpcConnection_CorrectHostname() {
 
 	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), "mock-client")
 	if err != nil {
-		log.Fatal("failed to generate server certificate", "err", err)
+		panic(fmt.Errorf("failed to generate server certificate: %w", err))
 	}
 	defer cleanup()
 
 	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
 	if err != nil {
-		log.Fatal("failed to load client certificate", "err", err)
+		panic(fmt.Errorf("failed to load client certificate: %w", err))
 	}
 
 	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
 	if err != nil {
-		log.Fatal("Failed to get ca.crt", "err", err)
+		panic(fmt.Errorf("Failed to get ca.crt: %w", err))
 	}
 
 	caPool := x509.NewCertPool()

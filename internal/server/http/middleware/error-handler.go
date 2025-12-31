@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
@@ -21,17 +21,17 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
 		if msg, ok := he.Message.(string); ok {
-			log.Debug("HTTP error", "code", code, "message", msg)
+			slog.Debug("HTTP error", "code", code, "message", msg)
 			message = msg
 		}
 		if apiErr, ok := he.Message.(types.ApiError); ok {
-			log.Debug("API error", "fields", apiErr.Fields)
+			slog.Debug("API error", "fields", apiErr.Fields)
 			c.JSON(code, apiErr)
 			return
 		}
 	}
 
-	log.Error("HTTP error", "code", code, "error", err, "path", c.Request().URL.Path)
+	slog.Error("HTTP error", "code", code, "error", err, "path", c.Request().URL.Path)
 
 	props := pages.ErrorPageProps{
 		StatusCode: code,
@@ -39,7 +39,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	}
 
 	if err := utils.Render(c, code, pages.ErrorPage(props)); err != nil {
-		log.Error("Failed to render error page", "error", err)
+		slog.Error("Failed to render error page", "error", err)
 		c.String(code, "Internal Server Error")
 	}
 }

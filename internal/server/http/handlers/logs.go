@@ -3,7 +3,7 @@ package handlers
 import (
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -39,7 +39,7 @@ func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
 	if clientId == "" {
 		return c.JSON(400, "No client id")
 	}
-	log.Debug("Getting instances by client", "clientId", clientId)
+	slog.Debug("Getting instances by client", "clientId", clientId)
 
 	instances, err := self.logService.GetInstances(c.Request().Context(), clientId)
 	if err != nil {
@@ -54,11 +54,11 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 
 	err := c.Bind(&params)
 	if err != nil {
-		log.Error("Bindings for logs by client not correct", "error", err)
+		slog.Error("Bindings for logs by client not correct", "error", err)
 		return c.JSON(400, "Bad request")
 	}
 
-	log.Debug("Get logs by client", "params", params)
+	slog.Debug("Get logs by client", "params", params)
 
 	var nextCursor db.LastCursor
 	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
@@ -109,7 +109,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 
 	err := c.Bind(&params)
 	if err != nil {
-		log.Error("Bindings for logs by client not correct", "error", err)
+		slog.Error("Bindings for logs by client not correct", "error", err)
 		return c.JSON(400, "Bad request")
 	}
 
@@ -122,7 +122,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 		}
 	}
 
-	log.Debug("next", "cursor", nextCursor)
+	slog.Debug("next", "cursor", nextCursor)
 	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {

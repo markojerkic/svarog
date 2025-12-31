@@ -3,7 +3,9 @@ package projects
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -37,8 +39,8 @@ func (p *ProjectsSuite) SetupSuite() {
 		p.T().Fatalf("Could not get connection string: %s", err)
 	}
 
-	log.SetLevel(log.DebugLevel)
-	log.SetReportCaller(true)
+	util.SetupLogger()
+	
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(p.connectionString))
 	if err != nil {
@@ -56,7 +58,7 @@ func (p *ProjectsSuite) SetupSuite() {
 // TearDownSubTest implements suite.TearDownSubTest.
 func (p *ProjectsSuite) TearDownSubTest() {
 	deleteRes, err := p.projectsCollection.DeleteMany(context.Background(), bson.M{})
-	log.Error("Deleted projects", "deleted", deleteRes.DeletedCount)
+	slog.Error("Deleted projects", "deleted", deleteRes.DeletedCount)
 	assert.NoError(p.T(), err)
 }
 

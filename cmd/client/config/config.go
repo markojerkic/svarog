@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/charmbracelet/log"
 )
 
 type ClientConfig struct {
@@ -20,7 +18,7 @@ type ClientConfig struct {
 func NewClientConfig(connString string) (ClientConfig, error) {
 	url, err := url.Parse(connString)
 	if err != nil {
-		log.Fatal("Failed to parse connection string", "err", err)
+		panic(fmt.Errorf("Failed to parse connection string: %w", err))
 	}
 
 	config := ClientConfig{

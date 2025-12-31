@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	grpcclient "github.com/markojerkic/svarog/cmd/client/grpc-client"
 	"github.com/markojerkic/svarog/internal/lib/optional"
 	"github.com/markojerkic/svarog/internal/rpc"
@@ -29,7 +31,7 @@ func (m *MockServer) BatchLog(ctx context.Context, lines *rpc.Backlog) (*rpc.Voi
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	receivedLines = append(receivedLines, lines.Logs...)
-	log.Info("Mock server: Received batch log of size", "size", len(lines.Logs))
+	slog.Info("Mock server: Received batch log of size", "size", len(lines.Logs))
 	return &rpc.Void{}, nil
 }
 
@@ -49,7 +51,7 @@ func (m *MockServer) Log(stream rpc.LoggAggregator_LogServer) error {
 func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, string, *MockServer) {
 	lis, err := net.Listen("tcp", optional.GetOrDefault(serverAddress, "localhost:0"))
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		panic(fmt.Sprintf("Failed to listen: %v", err))
 	}
 	mockServer := &MockServer{}
 	grpcServer := grpc.NewServer()
@@ -62,7 +64,7 @@ func createMockGrpcServer(serverAddress *string) (*grpc.Server, func() error, st
 		if err != nil {
 			lis, err = net.Listen("tcp", addr)
 			if err != nil {
-				log.Fatalf("Failed to listen: %v", err)
+				panic(fmt.Sprintf("Failed to listen: %v", err))
 			}
 			return grpcServer.Serve(lis)
 		}
@@ -81,8 +83,8 @@ func generateLogLine(index int) *rpc.LogLine {
 }
 
 func createDebugLogger() {
-	log.SetLevel(log.DebugLevel)
-	log.SetReportCaller(true)
+	util.SetupLogger()
+	
 }
 
 func TestReconnectingClient(t *testing.T) {
@@ -95,17 +97,17 @@ func TestReconnectingClient(t *testing.T) {
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
-	log.Info("Created client")
+	slog.Info("Created client")
 
 	input := make(chan *rpc.LogLine, 10)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Error("Log line returned to input channel due to connection error")
+		slog.Error("Log line returned to input channel due to connection error")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
-	log.Info("Client started")
+	slog.Info("Client started")
 
 	for i := 0; i < 10; i++ {
 		input <- generateLogLine(i)
@@ -115,20 +117,20 @@ func TestReconnectingClient(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	server.Stop()
-	log.Info("Server stopped")
+	slog.Info("Server stopped")
 
 	for i := 10; i < 20; i++ {
 		input <- generateLogLine(i)
 		log.Printf("Sent log line %d", i)
 	}
 
-	log.Info("Sleeping for 5 seconds before restarting server")
+	slog.Info("Sleeping for 5 seconds before restarting server")
 	time.Sleep(6 * time.Second)
 
 	server, listen, addr, _ = createMockGrpcServer(&addr)
 
 	go listen()
-	log.Info("Server restarted")
+	slog.Info("Server restarted")
 
 	time.Sleep(10 * time.Second)
 	cancel()
@@ -148,7 +150,7 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 
 	creds := insecure.NewCredentials()
 	client := grpcclient.NewClient(addr, creds)
-	log.Info("Created client")
+	slog.Info("Created client")
 
 	input := make(chan *rpc.LogLine, 30)
 	defer close(input)
@@ -156,11 +158,11 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 	defer cancel()
 
 	go client.Run(ctx, input, func(ll *rpc.LogLine) {
-		log.Info("Log line returned to input channel due to connection error")
+		slog.Info("Log line returned to input channel due to connection error")
 		time.Sleep(300 * time.Millisecond)
 		input <- ll
 	})
-	log.Info("Client started")
+	slog.Info("Client started")
 
 	for i := 0; i < 10; i++ {
 		input <- generateLogLine(i)
@@ -172,5 +174,5 @@ func TestReconnectingNotStartedClient(t *testing.T) {
 	go listen()
 	time.Sleep(1 * time.Second)
 	server.Stop()
-	log.Info("Server stopped")
+	slog.Info("Server stopped")
 }

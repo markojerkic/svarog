@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/grpcserver"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -18,14 +20,14 @@ import (
 )
 
 func (s *ServerauthSuite) TestBatchLog_UnauthorizedClient() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	project, err := s.projectsService.CreateProject(context.Background(), "test-project", []string{"authorized-client"})
@@ -47,18 +49,18 @@ func (s *ServerauthSuite) TestBatchLog_UnauthorizedClient() {
 
 	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), "unauthorized-client")
 	if err != nil {
-		log.Fatal("failed to generate client certificate", "err", err)
+		panic(fmt.Errorf("failed to generate client certificate: %w", err))
 	}
 	defer cleanup()
 
 	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
 	if err != nil {
-		log.Fatal("failed to load client certificate", "err", err)
+		panic(fmt.Errorf("failed to load client certificate: %w", err))
 	}
 
 	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
 	if err != nil {
-		log.Fatal("Failed to get ca.crt", "err", err)
+		panic(fmt.Errorf("Failed to get ca.crt: %w", err))
 	}
 
 	caPool := x509.NewCertPool()
@@ -94,14 +96,14 @@ func (s *ServerauthSuite) TestBatchLog_UnauthorizedClient() {
 }
 
 func (s *ServerauthSuite) TestBatchLog_AuthorizedClient() {
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	err := s.certificatesService.GenerateCaCertificate(context.Background())
 	assert.NoError(s.T(), err)
 
 	randomFreePort, err := getFreePort()
 	if err != nil {
-		log.Fatal("Failed to get free tcp port", "err", err)
+		panic(fmt.Errorf("Failed to get free tcp port: %w", err))
 	}
 
 	project, err := s.projectsService.CreateProject(context.Background(), "test-project-2", []string{"authorized-client"})
@@ -123,18 +125,18 @@ func (s *ServerauthSuite) TestBatchLog_AuthorizedClient() {
 
 	clientCertPath, cleanup, err := s.certificatesService.GenerateCertificate(context.Background(), project.ID.Hex())
 	if err != nil {
-		log.Fatal("failed to generate client certificate", "err", err)
+		panic(fmt.Errorf("failed to generate client certificate: %w", err))
 	}
 	defer cleanup()
 
 	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
 	if err != nil {
-		log.Fatal("failed to load client certificate", "err", err)
+		panic(fmt.Errorf("failed to load client certificate: %w", err))
 	}
 
 	caCert, _, err := s.certificatesService.GetCaCertificate(context.Background())
 	if err != nil {
-		log.Fatal("Failed to get ca.crt", "err", err)
+		panic(fmt.Errorf("Failed to get ca.crt: %w", err))
 	}
 
 	caPool := x509.NewCertPool()

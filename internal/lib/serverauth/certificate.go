@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -45,12 +45,12 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 	certs, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
 		caCert, err := c.fileService.GetFile(ctx, "ca.crt")
 		if err != nil {
-			log.Error("Failed getting ca.crt", "err", err)
+			slog.Error("Failed getting ca.crt", "err", err)
 			return nil, err
 		}
 		caKey, err := c.fileService.GetFile(ctx, "ca.key")
 		if err != nil {
-			log.Error("Failed getting ca.key", "err", err)
+			slog.Error("Failed getting ca.key", "err", err)
 			return nil, err
 		}
 
@@ -64,7 +64,7 @@ func (c *CertificateServiceImpl) GetCaCertificate(ctx context.Context) (*x509.Ce
 
 	certsStruct, ok := certs.(*certFiles)
 	if !ok {
-		log.Error("Failed to cast to certFiles")
+		slog.Error("Failed to cast to certFiles")
 		return nil, nil, errors.New("Failed to cast to certFiles")
 	}
 	caCert := certsStruct.caCert
@@ -153,7 +153,7 @@ func (c *CertificateServiceImpl) GenerateCaCertificate(ctx context.Context) erro
 		return errors.Join(errors.New("Error writing private key to file"), err)
 	}
 
-	log.Debug("CA certificate generated", "caPath", caPath, "caKey", caKey)
+	slog.Debug("CA certificate generated", "caPath", caPath, "caKey", caKey)
 
 	return c.saveCaCrt(context.Background(), caPath, caKeyPath)
 }
@@ -294,7 +294,7 @@ func (c *CertificateServiceImpl) GetCertificatesZip(ctx context.Context, groupId
 		certCleanup()
 		err := os.RemoveAll(tempDir)
 		if err != nil {
-			log.Error("Failed to remove temp dir", "err", err)
+			slog.Error("Failed to remove temp dir", "err", err)
 		}
 	}, nil
 }
@@ -304,7 +304,7 @@ func (c *CertificateServiceImpl) saveCaCrt(ctx context.Context, certPath string,
 	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
 		_, err := c.fileService.SaveFile(ctx, "ca.crt", certPath)
 		if err != nil {
-			log.Error("Failed saving ca.cert", "err", err)
+			slog.Error("Failed saving ca.cert", "err", err)
 			return struct{}{}, errors.Join(errors.New("Failed saving ca.cert"), err)
 		}
 		_, err = c.fileService.SaveFile(ctx, "ca.key", privateKeyPath)

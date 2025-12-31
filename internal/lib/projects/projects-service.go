@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log/slog"
 )
 
 type ProjectsService interface {
@@ -50,7 +50,7 @@ func (m *MongoProjectsService) CreateOrUpdateProject(ctx context.Context, projec
 func (m *MongoProjectsService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error) {
 	_, err := m.projectsCollection.UpdateByID(ctx, id, bson.M{"$set": bson.M{"name": name, "clients": clients}})
 	if err != nil {
-		log.Error("Error updating project", "error", err)
+		slog.Error("Error updating project", "error", err)
 		return Project{}, err
 	}
 	return Project{
@@ -68,7 +68,7 @@ func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, c
 			return Project{}, errors.New(ErrProjectExists)
 		}
 
-		log.Error("Error creating project", "error", err)
+		slog.Error("Error creating project", "error", err)
 		return Project{}, err
 	}
 
@@ -219,7 +219,8 @@ func NewProjectsService(projectsCollection *mongo.Collection, mongoClient *mongo
 
 	err := service.assertUniqeIndex(context.Background())
 	if err != nil {
-		log.Fatal("Error creating unique index", "error", err)
+		slog.Error("Error creating unique index", "error", err)
+		panic(err)
 	}
 
 	return service

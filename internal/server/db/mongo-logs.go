@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log/slog"
 )
 
 type LogService interface {
@@ -81,9 +81,9 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 		Key:   "$lte",
 		Value: primitive.NewDateTimeFromTime(timestamp),
 	}}}})
-	log.Debug("Deleting logs before timestamp", "timestamp", timestamp, "deleted", deleteResult.DeletedCount)
+	slog.Debug("Deleting logs before timestamp", "timestamp", timestamp, "deleted", deleteResult.DeletedCount)
 	if err != nil {
-		log.Error("Error deleting logs", "error", err)
+		slog.Error("Error deleting logs", "error", err)
 		return err
 	}
 
@@ -92,11 +92,11 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 
 // GetLogs implements LogRepository.
 func (self *MongoLogService) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	log.Debug("Getting logs for client", "client", clientId)
+	slog.Debug("Getting logs for client", "client", clientId)
 
 	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, logLineId, lastCursor)
 
-	log.Debug("Filter logs", "filter", filter)
+	slog.Debug("Filter logs", "filter", filter)
 	return self.getAndMapLogs(ctx, filter, projection)
 }
 
@@ -111,7 +111,7 @@ func (self *MongoLogService) WatchInserts(ctx context.Context) {
 	changeStream, err := self.logCollection.Watch(ctx, pipeline, opts)
 
 	if err != nil {
-		log.Fatalf("Error watching inserts: %v", err)
+		panic(fmt.Sprintf("Error watching inserts: %v", err))
 	}
 
 	defer changeStream.Close(ctx)
@@ -119,20 +119,20 @@ func (self *MongoLogService) WatchInserts(ctx context.Context) {
 	for changeStream.Next(ctx) {
 		var event bson.M
 		if err := changeStream.Decode(&event); err != nil {
-			log.Error("Error decoding log", "error", err)
+			slog.Error("Error decoding log", "error", err)
 		}
 		fullDocument := event["fullDocument"].(bson.M)
 
 		var storedLog types.StoredLog
 		bsonBytes, err := bson.Marshal(fullDocument) // Convert bson.M to bytes
 		if err != nil {
-			log.Error("Error marshalling log", "error", err)
+			slog.Error("Error marshalling log", "error", err)
 			continue
 		}
 
 		err = bson.Unmarshal(bsonBytes, &storedLog) // Unmarshal into the Person struct
 		if err != nil {
-			log.Error("Error unmarshalling log", "error", err)
+			slog.Error("Error unmarshalling log", "error", err)
 			continue
 		}
 
@@ -141,7 +141,7 @@ func (self *MongoLogService) WatchInserts(ctx context.Context) {
 }
 
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	log.Debug("Getting logs for client", "clientId", clientId)
+	slog.Debug("Getting logs for client", "clientId", clientId)
 
 	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, nil, lastCursor)
 
@@ -157,7 +157,7 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 	}
 	insertedLines, err := self.logCollection.InsertMany(ctx, saveableLogs)
 	if err != nil {
-		log.Error("Error saving logs", "error", err)
+		slog.Error("Error saving logs", "error", err)
 		return err
 	}
 
@@ -193,7 +193,7 @@ func createFilter(collection *mongo.Collection, clientId string, pageSize int64,
 	var filter bson.D
 
 	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
-		log.Debug("Adding timestamp cursor", "cursor", *lastCursor)
+		slog.Debug("Adding timestamp cursor", "cursor", *lastCursor)
 
 		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
 
@@ -220,10 +220,10 @@ func createFilter(collection *mongo.Collection, clientId string, pageSize int64,
 
 	} else if logLineId != nil {
 		// Find page of data where logLineId is in the middle of the page
-		log.Debug("Adding log line id cursor", "logLineId", *logLineId)
+		slog.Debug("Adding log line id cursor", "logLineId", *logLineId)
 		newFilter, newProjection, err := createFilterForLogLine(collection, clientId, *logLineId, pageSize)
 		if err != nil {
-			log.Error("Failed to create filter for logLineId", "error", err)
+			slog.Error("Failed to create filter for logLineId", "error", err)
 			filter = clientIdFilter
 		} else {
 			filter = newFilter
@@ -249,7 +249,7 @@ func createFilter(collection *mongo.Collection, clientId string, pageSize int64,
 func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, projection *options.FindOptions) ([]types.StoredLog, error) {
 	cursor, err := self.logCollection.Find(ctx, filter, projection)
 	if err != nil {
-		log.Printf("Error getting logs: %v\n", err)
+		slog.Error("Error getting logs", "error", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
@@ -324,6 +324,6 @@ func (self *MongoLogService) createIndexes() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("Error creating indexes: %v", err)
+		panic(fmt.Sprintf("Error creating indexes: %v", err))
 	}
 }

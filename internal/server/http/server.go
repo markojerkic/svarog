@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -81,7 +81,7 @@ func (self *HttpServer) Start() {
 		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
 
 		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
-			log.Error("File not found", "file", requestedFile)
+			slog.Error("File not found", "file", requestedFile)
 			return c.File("public/index.html")
 		}
 

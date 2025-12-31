@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -22,7 +22,7 @@ type ProjectsRouter struct {
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
 	projects, err := p.projectsService.GetProjects(c.Request().Context())
 	if err != nil {
-		log.Error("Error fetching project", "error", err)
+		slog.Error("Error fetching project", "error", err)
 		return c.JSON(500, types.ApiError{Message: "Error getting projects"})
 	}
 
@@ -38,7 +38,7 @@ func (p *ProjectsRouter) getProject(c echo.Context) error {
 	}
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
-		log.Error("Error fetching project", "error", err)
+		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
 		}
@@ -56,7 +56,7 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
-		log.Error("Error fetching project", "error", err)
+		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
 		}
@@ -80,7 +80,7 @@ func (p *ProjectsRouter) getProjectByClient(c echo.Context) error {
 	}
 	project, err := p.projectsService.GetProjectByClient(c.Request().Context(), client)
 	if err != nil {
-		log.Error("Error fetching project", "error", err)
+		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
 		} else {
@@ -128,7 +128,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 			}))
 		}
 
-		log.Error("Error creating project", "error", err)
+		slog.Error("Error creating project", "error", err)
 		return utils.Render(c, http.StatusInternalServerError, admin.NewProjectForm(admin.NewProjectFormProps{
 			ApiError: types.ApiError{
 				Message: "Error creating project",
@@ -161,7 +161,7 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	}
 	err := p.projectsService.DeleteProject(c.Request().Context(), id)
 	if err != nil {
-		log.Error("Error deleting project", "error", err)
+		slog.Error("Error deleting project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
 		}
@@ -180,7 +180,7 @@ func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
 
 	zipPath, cleanup, err := p.certificateService.GetCertificatesZip(c.Request().Context(), groupId)
 	if err != nil {
-		log.Error("Error getting certificates zip", "error", err)
+		slog.Error("Error getting certificates zip", "error", err)
 		return c.JSON(500, types.ApiError{Message: "Error getting certificates zip"})
 	}
 	defer cleanup()

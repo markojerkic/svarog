@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -38,13 +38,13 @@ func (i *IngestService) Run(ctx context.Context) error {
 	_, err = consumer.Consume(func(msg jetstream.Msg) {
 		var logLine rpc.LogLine
 		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
-			log.Error("Failed to unmarshal log line", "err", err)
+			slog.Error("Failed to unmarshal log line", "err", err)
 			msg.Nak()
 			return
 		}
 
 		if err := logLine.Validate(); err != nil {
-			log.Error("Invalid log line", "err", err)
+			slog.Error("Invalid log line", "err", err)
 			msg.Term()
 			return
 		}
@@ -53,7 +53,7 @@ func (i *IngestService) Run(ctx context.Context) error {
 		parts := strings.Split(subject, ".")
 		clientId := parts[len(parts)-1]
 
-		log.Debug("Received log line", "clientId", clientId, "subject", subject)
+		slog.Debug("Received log line", "clientId", clientId, "subject", subject)
 		i.ingestCh <- db.LogLineWithHost{
 			LogLine:  &logLine,
 			ClientId: clientId,

@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
@@ -21,7 +21,7 @@ func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
 
 	count, err := collection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
-		log.Fatalf("Could not count documents: %v", err)
+		panic(fmt.Sprintf("Could not count documents: %v", err))
 		panic(err)
 	}
 	return count
@@ -40,7 +40,7 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 		}
 
 		if i%500_000 == 0 {
-			log.Printf("Generated %d log lines", i)
+			slog.Info("Generated log lines", "count", i)
 		}
 	}
 }
@@ -61,10 +61,10 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			log.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
+			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
 			time.Sleep(8 * time.Second)
 		} else {
-			log.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
+			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
 		}
 	}
@@ -74,11 +74,11 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 	assert.Equal(t, 1, len(clients))
 
 	count := suite.countNumberOfLogsInDb()
-	log.Info("Number of logs in db", "count", count)
+	slog.Info("Number of logs in db", "count", count)
 	assert.Equal(t, numberOfImportedLogs, count)
 
 	elapsed := time.Since(start)
-	log.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
+	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
 	suite.logServerContext.Done()
 
 	// SECOND PART OF THE TEST

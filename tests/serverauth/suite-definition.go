@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -43,8 +45,8 @@ func (s *ServerauthSuite) SetupSuite() {
 		s.T().Fatal(fmt.Sprintf("Could not get connection string: %s", err))
 	}
 
-	log.SetLevel(log.DebugLevel)
-	log.SetReportCaller(true)
+	util.SetupLogger()
+	
 
 	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(s.connectionString))
 	if err != nil {

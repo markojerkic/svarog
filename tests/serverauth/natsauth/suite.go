@@ -5,7 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/log"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
@@ -36,7 +38,7 @@ func (s *NatsAuthSuite) SetupSuite() {
 	t := s.T()
 	ctx := context.Background()
 
-	log.SetLevel(log.DebugLevel)
+	util.SetupLogger()
 
 	// Generate NATS issuer key pair
 	issuerKp, err := nkeys.CreateAccount()
