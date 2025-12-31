@@ -43,7 +43,7 @@ templ BaseLayout(props BaseProps) {
 			@tagsinput.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
-		<body class="bg-background text-foreground min-h-screen">
+		<body class="bg-background text-foreground h-screen overflow-hidden">
 			{ children... }
 			@ConfirmDialog()
 		</body>
@@ -139,12 +139,12 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 			}
-			@sidebar.Inset() {
+			@sidebar.Inset(sidebar.InsetProps{Class: "h-screen overflow-hidden"}) {
 				<div class="flex h-full flex-col">
-					<div class="flex h-14 items-center gap-4 border-b px-6">
+					<div class="flex h-14 shrink-0 items-center gap-4 border-b px-6">
 						@sidebar.Trigger()
 					</div>
-					<div class="flex-1 p-6">
+					<div class="flex-1 p-6 min-h-0">
 						{ children... }
 					</div>
 				</div>

@@ -1,0 +1,13 @@
+package logs
+
+import "github.com/markojerkic/svarog/internal/server/types"
+
+type LogLineProps struct {
+	LogLine types.StoredLog
+}
+
+templ LogLine(props LogLineProps) {
+	<pre class="border-l-4 pl-2 text-black">
+		{ props.LogLine.LogLine }
+	</pre>
+}

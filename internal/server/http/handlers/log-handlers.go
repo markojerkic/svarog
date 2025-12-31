@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"log/slog"
@@ -8,6 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/pages"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 type LogLine struct {
@@ -88,7 +91,8 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	return c.JSON(200, mappedLogs)
+	props := pages.LogsPageProps{Logs: logs}
+	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
 }
 
 type SearchLogsByClientBinding struct {
@@ -137,7 +141,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 }
 
 func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
-	logsApi := e.Group("/logs")
+	logsApi := e.Group("/logs/:projectId/:clientId")
 
 	logsRouter := &LogsRouter{
 		logService:   logService,
@@ -145,9 +149,9 @@ func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
 		api:          logsApi,
 	}
 
-	logsRouter.api.GET("/:clientId", logsRouter.logsByClientHandler)
-	logsRouter.api.GET("/:clientId/instances", logsRouter.instancesByClientHandler)
-	logsRouter.api.GET("/:clientId/search", logsRouter.searchLogs)
+	logsRouter.api.GET("", logsRouter.logsByClientHandler)
+	logsRouter.api.GET("/instances", logsRouter.instancesByClientHandler)
+	logsRouter.api.GET("/search", logsRouter.searchLogs)
 
 	return logsRouter
 }

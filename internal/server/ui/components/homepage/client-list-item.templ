@@ -2,6 +2,7 @@ package homepage
 
 import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"fmt"
 )
 
 templ ProjectGroup(project projects.Project) {
@@ -12,15 +13,15 @@ templ ProjectGroup(project projects.Project) {
 		</div>
 		<div class="flex flex-wrap gap-3">
 			for _, client := range project.Clients {
-				@ClientCard(client)
+				@ClientCard(project.ID.Hex(), client)
 			}
 		</div>
 	</section>
 }
 
-templ ClientCard(client string) {
+templ ClientCard(projectID string, client string) {
 	<a
-		href={ templ.SafeURL("/logs?client=" + client) }
+		href={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", projectID, client)) }
 		class="inline-block rounded-lg border bg-card p-3 hover:bg-accent transition-colors cursor-pointer"
 	>
 		<span class="font-medium text-sm">{ client }</span>
