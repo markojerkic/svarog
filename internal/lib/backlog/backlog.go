@@ -2,7 +2,7 @@ package backlog
 
 import "sync"
 
-type Backlog[T interface{}] interface {
+type Backlog[T any] interface {
 	GetLogs() <-chan []T
 	AddToBacklog(log T)
 	AddAllToBacklog(logs []T)
@@ -12,7 +12,7 @@ type Backlog[T interface{}] interface {
 	Count() int
 }
 
-type IBacklog[T interface{}] struct {
+type IBacklog[T any] struct {
 	sync.Mutex
 	dumpLock sync.Mutex
 
@@ -22,7 +22,7 @@ type IBacklog[T interface{}] struct {
 	index int
 }
 
-var _ Backlog[interface{}] = &IBacklog[interface{}]{}
+var _ Backlog[any] = &IBacklog[any]{}
 
 var backlogLimit = 1000
 
@@ -101,7 +101,7 @@ func (self *IBacklog[T]) IsFull() bool {
 	return self.index == backlogLimit-1
 }
 
-func NewBacklog[T interface{}](backlogSize int) Backlog[T] {
+func NewBacklog[T any](backlogSize int) Backlog[T] {
 	return &IBacklog[T]{
 		sync.Mutex{},
 		sync.Mutex{},

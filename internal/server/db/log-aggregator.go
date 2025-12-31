@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/lib/backlog"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/types"
-	"log/slog"
 )
 
 type LogLineWithHost struct {

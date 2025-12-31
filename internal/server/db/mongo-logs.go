@@ -35,11 +35,6 @@ type MongoLogService struct {
 
 var _ LogService = &MongoLogService{}
 
-var instancesPipeline = mongo.Pipeline{
-	bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$client.client_id"}}}},
-	bson.D{{Key: "$project", Value: bson.D{{Key: "ip_address", Value: "$_id"}}}},
-}
-
 // GetInstances implements LogRepository.
 func (self *MongoLogService) GetInstances(ctx context.Context, clientId string) ([]string, error) {
 	rawInstances, err := self.logCollection.Distinct(ctx, "client.ip_address", bson.D{{Key: "client.client_id", Value: clientId}})
@@ -155,7 +150,11 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 	for i, log := range logs {
 		saveableLogs[i] = log
 	}
-	insertedLines, err := self.logCollection.InsertMany(ctx, saveableLogs)
+	insertedLines, err := self.logCollection.InsertMany(
+		ctx,
+		saveableLogs,
+		options.InsertMany().SetOrdered(false),
+	)
 	if err != nil {
 		slog.Error("Error saving logs", "error", err)
 		return err
