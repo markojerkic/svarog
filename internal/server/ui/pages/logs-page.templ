@@ -9,6 +9,7 @@ type LogsPageProps struct {
 
 templ LogsPage(props LogsPageProps) {
 	@AdminLayout(AdminLayoutProps{Title: "Svarog"}) {
+		<script defer src="/assets/js/log-menu.js"></script>
 		<div
 			class="flex flex-col-reverse overflow-auto h-full"
 			id="logs-container"
@@ -17,6 +18,7 @@ templ LogsPage(props LogsPageProps) {
 				@logs.LogLine(logs.LogLineProps{LogLine: log})
 			}
 		</div>
+		@logs.SharedLogMenu()
 	}
 	<script>
 		(function scrollToBottom() {

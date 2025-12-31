@@ -13,8 +13,37 @@ templ LogLine(props LogLineProps) {
 		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{
 			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 !h-6 !w-6 !m-0 !p-0",
+			Attributes: templ.Attributes{
+				"data-log-menu-trigger": "true",
+				"data-log-id":           props.LogLine.ID.Hex(),
+				"data-log-content":      props.LogLine.LogLine,
+			},
 		}) {
-			@icon.Copy()
+			@icon.EllipsisVertical()
 		}
 	</pre>
+}
+
+templ SharedLogMenu() {
+	<div
+		id="shared-log-menu"
+		class="hidden fixed z-9999 w-48 p-1 bg-popover rounded-lg border text-popover-foreground text-sm shadow-lg"
+	>
+		<button
+			type="button"
+			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+			onclick="logMenu.copyLogContent()"
+		>
+			@icon.Copy(icon.Props{Size: 16, Class: "mr-2"})
+			Copy log line
+		</button>
+		<button
+			type="button"
+			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+			onclick="logMenu.copyLogLink()"
+		>
+			@icon.Link(icon.Props{Size: 16, Class: "mr-2"})
+			Copy link
+		</button>
+	</div>
 }
