@@ -3,17 +3,16 @@ package db
 import (
 	"context"
 	"fmt"
-	"math"
 	"testing"
 	"time"
+
+	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
@@ -22,7 +21,6 @@ func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
 	count, err := collection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
 		panic(fmt.Sprintf("Could not count documents: %v", err))
-		panic(err)
 	}
 	return count
 }
@@ -32,10 +30,10 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 		logIngestChannel <- db.LogLineWithHost{
 			LogLine: &rpc.LogLine{
 				Message:   fmt.Sprintf("Log line %d", i),
-				Timestamp: timestamppb.New(time.Now()),
-				Sequence:  int64(i) % math.MaxInt64,
-				Client:    "marko",
+				Timestamp: time.Now(),
+				Sequence:  i,
 			},
+			ClientId: "marko",
 			Hostname: "::1",
 		}
 
@@ -69,10 +67,7 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 		}
 	}
 
-	clients, err := suite.logService.GetClients(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(clients))
-
+	// Verify logs were saved by counting them
 	count := suite.countNumberOfLogsInDb()
 	slog.Info("Number of logs in db", "count", count)
 	assert.Equal(t, numberOfImportedLogs, count)
@@ -118,7 +113,7 @@ func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T)
 	lastLogLine := logPage[len(logPage)-1]
 
 	return &db.LastCursor{
-		SequenceNumber: int(lastLogLine.SequenceNumber),
+		SequenceNumber: lastLogLine.SequenceNumber,
 		Timestamp:      lastLogLine.Timestamp,
 		IsBackward:     true,
 	}

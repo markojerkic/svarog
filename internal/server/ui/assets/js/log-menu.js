@@ -96,6 +96,7 @@
         url.searchParams.set("logLine", currentLogId);
         navigator.clipboard.writeText(url.toString());
         hideMenu();
+        showToast("Copied log line link to clipboard");
       }
     },
   };

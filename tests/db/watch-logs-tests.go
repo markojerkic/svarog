@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"log/slog"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	ws "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/assert"
+	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
@@ -48,7 +48,7 @@ func (suite *LogsCollectionRepositorySuite) TestWatchInsert() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has %d items. Waiting 8s", suite.logServer.BacklogCount())
+			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
 			time.Sleep(1 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))

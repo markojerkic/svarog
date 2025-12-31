@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"log/slog"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
@@ -26,7 +26,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has %d items. Waiting 6s", suite.logServer.BacklogCount())
+			slog.Info("Backlog still has items. Waiting 6s", "numItem", suite.logServer.BacklogCount())
 			time.Sleep(6 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))

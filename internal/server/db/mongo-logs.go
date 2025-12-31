@@ -104,7 +104,7 @@ func (self *MongoLogService) WatchInserts(ctx context.Context) {
 			continue
 		}
 
-		err = bson.Unmarshal(bsonBytes, &storedLog) // Unmarshal into the Person struct
+		err = bson.Unmarshal(bsonBytes, &storedLog)
 		if err != nil {
 			slog.Error("Error unmarshalling log", "error", err)
 			continue
