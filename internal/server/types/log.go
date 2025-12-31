@@ -8,6 +8,7 @@ import (
 
 type Client struct {
 	ClientId string `json:"clientId"`
+	Project  string `json:"project"`
 }
 
 type StoredLog struct {

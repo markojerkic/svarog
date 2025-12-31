@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"log/slog"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -19,6 +18,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"log/slog"
 )
 
 type HttpServer struct {
@@ -67,7 +67,7 @@ func (self *HttpServer) Start() {
 	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
 	adminApi := e.Group("/admin", corsMiddleware, sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
-	handlers.NewHomeHandler(privateApi)
+	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, self.certificateService, adminApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)

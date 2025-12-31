@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"log/slog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -95,15 +96,6 @@ type SearchLogsByClientBinding struct {
 	Search string `query:"search"`
 }
 
-func (self *LogsRouter) clientsHandler(c echo.Context) error {
-	clients, err := self.logService.GetClients(c.Request().Context())
-	if err != nil {
-		return err
-	}
-
-	return c.JSON(200, clients)
-}
-
 func (self *LogsRouter) searchLogs(c echo.Context) error {
 	var params SearchLogsByClientBinding
 
@@ -153,7 +145,6 @@ func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
 		api:          logsApi,
 	}
 
-	logsRouter.api.GET("/clients", logsRouter.clientsHandler)
 	logsRouter.api.GET("/:clientId", logsRouter.logsByClientHandler)
 	logsRouter.api.GET("/:clientId/instances", logsRouter.instancesByClientHandler)
 	logsRouter.api.GET("/:clientId/search", logsRouter.searchLogs)

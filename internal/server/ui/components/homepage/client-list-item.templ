@@ -1,0 +1,18 @@
+package homepage
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/card"
+
+templ ClientListItem(client string) {
+	@card.Card() {
+		@card.Header() {
+			@card.Title() {
+				<a href="#" class="hover:underline">
+					{ client }
+				</a>
+			}
+			@card.Description() {
+				Client ID
+			}
+		}
+	}
+}

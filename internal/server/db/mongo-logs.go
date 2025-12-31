@@ -17,7 +17,6 @@ import (
 type LogService interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
 	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
-	GetClients(ctx context.Context) ([]types.Client, error)
 	GetInstances(ctx context.Context, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
@@ -48,26 +47,6 @@ func (self *MongoLogService) GetInstances(ctx context.Context, clientId string) 
 	}
 
 	return instances, nil
-}
-
-// GetClients implements LogRepository.
-func (self *MongoLogService) GetClients(ctx context.Context) ([]types.Client, error) {
-	results, err := self.logCollection.Distinct(ctx, "client.client_id", bson.D{})
-	if err != nil {
-		return nil, err
-	}
-
-	clients := make([]types.Client, len(results))
-
-	for i, result := range results {
-		client := types.Client{
-			ClientId: result.(string),
-		}
-		clients[i] = client
-
-	}
-
-	return clients, nil
 }
 
 // DeleteLogAfterTimestamp implements LogService.
