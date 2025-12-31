@@ -9,11 +9,10 @@ type LogLineProps struct {
 }
 
 templ LogLine(props LogLineProps) {
-	<pre class="group border-l-4 pl-2 text-black hover:bg-accent flex justify-between">
-		<span>{ props.LogLine.LogLine }</span>
+	<pre class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center">
+		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{
-			Size:  button.SizeSm,
-			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0",
+			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 !h-6 !w-6 !m-0 !p-0",
 		}) {
 			@icon.Copy()
 		}
