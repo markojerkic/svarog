@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"strings"
 
-	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/nats-io/nats.go/jetstream"
+	"log/slog"
 )
 
 type IngestService struct {
-	ingestCh chan db.LogLineWithHost
-	natsConn *serverauth.NatsConnection
+	ingestCh   chan db.LogLineWithHost
+	natsConn   *serverauth.NatsConnection
+	consumeCtx jetstream.ConsumeContext
 }
 
 func NewIngestService(ingestCh chan db.LogLineWithHost, natsConn *serverauth.NatsConnection) *IngestService {
@@ -35,7 +36,7 @@ func (i *IngestService) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = consumer.Consume(func(msg jetstream.Msg) {
+	consumeCtx, err := consumer.Consume(func(msg jetstream.Msg) {
 		var logLine rpc.LogLine
 		if err := json.Unmarshal(msg.Data(), &logLine); err != nil {
 			slog.Error("Failed to unmarshal log line", "err", err)
@@ -62,5 +63,20 @@ func (i *IngestService) Run(ctx context.Context) error {
 		msg.Ack()
 	}, jetstream.PullMaxMessages(100))
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	i.consumeCtx = consumeCtx
+
+	// Block until context is cancelled
+	<-ctx.Done()
+	slog.Info("Ingest service shutting down")
+	return nil
+}
+
+func (i *IngestService) Stop() {
+	if i.consumeCtx != nil {
+		i.consumeCtx.Stop()
+	}
 }

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,6 +32,8 @@ type HttpServer struct {
 
 	allowedOrigins []string
 	serverPort     int
+
+	echo *echo.Echo
 }
 
 type HttpServerOptions struct {
@@ -45,8 +48,9 @@ type HttpServerOptions struct {
 	ServerPort     int
 }
 
-func (self *HttpServer) Start() {
+func (self *HttpServer) Start() error {
 	e := echo.New()
+	self.echo = e
 	e.Validator = &Validator{validator: validator.New()}
 	e.HTTPErrorHandler = customMiddleware.CustomHTTPErrorHandler
 
@@ -89,7 +93,14 @@ func (self *HttpServer) Start() {
 	})
 
 	serverAddr := fmt.Sprintf(":%d", self.serverPort)
-	e.Logger.Fatal(e.Start(serverAddr))
+	return e.Start(serverAddr)
+}
+
+func (self *HttpServer) Shutdown(ctx context.Context) error {
+	if self.echo != nil {
+		return self.echo.Shutdown(ctx)
+	}
+	return nil
 }
 
 func NewServer(options HttpServerOptions) *HttpServer {

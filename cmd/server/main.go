@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
 
@@ -54,6 +57,39 @@ func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
 	database := client.Database("logs")
 
 	return client, database, nil
+}
+
+type serverDependencies struct {
+	httpServer     *http.HttpServer
+	ingestService  *ingest.IngestService
+	natsAppConn    *serverauth.NatsConnection
+	natsSystemConn *serverauth.NatsConnection
+	mongoClient    *mongo.Client
+	cancel         context.CancelFunc
+}
+
+func gracefulShutdown(deps serverDependencies) {
+	log.Info("Shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := deps.httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Error("HTTP server shutdown error", "error", err)
+	}
+
+	deps.ingestService.Stop()
+
+	deps.cancel()
+
+	deps.natsAppConn.Close()
+	deps.natsSystemConn.Close()
+
+	if err := deps.mongoClient.Disconnect(shutdownCtx); err != nil {
+		log.Error("MongoDB disconnect error", "error", err)
+	}
+
+	log.Info("Server stopped gracefully")
 }
 
 func main() {
@@ -131,8 +167,28 @@ func main() {
 			ProjectsService:    projectsService,
 		})
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Signal handling for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	go natsAuthService.Run()
-	go logServer.Run(context.Background(), logIngestChannel)
-	go ingestService.Run(context.Background())
-	httpServer.Start()
+	go logServer.Run(ctx, logIngestChannel)
+	go ingestService.Run(ctx)
+	go func() {
+		if err := httpServer.Start(); err != nil {
+			log.Info("HTTP server stopped", "error", err)
+		}
+	}()
+
+	<-quit
+	gracefulShutdown(serverDependencies{
+		httpServer:     httpServer,
+		ingestService:  ingestService,
+		natsAppConn:    natsAppConn,
+		natsSystemConn: natsSystemConn,
+		mongoClient:    client,
+		cancel:         cancel,
+	})
 }
