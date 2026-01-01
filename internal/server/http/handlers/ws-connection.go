@@ -24,6 +24,7 @@ type WsConnection struct {
 	wsHub        *websocket.WatchHub
 	lines        chan []byte
 	natsSub      *nats.Subscription
+	closeOnce    sync.Once
 }
 
 type WsMessageType string
@@ -36,7 +37,11 @@ const (
 )
 
 func (self *WsConnection) closeSubscription() {
-	self.natsSub.Unsubscribe()
+	self.closeOnce.Do(func() {
+		self.natsSub.Unsubscribe()
+		self.natsSub.Drain()
+		close(self.lines)
+	})
 	self.wsConnection.Close()
 }
 
@@ -46,6 +51,7 @@ func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
 		err := self.wsConnection.WriteMessage(gorillaWs.TextMessage, renderedLogLine)
 		if err != nil {
 			slog.Error("Error writing WS message", "error", err)
+			self.closeSubscription()
 			return
 		}
 	}
@@ -57,7 +63,7 @@ func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
 		_, _, err := self.wsConnection.ReadMessage()
 		if err != nil {
 			slog.Debug("WebSocket read error (client likely disconnected)", "error", err, "clientId", self.clientId)
-			close(self.lines)
+			self.closeSubscription()
 			return
 		}
 	}

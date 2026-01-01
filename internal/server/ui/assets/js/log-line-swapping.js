@@ -17,8 +17,6 @@ function swapLogLine(evt) {
   var newTs = parseInt(newLogEl.getAttribute("data-timestamp"));
   var inserted = false;
 
-  var MAX_LOGS = 100;
-
   var newSeq = parseInt(newLogEl.getAttribute("data-sequence")) || 0;
 
   for (var i = 0; i < children.length; i++) {
@@ -33,11 +31,5 @@ function swapLogLine(evt) {
 
   if (!inserted) {
     container.appendChild(newLogEl);
-  }
-
-  // Cleanup: If we have too many logs, remove the last one (Oldest/Top visually)
-  // Since DOM is Descending, the last child is the Oldest.
-  if (children.length > MAX_LOGS) {
-    container.lastElementChild.remove();
   }
 }
