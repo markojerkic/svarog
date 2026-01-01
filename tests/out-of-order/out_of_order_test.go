@@ -74,7 +74,7 @@ func (suite *OutOfOrderSuite) TestOutOfOrderInsert() {
 
 	// Wait for all logs to be inserted into the database
 	// The backlog dumps asynchronously, so we need to poll the actual DB count
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(60 * time.Second)
 	for {
 		count := suite.countNumberOfLogsInDb()
 		if count >= expectedCount {

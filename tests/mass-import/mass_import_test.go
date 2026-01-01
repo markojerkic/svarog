@@ -54,7 +54,7 @@ func (suite *MassImportSuite) TestMassImport() {
 	for {
 		if !suite.logServer.IsBacklogEmpty() {
 			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(8 * time.Second)
+			time.Sleep(60 * time.Second)
 		} else {
 			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
 			break
