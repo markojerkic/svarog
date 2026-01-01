@@ -218,6 +218,10 @@ func (m *MongoProjectsService) ProjectExists(ctx context.Context, projectId, cli
 		return false
 	}
 
+	if clientId == "*" {
+		return true
+	}
+
 	count, err := m.projectsCollection.CountDocuments(ctx, bson.M{
 		"_id":     objID,
 		"clients": clientId,

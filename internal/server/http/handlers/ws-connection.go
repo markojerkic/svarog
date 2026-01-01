@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"sync"
 
-	"log/slog"
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"log/slog"
 )
 
 type WsRouter struct {
@@ -126,8 +126,9 @@ var wsUpgrader = gorillaWs.Upgrader{
 
 func (self *WsRouter) connectionHandler(c echo.Context) error {
 	clientId := c.Param("clientId")
+	projectId := c.Param("projectId")
 
-	slog.Debug("Request made for client", "clientId", clientId)
+	slog.Debug("Request made for client", "clientId", clientId, "projectId", projectId)
 	subscription := self.wsHub.Subscribe(clientId)
 	slog.Debug("Created subscription", "subscription", subscription)
 
@@ -171,7 +172,7 @@ func NewWsConnectionRouter(hub websocket.WatchHub, parentRouter *echo.Group) *Ws
 		api:          api,
 	}
 
-	api.GET("/:clientId", router.connectionHandler)
+	api.GET("/:projectId/:clientId", router.connectionHandler)
 	slog.Info("Created WS connection router")
 
 	return router

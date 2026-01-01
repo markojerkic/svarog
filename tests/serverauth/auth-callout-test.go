@@ -64,6 +64,27 @@ func (s *NatsAuthSuite) TestAuthCalloutNoToken() {
 	}
 }
 
+func (s *NatsAuthSuite) TestAuthCalloutPublishToWildcardClient() {
+	t := s.T()
+
+	// Create a project with a client
+	topic := s.createTestProject("*")
+
+	token, err := s.tokenService.GenerateToken("testuser", topic)
+	require.NoError(t, err)
+
+	nc, err := nats.Connect(s.NatsAddr, nats.Token(token))
+	require.NoError(t, err)
+	defer nc.Close()
+
+	// Should be able to publish to the allowed topic
+	err = nc.Publish(topic, []byte("test message"))
+	assert.NoError(t, err, "should publish to allowed topic")
+
+	err = nc.Flush()
+	assert.NoError(t, err)
+}
+
 func (s *NatsAuthSuite) TestAuthCalloutPublishToAllowedTopic() {
 	t := s.T()
 

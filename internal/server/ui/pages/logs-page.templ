@@ -36,7 +36,7 @@ templ logLines(props LogsPageProps) {
 	if props.LogPage.IsLastPage {
 		<div
 			hx-ext="ws"
-			ws-connect={ fmt.Sprintf("/logs/ws/%s/%s", props.ClientId, props.ProjectId) }
+			ws-connect={ fmt.Sprintf("/ws/%s/%s", props.ProjectId, props.ClientId) }
 		></div>
 	}
 }

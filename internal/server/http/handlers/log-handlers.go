@@ -65,9 +65,9 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 
 	slog.Debug("Get logs by client", "params", params)
 
-	var nextCursor db.LastCursor
+	var nextCursor *db.LastCursor
 	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
-		nextCursor = db.LastCursor{
+		nextCursor = &db.LastCursor{
 			Timestamp:      time.UnixMilli(*params.CursorTime),
 			SequenceNumber: *params.CursorSequenceNumber,
 			IsBackward:     *params.Direction == "backward",
@@ -79,14 +79,12 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		Instances: params.Instances,
 		PageSize:  DEFAULT_PAGE_SIZE,
 		LogLineId: params.LogLineId,
-		Cursor:    &nextCursor,
+		Cursor:    nextCursor,
 	})
 
 	if err != nil {
 		return err
 	}
-
-	slog.Debug("Log page", "isLast", logPage.IsLastPage, "backwardCursor", logPage.BackwardCursor, "forwardCursor", logPage.ForwardCursor)
 
 	props := pages.LogsPageProps{
 		LogPage:   logPage,
