@@ -29,7 +29,7 @@ tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
-      - templ generate --watch --proxy="http://localhost:1323" --cmd="go run cmd/server/main.go" --open-browser=false
+      - go tool templ generate --watch --proxy="http://localhost:1323" --cmd="go run cmd/server/main.go" --open-browser=false
 
   dev:
     desc: Start development server with hot reload
