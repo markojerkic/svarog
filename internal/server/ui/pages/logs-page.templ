@@ -39,6 +39,7 @@ templ LogPageLines(props LogsPageProps) {
 			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.LogPage.BackwardCursor, "backward") }
 			hx-swap="outerHTML"
 			hx-trigger="intersect once"
+			class="-m-40"
 		></div>
 	}
 	if props.LogPage.IsLastPage {
