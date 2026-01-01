@@ -44,4 +44,7 @@ jobs:
           cache: true
 
       - name: Run Go tests
-        run: make test-server
+        run: |
+          go get -tool github.com/a-h/templ/cmd/templ@latest
+          go tool generate ./...
+          go test ./tests/...
