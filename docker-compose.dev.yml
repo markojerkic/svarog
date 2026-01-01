@@ -7,13 +7,8 @@ services:
     environment:
       - MONGODB_INITDB_ROOT_USERNAME=user
       - MONGODB_INITDB_ROOT_PASSWORD=pass
-      - MONGO_REPLICA_SET_NAME=rs0
-    command: >
-      mongod --replSet rs0 --bind_ip_all
     volumes:
       - dbdata:/data/db
-      - mongo1_config:/data/configdb
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
   nats:
     image: nats:latest
     container_name: svarog-nats
