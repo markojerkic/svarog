@@ -19,9 +19,12 @@ function swapLogLine(evt) {
 
   var MAX_LOGS = 100;
 
+  var newSeq = parseInt(newLogEl.getAttribute("data-sequence")) || 0;
+
   for (var i = 0; i < children.length; i++) {
     var childTs = parseInt(children[i].getAttribute("data-timestamp"));
-    if (newTs > childTs) {
+    var childSeq = parseInt(children[i].getAttribute("data-sequence")) || 0;
+    if (newTs > childTs || (newTs === childTs && newSeq > childSeq)) {
       container.insertBefore(newLogEl, children[i]);
       inserted = true;
       break;

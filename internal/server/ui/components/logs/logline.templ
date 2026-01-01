@@ -13,6 +13,7 @@ templ LogLine(props LogLineProps) {
 	<pre
 		class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center"
 		data-timestamp={ fmt.Sprintf("%d", props.LogLine.Timestamp.UnixNano()) }
+		data-sequence={ fmt.Sprintf("%d", props.LogLine.SequenceNumber) }
 	>
 		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{

@@ -16,33 +16,43 @@ test.describe("Log Sorting Logic", () => {
     `);
   });
 
-  const simulateHtmxSwap = async (page: Page, timestamp: number) => {
-    await page.evaluate((ts) => {
-      const frag = document.createDocumentFragment();
-      const el = document.createElement("pre");
-      el.setAttribute("data-timestamp", String(ts));
-      el.innerText = `Log at ${ts}`;
-      frag.appendChild(el);
+  const simulateHtmxSwap = async (
+    page: Page,
+    timestamp: number,
+    sequence?: number,
+  ) => {
+    await page.evaluate(
+      ({ ts, seq }) => {
+        const frag = document.createDocumentFragment();
+        const el = document.createElement("pre");
+        el.setAttribute("data-timestamp", String(ts));
+        if (seq !== undefined) {
+          el.setAttribute("data-sequence", String(seq));
+        }
+        el.innerText = `Log at ${ts}${seq !== undefined ? ` seq ${seq}` : ""}`;
+        frag.appendChild(el);
 
-      const evt = new CustomEvent("htmx:oobBeforeSwap", {
-        bubbles: true,
-        cancelable: true,
-        detail: {
-          target: { id: "logs-container" },
-          fragment: frag,
-        },
-      });
-      document.body.dispatchEvent(evt);
-      const fakeEvt = new CustomEvent("htmx:oobBeforeSwap", {
-        bubbles: true,
-        cancelable: true,
-        detail: {
-          target: { id: "some-other-container" },
-          fragment: frag,
-        },
-      });
-      document.body.dispatchEvent(fakeEvt);
-    }, timestamp);
+        const evt = new CustomEvent("htmx:oobBeforeSwap", {
+          bubbles: true,
+          cancelable: true,
+          detail: {
+            target: { id: "logs-container" },
+            fragment: frag,
+          },
+        });
+        document.body.dispatchEvent(evt);
+        const fakeEvt = new CustomEvent("htmx:oobBeforeSwap", {
+          bubbles: true,
+          cancelable: true,
+          detail: {
+            target: { id: "some-other-container" },
+            fragment: frag,
+          },
+        });
+        document.body.dispatchEvent(fakeEvt);
+      },
+      { ts: timestamp, seq: sequence },
+    );
   };
 
   test("handles out-of-order log arrival correctly", async ({ page }) => {
@@ -68,5 +78,26 @@ test.describe("Log Sorting Logic", () => {
 
     console.log("Final DOM Order:", timestamps);
     expect(timestamps).toEqual([300, 200, 100, 50]);
+  });
+
+  test("sorts by sequence number when timestamps are equal", async ({
+    page,
+  }) => {
+    // All logs have same timestamp (100), but different sequence numbers
+    await simulateHtmxSwap(page, 100, 2);
+    await simulateHtmxSwap(page, 100, 5);
+    await simulateHtmxSwap(page, 100, 1);
+    await simulateHtmxSwap(page, 100, 4);
+    await simulateHtmxSwap(page, 100, 3);
+
+    // ASSERT: Should be sorted by sequence number descending: 5 -> 4 -> 3 -> 2 -> 1
+    const sequences = await page
+      .locator("#logs-container > pre")
+      .evaluateAll((list) =>
+        list.map((el) => parseInt(el.getAttribute("data-sequence")!)),
+      );
+
+    console.log("Final DOM Order (by sequence):", sequences);
+    expect(sequences).toEqual([5, 4, 3, 2, 1]);
   });
 });
