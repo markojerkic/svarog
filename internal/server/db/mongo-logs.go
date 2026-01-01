@@ -100,17 +100,19 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (*
 		}, nil
 	}
 
+	// ForwardCursor: for scrolling down (older logs)
 	forwardCursor := &LastCursor{
 		Timestamp:      logs[len(logs)-1].Timestamp,
 		SequenceNumber: logs[len(logs)-1].SequenceNumber,
-		IsBackward:     false,
+		IsBackward:     true,
 	}
+	// BackwardCursor: for scrolling up (newer logs)
 	var backwardCursor *LastCursor
 	if req.Cursor != nil {
 		backwardCursor = &LastCursor{
 			Timestamp:      logs[0].Timestamp,
 			SequenceNumber: logs[0].SequenceNumber,
-			IsBackward:     true,
+			IsBackward:     false,
 		}
 	}
 
