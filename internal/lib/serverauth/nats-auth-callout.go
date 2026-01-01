@@ -1,11 +1,15 @@
 package serverauth
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"log/slog"
+
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	natsjwt "github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -18,6 +22,7 @@ type NatsAuthConfig struct {
 type NatsAuthCalloutHandler struct {
 	natsIssuerKeyPair nkeys.KeyPair
 	tokenService      *TokenService
+	projectsService   projects.ProjectsService
 	conn              *nats.Conn
 }
 
@@ -27,7 +32,7 @@ type NatsAuthClaims struct {
 	Topic    string `json:"topic,omitempty"`
 }
 
-func NewNatsAuthCalloutHandler(config NatsAuthConfig, conn *nats.Conn, tokenService *TokenService) (*NatsAuthCalloutHandler, error) {
+func NewNatsAuthCalloutHandler(config NatsAuthConfig, conn *nats.Conn, tokenService *TokenService, projectsService projects.ProjectsService) (*NatsAuthCalloutHandler, error) {
 	if config.IssuerSeed == "" {
 		return nil, errors.New("IssuerSeed is required")
 	}
@@ -36,6 +41,9 @@ func NewNatsAuthCalloutHandler(config NatsAuthConfig, conn *nats.Conn, tokenServ
 	}
 	if tokenService == nil {
 		return nil, errors.New("TokenService is required")
+	}
+	if projectsService == nil {
+		return nil, errors.New("ProjectsService is required")
 	}
 
 	issuerKp, err := nkeys.FromSeed([]byte(config.IssuerSeed))
@@ -46,6 +54,7 @@ func NewNatsAuthCalloutHandler(config NatsAuthConfig, conn *nats.Conn, tokenServ
 	return &NatsAuthCalloutHandler{
 		natsIssuerKeyPair: issuerKp,
 		tokenService:      tokenService,
+		projectsService:   projectsService,
 		conn:              conn,
 	}, nil
 }
@@ -63,6 +72,15 @@ func (n *NatsAuthCalloutHandler) Run() error {
 		if err != nil {
 			slog.Error("JWT validation failed", "err", err)
 			n.respondWithError(msg, reqClaim, "invalid token")
+			return
+		}
+
+		subjectParts := strings.Split(claims.Topic, ".")
+		projectId := subjectParts[1]
+		clientId := subjectParts[2]
+		if !n.projectsService.ProjectExists(context.Background(), projectId, clientId) {
+			slog.Error("Project not found", "projectId", projectId)
+			n.respondWithError(msg, reqClaim, "project not found")
 			return
 		}
 

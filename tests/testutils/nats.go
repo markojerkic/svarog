@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/nats-io/nkeys"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
@@ -99,6 +100,8 @@ func NewNATSTestContainer(ctx context.Context, config NATSTestConfig) (*NATSTest
 		_ = container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to create token service: %w", err)
 	}
+
+	proejctService := projects.NewProjectsService()
 
 	// Create NATS connection for auth callout (SYSTEM account)
 	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
