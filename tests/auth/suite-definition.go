@@ -24,10 +24,6 @@ type AuthSuite struct {
 
 // Before all
 func (suite *AuthSuite) SetupSuite() {
-	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false
-	suite.WithConfig(config)
-
 	suite.BaseSuite.SetupSuite()
 
 	suite.userCollection = suite.Collection("users")

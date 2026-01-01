@@ -1,98 +1,27 @@
 package websocket
 
 import (
-	"sync"
+	"fmt"
 
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/nats-io/nats.go"
 )
 
-type WatchHub interface {
-	Subscribe(clientId string) *Subscription
-	Unsubscribe(*Subscription)
-	NotifyInsert(types.StoredLog)
-	NotifyInsertMultiple([]types.StoredLog)
+type WatchHub struct {
+	conn *nats.Conn
 }
 
-type subscriptions map[*Subscription]bool
-type LogsWatchHub struct {
-	mutex    sync.Mutex
-	channels map[string]subscriptions
-}
-
-var _ WatchHub = &LogsWatchHub{}
-
-// Subscribe implements WatchHub.
-func (self *LogsWatchHub) Subscribe(clientId string) *Subscription {
-	subscription := createSubscription(clientId)
-
-	self.mutex.Lock()
-	if self.channels[clientId] == nil {
-		self.channels[clientId] = make(subscriptions)
-	}
-	self.channels[clientId][&subscription] = true
-	self.mutex.Unlock()
-
-	return &subscription
-}
-
-// Unsubscribe implements WatchHub.
-func (self *LogsWatchHub) Unsubscribe(subscription *Subscription) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
-	clientId := (*subscription).GetClientId()
-
-	if self.channels[clientId] == nil {
-		return
-	}
-	subscriptions := self.channels[clientId]
-	(*subscription).Close()
-
-	for sub := range subscriptions {
-		if (*sub).GetSubscriptionId() == (*subscription).GetSubscriptionId() {
-			delete(subscriptions, sub)
-			break
-		}
-	}
-
-}
-
-// NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) NotifyInsert(logLine types.StoredLog) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
-
-	clientId := logLine.Client.ClientId
-	if self.channels[clientId] == nil {
-		return
-	}
-
-	subscriptions := self.channels[clientId]
-	for subscription := range subscriptions {
-		(*subscription).Notify(logLine)
+func NewWatchHub(conn *nats.Conn) *WatchHub {
+	return &WatchHub{
+		conn: conn,
 	}
 }
 
-// NotifyInsert implements WatchHub.
-func (self *LogsWatchHub) notify(logLine types.StoredLog) {
-	clientId := logLine.Client.ClientId
-	if self.channels[clientId] == nil {
-		return
-	}
-	subscriptions := self.channels[clientId]
-	for subscription := range subscriptions {
-		(*subscription).Notify(logLine)
-	}
+func (w *WatchHub) SendLogLine(projectId, clientId string, line []byte) error {
+	return w.conn.Publish(fmt.Sprintf("ws.logs.%s.%s", projectId, clientId), line)
 }
 
-// NotifyInsertMultiple implements WatchHub.
-func (self *LogsWatchHub) NotifyInsertMultiple(lines []types.StoredLog) {
-	for _, logLine := range lines {
-		self.notify(logLine)
-	}
-}
-
-var LogsHub WatchHub = &LogsWatchHub{
-	mutex:    sync.Mutex{},
-	channels: make(map[string]subscriptions),
+func (w *WatchHub) Subscribe(projectId, clientId string, lines chan<- []byte) (*nats.Subscription, error) {
+	return w.conn.Subscribe(fmt.Sprintf("ws.logs.%s.%s", projectId, clientId), func(msg *nats.Msg) {
+		lines <- msg.Data
+	})
 }

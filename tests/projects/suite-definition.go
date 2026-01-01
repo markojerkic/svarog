@@ -18,10 +18,6 @@ type ProjectsSuite struct {
 
 // SetupSuite implements suite.SetupAllSuite.
 func (p *ProjectsSuite) SetupSuite() {
-	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false
-	p.WithConfig(config)
-
 	p.BaseSuite.SetupSuite()
 
 	p.projectsCollection = p.Collection("projects")

@@ -28,6 +28,7 @@ type HttpServer struct {
 	authService     auth.AuthService
 	filesService    files.FileService
 	projectsService projects.ProjectsService
+	watchHub        *websocket.WatchHub
 
 	allowedOrigins []string
 	serverPort     int
@@ -41,6 +42,7 @@ type HttpServerOptions struct {
 	AuthService     auth.AuthService
 	FilesService    files.FileService
 	ProjectsService projects.ProjectsService
+	WatchHub        *websocket.WatchHub
 
 	AllowedOrigins []string
 	ServerPort     int
@@ -73,7 +75,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewProjectsRouter(self.projectsService, adminApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
-	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
+	handlers.NewWsConnectionRouter(self.watchHub, privateApi)
 
 	e.Static("/assets", "internal/server/ui/assets")
 
@@ -109,6 +111,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		authService:     options.AuthService,
 		filesService:    options.FilesService,
 		projectsService: options.ProjectsService,
+		watchHub:        options.WatchHub,
 	}
 
 	return server

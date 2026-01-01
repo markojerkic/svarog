@@ -1,4 +1,4 @@
-package db
+package massimport
 
 import (
 	"context"
@@ -12,17 +12,11 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/stretchr/testify/suite"
 )
 
-func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
-	collection := suite.logsCollection
-
-	count, err := collection.CountDocuments(context.Background(), bson.D{})
-	if err != nil {
-		panic(fmt.Sprintf("Could not count documents: %v", err))
-	}
-	return count
+func TestMassImportSuite(t *testing.T) {
+	suite.Run(t, new(MassImportSuite))
 }
 
 func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
@@ -45,27 +39,27 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 
 var numberOfImportedLogs = int64(1_000)
 
-func (suite *LogsCollectionRepositorySuite) TestMassImport() {
+func (suite *MassImportSuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
-	logServerContext := context.Background()
-	defer logServerContext.Done()
+	logServerContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
+	close(logIngestChannel)
 
-	for {
-		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(8 * time.Second)
-		} else {
-			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
-			break
+	// Wait for logs to be processed and saved to DB
+	assert.Eventually(t, func() bool {
+		count := suite.countNumberOfLogsInDb()
+		if count > 0 {
+			slog.Info("Waiting for logs to be saved", "current", count, "target", numberOfImportedLogs)
 		}
-	}
+		return count == numberOfImportedLogs
+	}, 30*time.Second, 100*time.Millisecond, "Logs were not saved to DB in time")
 
 	// Verify logs were saved by counting them
 	count := suite.countNumberOfLogsInDb()
@@ -74,7 +68,6 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 
 	elapsed := time.Since(start)
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
-	suite.logServerContext.Done()
 
 	// Check all logs if they're in correct order
 	index := int(numberOfImportedLogs)

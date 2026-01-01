@@ -45,6 +45,7 @@ type LogService interface {
 
 type MongoLogService struct {
 	logCollection *mongo.Collection
+	wsLogRenderer *websocket.WsLogLineRenderer
 }
 
 var _ LogService = &MongoLogService{}
@@ -123,46 +124,6 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}, nil
 }
 
-func (self *MongoLogService) WatchInserts(ctx context.Context) {
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{
-			{Key: "operationType", Value: "insert"},
-		}}},
-	}
-
-	opts := options.ChangeStream().SetFullDocument(options.UpdateLookup)
-	changeStream, err := self.logCollection.Watch(ctx, pipeline, opts)
-
-	if err != nil {
-		panic(fmt.Sprintf("Error watching inserts: %v", err))
-	}
-
-	defer changeStream.Close(ctx)
-
-	for changeStream.Next(ctx) {
-		var event bson.M
-		if err := changeStream.Decode(&event); err != nil {
-			slog.Error("Error decoding log", "error", err)
-		}
-		fullDocument := event["fullDocument"].(bson.M)
-
-		var storedLog types.StoredLog
-		bsonBytes, err := bson.Marshal(fullDocument) // Convert bson.M to bytes
-		if err != nil {
-			slog.Error("Error marshalling log", "error", err)
-			continue
-		}
-
-		err = bson.Unmarshal(bsonBytes, &storedLog)
-		if err != nil {
-			slog.Error("Error unmarshalling log", "error", err)
-			continue
-		}
-
-		websocket.LogsHub.NotifyInsert(storedLog)
-	}
-}
-
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug("Getting logs for client", "clientId", clientId)
 
@@ -196,31 +157,29 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 
 	for i := range logs {
 		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
+		self.wsLogRenderer.Render(ctx, logs[i])
 	}
 
 	return nil
 }
 
-func NewLogService(db *mongo.Database) *MongoLogService {
+func NewLogService(db *mongo.Database, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
 	collection := db.Collection("log_lines")
 
 	repo := &MongoLogService{
 		logCollection: collection,
+		wsLogRenderer: wsLogRenderer,
 	}
 
 	repo.createIndexes()
-	go repo.WatchInserts(context.Background())
 
 	return repo
 }
 
-// Can be useful if we want to drop clientId for some reason
-var logsByClient = bson.D{}
-
 func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
+	projection := options.Find().SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
 
 	clientIdFilter := bson.D{{Key: "client.client_id", Value: req.ClientId}}
 	var filter bson.D
@@ -297,7 +256,7 @@ func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, p
 
 func createFilterForLogLine(collection *mongo.Collection, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
 	sortDirection := -1
-	projection := options.Find().SetProjection(logsByClient).SetSort(bson.D{
+	projection := options.Find().SetSort(bson.D{
 		{Key: "timestamp", Value: sortDirection},
 		{Key: "sequence_number", Value: sortDirection},
 	})
