@@ -3,7 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
+
+	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -11,7 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 type LastCursor struct {
@@ -25,6 +27,20 @@ type LogPage struct {
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
 	IsLastPage     bool
+}
+
+func (l *LogPage) ToPath(projectId, clientId string, cursor *LastCursor, direction string) string {
+	u := url.URL{
+		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
+	}
+	query := u.Query()
+	if cursor != nil {
+		query.Set("cursorTime", fmt.Sprintf("%d", cursor.Timestamp.UnixMilli()))
+		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
+		query.Set("direction", direction)
+	}
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 type LogPageRequest struct {

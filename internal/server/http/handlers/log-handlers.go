@@ -91,6 +91,11 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		ClientId:  params.ClientId,
 		ProjectId: params.ProjectId,
 	}
+	isHx := c.Request().Header.Get("HX-Request") == "true"
+	if isHx && params.CursorTime != nil {
+		utils.Render(c, http.StatusOK, pages.LogPageLines(props))
+	}
+
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
 }
 

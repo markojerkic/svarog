@@ -18,7 +18,7 @@ templ LogsPage(props LogsPageProps) {
 			class="flex flex-col-reverse overflow-auto h-full"
 			id="logs-container"
 		>
-			@logLines(props)
+			@LogPageLines(props)
 		</div>
 		@logs.SharedLogMenu()
 	}
@@ -30,9 +30,16 @@ templ LogsPage(props LogsPageProps) {
 	</script>
 }
 
-templ logLines(props LogsPageProps) {
+templ LogPageLines(props LogsPageProps) {
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{LogLine: log})
+	}
+	if props.LogPage.BackwardCursor != nil {
+		<div
+			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.LogPage.BackwardCursor, "backward") }
+			hx-swap="outerHTML show:top"
+			hx-trigger="intersect once"
+		></div>
 	}
 	if props.LogPage.IsLastPage {
 		<div
