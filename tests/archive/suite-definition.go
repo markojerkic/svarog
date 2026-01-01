@@ -5,7 +5,7 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/files"
-	logs "github.com/markojerkic/svarog/internal/server/db"
+	db "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,15 +22,11 @@ type ArchiveSuite struct {
 
 	filesService   files.FileService
 	archiveService archive.ArhiveService
-	logService     logs.LogService
+	logService     db.LogService
 }
 
 // SetupSuite implements suite.SetupAllSuite.
 func (s *ArchiveSuite) SetupSuite() {
-	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false
-	s.WithConfig(config)
-
 	s.BaseSuite.SetupSuite()
 
 	s.filesCollection = s.Collection("files")
@@ -39,7 +35,7 @@ func (s *ArchiveSuite) SetupSuite() {
 	s.logCollection = s.Collection("log_lines")
 
 	s.filesService = files.NewFileService(s.filesCollection)
-	s.logService = logs.NewLogService(s.Database)
+	s.logService = db.NewLogService(s.Database, s.WsLogRenderer)
 	s.archiveService = archive.NewArchiveService(s.MongoClient,
 		s.archiveCollection,
 		s.archiveSettingCollection,

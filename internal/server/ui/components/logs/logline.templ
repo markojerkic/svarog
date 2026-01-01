@@ -25,7 +25,7 @@ templ LogLine(props LogLineProps) {
 }
 
 templ OobSwapLogLine(props LogLineProps) {
-	<div hx-swap-oob="beforeend" hx-target="#logs-container">
+	<div hx-swap-oob="afterbegin:#logs-container">
 		@LogLine(props)
 	</div>
 }

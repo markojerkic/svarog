@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/server/db"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,21 +19,19 @@ type LogsCollectionRepositorySuite struct {
 	logServer  db.AggregatingLogServer
 
 	logsCollection *mongo.Collection
+	wsLogRenderer  *websocket.WsLogLineRenderer
 
 	logServerContext context.Context
 }
 
 // Before all
 func (suite *LogsCollectionRepositorySuite) SetupSuite() {
-	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false
-	suite.WithConfig(config)
-
 	suite.BaseSuite.SetupSuite()
 
 	suite.logServerContext = context.Background()
 
-	suite.logService = db.NewLogService(suite.Database)
+	suite.wsLogRenderer = suite.WsLogRenderer
+	suite.logService = db.NewLogService(suite.Database, suite.wsLogRenderer)
 	suite.logServer = db.NewLogServer(suite.logService)
 	suite.logsCollection = suite.Collection("log_lines")
 }

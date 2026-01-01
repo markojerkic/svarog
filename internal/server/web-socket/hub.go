@@ -2,7 +2,6 @@ package websocket
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/nats-io/nats.go"
 )

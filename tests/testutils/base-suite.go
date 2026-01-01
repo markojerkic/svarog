@@ -10,6 +10,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
@@ -37,6 +38,10 @@ type BaseSuite struct {
 	AuthHandler     *serverauth.NatsAuthCalloutHandler
 	ProjectsService projects.ProjectsService
 
+	// WebSocket
+	WatchHub      *websocket.WatchHub
+	WsLogRenderer *websocket.WsLogLineRenderer
+
 	// Config
 	config BaseSuiteConfig
 }
@@ -54,9 +59,6 @@ type BaseSuiteConfig struct {
 	JWTSecret      string
 	NatsWsPort     string
 	ConfigPath     string
-
-	// Feature flags
-	EnableNats bool
 }
 
 // DefaultBaseSuiteConfig returns sensible defaults
@@ -70,7 +72,6 @@ func DefaultBaseSuiteConfig() BaseSuiteConfig {
 		JWTSecret:      "test-jwt-secret",
 		NatsWsPort:     "9222",
 		ConfigPath:     "../../nats-server.conf",
-		EnableNats:     true,
 	}
 }
 
@@ -103,12 +104,10 @@ func (s *BaseSuite) SetupSuite() {
 	projectsCollection := s.Database.Collection("projects")
 	s.ProjectsService = projects.NewProjectsService(projectsCollection, s.MongoClient)
 
-	// Start NATS if enabled
-	if s.config.EnableNats {
-		if err := s.setupNats(ctx); err != nil {
-			_ = mongoContainer.Terminate(ctx)
-			s.T().Fatalf("failed to start NATS: %v", err)
-		}
+	// Start NATS
+	if err := s.setupNats(ctx); err != nil {
+		_ = mongoContainer.Terminate(ctx)
+		s.T().Fatalf("failed to start NATS: %v", err)
 	}
 }
 
@@ -189,6 +188,10 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 		natsConn.Close()
 		return fmt.Errorf("failed to start auth callout handler: %w", err)
 	}
+
+	// Create WatchHub and WsLogLineRenderer
+	s.WatchHub = websocket.NewWatchHub(natsConn.Conn)
+	s.WsLogRenderer = websocket.NewWsLogLineRenderer(s.WatchHub)
 
 	return nil
 }

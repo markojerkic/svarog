@@ -176,13 +176,10 @@ func NewLogService(db *mongo.Database, wsLogRenderer *websocket.WsLogLineRendere
 	return repo
 }
 
-// Can be useful if we want to drop clientId for some reason
-var logsByClient = bson.D{}
-
 func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
+	projection := options.Find().SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
 
 	clientIdFilter := bson.D{{Key: "client.client_id", Value: req.ClientId}}
 	var filter bson.D
@@ -259,7 +256,7 @@ func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, p
 
 func createFilterForLogLine(collection *mongo.Collection, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
 	sortDirection := -1
-	projection := options.Find().SetProjection(logsByClient).SetSort(bson.D{
+	projection := options.Find().SetSort(bson.D{
 		{Key: "timestamp", Value: sortDirection},
 		{Key: "sequence_number", Value: sortDirection},
 	})

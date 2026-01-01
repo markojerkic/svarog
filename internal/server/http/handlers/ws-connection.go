@@ -74,8 +74,6 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		return err
 	}
 
-	slog.Debug("New WS connection", "clientId", clientId)
-
 	wsConnection := &WsConnection{
 		clientId:     clientId,
 		wsConnection: conn,
@@ -93,7 +91,6 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 		// wait until read and write pipes are done and then close the subscription
 		wsWaitGroup.Wait()
 		wsConnection.closeSubscription()
-		slog.Debug("WS connection closed", "clientId", clientId)
 		wsConnection.closeSubscription()
 	}()
 

@@ -16,10 +16,6 @@ type NatsAuthSuite struct {
 }
 
 func (s *NatsAuthSuite) SetupSuite() {
-	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = true // NATS auth tests need NATS
-	s.WithConfig(config)
-
 	s.BaseSuite.SetupSuite()
 
 	s.tokenService = s.TokenService

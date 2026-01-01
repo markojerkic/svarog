@@ -56,7 +56,6 @@ func (i *IngestService) Run(ctx context.Context) error {
 		projectId := parts[len(parts)-2]
 		clientId := parts[len(parts)-1]
 
-		slog.Debug("Received log line", "projectId", projectId, "clientId", clientId, "subject", subject)
 		i.ingestCh <- db.LogLineWithHost{
 			LogLine:   &logLine,
 			ClientId:  clientId,
