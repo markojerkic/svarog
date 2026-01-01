@@ -179,6 +179,7 @@ func main() {
 			AuthService:     authService,
 			FilesService:    filesService,
 			ProjectsService: projectsService,
+			WatchHub:        watchHub,
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
