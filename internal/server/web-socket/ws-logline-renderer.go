@@ -3,7 +3,6 @@ package websocket
 import (
 	"bytes"
 	"context"
-	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
@@ -18,7 +17,8 @@ const workerCount = 10
 
 func NewWsLogLineRenderer(watchHub *WatchHub) *WsLogLineRenderer {
 	renderer := &WsLogLineRenderer{
-		updates: make(chan types.StoredLog, 1024),
+		updates:  make(chan types.StoredLog, 1024),
+		watchHub: watchHub,
 	}
 
 	for range workerCount {

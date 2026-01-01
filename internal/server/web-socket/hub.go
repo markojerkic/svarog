@@ -23,7 +23,6 @@ func (w *WatchHub) SendLogLine(projectId, clientId string, line []byte) error {
 
 func (w *WatchHub) Subscribe(projectId, clientId string, lines chan<- []byte) (*nats.Subscription, error) {
 	return w.conn.Subscribe(fmt.Sprintf("ws.logs.%s.%s", projectId, clientId), func(msg *nats.Msg) {
-		slog.Debug("Received rendered log line", "projectId", projectId, "clientId", clientId, "data", string(msg.Data))
 		lines <- msg.Data
 	})
 }
