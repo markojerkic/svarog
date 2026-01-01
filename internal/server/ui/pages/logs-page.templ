@@ -37,7 +37,7 @@ templ LogPageLines(props LogsPageProps) {
 	if props.LogPage.BackwardCursor != nil {
 		<div
 			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.LogPage.BackwardCursor, "backward") }
-			hx-swap="outerHTML show:top"
+			hx-swap="outerHTML"
 			hx-trigger="intersect once"
 		></div>
 	}
