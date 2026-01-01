@@ -9,3 +9,7 @@ deploy
 node_modules/
 **/assets/css/output.css
 .task
+
+# Playwright
+test-results/
+tests/**/*.spec.js
