@@ -22,6 +22,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/types"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -106,16 +107,6 @@ func main() {
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
-	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
-	logsService := db.NewLogService(database)
-	logServer := db.NewLogServer(logsService)
-
-	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
-	filesService := files.NewFileService(filesCollectinon)
-	projectsService := projects.NewProjectsService(projectsCollection, client)
-
-	authService.CreateInitialAdminUser(context.Background())
-
 	tokenService, err := serverauth.NewTokenService(env.NatsJwtSecret)
 	if err != nil {
 		log.Fatal("Failed to create token service", "error", err)
@@ -143,6 +134,26 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to NATS APP account", "error", err)
 	}
+	natsWsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
+		NatsAddr: env.NatsAddr,
+		User:     env.NatsAppUser,
+		Password: env.NatsAppPassword,
+	})
+	if err != nil {
+		log.Fatal("Failed to connect to NATS APP account", "error", err)
+	}
+
+	watchHub := websocket.NewWatchHub(natsWsConn.Conn)
+
+	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
+	logsService := db.NewLogService(database, watchHub)
+	logServer := db.NewLogServer(logsService)
+
+	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
+	filesService := files.NewFileService(filesCollectinon)
+	projectsService := projects.NewProjectsService(projectsCollection, client)
+
+	authService.CreateInitialAdminUser(context.Background())
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
 	ingestService := ingest.NewIngestService(logIngestChannel, natsLogsConn)

@@ -24,6 +24,12 @@ templ LogLine(props LogLineProps) {
 	</pre>
 }
 
+templ OobSwapLogLine(props LogLineProps) {
+	<div hx-swap-oob="beforeend" hx-target="#logs-container">
+		@LogLine(props)
+	</div>
+}
+
 templ SharedLogMenu() {
 	<div
 		id="shared-log-menu"

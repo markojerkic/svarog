@@ -45,6 +45,7 @@ type LogService interface {
 
 type MongoLogService struct {
 	logCollection *mongo.Collection
+	watchHub      *websocket.WatchHub
 }
 
 var _ LogService = &MongoLogService{}
@@ -123,46 +124,6 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}, nil
 }
 
-func (self *MongoLogService) WatchInserts(ctx context.Context) {
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{
-			{Key: "operationType", Value: "insert"},
-		}}},
-	}
-
-	opts := options.ChangeStream().SetFullDocument(options.UpdateLookup)
-	changeStream, err := self.logCollection.Watch(ctx, pipeline, opts)
-
-	if err != nil {
-		panic(fmt.Sprintf("Error watching inserts: %v", err))
-	}
-
-	defer changeStream.Close(ctx)
-
-	for changeStream.Next(ctx) {
-		var event bson.M
-		if err := changeStream.Decode(&event); err != nil {
-			slog.Error("Error decoding log", "error", err)
-		}
-		fullDocument := event["fullDocument"].(bson.M)
-
-		var storedLog types.StoredLog
-		bsonBytes, err := bson.Marshal(fullDocument) // Convert bson.M to bytes
-		if err != nil {
-			slog.Error("Error marshalling log", "error", err)
-			continue
-		}
-
-		err = bson.Unmarshal(bsonBytes, &storedLog)
-		if err != nil {
-			slog.Error("Error unmarshalling log", "error", err)
-			continue
-		}
-
-		websocket.LogsHub.NotifyInsert(storedLog)
-	}
-}
-
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug("Getting logs for client", "clientId", clientId)
 
@@ -201,15 +162,15 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 	return nil
 }
 
-func NewLogService(db *mongo.Database) *MongoLogService {
+func NewLogService(db *mongo.Database, watchHub *websocket.WatchHub) *MongoLogService {
 	collection := db.Collection("log_lines")
 
 	repo := &MongoLogService{
 		logCollection: collection,
+		watchHub:      watchHub,
 	}
 
 	repo.createIndexes()
-	go repo.WatchInserts(context.Background())
 
 	return repo
 }
