@@ -3,7 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
+
+	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -11,7 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 type LastCursor struct {
@@ -25,6 +27,20 @@ type LogPage struct {
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
 	IsLastPage     bool
+}
+
+func (l *LogPage) ToPath(projectId, clientId string, cursor *LastCursor, direction string) string {
+	u := url.URL{
+		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
+	}
+	query := u.Query()
+	if cursor != nil {
+		query.Set("cursorTime", fmt.Sprintf("%d", cursor.Timestamp.UnixMilli()))
+		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
+		query.Set("direction", direction)
+	}
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 type LogPageRequest struct {
@@ -82,11 +98,8 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 
 // GetLogs implements LogRepository.
 func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
-	slog.Debug("Getting logs for client", "client", req.ClientId)
-
 	filter, projection := createFilter(self.logCollection, req)
 
-	slog.Debug("Filter logs", "filter", filter)
 	logs, err := self.getAndMapLogs(ctx, filter, projection)
 	if err != nil {
 		return LogPage{}, err
@@ -102,13 +115,19 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}
 
 	// BackwardCursor: for scrolling up (older logs)
-	backwardCursor := &LastCursor{
-		Timestamp:      logs[len(logs)-1].Timestamp,
-		SequenceNumber: logs[len(logs)-1].SequenceNumber,
-		IsBackward:     true,
+	var backwardCursor *LastCursor
+	shouldHaveBackwardCursor := req.Cursor == nil || req.Cursor.IsBackward
+	if shouldHaveBackwardCursor {
+		backwardCursor = &LastCursor{
+			Timestamp:      logs[len(logs)-1].Timestamp,
+			SequenceNumber: logs[len(logs)-1].SequenceNumber,
+			IsBackward:     true,
+		}
 	}
+
 	var forwardCursor *LastCursor
-	if req.Cursor != nil {
+	shouldHaveForwardCursor := req.Cursor != nil && !req.Cursor.IsBackward
+	if shouldHaveForwardCursor {
 		forwardCursor = &LastCursor{
 			Timestamp:      logs[0].Timestamp,
 			SequenceNumber: logs[0].SequenceNumber,
@@ -116,11 +135,14 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 		}
 	}
 
+	isLastPage := forwardCursor == nil && req.Cursor == nil
+	slog.Debug("Is last page", "isLastPage", isLastPage, "cursor", req.Cursor)
+
 	return LogPage{
 		Logs:           logs,
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,
-		IsLastPage:     forwardCursor == nil,
+		IsLastPage:     isLastPage,
 	}, nil
 }
 
