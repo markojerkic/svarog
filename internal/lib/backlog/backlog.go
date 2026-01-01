@@ -10,6 +10,7 @@ type Backlog[T any] interface {
 	IsEmpty() bool
 	IsFull() bool
 	Count() int
+	Close()
 }
 
 type IBacklog[T any] struct {
@@ -99,6 +100,13 @@ func (self *IBacklog[T]) IsFull() bool {
 	defer self.Unlock()
 
 	return self.index == backlogLimit-1
+}
+
+func (self *IBacklog[T]) Close() {
+	self.Lock()
+	defer self.Unlock()
+
+	close(self.backlog)
 }
 
 func NewBacklog[T any](backlogSize int) Backlog[T] {
