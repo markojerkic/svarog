@@ -144,9 +144,10 @@ func main() {
 	}
 
 	watchHub := websocket.NewWatchHub(natsWsConn.Conn)
+	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
-	logsService := db.NewLogService(database, watchHub)
+	logsService := db.NewLogService(database, wsLoglineRenderer)
 	logServer := db.NewLogServer(logsService)
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)

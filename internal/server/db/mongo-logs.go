@@ -45,7 +45,7 @@ type LogService interface {
 
 type MongoLogService struct {
 	logCollection *mongo.Collection
-	watchHub      *websocket.WatchHub
+	wsLogRenderer *websocket.WsLogLineRenderer
 }
 
 var _ LogService = &MongoLogService{}
@@ -157,17 +157,18 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 
 	for i := range logs {
 		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
+		self.wsLogRenderer.Render(ctx, logs[i])
 	}
 
 	return nil
 }
 
-func NewLogService(db *mongo.Database, watchHub *websocket.WatchHub) *MongoLogService {
+func NewLogService(db *mongo.Database, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
 	collection := db.Collection("log_lines")
 
 	repo := &MongoLogService{
 		logCollection: collection,
-		watchHub:      watchHub,
+		wsLogRenderer: wsLogRenderer,
 	}
 
 	repo.createIndexes()

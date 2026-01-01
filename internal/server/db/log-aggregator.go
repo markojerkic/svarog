@@ -13,8 +13,9 @@ import (
 
 type LogLineWithHost struct {
 	*rpc.LogLine
-	ClientId string
-	Hostname string
+	ProjectId string
+	ClientId  string
+	Hostname  string
 }
 
 type AggregatingLogServer interface {
@@ -67,6 +68,7 @@ outer:
 				Timestamp:      line.Timestamp,
 				SequenceNumber: line.Sequence,
 				Client: types.StoredClient{
+					ProjectId: line.ProjectId,
 					ClientId:  line.ClientId,
 					IpAddress: line.Hostname,
 				},

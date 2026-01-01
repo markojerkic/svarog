@@ -63,13 +63,11 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 	clientId := c.Param("clientId")
 	projectId := c.Param("projectId")
 
-	slog.Debug("Request made for client", "clientId", clientId, "projectId", projectId)
 	lines := make(chan []byte, 100)
 	subscription, err := self.wsHub.Subscribe(projectId, clientId, lines)
 	if err != nil {
 		return err
 	}
-	slog.Debug("Created subscription", "subscription", subscription)
 
 	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {

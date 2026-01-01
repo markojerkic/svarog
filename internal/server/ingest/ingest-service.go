@@ -53,13 +53,15 @@ func (i *IngestService) Run(ctx context.Context) error {
 
 		subject := msg.Subject()
 		parts := strings.Split(subject, ".")
+		projectId := parts[len(parts)-2]
 		clientId := parts[len(parts)-1]
 
-		slog.Debug("Received log line", "clientId", clientId, "subject", subject)
+		slog.Debug("Received log line", "projectId", projectId, "clientId", clientId, "subject", subject)
 		i.ingestCh <- db.LogLineWithHost{
-			LogLine:  &logLine,
-			ClientId: clientId,
-			Hostname: "<TODO>",
+			LogLine:   &logLine,
+			ClientId:  clientId,
+			ProjectId: projectId,
+			Hostname:  "<TODO>",
 		}
 		msg.Ack()
 	}, jetstream.PullMaxMessages(100))

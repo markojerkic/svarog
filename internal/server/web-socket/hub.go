@@ -2,20 +2,18 @@ package websocket
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/nats-io/nats.go"
 )
 
 type WatchHub struct {
-	conn          *nats.Conn
-	wsLogRenderer *WsLogLineRenderer
+	conn *nats.Conn
 }
 
 func NewWatchHub(conn *nats.Conn) *WatchHub {
-	wsLogRenderer := NewWsLogLineRenderer()
 	return &WatchHub{
-		conn:          conn,
-		wsLogRenderer: wsLogRenderer,
+		conn: conn,
 	}
 }
 
@@ -25,6 +23,7 @@ func (w *WatchHub) SendLogLine(projectId, clientId string, line []byte) error {
 
 func (w *WatchHub) Subscribe(projectId, clientId string, lines chan<- []byte) (*nats.Subscription, error) {
 	return w.conn.Subscribe(fmt.Sprintf("ws.logs.%s.%s", projectId, clientId), func(msg *nats.Msg) {
+		slog.Debug("Received rendered log line", "projectId", projectId, "clientId", clientId, "data", string(msg.Data))
 		lines <- msg.Data
 	})
 }
