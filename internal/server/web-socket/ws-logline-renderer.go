@@ -13,7 +13,7 @@ type WsLogLineRenderer struct {
 	watchHub *WatchHub
 }
 
-const workerCount = 1
+const workerCount = 10
 
 func NewWsLogLineRenderer(watchHub *WatchHub) *WsLogLineRenderer {
 	renderer := &WsLogLineRenderer{

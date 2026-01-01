@@ -58,7 +58,7 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithHost) {
 	self.ctx = ctx
 	slog.Debug("Starting log server")
-	interval := time.NewTicker(5 * time.Second)
+	interval := time.NewTicker(2 * time.Second)
 	defer interval.Stop()
 
 	var wg sync.WaitGroup
