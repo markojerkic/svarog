@@ -37,7 +37,7 @@ type LogPageRequest struct {
 
 type LogService interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
-	GetLogs(ctx context.Context, req LogPageRequest) (*LogPage, error)
+	GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error)
 	GetInstances(ctx context.Context, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
@@ -80,7 +80,7 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (*LogPage, error) {
+func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
 	slog.Debug("Getting logs for client", "client", req.ClientId)
 
 	filter, projection := createFilter(self.logCollection, req)
@@ -88,11 +88,11 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (*
 	slog.Debug("Filter logs", "filter", filter)
 	logs, err := self.getAndMapLogs(ctx, filter, projection)
 	if err != nil {
-		return nil, err
+		return LogPage{}, err
 	}
 
 	if len(logs) == 0 {
-		return &LogPage{
+		return LogPage{
 			Logs:           logs,
 			ForwardCursor:  nil,
 			BackwardCursor: nil,
@@ -100,23 +100,22 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (*
 		}, nil
 	}
 
-	// ForwardCursor: for scrolling down (older logs)
-	forwardCursor := &LastCursor{
+	// BackwardCursor: for scrolling up (older logs)
+	backwardCursor := &LastCursor{
 		Timestamp:      logs[len(logs)-1].Timestamp,
 		SequenceNumber: logs[len(logs)-1].SequenceNumber,
 		IsBackward:     true,
 	}
-	// BackwardCursor: for scrolling up (newer logs)
-	var backwardCursor *LastCursor
+	var forwardCursor *LastCursor
 	if req.Cursor != nil {
-		backwardCursor = &LastCursor{
+		forwardCursor = &LastCursor{
 			Timestamp:      logs[0].Timestamp,
 			SequenceNumber: logs[0].SequenceNumber,
 			IsBackward:     false,
 		}
 	}
 
-	return &LogPage{
+	return LogPage{
 		Logs:           logs,
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,

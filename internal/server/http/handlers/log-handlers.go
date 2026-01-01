@@ -30,6 +30,7 @@ type LogsRouter struct {
 var DEFAULT_PAGE_SIZE = int64(300)
 
 type LogsByClientBinding struct {
+	ProjectId            string    `param:"projectId"`
 	ClientId             string    `param:"clientId"`
 	CursorTime           *int64    `query:"cursorTime"`
 	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
@@ -85,19 +86,13 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		return err
 	}
 
-	logsLen := len(logPage.Logs)
-	mappedLogs := make([]LogLine, logsLen)
-	for i, log := range logPage.Logs {
-		mappedLogs[logsLen-i-1] = LogLine{
-			log.ID.Hex(),
-			log.Timestamp.UnixMilli(),
-			log.LogLine,
-			log.SequenceNumber,
-			log.Client,
-		}
-	}
+	slog.Debug("Log page", "isLast", logPage.IsLastPage, "backwardCursor", logPage.BackwardCursor, "forwardCursor", logPage.ForwardCursor)
 
-	props := pages.LogsPageProps{Logs: logPage.Logs}
+	props := pages.LogsPageProps{
+		LogPage:   logPage,
+		ClientId:  params.ClientId,
+		ProjectId: params.ProjectId,
+	}
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
 }
 

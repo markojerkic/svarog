@@ -48,16 +48,12 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsReturnsCorrectCursors() {
 	assert.Equal(t, "Log line 9", logPage.Logs[0].LogLine)
 	assert.Equal(t, "Log line 5", logPage.Logs[4].LogLine)
 
-	// ForwardCursor should point to the last log in the page (oldest in the returned set)
-	// and have IsBackward=true (to get older logs when used)
-	assert.NotNil(t, logPage.ForwardCursor)
+	assert.Nil(t, logPage.ForwardCursor, "Forward cursor should be nil on first page")
+	assert.NotNil(t, logPage.BackwardCursor, "Backward cursor should not be nil on first page")
 	lastLog := logPage.Logs[len(logPage.Logs)-1]
-	assert.Equal(t, lastLog.Timestamp.UnixMilli(), logPage.ForwardCursor.Timestamp.UnixMilli())
-	assert.Equal(t, lastLog.SequenceNumber, logPage.ForwardCursor.SequenceNumber)
-	assert.True(t, logPage.ForwardCursor.IsBackward, "ForwardCursor should have IsBackward=true to get older logs")
-
-	// BackwardCursor should be nil on first page (no previous page)
-	assert.Nil(t, logPage.BackwardCursor)
+	assert.Equal(t, lastLog.Timestamp.UnixMilli(), logPage.BackwardCursor.Timestamp.UnixMilli())
+	assert.Equal(t, lastLog.SequenceNumber, logPage.BackwardCursor.SequenceNumber)
+	assert.True(t, logPage.BackwardCursor.IsBackward, "BackwardCursor should have IsBackward=true to get older logs")
 }
 
 // TestGetLogsForwardPagination tests paginating forward (scrolling down = getting older logs)
@@ -95,11 +91,15 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 	assert.Equal(t, "Log line 19", page1.Logs[0].LogLine)
 	assert.Equal(t, "Log line 15", page1.Logs[4].LogLine)
 
-	// Use forward cursor to get next page (older logs - scrolling down)
+	// Use BackwardCursor to get next page (older logs - scrolling down)
+	// BackwardCursor points to the last log of the page (oldest on page) with IsBackward=true
+	assert.NotNil(t, page1.BackwardCursor, "BackwardCursor should be set on first page")
+	assert.True(t, page1.BackwardCursor.IsBackward, "BackwardCursor should have IsBackward=true to get older logs")
+
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page1.ForwardCursor,
+		Cursor:   page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page2.Logs))
@@ -107,15 +107,15 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 	assert.Equal(t, "Log line 14", page2.Logs[0].LogLine)
 	assert.Equal(t, "Log line 10", page2.Logs[4].LogLine)
 
-	// BackwardCursor should now be set (we came from a previous page)
-	assert.NotNil(t, page2.BackwardCursor)
-	assert.False(t, page2.BackwardCursor.IsBackward, "BackwardCursor should have IsBackward=false to get newer logs")
+	// ForwardCursor should now be set (we came from a previous page)
+	assert.NotNil(t, page2.ForwardCursor)
+	assert.False(t, page2.ForwardCursor.IsBackward, "ForwardCursor should have IsBackward=false to get newer logs")
 
-	// Continue to page 3
+	// Continue to page 3 using BackwardCursor
 	page3, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page2.ForwardCursor,
+		Cursor:   page2.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page3.Logs))
@@ -125,6 +125,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 }
 
 // TestGetLogsBackwardPagination tests paginating backward (scrolling up = getting newer logs)
+// ForwardCursor is used to scroll up (get newer logs) - it has IsBackward=false
 func (suite *LogsCollectionRepositorySuite) TestGetLogsBackwardPagination() {
 	t := suite.T()
 	ctx := context.Background()
@@ -148,6 +149,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsBackwardPagination() {
 	assert.NoError(t, err)
 
 	// Navigate to page 2 first (so we have somewhere to go back to)
+	// Use BackwardCursor to scroll down to older logs
 	page1, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
@@ -159,17 +161,17 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsBackwardPagination() {
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page1.ForwardCursor,
+		Cursor:   page1.BackwardCursor, // Use BackwardCursor to get older logs
 	})
 	assert.NoError(t, err)
-	assert.NotNil(t, page2.BackwardCursor)
+	assert.NotNil(t, page2.ForwardCursor, "ForwardCursor should be set on page2")
 	assert.Equal(t, "Log line 14", page2.Logs[0].LogLine) // First log of page2
 
-	// Now go backward using the backward cursor (scroll up = get newer logs)
+	// Now go backward using the ForwardCursor (scroll up = get newer logs)
 	backPage, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page2.BackwardCursor,
+		Cursor:   page2.ForwardCursor, // Use ForwardCursor to get newer logs
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(backPage.Logs))
@@ -239,11 +241,11 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsLastPage() {
 	assert.Equal(t, "Log line 6", page1.Logs[0].LogLine)
 	assert.Equal(t, "Log line 2", page1.Logs[4].LogLine)
 
-	// Fetch second page - should only have 2 logs left (logs 1, 0)
+	// Fetch second page using BackwardCursor - should only have 2 logs left (logs 1, 0)
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page1.ForwardCursor,
+		Cursor:   page1.BackwardCursor, // Use BackwardCursor to get older logs
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(page2.Logs))
@@ -289,11 +291,11 @@ func (suite *LogsCollectionRepositorySuite) TestCursorWithSameTimestamp() {
 	assert.Equal(t, 9, page1.Logs[0].SequenceNumber)
 	assert.Equal(t, 5, page1.Logs[4].SequenceNumber)
 
-	// Fetch second page using forward cursor
+	// Fetch second page using cursor
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page1.ForwardCursor,
+		Cursor:   page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page2.Logs))
@@ -314,6 +316,8 @@ func (suite *LogsCollectionRepositorySuite) TestCursorWithSameTimestamp() {
 }
 
 // TestFullPaginationCycle tests a complete forward and backward pagination cycle
+// BackwardCursor (IsBackward=true) is used to scroll down (get older logs)
+// ForwardCursor (IsBackward=false) is used to scroll up (get newer logs)
 func (suite *LogsCollectionRepositorySuite) TestFullPaginationCycle() {
 	t := suite.T()
 	ctx := context.Background()
@@ -343,39 +347,40 @@ func (suite *LogsCollectionRepositorySuite) TestFullPaginationCycle() {
 		Cursor:   nil,
 	})
 	assert.NoError(t, err)
-	assert.Nil(t, page1.BackwardCursor, "First page should have no backward cursor")
+	assert.Nil(t, page1.ForwardCursor, "First page should have no forward cursor (nothing to scroll up to)")
+	assert.NotNil(t, page1.BackwardCursor, "First page should have backward cursor to scroll down")
 	assert.Equal(t, "Log line 14", page1.Logs[0].LogLine)
 	assert.Equal(t, "Log line 10", page1.Logs[4].LogLine)
 
-	// Page 2: Get next 5 logs (9, 8, 7, 6, 5) - scroll down
+	// Page 2: Get next 5 logs (9, 8, 7, 6, 5) - scroll down using BackwardCursor
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page1.ForwardCursor,
+		Cursor:   page1.BackwardCursor, // Use BackwardCursor to get older logs
 	})
 	assert.NoError(t, err)
-	assert.NotNil(t, page2.BackwardCursor, "Second page should have backward cursor")
+	assert.NotNil(t, page2.ForwardCursor, "Second page should have forward cursor to scroll back up")
 	assert.Equal(t, "Log line 9", page2.Logs[0].LogLine)
 	assert.Equal(t, "Log line 5", page2.Logs[4].LogLine)
 
-	// Page 3: Get last 5 logs (4, 3, 2, 1, 0) - scroll down
+	// Page 3: Get last 5 logs (4, 3, 2, 1, 0) - scroll down using BackwardCursor
 	page3, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page2.ForwardCursor,
+		Cursor:   page2.BackwardCursor, // Use BackwardCursor to get older logs
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page3.Logs))
 	assert.Equal(t, "Log line 4", page3.Logs[0].LogLine)
 	assert.Equal(t, "Log line 0", page3.Logs[4].LogLine)
 
-	// Now go backward from page 3 - scroll up
-	// BackwardCursor points to log 4 (first log of page3), $gt gets logs > 4
+	// Now go backward from page 3 - scroll up using ForwardCursor
+	// ForwardCursor points to first log of page3 (log 4), $gt gets logs > 4
 	// With descending sort, we get the newest 5 logs that are > 4: 14, 13, 12, 11, 10
 	backFromPage3, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ClientId: "test-client",
 		PageSize: 5,
-		Cursor:   page3.BackwardCursor,
+		Cursor:   page3.ForwardCursor, // Use ForwardCursor to get newer logs
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(backFromPage3.Logs))

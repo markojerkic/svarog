@@ -1,10 +1,13 @@
 package pages
 
-import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
+import "github.com/markojerkic/svarog/internal/server/db"
+import "fmt"
 
 type LogsPageProps struct {
-	Logs []types.StoredLog
+	LogPage   db.LogPage
+	ClientId  string
+	ProjectId string
 }
 
 templ LogsPage(props LogsPageProps) {
@@ -14,9 +17,7 @@ templ LogsPage(props LogsPageProps) {
 			class="flex flex-col-reverse overflow-auto h-full"
 			id="logs-container"
 		>
-			for _, log := range props.Logs {
-				@logs.LogLine(logs.LogLineProps{LogLine: log})
-			}
+			@logLines(props)
 		</div>
 		@logs.SharedLogMenu()
 	}
@@ -26,4 +27,16 @@ templ LogsPage(props LogsPageProps) {
 			logsContainer.scrollTop = 0;
 		})();
 	</script>
+}
+
+templ logLines(props LogsPageProps) {
+	for _, log := range props.LogPage.Logs {
+		@logs.LogLine(logs.LogLineProps{LogLine: log})
+	}
+	if props.LogPage.IsLastPage {
+		<div
+			hx-ext="ws"
+			ws-connect={ fmt.Sprintf("/logs/ws/%s/%s", props.ClientId, props.ProjectId) }
+		></div>
+	}
 }
