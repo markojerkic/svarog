@@ -2,47 +2,39 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
-	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type LogsCollectionRepositorySuite struct {
-	suite.Suite
-	mongoContainer *testutils.MongoDBTestContainer
+	testutils.BaseSuite
 
 	logService *db.MongoLogService
 	logServer  db.AggregatingLogServer
 
 	logsCollection *mongo.Collection
 
-	testContainerContext context.Context
-	logServerContext     context.Context
+	logServerContext context.Context
 }
 
 // Before all
 func (suite *LogsCollectionRepositorySuite) SetupSuite() {
+	config := testutils.DefaultBaseSuiteConfig()
+	config.EnableNats = false
+	suite.WithConfig(config)
+
+	suite.BaseSuite.SetupSuite()
+
 	suite.logServerContext = context.Background()
-	suite.testContainerContext = context.Background()
 
-	util.SetupLogger()
-
-	mongoContainer, err := testutils.NewMongoDBTestContainer(suite.testContainerContext, "svarog")
-	if err != nil {
-		panic(fmt.Errorf("could not start MongoDB container: %w", err))
-	}
-	suite.mongoContainer = mongoContainer
-
-	suite.logService = db.NewLogService(mongoContainer.Database)
+	suite.logService = db.NewLogService(suite.Database)
 	suite.logServer = db.NewLogServer(suite.logService)
-	suite.logsCollection = mongoContainer.Database.Collection("log_lines")
+	suite.logsCollection = suite.Collection("log_lines")
 }
 
 // Before each
@@ -73,7 +65,5 @@ func (suite *LogsCollectionRepositorySuite) TearDownTest() {
 // After all
 func (suite *LogsCollectionRepositorySuite) TearDownSuite() {
 	slog.Info("Tearing down suite")
-	if err := suite.mongoContainer.Terminate(suite.testContainerContext); err != nil {
-		panic(fmt.Sprintf("failed to terminate container: %s", err))
-	}
+	suite.BaseSuite.TearDownSuite()
 }

@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 type ProjectsService interface {
@@ -21,6 +22,7 @@ type ProjectsService interface {
 	GetProjects(ctx context.Context) ([]Project, error)
 	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
+	ProjectExists(ctx context.Context, projectId, clientId string) bool
 }
 
 type MongoProjectsService struct {
@@ -207,6 +209,21 @@ func (m *MongoProjectsService) assertUniqeIndex(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// ProjectExists implements [ProjectsService].
+func (m *MongoProjectsService) ProjectExists(ctx context.Context, projectId, clientId string) bool {
+	objID, err := primitive.ObjectIDFromHex(projectId)
+	if err != nil {
+		return false
+	}
+
+	count, err := m.projectsCollection.CountDocuments(ctx, bson.M{
+		"_id":     objID,
+		"clients": clientId,
+	}, options.Count().SetLimit(1))
+
+	return err == nil && count > 0
 }
 
 var _ ProjectsService = &MongoProjectsService{}

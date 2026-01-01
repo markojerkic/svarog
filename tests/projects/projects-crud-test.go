@@ -41,7 +41,7 @@ func (p *ProjectsSuite) TestCreateProject() {
 	}
 
 	for i, tc := range testCases {
-		_, err := p.projectsService.CreateProject(context.Background(), tc.name, tc.clients)
+		_, err := p.ProjectsService.CreateProject(context.Background(), tc.name, tc.clients)
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 		} else {
@@ -54,7 +54,7 @@ func (p *ProjectsSuite) TestCreateProject() {
 func (p *ProjectsSuite) TestGetProject() {
 	t := p.Suite.T()
 
-	project, err := p.projectsService.CreateProject(context.Background(), "test1", []string{"test client"})
+	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{"test client"})
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
@@ -80,7 +80,7 @@ func (p *ProjectsSuite) TestGetProject() {
 	}
 
 	for i, tc := range testCases {
-		_, err = p.projectsService.GetProject(context.Background(), tc.id)
+		_, err = p.ProjectsService.GetProject(context.Background(), tc.id)
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 			if err != nil {
@@ -96,7 +96,7 @@ func (p *ProjectsSuite) TestGetProjectByClient() {
 	t := p.Suite.T()
 
 	targetClient := "test client"
-	_, err := p.projectsService.CreateProject(context.Background(), "test1", []string{targetClient})
+	_, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{targetClient})
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
@@ -116,7 +116,7 @@ func (p *ProjectsSuite) TestGetProjectByClient() {
 	}
 
 	for i, tc := range testCases {
-		_, err = p.projectsService.GetProjectByClient(context.Background(), tc.client)
+		_, err = p.ProjectsService.GetProjectByClient(context.Background(), tc.client)
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 			if err != nil {
@@ -131,14 +131,14 @@ func (p *ProjectsSuite) TestGetProjectByClient() {
 func (p *ProjectsSuite) TestDeleteProject() {
 	t := p.Suite.T()
 
-	project, err := p.projectsService.CreateProject(context.Background(), "test1", []string{"test client"})
+	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{"test client"})
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
 
-	err = p.projectsService.DeleteProject(context.Background(), project.ID.Hex())
+	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.Hex())
 	assert.NoError(t, err)
 
-	_, err = p.projectsService.GetProject(context.Background(), project.ID.Hex())
+	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.Hex())
 	assert.Error(t, err)
 }

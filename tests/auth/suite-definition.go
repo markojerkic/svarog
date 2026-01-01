@@ -2,25 +2,18 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/gorilla/sessions"
 	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type AuthSuite struct {
-	suite.Suite
-
-	container        *mongodb.MongoDBContainer
-	connectionString string
+	testutils.BaseSuite
 
 	userCollection    *mongo.Collection
 	sessionCollection *mongo.Collection
@@ -31,30 +24,17 @@ type AuthSuite struct {
 
 // Before all
 func (suite *AuthSuite) SetupSuite() {
-	container, err := mongodb.Run(context.Background(), "mongo:7", mongodb.WithReplicaSet("rs0"))
-	if err != nil {
-		suite.T().Fatal(fmt.Sprintf("Could not start container: %s", err))
-	}
+	config := testutils.DefaultBaseSuiteConfig()
+	config.EnableNats = false
+	suite.WithConfig(config)
 
-	suite.container = container
-	suite.connectionString, err = container.ConnectionString(context.Background())
-	if err != nil {
-		suite.T().Fatal(fmt.Sprintf("Could not get connection string: %s", err))
-	}
+	suite.BaseSuite.SetupSuite()
 
-	util.SetupLogger()
-
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(suite.connectionString))
-	if err != nil {
-		suite.T().Fatal(fmt.Sprintf("Could not connect to mongo: %v", err))
-	}
-
-	db := mongoClient.Database("svarog")
-	suite.userCollection = db.Collection("users")
-	suite.sessionCollection = db.Collection("sessions")
+	suite.userCollection = suite.Collection("users")
+	suite.sessionCollection = suite.Collection("sessions")
 	suite.sessionStore = authlayer.NewMongoSessionStore(suite.sessionCollection, suite.userCollection, []byte("marko"))
 
-	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionCollection, mongoClient, suite.sessionStore)
+	suite.authService = authlayer.NewMongoAuthService(suite.userCollection, suite.sessionCollection, suite.MongoClient, suite.sessionStore)
 }
 
 // After each
@@ -69,7 +49,5 @@ func (suite *AuthSuite) TearDownTest() {
 // After all
 func (suite *AuthSuite) TearDownSuite() {
 	slog.Info("Tearing down suite")
-	if err := suite.container.Terminate(context.Background()); err != nil {
-		slog.Error("Could not terminate container", "error", err)
-	}
+	suite.BaseSuite.TearDownSuite()
 }

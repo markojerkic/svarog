@@ -4,39 +4,33 @@ import (
 	"context"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/tests/testutils"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type NatsAuthSuite struct {
-	suite.Suite
+	testutils.BaseSuite
 
-	natsContainer *testutils.NATSTestContainer
-	tokenService  *serverauth.TokenService
-	authHandler   *serverauth.NatsAuthCalloutHandler
+	tokenService *serverauth.TokenService
+	authHandler  *serverauth.NatsAuthCalloutHandler
 }
 
 func (s *NatsAuthSuite) SetupSuite() {
-	t := s.T()
-	ctx := context.Background()
+	config := testutils.DefaultBaseSuiteConfig()
+	config.EnableNats = true // NATS auth tests need NATS
+	s.WithConfig(config)
 
-	util.SetupLogger()
+	s.BaseSuite.SetupSuite()
 
-	config := testutils.DefaultNATSTestConfig()
-	config.ConfigPath = "../../nats-server.conf"
+	s.tokenService = s.TokenService
+	s.authHandler = s.AuthHandler
+}
 
-	natsContainer, err := testutils.NewNATSTestContainer(ctx, config)
-	require.NoError(t, err, "failed to start NATS container")
-
-	s.natsContainer = natsContainer
-	s.tokenService = natsContainer.TokenService
-	s.authHandler = natsContainer.AuthHandler
+func (s *NatsAuthSuite) TearDownTest() {
+	// Clean up projects between tests
+	_, _ = s.Collection("projects").DeleteMany(context.Background(), bson.M{})
 }
 
 func (s *NatsAuthSuite) TearDownSuite() {
-	if s.natsContainer != nil {
-		_ = s.natsContainer.Terminate(context.Background())
-	}
+	s.BaseSuite.TearDownSuite()
 }

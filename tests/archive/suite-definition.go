@@ -2,25 +2,18 @@ package archive
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/files"
-	"github.com/markojerkic/svarog/internal/lib/util"
 	logs "github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ArchiveSuite struct {
-	suite.Suite
-
-	container        *mongodb.MongoDBContainer
-	connectionString string
+	testutils.BaseSuite
 
 	filesCollection          *mongo.Collection
 	archiveCollection        *mongo.Collection
@@ -34,39 +27,24 @@ type ArchiveSuite struct {
 
 // SetupSuite implements suite.SetupAllSuite.
 func (s *ArchiveSuite) SetupSuite() {
-	container, err := mongodb.Run(context.Background(), "mongo:7", mongodb.WithReplicaSet("rs0"))
-	if err != nil {
-		s.T().Fatal(fmt.Sprintf("Could not start container: %s", err))
-	}
+	config := testutils.DefaultBaseSuiteConfig()
+	config.EnableNats = false
+	s.WithConfig(config)
 
-	s.container = container
-	s.connectionString, err = container.ConnectionString(context.Background())
-	if err != nil {
-		s.T().Fatal(fmt.Sprintf("Could not get connection string: %s", err))
-	}
+	s.BaseSuite.SetupSuite()
 
-	util.SetupLogger()
-
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(s.connectionString))
-	if err != nil {
-		s.T().Fatal(fmt.Sprintf("Could not connect to mongo: %v", err))
-	}
-
-	db := mongoClient.Database("svarog")
-
-	s.filesCollection = db.Collection("files")
-	s.archiveCollection = db.Collection("archive")
-	s.archiveSettingCollection = db.Collection("archive_settings")
-	s.logCollection = db.Collection("log_lines")
+	s.filesCollection = s.Collection("files")
+	s.archiveCollection = s.Collection("archive")
+	s.archiveSettingCollection = s.Collection("archive_settings")
+	s.logCollection = s.Collection("log_lines")
 
 	s.filesService = files.NewFileService(s.filesCollection)
-	s.logService = logs.NewLogService(db)
-	s.archiveService = archive.NewArchiveService(mongoClient,
+	s.logService = logs.NewLogService(s.Database)
+	s.archiveService = archive.NewArchiveService(s.MongoClient,
 		s.archiveCollection,
 		s.archiveSettingCollection,
 		s.logService,
 		s.filesService)
-
 }
 
 // After each
@@ -82,19 +60,11 @@ func (s *ArchiveSuite) TearDownSubTest() {
 }
 
 // TearDownTest implements suite.TearDownTestSuite.
-func (a *ArchiveSuite) TearDownTest() {
-	a.TearDownSubTest()
+func (s *ArchiveSuite) TearDownTest() {
+	s.TearDownSubTest()
 }
 
 // After all
 func (s *ArchiveSuite) TearDownSuite() {
-	err := s.container.Terminate(context.Background())
-	if err != nil {
-		s.T().Fatal(fmt.Sprintf("Could not terminate container: %s", err))
-	}
+	s.BaseSuite.TearDownSuite()
 }
-
-var _ suite.SetupAllSuite = &ArchiveSuite{}
-var _ suite.TearDownAllSuite = &ArchiveSuite{}
-var _ suite.TearDownSubTest = &ArchiveSuite{}
-var _ suite.TearDownTestSuite = &ArchiveSuite{}
