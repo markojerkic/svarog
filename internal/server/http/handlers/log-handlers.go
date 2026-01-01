@@ -73,15 +73,21 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	logs, err := self.logService.GetLogs(c.Request().Context(), params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, params.LogLineId, &nextCursor)
+	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
+		ClientId:  params.ClientId,
+		Instances: params.Instances,
+		PageSize:  DEFAULT_PAGE_SIZE,
+		LogLineId: params.LogLineId,
+		Cursor:    &nextCursor,
+	})
 
 	if err != nil {
 		return err
 	}
 
-	logsLen := len(logs)
+	logsLen := len(logPage.Logs)
 	mappedLogs := make([]LogLine, logsLen)
-	for i, log := range logs {
+	for i, log := range logPage.Logs {
 		mappedLogs[logsLen-i-1] = LogLine{
 			log.ID.Hex(),
 			log.Timestamp.UnixMilli(),
@@ -91,7 +97,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		}
 	}
 
-	props := pages.LogsPageProps{Logs: logs}
+	props := pages.LogsPageProps{Logs: logPage.Logs}
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
 }
 

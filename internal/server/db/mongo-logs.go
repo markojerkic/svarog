@@ -14,18 +14,33 @@ import (
 	"log/slog"
 )
 
-type LogService interface {
-	SaveLogs(ctx context.Context, logs []types.StoredLog) error
-	GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, cursor *LastCursor) ([]types.StoredLog, error)
-	GetInstances(ctx context.Context, clientId string) ([]string, error)
-	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
-	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
-}
-
 type LastCursor struct {
 	Timestamp      time.Time
 	SequenceNumber int
 	IsBackward     bool
+}
+
+type LogPage struct {
+	Logs           []types.StoredLog
+	ForwardCursor  *LastCursor
+	BackwardCursor *LastCursor
+	IsLastPage     bool
+}
+
+type LogPageRequest struct {
+	ClientId  string
+	Instances *[]string
+	PageSize  int64
+	LogLineId *string
+	Cursor    *LastCursor
+}
+
+type LogService interface {
+	SaveLogs(ctx context.Context, logs []types.StoredLog) error
+	GetLogs(ctx context.Context, req LogPageRequest) (*LogPage, error)
+	GetInstances(ctx context.Context, clientId string) ([]string, error)
+	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
 }
 
 type MongoLogService struct {
@@ -65,13 +80,46 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 }
 
 // GetLogs implements LogRepository.
-func (self *MongoLogService) GetLogs(ctx context.Context, clientId string, instances *[]string, pageSize int64, logLineId *string, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	slog.Debug("Getting logs for client", "client", clientId)
+func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (*LogPage, error) {
+	slog.Debug("Getting logs for client", "client", req.ClientId)
 
-	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, logLineId, lastCursor)
+	filter, projection := createFilter(self.logCollection, req)
 
 	slog.Debug("Filter logs", "filter", filter)
-	return self.getAndMapLogs(ctx, filter, projection)
+	logs, err := self.getAndMapLogs(ctx, filter, projection)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(logs) == 0 {
+		return &LogPage{
+			Logs:           logs,
+			ForwardCursor:  nil,
+			BackwardCursor: nil,
+			IsLastPage:     true,
+		}, nil
+	}
+
+	forwardCursor := &LastCursor{
+		Timestamp:      logs[len(logs)-1].Timestamp,
+		SequenceNumber: logs[len(logs)-1].SequenceNumber,
+		IsBackward:     false,
+	}
+	var backwardCursor *LastCursor
+	if req.Cursor != nil {
+		backwardCursor = &LastCursor{
+			Timestamp:      logs[0].Timestamp,
+			SequenceNumber: logs[0].SequenceNumber,
+			IsBackward:     true,
+		}
+	}
+
+	return &LogPage{
+		Logs:           logs,
+		ForwardCursor:  forwardCursor,
+		BackwardCursor: backwardCursor,
+		IsLastPage:     forwardCursor == nil,
+	}, nil
 }
 
 func (self *MongoLogService) WatchInserts(ctx context.Context) {
@@ -117,7 +165,13 @@ func (self *MongoLogService) WatchInserts(ctx context.Context) {
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug("Getting logs for client", "clientId", clientId)
 
-	filter, projection := createFilter(self.logCollection, clientId, pageSize, instances, nil, lastCursor)
+	filter, projection := createFilter(self.logCollection, LogPageRequest{
+		ClientId:  clientId,
+		Instances: instances,
+		PageSize:  pageSize,
+		LogLineId: nil,
+		Cursor:    lastCursor,
+	})
 
 	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
 
@@ -162,44 +216,44 @@ func NewLogService(db *mongo.Database) *MongoLogService {
 // Can be useful if we want to drop clientId for some reason
 var logsByClient = bson.D{}
 
-func createFilter(collection *mongo.Collection, clientId string, pageSize int64, instances *[]string, logLineId *string, lastCursor *LastCursor) (bson.D, *options.FindOptions) {
+func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
-	projection := options.Find().SetProjection(logsByClient).SetLimit(pageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
+	projection := options.Find().SetProjection(logsByClient).SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
 
-	clientIdFilter := bson.D{{Key: "client.client_id", Value: clientId}}
+	clientIdFilter := bson.D{{Key: "client.client_id", Value: req.ClientId}}
 	var filter bson.D
 
-	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
-		slog.Debug("Adding timestamp cursor", "cursor", *lastCursor)
+	if req.Cursor != nil && req.Cursor.Timestamp.UnixMilli() > 0 {
+		slog.Debug("Adding timestamp cursor", "cursor", *req.Cursor)
 
-		timestamp := primitive.NewDateTimeFromTime(lastCursor.Timestamp)
+		timestamp := primitive.NewDateTimeFromTime(req.Cursor.Timestamp)
 
 		var direction string
 
-		if lastCursor.IsBackward {
+		if req.Cursor.IsBackward {
 			direction = "$lt"
 		} else {
 			direction = "$gt"
 		}
 
 		filter = bson.D{
-			{Key: "client.client_id", Value: clientId},
+			{Key: "client.client_id", Value: req.ClientId},
 			{Key: "$or", Value: bson.A{
 				bson.D{
 					{Key: "timestamp", Value: bson.D{{Key: direction, Value: timestamp}}},
 				},
 				bson.D{
 					{Key: "timestamp", Value: timestamp},
-					{Key: "sequence_number", Value: bson.D{{Key: direction, Value: lastCursor.SequenceNumber}}},
+					{Key: "sequence_number", Value: bson.D{{Key: direction, Value: req.Cursor.SequenceNumber}}},
 				},
 			}},
 		}
 
-	} else if logLineId != nil {
+	} else if req.LogLineId != nil {
 		// Find page of data where logLineId is in the middle of the page
-		slog.Debug("Adding log line id cursor", "logLineId", *logLineId)
-		newFilter, newProjection, err := createFilterForLogLine(collection, clientId, *logLineId, pageSize)
+		slog.Debug("Adding log line id cursor", "logLineId", *req.LogLineId)
+		newFilter, newProjection, err := createFilterForLogLine(collection, req.ClientId, *req.LogLineId, req.PageSize)
 		if err != nil {
 			slog.Error("Failed to create filter for logLineId", "error", err)
 			filter = clientIdFilter
@@ -212,11 +266,11 @@ func createFilter(collection *mongo.Collection, clientId string, pageSize int64,
 		filter = clientIdFilter
 	}
 
-	if instances != nil {
+	if req.Instances != nil {
 		filter = append(filter, bson.E{
 			Key: "client.ip_address",
 			Value: bson.D{
-				{Key: "$in", Value: instances},
+				{Key: "$in", Value: req.Instances},
 			},
 		})
 	}

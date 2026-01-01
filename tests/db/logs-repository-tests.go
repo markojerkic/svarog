@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,11 +35,23 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 	assert.NoError(t, err)
 
 	// Verify logs were saved by retrieving them
-	logs, err := s.logService.GetLogs(context.Background(), "marko", nil, 10, nil, nil)
+	logPage, err := s.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ClientId:  "marko",
+		Instances: nil,
+		PageSize:  10,
+		LogLineId: nil,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, 1, len(logPage.Logs))
 
-	logs, err = s.logService.GetLogs(context.Background(), "jerkić", nil, 10, nil, nil)
+	logPage, err = s.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ClientId:  "jerkić",
+		Instances: nil,
+		PageSize:  10,
+		LogLineId: nil,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, 1, len(logPage.Logs))
 }

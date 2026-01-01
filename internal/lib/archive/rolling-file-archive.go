@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"log/slog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"log/slog"
 )
 
 type archivingResult struct {
@@ -35,18 +35,24 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 	for {
 		tempFile := filepath.Join(tempDir, fmt.Sprintf("archive_%s_%s_%d.log", projectID, clientID, fileIndex))
 		fileContent := make([]byte, 0, 1024*1024)
-		logs, err := a.logsService.GetLogs(ctx, clientID, nil, 5000, nil, cursor)
+		logPage, err := a.logsService.GetLogs(ctx, db.LogPageRequest{
+			ClientId:  clientID,
+			Instances: nil,
+			PageSize:  5000,
+			LogLineId: nil,
+			Cursor:    cursor,
+		})
 		if err != nil {
 			slog.Error("Error getting logs", "error", err)
 			return archivingResult{}, err
 		}
 
-		if len(logs) == 0 {
+		if len(logPage.Logs) == 0 {
 			slog.Debug("No logs found")
 			break
 		}
 
-		for _, log := range logs {
+		for _, log := range logPage.Logs {
 			line := fmt.Sprintf("[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.IpAddress, log.LogLine)
 			fileContent = append(fileContent, []byte(line)...)
 			if result.toDate.Before(log.Timestamp) {
@@ -62,8 +68,8 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 		fileIndex++
 
 		cursor = &db.LastCursor{
-			Timestamp:      logs[len(logs)-1].Timestamp,
-			SequenceNumber: int(logs[len(logs)-1].SequenceNumber),
+			Timestamp:      logPage.Logs[len(logPage.Logs)-1].Timestamp,
+			SequenceNumber: int(logPage.Logs[len(logPage.Logs)-1].SequenceNumber),
 			IsBackward:     true,
 		}
 

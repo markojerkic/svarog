@@ -48,12 +48,18 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 	// Find logline page
 	logLineId := randomLogLine.ID.Hex()
-	logs, err := suite.logService.GetLogs(logServerContext, randomLogLine.Client.ClientId, nil, 300, &logLineId, nil)
+	logPage, err := suite.logService.GetLogs(logServerContext, db.LogPageRequest{
+		ClientId:  randomLogLine.Client.ClientId,
+		Instances: nil,
+		PageSize:  300,
+		LogLineId: &logLineId,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
 
 	// Assert logs page contains randomLogLine and rest of the items are correctly sorted
-	assert.Equal(t, 300, len(logs))
-	assert.True(t, findLogLine(logs, logLineId) >= 0)
+	assert.Equal(t, 300, len(logPage.Logs))
+	assert.True(t, findLogLine(logPage.Logs, logLineId) >= 0)
 }
 
 func findLogLine(logs []types.StoredLog, logLineId string) int {

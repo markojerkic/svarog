@@ -99,9 +99,15 @@ func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 
 	var lastCursorPtr *db.LastCursor
 	for {
-		logPage, err := suite.logService.GetLogs(context.Background(), "marko", nil, int64(pageSize), nil, lastCursorPtr)
+		logPage, err := suite.logService.GetLogs(context.Background(), db.LogPageRequest{
+			ClientId:  "marko",
+			Instances: nil,
+			PageSize:  int64(pageSize),
+			LogLineId: nil,
+			Cursor:    lastCursorPtr,
+		})
 		assert.NoError(t, err)
-		lastCursorPtr = validateLogListIsRightOrder(logPage, index, t)
+		lastCursorPtr = validateLogListIsRightOrder(logPage.Logs, index, t)
 		index -= pageSize
 		if index <= 0 || lastCursorPtr == nil {
 			break

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -100,10 +101,16 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1"}, 10, nil, nil)
+	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ClientId:  "marko",
+		Instances: &[]string{"::1"},
+		PageSize:  10,
+		LogLineId: nil,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(logs))
-	for _, log := range logs {
+	assert.Equal(t, 3, len(logPage.Logs))
+	for _, log := range logPage.Logs {
 		assert.Equal(t, "::1", log.Client.IpAddress)
 
 	}
@@ -157,10 +164,16 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1", "::2"}, 10, nil, nil)
+	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ClientId:  "marko",
+		Instances: &[]string{"::1", "::2"},
+		PageSize:  10,
+		LogLineId: nil,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, 4, len(logs))
-	for _, log := range logs {
+	assert.Equal(t, 4, len(logPage.Logs))
+	for _, log := range logPage.Logs {
 		assert.NotEqual(t, "::3", log.Client.IpAddress)
 
 	}
@@ -214,7 +227,13 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	logs, err := self.logService.GetLogs(context.Background(), "marko", &[]string{"::1", "::2", "::3"}, 10, nil, nil)
+	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ClientId:  "marko",
+		Instances: &[]string{"::1", "::2", "::3"},
+		PageSize:  10,
+		LogLineId: nil,
+		Cursor:    nil,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, len(mockLogLines), len(logs))
+	assert.Equal(t, len(mockLogLines), len(logPage.Logs))
 }
