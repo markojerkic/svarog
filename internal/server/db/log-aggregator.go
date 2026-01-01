@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"log/slog"
@@ -55,14 +56,33 @@ func (self *LogServer) dumpBacklog(ctx context.Context, logsToSave []types.Store
 }
 
 func (self *LogServer) Run(ctx context.Context, logIngestChannel <-chan LogLineWithHost) {
+	self.ctx = ctx
 	slog.Debug("Starting log server")
 	interval := time.NewTicker(5 * time.Second)
 	defer interval.Stop()
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 outer:
 	for {
 		select {
-		case line := <-logIngestChannel:
+		case line, ok := <-logIngestChannel:
+			if !ok {
+				self.backlog.ForceDump()
+				for {
+					select {
+					case logsToSave := <-self.backlog.GetLogs():
+						wg.Add(1)
+						go func(logs []types.StoredLog) {
+							defer wg.Done()
+							self.dumpBacklog(self.ctx, logs)
+						}(logsToSave)
+					default:
+						break outer
+					}
+				}
+			}
 			logLine := types.StoredLog{
 				LogLine:        line.Message,
 				Timestamp:      line.Timestamp,
@@ -76,7 +96,11 @@ outer:
 			self.backlog.AddToBacklog(logLine)
 
 		case logsToSave := <-self.backlog.GetLogs():
-			go self.dumpBacklog(self.ctx, logsToSave)
+			wg.Add(1)
+			go func(logs []types.StoredLog) {
+				defer wg.Done()
+				self.dumpBacklog(self.ctx, logs)
+			}(logsToSave)
 
 		case <-interval.C:
 			self.backlog.ForceDump()

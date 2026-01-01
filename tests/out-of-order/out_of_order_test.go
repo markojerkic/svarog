@@ -65,12 +65,13 @@ func (suite *OutOfOrderSuite) TestOutOfOrderInsert() {
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
-	logServerContext := context.Background()
-	defer logServerContext.Done()
+	logServerContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 
 	generateOddAndEvenLines(logIngestChannel, expectedCount)
+	close(logIngestChannel)
 
 	// Wait for all logs to be inserted into the database
 	// The backlog dumps asynchronously, so we need to poll the actual DB count

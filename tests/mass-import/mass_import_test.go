@@ -45,21 +45,21 @@ func (suite *MassImportSuite) TestMassImport() {
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1024)
 
-	logServerContext := context.Background()
-	defer logServerContext.Done()
+	logServerContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go suite.logServer.Run(logServerContext, logIngestChannel)
 	generateLogLines(logIngestChannel, numberOfImportedLogs)
+	close(logIngestChannel)
 
-	for {
-		if !suite.logServer.IsBacklogEmpty() {
-			slog.Info("Backlog still has items. Waiting 8s", "numItem", suite.logServer.BacklogCount())
-			time.Sleep(60 * time.Second)
-		} else {
-			slog.Info("Backlog is empty, we can count items", "count", int64(suite.logServer.BacklogCount()))
-			break
+	// Wait for logs to be processed and saved to DB
+	assert.Eventually(t, func() bool {
+		count := suite.countNumberOfLogsInDb()
+		if count > 0 {
+			slog.Info("Waiting for logs to be saved", "current", count, "target", numberOfImportedLogs)
 		}
-	}
+		return count == numberOfImportedLogs
+	}, 30*time.Second, 100*time.Millisecond, "Logs were not saved to DB in time")
 
 	// Verify logs were saved by counting them
 	count := suite.countNumberOfLogsInDb()
