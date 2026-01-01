@@ -29,5 +29,4 @@ services:
     restart: unless-stopped
 volumes:
   dbdata:
-  mongo1_config:
   nats_data:
