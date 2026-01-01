@@ -98,11 +98,8 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 
 // GetLogs implements LogRepository.
 func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
-	slog.Debug("Getting logs for client", "client", req.ClientId)
-
 	filter, projection := createFilter(self.logCollection, req)
 
-	slog.Debug("Filter logs", "filter", filter)
 	logs, err := self.getAndMapLogs(ctx, filter, projection)
 	if err != nil {
 		return LogPage{}, err
@@ -139,6 +136,8 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}
 
 	isLastPage := forwardCursor == nil && req.Cursor == nil
+	slog.Debug("Is last page", "isLastPage", isLastPage, "cursor", req.Cursor)
+
 	return LogPage{
 		Logs:           logs,
 		ForwardCursor:  forwardCursor,
