@@ -25,7 +25,7 @@ type AuthSuite struct {
 // Before all
 func (suite *AuthSuite) SetupSuite() {
 	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false // Auth tests don't need NATS
+	config.EnableNats = false
 	suite.WithConfig(config)
 
 	suite.BaseSuite.SetupSuite()

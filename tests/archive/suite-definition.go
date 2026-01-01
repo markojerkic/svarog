@@ -28,7 +28,7 @@ type ArchiveSuite struct {
 // SetupSuite implements suite.SetupAllSuite.
 func (s *ArchiveSuite) SetupSuite() {
 	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false // Archive tests don't need NATS
+	config.EnableNats = false
 	s.WithConfig(config)
 
 	s.BaseSuite.SetupSuite()

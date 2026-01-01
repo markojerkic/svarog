@@ -19,7 +19,7 @@ type ProjectsSuite struct {
 // SetupSuite implements suite.SetupAllSuite.
 func (p *ProjectsSuite) SetupSuite() {
 	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false // Projects tests don't need NATS
+	config.EnableNats = false
 	p.WithConfig(config)
 
 	p.BaseSuite.SetupSuite()

@@ -25,7 +25,7 @@ type LogsCollectionRepositorySuite struct {
 // Before all
 func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 	config := testutils.DefaultBaseSuiteConfig()
-	config.EnableNats = false // DB tests don't need NATS
+	config.EnableNats = false
 	suite.WithConfig(config)
 
 	suite.BaseSuite.SetupSuite()
