@@ -51,6 +51,18 @@ func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
 	}
 }
 
+func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
+	defer wsWaitGroup.Done()
+	for {
+		_, _, err := self.wsConnection.ReadMessage()
+		if err != nil {
+			slog.Debug("WebSocket read error (client likely disconnected)", "error", err, "clientId", self.clientId)
+			close(self.lines)
+			return
+		}
+	}
+}
+
 var wsUpgrader = gorillaWs.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -86,11 +98,11 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 	wsWaitGroup.Add(2)
 
 	go wsConnection.writePipe(wsWaitGroup)
+	go wsConnection.readPipe(wsWaitGroup)
 
 	go func() {
 		// wait until read and write pipes are done and then close the subscription
 		wsWaitGroup.Wait()
-		wsConnection.closeSubscription()
 		wsConnection.closeSubscription()
 	}()
 
