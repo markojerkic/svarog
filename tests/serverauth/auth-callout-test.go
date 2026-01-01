@@ -16,7 +16,7 @@ func (s *NatsAuthSuite) TestAuthCalloutValidToken() {
 	require.NoError(t, err)
 
 	// Connect to NATS with the token
-	nc, err := nats.Connect(s.natsContainer.NatsAddr, nats.Token(token))
+	nc, err := nats.Connect(s.NatsAddr, nats.Token(token))
 	require.NoError(t, err, "should connect with valid token")
 	defer nc.Close()
 
@@ -27,7 +27,7 @@ func (s *NatsAuthSuite) TestAuthCalloutInvalidToken() {
 	t := s.T()
 
 	// Try to connect with an invalid token
-	nc, err := nats.Connect(s.natsContainer.NatsAddr,
+	nc, err := nats.Connect(s.NatsAddr,
 		nats.Token("invalid-token"),
 		nats.Timeout(2*time.Second),
 	)
@@ -42,7 +42,7 @@ func (s *NatsAuthSuite) TestAuthCalloutNoToken() {
 	t := s.T()
 
 	// Try to connect without a token
-	nc, err := nats.Connect(s.natsContainer.NatsAddr,
+	nc, err := nats.Connect(s.NatsAddr,
 		nats.Timeout(2*time.Second),
 	)
 
@@ -59,7 +59,7 @@ func (s *NatsAuthSuite) TestAuthCalloutPublishToAllowedTopic() {
 	token, err := s.tokenService.GenerateToken("testuser", topic)
 	require.NoError(t, err)
 
-	nc, err := nats.Connect(s.natsContainer.NatsAddr, nats.Token(token))
+	nc, err := nats.Connect(s.NatsAddr, nats.Token(token))
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -78,7 +78,7 @@ func (s *NatsAuthSuite) TestAuthCalloutPublishToDisallowedTopic() {
 	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
 	require.NoError(t, err)
 
-	nc, err := nats.Connect(s.natsContainer.NatsAddr, nats.Token(token))
+	nc, err := nats.Connect(s.NatsAddr, nats.Token(token))
 	require.NoError(t, err)
 	defer nc.Close()
 

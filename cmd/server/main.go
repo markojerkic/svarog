@@ -153,7 +153,8 @@ func main() {
 	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(
 		natsAuthConfig,
 		natsSystemConn.Conn,
-		tokenService)
+		tokenService,
+		projectsService)
 	if err != nil {
 		log.Fatal("Failed to create NATS auth handler", "error", err)
 	}
