@@ -33,6 +33,15 @@ test.describe("Log Sorting Logic", () => {
         },
       });
       document.body.dispatchEvent(evt);
+      const fakeEvt = new CustomEvent("htmx:oobBeforeSwap", {
+        bubbles: true,
+        cancelable: true,
+        detail: {
+          target: { id: "some-other-container" },
+          fragment: frag,
+        },
+      });
+      document.body.dispatchEvent(fakeEvt);
     }, timestamp);
   };
 
