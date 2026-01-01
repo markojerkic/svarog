@@ -1,12 +1,10 @@
-package db
+package outoforder
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
-	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/markojerkic/svarog/tests/testutils"
@@ -15,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type LogsCollectionRepositorySuite struct {
+type OutOfOrderSuite struct {
 	testutils.BaseSuite
 
 	logService *db.MongoLogService
@@ -27,8 +25,7 @@ type LogsCollectionRepositorySuite struct {
 	logServerContext context.Context
 }
 
-// Before all
-func (suite *LogsCollectionRepositorySuite) SetupSuite() {
+func (suite *OutOfOrderSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 
 	suite.logServerContext = context.Background()
@@ -39,8 +36,7 @@ func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 	suite.logsCollection = suite.Collection("log_lines")
 }
 
-// Before each
-func (suite *LogsCollectionRepositorySuite) SetupTest() {
+func (suite *OutOfOrderSuite) SetupTest() {
 	slog.Info("Setting up test. Recreating context")
 	suite.logServer = db.NewLogServer(suite.logService)
 	num := suite.countNumberOfLogsInDb()
@@ -49,8 +45,7 @@ func (suite *LogsCollectionRepositorySuite) SetupTest() {
 	}
 }
 
-// After each
-func (suite *LogsCollectionRepositorySuite) TearDownTest() {
+func (suite *OutOfOrderSuite) TearDownTest() {
 	slog.Info("Tearing down test")
 	result, err := suite.logsCollection.DeleteMany(context.Background(), bson.M{})
 
@@ -64,34 +59,15 @@ func (suite *LogsCollectionRepositorySuite) TearDownTest() {
 	suite.logServerContext.Done()
 }
 
-// After all
-func (suite *LogsCollectionRepositorySuite) TearDownSuite() {
+func (suite *OutOfOrderSuite) TearDownSuite() {
 	slog.Info("Tearing down suite")
 	suite.BaseSuite.TearDownSuite()
 }
 
-func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
+func (suite *OutOfOrderSuite) countNumberOfLogsInDb() int64 {
 	count, err := suite.logsCollection.CountDocuments(context.Background(), bson.D{})
 	if err != nil {
 		panic(fmt.Sprintf("Could not count documents: %v", err))
 	}
 	return count
-}
-
-func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
-	for i := 0; i < int(numberOfImportedLogs); i++ {
-		logIngestChannel <- db.LogLineWithHost{
-			LogLine: &rpc.LogLine{
-				Message:   fmt.Sprintf("Log line %d", i),
-				Timestamp: time.Now(),
-				Sequence:  i,
-			},
-			ClientId: "marko",
-			Hostname: "::1",
-		}
-
-		if i%500_000 == 0 {
-			slog.Info("Generated log lines", "count", i)
-		}
-	}
 }

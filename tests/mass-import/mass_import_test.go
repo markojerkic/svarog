@@ -1,4 +1,4 @@
-package db
+package massimport
 
 import (
 	"context"
@@ -12,17 +12,11 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/stretchr/testify/suite"
 )
 
-func (suite *LogsCollectionRepositorySuite) countNumberOfLogsInDb() int64 {
-	collection := suite.logsCollection
-
-	count, err := collection.CountDocuments(context.Background(), bson.D{})
-	if err != nil {
-		panic(fmt.Sprintf("Could not count documents: %v", err))
-	}
-	return count
+func TestMassImportSuite(t *testing.T) {
+	suite.Run(t, new(MassImportSuite))
 }
 
 func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
@@ -45,7 +39,7 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 
 var numberOfImportedLogs = int64(1_000)
 
-func (suite *LogsCollectionRepositorySuite) TestMassImport() {
+func (suite *MassImportSuite) TestMassImport() {
 	t := suite.T()
 	start := time.Now()
 
@@ -74,7 +68,6 @@ func (suite *LogsCollectionRepositorySuite) TestMassImport() {
 
 	elapsed := time.Since(start)
 	slog.Info(fmt.Sprintf("Imported %d logs in %s", numberOfImportedLogs, elapsed))
-	suite.logServerContext.Done()
 
 	// Check all logs if they're in correct order
 	index := int(numberOfImportedLogs)

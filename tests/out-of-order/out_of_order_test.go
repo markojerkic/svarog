@@ -1,16 +1,23 @@
-package db
+package outoforder
 
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	"log/slog"
 
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
+
+func TestOutOfOrderSuite(t *testing.T) {
+	suite.Run(t, new(OutOfOrderSuite))
+}
 
 func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImportedLogs int64) {
 	generatedLogLines := make([]*rpc.LogLine, numberOfImportedLogs)
@@ -49,10 +56,9 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberO
 		i += 2
 	}
 	slog.Info("Done with odd lines")
-
 }
 
-func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
+func (suite *OutOfOrderSuite) TestOutOfOrderInsert() {
 	t := suite.T()
 	start := time.Now()
 	expectedCount := int64(10_000)
@@ -85,8 +91,6 @@ func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 		}
 	}
 
-	suite.logServerContext.Done()
-
 	elapsed := time.Since(start)
 	slog.Info("Imported logs", "count", expectedCount, "elapsed", elapsed)
 
@@ -115,4 +119,26 @@ func (suite *LogsCollectionRepositorySuite) TestOutOfOrderInsert() {
 	}
 
 	assert.LessOrEqual(t, index, 0, "Finished checking logs prematurely")
+}
+
+func validateLogListIsRightOrder(logPage []types.StoredLog, i int, t *testing.T) *db.LastCursor {
+	for _, log := range logPage {
+		ok := assert.Equal(t, fmt.Sprintf("Log line %d", i-1), log.LogLine)
+		if !ok {
+			t.FailNow()
+		}
+		i--
+	}
+
+	if len(logPage) == 0 {
+		return nil
+	}
+
+	lastLogLine := logPage[len(logPage)-1]
+
+	return &db.LastCursor{
+		SequenceNumber: lastLogLine.SequenceNumber,
+		Timestamp:      lastLogLine.Timestamp,
+		IsBackward:     true,
+	}
 }
