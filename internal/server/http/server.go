@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"log/slog"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -14,21 +16,18 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
-	"log/slog"
 )
 
 type HttpServer struct {
-	logService         db.LogService
-	sessionStore       sessions.Store
-	authService        auth.AuthService
-	certificateService serverauth.CertificateService
-	filesService       files.FileService
-	projectsService    projects.ProjectsService
+	logService      db.LogService
+	sessionStore    sessions.Store
+	authService     auth.AuthService
+	filesService    files.FileService
+	projectsService projects.ProjectsService
 
 	allowedOrigins []string
 	serverPort     int
@@ -37,12 +36,11 @@ type HttpServer struct {
 }
 
 type HttpServerOptions struct {
-	LogService         db.LogService
-	SessionStore       sessions.Store
-	AuthService        auth.AuthService
-	CertificateService serverauth.CertificateService
-	FilesService       files.FileService
-	ProjectsService    projects.ProjectsService
+	LogService      db.LogService
+	SessionStore    sessions.Store
+	AuthService     auth.AuthService
+	FilesService    files.FileService
+	ProjectsService projects.ProjectsService
 
 	AllowedOrigins []string
 	ServerPort     int
@@ -72,9 +70,8 @@ func (self *HttpServer) Start() error {
 	adminApi := e.Group("/admin", corsMiddleware, sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	handlers.NewHomeHandler(privateApi, self.projectsService)
-	handlers.NewProjectsRouter(self.projectsService, self.certificateService, adminApi)
+	handlers.NewProjectsRouter(self.projectsService, adminApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
-	handlers.NewCertificateRouter(self.certificateService, self.filesService, privateApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
 	handlers.NewWsConnectionRouter(websocket.LogsHub, privateApi)
 
@@ -105,14 +102,13 @@ func (self *HttpServer) Shutdown(ctx context.Context) error {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logService:         options.LogService,
-		sessionStore:       options.SessionStore,
-		allowedOrigins:     options.AllowedOrigins,
-		serverPort:         options.ServerPort,
-		authService:        options.AuthService,
-		certificateService: options.CertificateService,
-		filesService:       options.FilesService,
-		projectsService:    options.ProjectsService,
+		logService:      options.LogService,
+		sessionStore:    options.SessionStore,
+		allowedOrigins:  options.AllowedOrigins,
+		serverPort:      options.ServerPort,
+		authService:     options.AuthService,
+		filesService:    options.FilesService,
+		projectsService: options.ProjectsService,
 	}
 
 	return server

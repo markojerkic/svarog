@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/nats-io/nkeys"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
@@ -24,7 +25,7 @@ const (
 type NATSTestContainer struct {
 	Container    *nats.NATSContainer
 	NatsAddr     string
-	NatsConn     *serverauth.NatsConnection
+	NatsConn     *natsconn.NatsConnection
 	TokenService *serverauth.TokenService
 	AuthHandler  *serverauth.NatsAuthCalloutHandler
 	IssuerSeed   string
@@ -100,11 +101,15 @@ func NewNATSTestContainer(ctx context.Context, config NATSTestConfig) (*NATSTest
 	}
 
 	// Create NATS connection for auth callout (SYSTEM account)
-	natsConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        natsAddr,
 		User:            config.SystemUser,
 		Password:        config.SystemPassword,
 		EnableJetStream: true,
+		JetStreamConfig: natsconn.JetStreamConfig{
+			Name:     "LOGS",
+			Subjects: []string{"logs.>"},
+		},
 	})
 	if err != nil {
 		_ = container.Terminate(ctx)

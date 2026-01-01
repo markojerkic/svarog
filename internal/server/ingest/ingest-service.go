@@ -5,20 +5,21 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"log/slog"
+
+	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/nats-io/nats.go/jetstream"
-	"log/slog"
 )
 
 type IngestService struct {
 	ingestCh   chan db.LogLineWithHost
-	natsConn   *serverauth.NatsConnection
+	natsConn   *natsconn.NatsConnection
 	consumeCtx jetstream.ConsumeContext
 }
 
-func NewIngestService(ingestCh chan db.LogLineWithHost, natsConn *serverauth.NatsConnection) *IngestService {
+func NewIngestService(ingestCh chan db.LogLineWithHost, natsConn *natsconn.NatsConnection) *IngestService {
 	return &IngestService{
 		ingestCh: ingestCh,
 		natsConn: natsConn,

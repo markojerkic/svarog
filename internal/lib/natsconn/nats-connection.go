@@ -1,20 +1,26 @@
-package serverauth
+package natsconn
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"log/slog"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"log/slog"
 )
+
+type JetStreamConfig struct {
+	Name     string
+	Subjects []string
+}
 
 type NatsConnectionConfig struct {
 	NatsAddr        string
 	User            string
 	Password        string
 	EnableJetStream bool
+	JetStreamConfig JetStreamConfig
 }
 
 type NatsConnection struct {
@@ -54,7 +60,7 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		conn.JetStream = js
 
 		// Create the LOGS stream for log ingestion
-		if err := conn.ensureLogsStream(); err != nil {
+		if err := conn.ensureLogsStream(cfg.JetStreamConfig); err != nil {
 			slog.Warn("Failed to create JetStream LOGS stream", "err", err)
 		}
 	}
@@ -64,13 +70,13 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 	return conn, nil
 }
 
-func (n *NatsConnection) ensureLogsStream() error {
+func (n *NatsConnection) ensureLogsStream(cfg JetStreamConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	_, err := n.JetStream.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:      "LOGS",
-		Subjects:  []string{"logs.>"},
+		Name:      cfg.Name,
+		Subjects:  cfg.Subjects,
 		Retention: jetstream.LimitsPolicy,
 		MaxBytes:  1024 * 1024 * 1024, // 1GB
 		MaxAge:    7 * 24 * time.Hour, // 7 days

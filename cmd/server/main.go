@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
+	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
@@ -62,8 +62,8 @@ func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
 type serverDependencies struct {
 	httpServer     *http.HttpServer
 	ingestService  *ingest.IngestService
-	natsAppConn    *serverauth.NatsConnection
-	natsSystemConn *serverauth.NatsConnection
+	natsAppConn    *natsconn.NatsConnection
+	natsSystemConn *natsconn.NatsConnection
 	mongoClient    *mongo.Client
 	cancel         context.CancelFunc
 }
@@ -112,7 +112,6 @@ func main() {
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
-	certificateService := serverauth.NewCertificateService(filesService, client, strings.Split(env.ServerDnsName, ","))
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
@@ -122,7 +121,7 @@ func main() {
 		log.Fatal("Failed to create token service", "error", err)
 	}
 
-	natsSystemConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+	natsSystemConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr: env.NatsAddr,
 		User:     env.NatsSystemUser,
 		Password: env.NatsSystemPassword,
@@ -131,18 +130,22 @@ func main() {
 		log.Fatal("Failed to connect to NATS SYSTEM account", "error", err)
 	}
 
-	natsAppConn, err := serverauth.NewNatsConnection(serverauth.NatsConnectionConfig{
+	natsLogsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        env.NatsAddr,
 		User:            env.NatsAppUser,
 		Password:        env.NatsAppPassword,
 		EnableJetStream: true,
+		JetStreamConfig: natsconn.JetStreamConfig{
+			Name:     "LOGS",
+			Subjects: []string{"logs.>"},
+		},
 	})
 	if err != nil {
 		log.Fatal("Failed to connect to NATS APP account", "error", err)
 	}
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
-	ingestService := ingest.NewIngestService(logIngestChannel, natsAppConn)
+	ingestService := ingest.NewIngestService(logIngestChannel, natsLogsConn)
 
 	natsAuthConfig := serverauth.NatsAuthConfig{
 		IssuerSeed: env.NatsIssuerSeed,
@@ -157,14 +160,13 @@ func main() {
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
-			AllowedOrigins:     env.HttpServerAllowedOrigins,
-			ServerPort:         env.HttpServerPort,
-			SessionStore:       sessionStore,
-			LogService:         logsService,
-			AuthService:        authService,
-			CertificateService: certificateService,
-			FilesService:       filesService,
-			ProjectsService:    projectsService,
+			AllowedOrigins:  env.HttpServerAllowedOrigins,
+			ServerPort:      env.HttpServerPort,
+			SessionStore:    sessionStore,
+			LogService:      logsService,
+			AuthService:     authService,
+			FilesService:    filesService,
+			ProjectsService: projectsService,
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -186,7 +188,7 @@ func main() {
 	gracefulShutdown(serverDependencies{
 		httpServer:     httpServer,
 		ingestService:  ingestService,
-		natsAppConn:    natsAppConn,
+		natsAppConn:    natsLogsConn,
 		natsSystemConn: natsSystemConn,
 		mongoClient:    client,
 		cancel:         cancel,

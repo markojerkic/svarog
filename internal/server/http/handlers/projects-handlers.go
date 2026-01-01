@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"log/slog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
@@ -15,8 +15,7 @@ import (
 )
 
 type ProjectsRouter struct {
-	projectsService    projects.ProjectsService
-	certificateService serverauth.CertificateService
+	projectsService projects.ProjectsService
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
@@ -172,27 +171,8 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
-func (p *ProjectsRouter) getCertificatesZip(c echo.Context) error {
-	groupId := c.Param("groupId")
-	if groupId == "" {
-		return c.JSON(400, types.ApiError{Message: "Group ID is required", Fields: map[string]string{"groupId": "Group ID is required"}})
-	}
-
-	zipPath, cleanup, err := p.certificateService.GetCertificatesZip(c.Request().Context(), groupId)
-	if err != nil {
-		slog.Error("Error getting certificates zip", "error", err)
-		return c.JSON(500, types.ApiError{Message: "Error getting certificates zip"})
-	}
-	defer cleanup()
-
-	c.Response().Header().Add("Content-Disposition", "attachment")
-	c.Response().Header().Add("filename", "certificates.zip")
-
-	return c.File(zipPath)
-}
-
-func NewProjectsRouter(projectsService projects.ProjectsService, certificateService serverauth.CertificateService, e *echo.Group) *ProjectsRouter {
-	router := &ProjectsRouter{projectsService, certificateService}
+func NewProjectsRouter(projectsService projects.ProjectsService, e *echo.Group) *ProjectsRouter {
+	router := &ProjectsRouter{projectsService}
 
 	if router.projectsService == nil {
 		panic("No projectsService")
@@ -202,7 +182,6 @@ func NewProjectsRouter(projectsService projects.ProjectsService, certificateServ
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
 	group.GET("/:id/edit", router.getEditProjectForm)
-	group.GET("/:groupId/certificate", router.getCertificatesZip)
 	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
 	group.DELETE("/:id", router.deleteProject)
