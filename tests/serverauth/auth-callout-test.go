@@ -11,14 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestProject creates a project and returns the topic string for it
 func (s *NatsAuthSuite) createTestProject(clientId string) string {
 	project, err := s.ProjectsService.CreateProject(context.Background(), "test-project-"+clientId, []string{clientId})
 	require.NoError(s.T(), err)
 	return fmt.Sprintf("logs.%s.%s", project.ID.Hex(), clientId)
 }
 
-// connectWithCredentials connects to NATS using the provided credentials
 func (s *NatsAuthSuite) connectWithCredentials(jwt string, seed string) (*nats.Conn, error) {
 	return nats.Connect(s.NatsAddr,
 		nats.UserJWTAndSeed(jwt, seed),
@@ -29,10 +27,8 @@ func (s *NatsAuthSuite) connectWithCredentials(jwt string, seed string) (*nats.C
 func (s *NatsAuthSuite) TestConnectWithValidCredentials() {
 	t := s.T()
 
-	// Create a project with a client
 	topic := s.createTestProject("test-client")
 
-	// Generate credentials for the topic
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		"client-user-123",
 		[]string{topic},
@@ -41,7 +37,6 @@ func (s *NatsAuthSuite) TestConnectWithValidCredentials() {
 	)
 	require.NoError(t, err)
 
-	// Connect to NATS with the credentials
 	jwt, seed, err := serverauth.ParseCredsFile(creds)
 	assert.NoError(t, err)
 	nc, err := s.connectWithCredentials(jwt, seed)

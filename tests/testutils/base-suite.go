@@ -52,9 +52,10 @@ type BaseSuiteConfig struct {
 	DatabaseName string
 
 	// NATS
-	ConfigPath string
-	NatsJwt    string
-	NatsSeed   string
+	ConfigPath      string
+	NatsAccountSeed string
+	NatsJwt         string
+	NatsSeed        string
 }
 
 // DefaultBaseSuiteConfig returns sensible defaults
@@ -68,10 +69,11 @@ func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	}
 
 	return BaseSuiteConfig{
-		DatabaseName: "svarog_test",
-		ConfigPath:   "../../nats-server.conf",
-		NatsJwt:      env.NatsServerUserJWT,
-		NatsSeed:     env.NatsServerUserSeed,
+		DatabaseName:    "svarog_test",
+		ConfigPath:      "../../nats-server.conf",
+		NatsAccountSeed: env.NatsAccountSeed,
+		NatsJwt:         env.NatsServerUserJWT,
+		NatsSeed:        env.NatsServerUserSeed,
 	}
 }
 
@@ -133,7 +135,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	s.NatsAddr = natsAddr
 
 	// Create token service
-	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsJwt)
+	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsAccountSeed)
 	if err != nil {
 		return fmt.Errorf("failed to create token service: %w", err)
 	}
