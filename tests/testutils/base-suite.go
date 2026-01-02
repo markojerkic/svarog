@@ -52,20 +52,15 @@ type BaseSuiteConfig struct {
 	DatabaseName string
 
 	// NATS
-	SystemUser     string
-	SystemPassword string
-	AppUser        string
-	AppPassword    string
-	NatsWsPort     string
-	ConfigPath     string
-	NatsJwt        string
-	NatsSeed       string
+	ConfigPath string
+	NatsJwt    string
+	NatsSeed   string
 }
 
 // DefaultBaseSuiteConfig returns sensible defaults
 func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	env := types.ServerEnv{}
-	if err := dotenv.Load(); err != nil {
+	if err := dotenv.Load("../../.env"); err != nil {
 		panic(err)
 	}
 	if err := envParser.Parse(&env); err != nil {
@@ -73,15 +68,10 @@ func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	}
 
 	return BaseSuiteConfig{
-		DatabaseName:   "svarog_test",
-		SystemUser:     "system",
-		SystemPassword: "password",
-		AppUser:        "app",
-		AppPassword:    "apppass",
-		NatsWsPort:     "9222",
-		ConfigPath:     "../../nats-server.conf",
-		NatsJwt:        env.NatsServerUserJWT,
-		NatsSeed:       env.NatsServerUserSeed,
+		DatabaseName: "svarog_test",
+		ConfigPath:   "../../nats-server.conf",
+		NatsJwt:      env.NatsServerUserJWT,
+		NatsSeed:     env.NatsServerUserSeed,
 	}
 }
 
