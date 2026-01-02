@@ -35,7 +35,7 @@ templ LogLine(props LogLineProps) {
 }
 
 templ OobSwapLogLine(props LogLineProps) {
-	<div hx-swap-oob="afterbegin:#logs-container">
+	<div hx-swap-oob="afterbegin:#log-scroll-container">
 		@LogLine(props)
 	</div>
 }
@@ -75,8 +75,8 @@ templ SharedLogMenu() {
 			class="hidden"
 			hx-get=""
 			hx-push-url="true"
-			hx-target="#logs-container"
-			hx-select="#logs-container"
+			hx-target="#log-scroll-container"
+			hx-select="#log-scroll-container"
 			hx-swap="innerHTML"
 		></button>
 	</div>

@@ -11,7 +11,7 @@ const clientScript = fs.readFileSync(scriptPath, "utf8");
 test.describe("Log Sorting Logic", () => {
   test.beforeEach(async ({ page }) => {
     await page.setContent(`
-      <div id="logs-container"></div>
+      <div id="log-scroll-container"></div>
       <script>${clientScript}</script>
     `);
   });
@@ -36,7 +36,7 @@ test.describe("Log Sorting Logic", () => {
           bubbles: true,
           cancelable: true,
           detail: {
-            target: { id: "logs-container" },
+            target: { id: "log-scroll-container" },
             fragment: frag,
           },
         });
@@ -71,7 +71,7 @@ test.describe("Log Sorting Logic", () => {
     // ASSERT: Check the DOM order
     // We expect Descending: 300 -> 200 -> 100 -> 50
     const timestamps = await page
-      .locator("#logs-container > pre")
+      .locator("#log-scroll-container > pre")
       .evaluateAll((list) =>
         list.map((el) => parseInt(el.getAttribute("data-timestamp")!)),
       );
@@ -92,7 +92,7 @@ test.describe("Log Sorting Logic", () => {
 
     // ASSERT: Should be sorted by sequence number descending: 5 -> 4 -> 3 -> 2 -> 1
     const sequences = await page
-      .locator("#logs-container > pre")
+      .locator("#log-scroll-container > pre")
       .evaluateAll((list) =>
         list.map((el) => parseInt(el.getAttribute("data-sequence")!)),
       );

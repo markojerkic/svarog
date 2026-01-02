@@ -1,5 +1,5 @@
 document.body.addEventListener("htmx:oobBeforeSwap", function (evt) {
-  if (evt.detail.target.id === "logs-container") {
+  if (evt.detail.target.id === "log-scroll-container") {
     evt.preventDefault();
 
     swapLogLine(evt);
@@ -12,7 +12,7 @@ function swapLogLine(evt) {
 
   newLogEl.removeAttribute("hx-swap-oob");
 
-  var container = document.getElementById("logs-container");
+  var container = document.getElementById("log-scroll-container");
   var children = container.children;
   var newTs = parseInt(newLogEl.getAttribute("data-timestamp"));
   var inserted = false;

@@ -16,19 +16,21 @@ templ LogsPage(props LogsPageProps) {
 		<script defer src="/assets/js/log-line-swapping.js" type="module"></script>
 		<div
 			class="flex flex-col-reverse overflow-auto h-full"
-			id="logs-container"
+			id="log-scroll-container"
 		>
 			@LogPageLines(props)
 		</div>
 		@logs.SharedLogMenu()
 	}
 	<script type="text/javascript">
-		{`
+		{
+			`
 		(function scrollToBottom() {
-			const logsContainer = document.getElementById("logs-container");
+			const logsContainer = document.getElementById("log-scroll-container");
 			logsContainer.scrollTop = 0;
 		})();
-		`}
+		`;
+		}
 	</script>
 }
 
