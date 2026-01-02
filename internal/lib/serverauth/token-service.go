@@ -60,6 +60,7 @@ func (s *NatsCredentialService) GenerateUserCreds(username string, pubAllowed []
 	if len(subAllowed) > 0 {
 		claims.Permissions.Sub.Allow.Add(subAllowed...)
 	}
+	claims.Permissions.Sub.Allow.Add("_INBOX.>")
 
 	userJwt, err := claims.Encode(s.accountKeyPair)
 	if err != nil {

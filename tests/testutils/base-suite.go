@@ -3,12 +3,16 @@ package testutils
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	envParser "github.com/caarlos0/env/v11"
+	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
@@ -30,12 +34,9 @@ type BaseSuite struct {
 	NatsAddr      string
 	NatsConn      *natsconn.NatsConnection
 
-	// NATS Auth Setup
-	NatsAuthSetup     *serverauth.NatsAuthSetup
-	CredentialService *serverauth.NatsCredentialService
-
 	// Services
-	ProjectsService projects.ProjectsService
+	NatsCredsService *serverauth.NatsCredentialService
+	ProjectsService  projects.ProjectsService
 
 	// WebSocket
 	WatchHub      *websocket.WatchHub
@@ -51,14 +52,36 @@ type BaseSuiteConfig struct {
 	DatabaseName string
 
 	// NATS
-	NatsWsPort string
+	SystemUser     string
+	SystemPassword string
+	AppUser        string
+	AppPassword    string
+	NatsWsPort     string
+	ConfigPath     string
+	NatsJwt        string
+	NatsSeed       string
 }
 
 // DefaultBaseSuiteConfig returns sensible defaults
 func DefaultBaseSuiteConfig() BaseSuiteConfig {
+	env := types.ServerEnv{}
+	if err := dotenv.Load(); err != nil {
+		panic(err)
+	}
+	if err := envParser.Parse(&env); err != nil {
+		panic(err)
+	}
+
 	return BaseSuiteConfig{
-		DatabaseName: "svarog_test",
-		NatsWsPort:   "9222",
+		DatabaseName:   "svarog_test",
+		SystemUser:     "system",
+		SystemPassword: "password",
+		AppUser:        "app",
+		AppPassword:    "apppass",
+		NatsWsPort:     "9222",
+		ConfigPath:     "../../nats-server.conf",
+		NatsJwt:        env.NatsServerUserJWT,
+		NatsSeed:       env.NatsServerUserSeed,
 	}
 }
 
@@ -99,26 +122,14 @@ func (s *BaseSuite) SetupSuite() {
 }
 
 func (s *BaseSuite) setupNats(ctx context.Context) error {
-	// Generate complete NATS auth setup (operator, account, system account)
-	authSetup, err := serverauth.GenerateNatsAuthSetup()
+	natsConfig, err := os.ReadFile(s.config.ConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to generate NATS auth setup: %w", err)
+		return fmt.Errorf("failed to load NATS config: %w", err)
 	}
-	s.NatsAuthSetup = authSetup
-
-	// Create credential service using the account seed
-	credService, err := serverauth.NewNatsCredentialService(authSetup.AccountSeed)
-	if err != nil {
-		return fmt.Errorf("failed to create credential service: %w", err)
-	}
-	s.CredentialService = credService
-
-	// Generate NATS config for testing
-	natsConfig := authSetup.GenerateNatsConfig(s.config.NatsWsPort)
 
 	// Start NATS container
 	container, err := nats.Run(ctx, "nats:latest",
-		nats.WithConfigFile(strings.NewReader(natsConfig)),
+		nats.WithConfigFile(strings.NewReader(string(natsConfig))),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to start NATS container: %w", err)
@@ -131,12 +142,18 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 	s.NatsAddr = natsAddr
 
-	// Create NATS connection for server using server user JWT credentials
-	// Server user is in APP account (has JetStream access)
+	// Create token service
+	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsJwt)
+	if err != nil {
+		return fmt.Errorf("failed to create token service: %w", err)
+	}
+	s.NatsCredsService = tokenService
+
+	// Create NATS connection for auth callout (SYSTEM account)
 	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        natsAddr,
-		JWT:             authSetup.ServerUserJWT,
-		Seed:            authSetup.ServerUserSeed,
+		JWT:             s.config.NatsJwt,
+		Seed:            s.config.NatsSeed,
 		EnableJetStream: true,
 		JetStreamConfig: natsconn.JetStreamConfig{
 			Name:     "LOGS",

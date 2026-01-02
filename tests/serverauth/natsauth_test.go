@@ -1,6 +1,7 @@
 package serverauth
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -17,51 +18,66 @@ func TestNatsAuthSuite(t *testing.T) {
 func (s *NatsAuthSuite) TestGenerateCredentials() {
 	t := s.T()
 
-	creds, err := s.credentialService.GenerateCredentials("testuser", "logs.myapp.client", nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{"topic"},
+		[]string{"_INBOX.>"},
+		nil,
+	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, creds.JWT)
-	assert.NotEmpty(t, creds.Seed)
-}
-
-func (s *NatsAuthSuite) TestGenerateCredentialsEmptyTopicFails() {
-	t := s.T()
-
-	creds, err := s.credentialService.GenerateCredentials("testuser", "", nil)
-	assert.Error(t, err)
-	assert.Nil(t, creds)
-	assert.Contains(t, err.Error(), "topic is required")
+	assert.NotEmpty(t, creds)
 }
 
 func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 	t := s.T()
-
 	expiry := 24 * time.Hour
-	creds, err := s.credentialService.GenerateCredentials("testuser", "logs.myapp.client", &expiry)
+
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{"topic"},
+		[]string{"_INBOX.>"},
+		&expiry,
+	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, creds.JWT)
-	assert.NotEmpty(t, creds.Seed)
+	assert.NotEmpty(t, creds)
 }
 
 func (s *NatsAuthSuite) TestGenerateCredsFile() {
 	t := s.T()
 
-	credsFile, err := s.credentialService.GenerateCredsFile("testuser", "logs.myapp.client", nil)
-	require.NoError(t, err)
-	assert.Contains(t, credsFile, "-----BEGIN NATS USER JWT-----")
-	assert.Contains(t, credsFile, "------END NATS USER JWT------")
-	assert.Contains(t, credsFile, "-----BEGIN USER NKEY SEED-----")
-	assert.Contains(t, credsFile, "------END USER NKEY SEED------")
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{"topic"},
+		[]string{"_INBOX.>"},
+		nil,
+	)
+
+	assert.NoError(t, err)
+	decoded, err := base64.StdEncoding.DecodeString(creds)
+	assert.NoError(t, err, "should decode creds")
+
+	assert.Contains(t, decoded, "-----BEGIN NATS USER JWT-----")
+	assert.Contains(t, decoded, "------END NATS USER JWT------")
+	assert.Contains(t, decoded, "-----BEGIN USER NKEY SEED-----")
+	assert.Contains(t, decoded, "------END USER NKEY SEED------")
 }
 
 func (s *NatsAuthSuite) TestParseCredsFile() {
 	t := s.T()
 
-	// Generate a creds file
-	credsFile, err := s.credentialService.GenerateCredsFile("testuser", "logs.myapp.client", nil)
-	require.NoError(t, err)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{"topic"},
+		[]string{"_INBOX.>"},
+		nil,
+	)
+
+	assert.NoError(t, err)
+	credsFile, err := base64.StdEncoding.DecodeString(creds)
+	assert.NoError(t, err, "should decode creds")
 
 	// Parse it back
-	jwt, seed, err := serverauth.ParseCredsFile(credsFile)
+	jwt, seed, err := serverauth.ParseCredsFile(string(credsFile))
 	require.NoError(t, err)
 	assert.NotEmpty(t, jwt)
 	assert.NotEmpty(t, seed)
@@ -89,50 +105,6 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
 	_, _, err := serverauth.ParseCredsFile(invalidCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing seed section")
-}
-
-func (s *NatsAuthSuite) TestFormatCredsFile() {
-	t := s.T()
-
-	jwt := "test-jwt-token"
-	seed := "SUAM-test-seed"
-
-	credsFile := serverauth.FormatCredsFile(jwt, seed)
-
-	assert.Contains(t, credsFile, "-----BEGIN NATS USER JWT-----")
-	assert.Contains(t, credsFile, jwt)
-	assert.Contains(t, credsFile, "------END NATS USER JWT------")
-	assert.Contains(t, credsFile, "-----BEGIN USER NKEY SEED-----")
-	assert.Contains(t, credsFile, seed)
-	assert.Contains(t, credsFile, "------END USER NKEY SEED------")
-}
-
-func (s *NatsAuthSuite) TestGenerateAndParseRoundTrip() {
-	t := s.T()
-
-	username := "myuser"
-	topic := "logs.service.production"
-
-	// Generate creds file
-	credsFile, err := s.credentialService.GenerateCredsFile(username, topic, nil)
-	require.NoError(t, err)
-
-	// Parse it
-	jwt, seed, err := serverauth.ParseCredsFile(credsFile)
-	require.NoError(t, err)
-
-	// Both should be non-empty
-	assert.NotEmpty(t, jwt)
-	assert.NotEmpty(t, seed)
-}
-
-func (s *NatsAuthSuite) TestGetAccountPublicKey() {
-	t := s.T()
-
-	pubKey := s.credentialService.GetAccountPublicKey()
-	assert.NotEmpty(t, pubKey)
-	// Account public keys start with 'A'
-	assert.True(t, pubKey[0] == 'A', "Account public key should start with 'A'")
 }
 
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {

@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
@@ -44,8 +43,7 @@ type HttpServerOptions struct {
 	ProjectsService projects.ProjectsService
 	WatchHub        *websocket.WatchHub
 
-	AllowedOrigins []string
-	ServerPort     int
+	ServerPort int
 }
 
 func (self *HttpServer) Start() error {
@@ -57,19 +55,13 @@ func (self *HttpServer) Start() error {
 	sessionMiddleware := session.MiddlewareWithConfig(session.Config{
 		Store: self.sessionStore,
 	})
-	corsMiddleware := middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     self.allowedOrigins,
-		AllowCredentials: true,
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
-		AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
-	})
 
 	privateApi := e.Group("",
 		sessionMiddleware,
 		customMiddleware.AuthContextMiddleware(self.authService),
 		customMiddleware.RestPasswordMiddleware())
-	publicApi := e.Group("", corsMiddleware, sessionMiddleware)
-	adminApi := e.Group("/admin", corsMiddleware, sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
+	publicApi := e.Group("", sessionMiddleware)
+	adminApi := e.Group("/admin", sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, adminApi)
@@ -106,7 +98,6 @@ func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
 		logService:      options.LogService,
 		sessionStore:    options.SessionStore,
-		allowedOrigins:  options.AllowedOrigins,
 		serverPort:      options.ServerPort,
 		authService:     options.AuthService,
 		filesService:    options.FilesService,

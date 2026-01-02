@@ -16,8 +16,6 @@ type NatsAuthSuite struct {
 
 func (s *NatsAuthSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-
-	s.credentialService = s.CredentialService
 }
 
 func (s *NatsAuthSuite) TearDownTest() {

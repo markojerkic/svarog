@@ -127,7 +127,7 @@ func main() {
 	watchHub := websocket.NewWatchHub(natsConn.Conn)
 	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
 
-	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
+	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte(env.SessionSecret))
 	logsService := db.NewLogService(database, wsLoglineRenderer)
 	logServer := db.NewLogServer(logsService)
 
@@ -142,7 +142,6 @@ func main() {
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
-			AllowedOrigins:  env.HttpServerAllowedOrigins,
 			ServerPort:      env.HttpServerPort,
 			SessionStore:    sessionStore,
 			LogService:      logsService,

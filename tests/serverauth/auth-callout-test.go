@@ -19,9 +19,9 @@ func (s *NatsAuthSuite) createTestProject(clientId string) string {
 }
 
 // connectWithCredentials connects to NATS using the provided credentials
-func (s *NatsAuthSuite) connectWithCredentials(creds *serverauth.Credentials) (*nats.Conn, error) {
+func (s *NatsAuthSuite) connectWithCredentials(jwt string, seed string) (*nats.Conn, error) {
 	return nats.Connect(s.NatsAddr,
-		nats.UserJWTAndSeed(creds.JWT, creds.Seed),
+		nats.UserJWTAndSeed(jwt, seed),
 		nats.Timeout(5*time.Second),
 	)
 }
@@ -33,11 +33,18 @@ func (s *NatsAuthSuite) TestConnectWithValidCredentials() {
 	topic := s.createTestProject("test-client")
 
 	// Generate credentials for the topic
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Connect to NATS with the credentials
-	nc, err := s.connectWithCredentials(creds)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err, "should connect with valid credentials")
 	defer nc.Close()
 
@@ -53,15 +60,23 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 	// Generate credentials that expire immediately (negative duration for testing)
 	// Note: NATS JWT uses Unix timestamp, so we use a very short duration
 	shortExpiry := time.Millisecond * 100
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, &shortExpiry)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		&shortExpiry,
+	)
 	require.NoError(t, err)
 
 	// Wait for credentials to expire
 	time.Sleep(time.Millisecond * 200)
 
 	// Try to connect - should fail
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+
 	nc, err := nats.Connect(s.NatsAddr,
-		nats.UserJWTAndSeed(creds.JWT, creds.Seed),
+		nats.UserJWTAndSeed(jwt, seed),
 		nats.Timeout(2*time.Second),
 	)
 
@@ -80,10 +95,17 @@ func (s *NatsAuthSuite) TestPublishToWildcardClient() {
 	// Create a project with a wildcard client
 	topic := s.createTestProject("*")
 
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
-	nc, err := s.connectWithCredentials(creds)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -101,10 +123,17 @@ func (s *NatsAuthSuite) TestPublishToAllowedTopic() {
 	// Create a project with a client
 	topic := s.createTestProject("allowed-client")
 
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
-	nc, err := s.connectWithCredentials(creds)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -122,10 +151,17 @@ func (s *NatsAuthSuite) TestPublishToDisallowedTopic() {
 	// Create a project with a client
 	topic := s.createTestProject("my-client")
 
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
-	nc, err := s.connectWithCredentials(creds)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -156,17 +192,31 @@ func (s *NatsAuthSuite) TestMultipleClientsWithDifferentPermissions() {
 	topic2 := s.createTestProject("client2")
 
 	// Generate credentials for each topic
-	creds1, err := s.credentialService.GenerateCredentials("user1", topic1, nil)
+	creds1, err := s.NatsCredsService.GenerateUserCreds(
+		"user1",
+		[]string{topic1},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
-	creds2, err := s.credentialService.GenerateCredentials("user2", topic2, nil)
+	creds2, err := s.NatsCredsService.GenerateUserCreds(
+		"user2",
+		[]string{topic2},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Connect both clients
-	nc1, err := s.connectWithCredentials(creds1)
+	jwt1, seed1, err := serverauth.ParseCredsFile(creds1)
+	assert.NoError(t, err)
+	nc1, err := s.connectWithCredentials(jwt1, seed1)
 	require.NoError(t, err)
 	defer nc1.Close()
 
-	nc2, err := s.connectWithCredentials(creds2)
+	jwt2, seed2, err := serverauth.ParseCredsFile(creds2)
+	assert.NoError(t, err)
+	nc2, err := s.connectWithCredentials(jwt2, seed2)
 	require.NoError(t, err)
 	defer nc2.Close()
 
@@ -189,13 +239,20 @@ func (s *NatsAuthSuite) TestCredentialsWithNoExpiry() {
 	topic := s.createTestProject("no-expiry-client")
 
 	// Generate credentials without expiry (nil)
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, nil)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		nil,
+	)
 	require.NoError(t, err)
-	require.NotEmpty(t, creds.JWT)
-	require.NotEmpty(t, creds.Seed)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	require.NotEmpty(t, jwt)
+	require.NotEmpty(t, seed)
 
 	// Connect and verify
-	nc, err := s.connectWithCredentials(creds)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -209,11 +266,18 @@ func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 
 	// Generate credentials with 24 hour expiry
 	expiry := 24 * time.Hour
-	creds, err := s.credentialService.GenerateCredentials("testuser", topic, &expiry)
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		"client-user-123",
+		[]string{topic},
+		[]string{},
+		&expiry,
+	)
 	require.NoError(t, err)
 
 	// Connect and verify
-	nc, err := s.connectWithCredentials(creds)
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	assert.NoError(t, err)
+	nc, err := s.connectWithCredentials(jwt, seed)
 	require.NoError(t, err)
 	defer nc.Close()
 
