@@ -8,6 +8,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -296,4 +297,45 @@ func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 	assert.NoError(t, err)
 	err = nc.Flush()
 	assert.NoError(t, err)
+}
+
+func (s *NatsAuthSuite) TestJetStreamPublishWithGeneratedConnString() {
+	t := s.T()
+
+	// Create project and client
+	projectId, _ := s.createTestProject("js-client")
+
+	// Generate credentials using the same method as the web UI
+	creds, err := s.NatsCredsService.GenerateUserCreds(
+		context.Background(),
+		serverauth.CredentialGenerationRequest{
+			ProjectID: projectId,
+			ClientID:  "js-client",
+		},
+	)
+	require.NoError(t, err)
+
+	// Parse credentials
+	jwt, seed, err := serverauth.ParseCredsFile(creds)
+	require.NoError(t, err)
+
+	// Connect to NATS
+	nc, err := s.connectWithCredentials(jwt, seed)
+	require.NoError(t, err)
+	defer nc.Close()
+
+	// Create JetStream context - this is what the client does
+	js, err := jetstream.New(nc)
+	require.NoError(t, err, "should create JetStream context")
+
+	// Publish to JetStream - this requires subscribe permissions for PubAck
+	// This is the critical test that would have caught the permissions bug
+	topic := fmt.Sprintf("logs.%s.%s", projectId, "js-client")
+	testMessage := []byte(`{"message":"test log line","level":"info"}`)
+	pubAck, err := js.Publish(context.Background(), topic, testMessage)
+	require.NoError(t, err, "JetStream publish should succeed with correct permissions")
+	assert.NotNil(t, pubAck, "should receive PubAck from JetStream")
+
+	// Verify the message was accepted by checking the stream sequence
+	assert.Greater(t, pubAck.Sequence, uint64(0), "message should have a sequence number")
 }

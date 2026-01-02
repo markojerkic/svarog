@@ -66,7 +66,7 @@ func (s *NatsCredentialService) GenerateConnString(ctx context.Context, generati
 	return config.ClientConfig{
 		Protocol:   "nats",
 		ServerAddr: s.natsPublicAddr,
-		Topic:      fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID),
+		Topic:      fmt.Sprintf("logs.%s.%s", generationRequest.ProjectID, generationRequest.ClientID),
 		Creds:      base64EncodedCreds,
 	}, nil
 }
@@ -82,8 +82,8 @@ func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generatio
 		expiry = &duration
 	}
 
-	topic := fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID)
-	return s.generateUserCreds(generationRequest.ProjectID, []string{topic}, []string{"_INBOX.>"}, expiry)
+	topic := fmt.Sprintf("logs.%s.%s", generationRequest.ProjectID, generationRequest.ClientID)
+	return s.generateUserCreds(generationRequest.ProjectID, []string{topic}, []string{}, expiry)
 }
 
 func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
@@ -111,7 +111,10 @@ func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []
 	if len(subAllowed) > 0 {
 		claims.Permissions.Sub.Allow.Add(subAllowed...)
 	}
-	claims.Permissions.Sub.Allow.Add("_INBOX.>")
+	claims.Permissions.Resp = &jwt.ResponsePermission{
+		MaxMsgs: 1,
+		Expires: time.Minute * 5,
+	}
 
 	userJwt, err := claims.Encode(s.accountKeyPair)
 	if err != nil {
