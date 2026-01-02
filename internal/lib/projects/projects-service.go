@@ -20,7 +20,6 @@ type ProjectsService interface {
 	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
-	GetProjectByClient(ctx context.Context, client string) (Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	ProjectExists(ctx context.Context, projectId, clientId string) bool
 }
@@ -154,20 +153,6 @@ func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, erro
 	}
 
 	return projects, nil
-}
-
-// GetProjectByClient implements ProjectsService.
-func (m *MongoProjectsService) GetProjectByClient(ctx context.Context, client string) (Project, error) {
-	var project Project
-	err := m.projectsCollection.FindOne(ctx, bson.M{
-		"clients": bson.M{
-			"$in": []string{client},
-		},
-	}).Decode(&project)
-	if err != nil {
-		return Project{}, errors.New(ErrProjectNotFound)
-	}
-	return project, nil
 }
 
 // DeleteProject implements ProjectsService.

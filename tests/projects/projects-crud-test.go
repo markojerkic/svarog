@@ -92,42 +92,6 @@ func (p *ProjectsSuite) TestGetProject() {
 	}
 }
 
-func (p *ProjectsSuite) TestGetProjectByClient() {
-	t := p.Suite.T()
-
-	targetClient := "test client"
-	_, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{targetClient})
-	if err != nil {
-		t.Fatalf("Could not create project: %s", err)
-	}
-
-	testCases := []struct {
-		client  string
-		wantErr bool
-	}{
-		{
-			client:  targetClient,
-			wantErr: false,
-		},
-		{
-			client:  "test client2",
-			wantErr: true,
-		},
-	}
-
-	for i, tc := range testCases {
-		_, err = p.ProjectsService.GetProjectByClient(context.Background(), tc.client)
-		if tc.wantErr {
-			assert.Error(t, err, "Test case %d failed", i)
-			if err != nil {
-				assert.Equal(t, projects.ErrProjectNotFound, err.Error(), "Test case %d failed", i)
-			}
-		} else {
-			assert.NoError(t, err, "Test case %d failed", i)
-		}
-	}
-}
-
 func (p *ProjectsSuite) TestDeleteProject() {
 	t := p.Suite.T()
 

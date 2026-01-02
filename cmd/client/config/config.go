@@ -48,7 +48,15 @@ func NewClientConfig(connString string) (ClientConfig, error) {
 	return config, nil
 }
 
+func (c *ClientConfig) buildConnString() string {
+	return fmt.Sprintf("svarog://%s/%s?token=%s", c.ServerAddr, c.Topic, c.Creds)
+}
+
 func (c *ClientConfig) GetConnString() string {
+	if c.connString == "" {
+		c.connString = c.buildConnString()
+	}
+
 	return c.connString
 }
 

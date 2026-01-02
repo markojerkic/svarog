@@ -9,6 +9,9 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
+import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 
 type BaseProps struct {
 	Title string
@@ -28,6 +31,7 @@ templ BaseLayout(props BaseProps) {
 				}
 			</title>
 			<link href="/assets/css/output.css" rel="stylesheet"/>
+			<link rel="icon" href="/assets/logo.png" type="image/png"/>
 			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"/>
 			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 			<script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.4" integrity="sha384-1RwI/nvUSrMRuNj7hX1+27J8XDdCoSLf0EjEyF69nacuWyiJYoQ/j39RT1mSnd2G" crossorigin="anonymous"></script>
@@ -42,6 +46,9 @@ templ BaseLayout(props BaseProps) {
 			@sidebar.Script()
 			@popover.Script()
 			@tagsinput.Script()
+			@selectbox.Script()
+			@datepicker.Script()
+			@calendar.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
 		<body class="bg-background text-foreground h-screen overflow-hidden">
@@ -81,7 +88,7 @@ templ AdminLayout(props AdminLayoutProps) {
 							@sidebar.MenuButton(sidebar.MenuButtonProps{
 								Href: "/",
 							}) {
-								@icon.LayoutDashboard(icon.Props{Class: "size-4"})
+								<img src="/assets/logo.png" class="h-6 w-6"/>
 								<span class="font-semibold">Svarog</span>
 							}
 						}

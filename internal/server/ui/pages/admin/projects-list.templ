@@ -15,6 +15,7 @@ type ProjectsListPageProps struct {
 
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
+		<script defer src="/assets/js/copy-conn-string.js"></script>
 		<div class="grid grid-cols-1 p-4">
 			<span class="flex justify-end">
 				@newProject()
@@ -66,6 +67,7 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 		}
 	}
 	@editProjectDialog()
+	@connectionStringDialog()
 }
 
 templ projectActions(project projects.Project) {
@@ -108,15 +110,16 @@ templ projectActions(project projects.Project) {
 					</span>
 				}
 				@dropdown.Item(dropdown.ItemProps{
-					Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
 					Attributes: templ.Attributes{
-						"target":   "_blank",
-						"download": fmt.Sprintf("%s-certificates.zip", project.Name),
+						"hx-get":    "/admin/projects/" + project.ID.Hex() + "/connection-string-form",
+						"hx-target": "#connection-string-form-container",
+						"hx-swap":   "innerHTML",
+						"onclick":   "window.tui.dialog.open('connection-string-dialog')",
 					},
 				}) {
-					<span class="flex items-center">
-						@icon.HardDriveDownload(icon.Props{Size: 16, Class: "mr-2"})
-						Download certificates
+					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
+						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
+						Connection string
 					</span>
 				}
 			}
