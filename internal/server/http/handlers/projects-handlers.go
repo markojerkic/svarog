@@ -76,6 +76,27 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 	}))
 }
 
+func (p *ProjectsRouter) getConnectionStringForm(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return c.JSON(400, types.ApiError{Message: "Project ID is required"})
+	}
+
+	project, err := p.projectsService.GetProject(c.Request().Context(), id)
+	if err != nil {
+		slog.Error("Error fetching project", "error", err)
+		if err.Error() == projects.ErrProjectNotFound {
+			return c.JSON(404, types.ApiError{Message: "Project not found"})
+		}
+		return c.JSON(500, types.ApiError{Message: "Error getting project"})
+	}
+
+	return utils.Render(c, http.StatusOK, admin.ConnectionStringForm(admin.ConnectionStringFormProps{
+		ProjectID: project.ID.Hex(),
+		Clients:   project.Clients,
+	}))
+}
+
 func (p *ProjectsRouter) createProject(c echo.Context) error {
 	var createProjectForm types.CreateProjectForm
 	if err := c.Bind(&createProjectForm); err != nil {
@@ -164,16 +185,35 @@ func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
 		return c.JSON(400, err)
 	}
 	if err := c.Validate(&request); err != nil {
-		htmx.AddErrorToast(c, "Failed to generate credentials")
+		if apiErr, ok := err.(types.ApiError); ok {
+			htmx.Reswap(c, htmx.ReswapProps{
+				Swap:   "outerHTML",
+				Target: "this",
+				Select: "form",
+			})
 
+			project, projErr := p.projectsService.GetProject(c.Request().Context(), request.ProjectID)
+			if projErr != nil {
+				htmx.AddErrorToast(c, "Failed to generate credentials")
+				return c.JSON(500, types.ApiError{Message: "Error getting project"})
+			}
+
+			return utils.Render(c, http.StatusBadRequest, admin.ConnectionStringForm(admin.ConnectionStringFormProps{
+				ProjectID: request.ProjectID,
+				Clients:   project.Clients,
+				ApiError:  apiErr,
+			}))
+		}
+		htmx.AddErrorToast(c, "Failed to generate credentials")
 		return c.JSON(400, err)
 	}
-	creds, err := p.natsCredsService.GenerateUserCreds(c.Request().Context(), request)
 
+	creds, err := p.natsCredsService.GenerateUserCreds(c.Request().Context(), request)
 	if err != nil {
 		htmx.AddErrorToast(c, "Failed to generate credentials")
 		return c.JSON(500, types.ApiError{Message: "Error generating credentials"})
 	}
+
 	base64EncodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
 	natsConfig := config.ClientConfig{
 		Protocol: "nats",
@@ -181,7 +221,14 @@ func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
 		Creds:    base64EncodedCreds,
 	}
 
-	return c.String(200, natsConfig.GetConnString())
+	connString := natsConfig.GetConnString()
+
+	htmx.CloseDialog(c)
+	htmx.AddSuccessToast(c, "Connection string generated and copied to clipboard")
+
+	c.Response().Header().Set("HX-Trigger-After-Swap", fmt.Sprintf(`{"copyToClipboard":"%s"}`, connString))
+
+	return c.String(200, connString)
 }
 
 func NewProjectsRouter(
@@ -199,6 +246,7 @@ func NewProjectsRouter(
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
 	group.GET("/:id/edit", router.getEditProjectForm)
+	group.GET("/:id/connection-string-form", router.getConnectionStringForm)
 	group.POST("", router.createProject)
 	group.POST("/conn-string", router.createProjectConnString)
 	group.DELETE("/:id", router.deleteProject)

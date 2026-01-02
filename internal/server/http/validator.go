@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"strings"
 
-	"log/slog"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"log/slog"
 )
 
 type Validator struct {
@@ -33,6 +33,13 @@ func (v *Validator) Validate(i interface{}) error {
 
 			// Get the json tag
 			jsonTag := field.Tag.Get("json")
+			if jsonTag == "" {
+				jsonTag = field.Tag.Get("form")
+			}
+			if jsonTag == "" {
+				jsonTag = field.Name
+			}
+
 			// Split the json tag to handle cases like `json:"username,omitempty"`
 			jsonName := strings.Split(jsonTag, ",")[0]
 

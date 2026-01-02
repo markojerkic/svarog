@@ -9,6 +9,9 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
+import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 
 type BaseProps struct {
 	Title string
@@ -42,6 +45,9 @@ templ BaseLayout(props BaseProps) {
 			@sidebar.Script()
 			@popover.Script()
 			@tagsinput.Script()
+			@selectbox.Script()
+			@datepicker.Script()
+			@calendar.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
 		<body class="bg-background text-foreground h-screen overflow-hidden">

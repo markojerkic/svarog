@@ -8,7 +8,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
-import "github.com/markojerkic/svarog/internal/server/http/htmx"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -68,6 +67,7 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 		}
 	}
 	@editProjectDialog()
+	@connectionStringDialog()
 }
 
 templ projectActions(project projects.Project) {
@@ -109,42 +109,18 @@ templ projectActions(project projects.Project) {
 						Delete project
 					</span>
 				}
-				@dropdown.Group() {
-					@dropdown.Sub() {
-						@dropdown.SubTrigger(dropdown.SubTriggerProps{
-							Class: "inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center",
-						}) {
-							@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
-							Connection string
-						}
-						@dropdown.SubContent() {
-							@dropdown.Item(dropdown.ItemProps{
-								Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
-								Attributes: templ.Attributes{
-									"hx-post":   "/admin/projects/conn-string",
-									"hx-target": "this",
-									"hx-swap":   "none",
-									"hx-vals": htmx.HxVals(map[string]string{
-										"projectId": project.ID.Hex(),
-									}),
-									"hx-on::after-request": "copyConnString(event.detail.xhr.responseText)",
-								},
-							}) {
-								<span class="flex items-center">
-									@icon.FileStack(icon.Props{Size: 16, Class: "mr-2"})
-									Project-wide connection string
-								</span>
-							}
-							@dropdown.Item(dropdown.ItemProps{
-								Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
-							}) {
-								<span class="flex items-center">
-									@icon.File(icon.Props{Size: 16, Class: "mr-2"})
-									Client-specific connection string
-								</span>
-							}
-						}
-					}
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-get":    "/admin/projects/" + project.ID.Hex() + "/connection-string-form",
+						"hx-target": "#connection-string-form-container",
+						"hx-swap":   "innerHTML",
+						"onclick":   "window.tui.dialog.open('connection-string-dialog')",
+					},
+				}) {
+					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
+						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
+						Connection string
+					</span>
 				}
 			}
 		}
