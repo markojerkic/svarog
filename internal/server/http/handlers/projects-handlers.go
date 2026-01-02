@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
 	"log/slog"
 
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -158,18 +160,28 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
 	var request serverauth.CredentialGenerationRequest
 	if err := c.Bind(&request); err != nil {
+		htmx.AddErrorToast(c, "Failed to generate credentials")
 		return c.JSON(400, err)
 	}
 	if err := c.Validate(&request); err != nil {
+		htmx.AddErrorToast(c, "Failed to generate credentials")
+
 		return c.JSON(400, err)
 	}
 	creds, err := p.natsCredsService.GenerateUserCreds(c.Request().Context(), request)
 
 	if err != nil {
+		htmx.AddErrorToast(c, "Failed to generate credentials")
 		return c.JSON(500, types.ApiError{Message: "Error generating credentials"})
 	}
+	base64EncodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
+	natsConfig := config.ClientConfig{
+		Protocol: "nats",
+		Topic:    fmt.Sprintf("projects.%s.%s", request.ProjectID, request.ClientID),
+		Creds:    base64EncodedCreds,
+	}
 
-	return c.String(200, creds)
+	return c.String(200, natsConfig.GetConnString())
 }
 
 func NewProjectsRouter(

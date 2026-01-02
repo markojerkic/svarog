@@ -1,10 +1,12 @@
 package serverauth
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -18,10 +20,11 @@ func (s *NatsAuthSuite) TestGenerateCredentials() {
 	t := s.T()
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
-		"client-user-123",
-		[]string{"topic"},
-		[]string{"_INBOX.>"},
-		nil,
+		context.Background(),
+		serverauth.CredentialGenerationRequest{
+			ProjectID: "client-user-123",
+			ClientID:  "topic",
+		},
 	)
 	require.NoError(t, err)
 	assert.NotEmpty(t, creds)
@@ -32,10 +35,12 @@ func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 	expiry := 24 * time.Hour
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
-		"client-user-123",
-		[]string{"topic"},
-		[]string{"_INBOX.>"},
-		&expiry,
+		context.Background(),
+		serverauth.CredentialGenerationRequest{
+			ProjectID: "client-user-123",
+			ClientID:  "topic",
+			Expiry:    time.Now().Add(expiry),
+		},
 	)
 	require.NoError(t, err)
 	assert.NotEmpty(t, creds)
@@ -45,10 +50,11 @@ func (s *NatsAuthSuite) TestGenerateCredsFile() {
 	t := s.T()
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
-		"client-user-123",
-		[]string{"topic"},
-		[]string{"_INBOX.>"},
-		nil,
+		context.Background(),
+		serverauth.CredentialGenerationRequest{
+			ProjectID: "client-user-123",
+			ClientID:  "topic",
+		},
 	)
 	assert.NoError(t, err)
 
@@ -62,10 +68,11 @@ func (s *NatsAuthSuite) TestParseCredsFile() {
 	t := s.T()
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
-		"client-user-123",
-		[]string{"topic"},
-		[]string{"_INBOX.>"},
-		nil,
+		context.Background(),
+		serverauth.CredentialGenerationRequest{
+			ProjectID: "client-user-123",
+			ClientID:  "topic",
+		},
 	)
 	assert.NoError(t, err)
 
@@ -101,7 +108,7 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("")
+	_, err := serverauth.NewNatsCredentialService("", &testutils.NoopProjectService{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "accountSeed is required")
 }
@@ -109,7 +116,7 @@ func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceInvalidSeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("invalid-seed")
+	_, err := serverauth.NewNatsCredentialService("invalid-seed", &testutils.NoopProjectService{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse account seed")
 }

@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
-	"log/slog"
 	"github.com/labstack/echo/v4"
+	"log/slog"
 )
 
 func Redirect(c echo.Context, url string) error {
@@ -78,4 +78,13 @@ func AddInfoToast(c echo.Context, message string) {
 
 func AddWarningToast(c echo.Context, message string) {
 	AddToast(c, message, LevelWarning)
+}
+
+func HxVals(vals map[string]string) string {
+	val, err := templ.JSONString(vals)
+	if err != nil {
+		slog.Error("Error encoding vals", "error", err)
+		return ""
+	}
+	return val
 }

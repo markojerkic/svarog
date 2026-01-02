@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -43,23 +44,31 @@ func NewNatsCredentialService(accountSeed string, projectsService projects.Proje
 }
 
 type CredentialGenerationRequest struct {
-	ProjectID string `form:"projectId" validate:"required"`
-	ClientID  string `form:"clientId"`
+	ProjectID string    `form:"projectId" validate:"required"`
+	ClientID  string    `form:"clientId" validate:"required"`
+	Expiry    time.Time `form:"expiry"`
+}
+
+func (s *NatsCredentialService) GenerateConnString(ctx context.Context, generationRequest CredentialGenerationRequest) (config.ClientConfig, error) {
+	creds, err := s.GenerateUserCreds(ctx, generationRequest)
+	if err != nil {
+		return config.ClientConfig{}, err
+	}
+
+	return config.ClientConfig{
+		Protocol:   "nats",
+		ServerAddr: generationRequest.ProjectID,
+		Topic:      fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID),
+		Creds:      creds,
+	}, nil
 }
 
 func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generationRequest CredentialGenerationRequest) (string, error) {
-	var clientId string
-	if generationRequest.ClientID == "" {
-		clientId = "*"
-	} else {
-		clientId = generationRequest.ClientID
-	}
-
-	if exists := s.projectsService.ProjectExists(ctx, generationRequest.ProjectID, clientId); !exists {
+	if exists := s.projectsService.ProjectExists(ctx, generationRequest.ProjectID, generationRequest.ClientID); !exists {
 		return "", errors.New("project not found")
 	}
 
-	return s.generateUserCreds(generationRequest.ProjectID, []string{clientId}, []string{}, nil)
+	return s.generateUserCreds(generationRequest.ProjectID, []string{generationRequest.ClientID}, []string{"_INBOX.>"}, nil)
 }
 
 func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {

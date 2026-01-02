@@ -6,6 +6,9 @@
             "DOM",
             "DOM.Iterable"
         ],
+        "include": [
+            "internal/server/ui/assets/js/**/*.js"
+        ],
         "target": "ESNext",
         "module": "Preserve",
         "moduleDetection": "force",

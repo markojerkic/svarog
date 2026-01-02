@@ -8,6 +8,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
+import "github.com/markojerkic/svarog/internal/server/http/htmx"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -15,6 +16,7 @@ type ProjectsListPageProps struct {
 
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
+		<script defer src="/assets/js/copy-conn-string.js"></script>
 		<div class="grid grid-cols-1 p-4">
 			<span class="flex justify-end">
 				@newProject()
@@ -118,6 +120,15 @@ templ projectActions(project projects.Project) {
 						@dropdown.SubContent() {
 							@dropdown.Item(dropdown.ItemProps{
 								Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
+								Attributes: templ.Attributes{
+									"hx-post":   "/admin/projects/conn-string",
+									"hx-target": "this",
+									"hx-swap":   "none",
+									"hx-vals": htmx.HxVals(map[string]string{
+										"projectId": project.ID.Hex(),
+									}),
+									"hx-on::after-request": "copyConnString(event.detail.xhr.responseText)",
+								},
 							}) {
 								<span class="flex items-center">
 									@icon.FileStack(icon.Props{Size: 16, Class: "mr-2"})
