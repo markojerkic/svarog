@@ -86,8 +86,9 @@ func generateLogLines(logIngestChannel chan<- db.LogLineWithHost, numberOfImport
 				Timestamp: time.Now(),
 				Sequence:  i,
 			},
-			ClientId: "marko",
-			Hostname: "::1",
+			ProjectId: "test-project",
+			ClientId:  "marko",
+			Hostname:  "::1",
 		}
 
 		if i%500_000 == 0 {

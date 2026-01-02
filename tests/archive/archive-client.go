@@ -22,12 +22,15 @@ func (a *ArchiveSuite) TestCreateArchiveForClient() {
 	assert.NoError(t, err)
 
 	tenWeeksAgo := time.Now().Add(-10*7*24*time.Hour - 1*time.Second)
-	err = a.prepopulateLogs(10_000, tenWeeksAgo, clientID, "::1")
+	err = a.prepopulateLogs(10_000, tenWeeksAgo, projectId.Hex(), clientID, "::1")
 	assert.NoError(t, err)
 
-	err = a.prepopulateLogs(1000, time.Now(), clientID, "::1")
+	err = a.prepopulateLogs(1000, time.Now(), projectId.Hex(), clientID, "::1")
 
-	count, err := a.logCollection.CountDocuments(context.Background(), bson.M{"client.client_id": clientID})
+	count, err := a.logCollection.CountDocuments(context.Background(), bson.M{
+		"client.project_id": projectId.Hex(),
+		"client.client_id":  clientID,
+	})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(11_000), count, "Should have 11,000 test logs")
 
@@ -35,7 +38,10 @@ func (a *ArchiveSuite) TestCreateArchiveForClient() {
 	assert.NoError(t, err)
 
 	// assert only 1000 logs remain, all not older than 10 weeks
-	count, err = a.logCollection.CountDocuments(context.Background(), bson.M{"client.client_id": clientID})
+	count, err = a.logCollection.CountDocuments(context.Background(), bson.M{
+		"client.project_id": projectId.Hex(),
+		"client.client_id":  clientID,
+	})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1000), count, "Should have 1000 log lines remaining")
 
@@ -63,7 +69,8 @@ func (a *ArchiveSuite) TestCreateArchiveForClient() {
 
 	// Optionally, verify the age of remaining logs
 	cursor, err := a.logCollection.Find(context.Background(), bson.M{
-		"client.client_id": clientID,
+		"client.project_id": projectId.Hex(),
+		"client.client_id":  clientID,
 		"timestamp": bson.M{
 			"$lt": tenWeeksAgo,
 		},
@@ -75,7 +82,7 @@ func (a *ArchiveSuite) TestCreateArchiveForClient() {
 	assert.Len(t, remainingOldLogs, 0, "Should have no logs older than 10 weeks remaining")
 }
 
-func (a *ArchiveSuite) prepopulateLogs(n int, cuttoffDate time.Time, clientID string, clientInstance string) error {
+func (a *ArchiveSuite) prepopulateLogs(n int, cuttoffDate time.Time, projectID string, clientID string, clientInstance string) error {
 	logLines := make([]types.StoredLog, n)
 
 	for i := 0; i < n; i++ {
@@ -85,8 +92,8 @@ func (a *ArchiveSuite) prepopulateLogs(n int, cuttoffDate time.Time, clientID st
 			LogLine:        "log line",
 			Client: types.StoredClient{
 				InstanceId: clientInstance,
-				ProjectId:  "test-project",
-				ClientId:  clientID,
+				ProjectId:  projectID,
+				ClientId:   clientID,
 			},
 		}
 	}

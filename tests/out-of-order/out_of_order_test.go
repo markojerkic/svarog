@@ -38,7 +38,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberO
 		if i%1000 == 0 {
 			slog.Debug("Sending even line", "index", i)
 		}
-		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], ClientId: "marko", Hostname: "::1"}
+		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], ProjectId: "test-project", ClientId: "marko", Hostname: "::1"}
 		i += 2
 	}
 	slog.Info("Done with even lines")
@@ -52,7 +52,7 @@ func generateOddAndEvenLines(logIngestChannel chan<- db.LogLineWithHost, numberO
 		if i%1000 == 0 {
 			slog.Debug("Sending odd line", "index", i)
 		}
-		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], ClientId: "marko", Hostname: "::1"}
+		logIngestChannel <- db.LogLineWithHost{LogLine: generatedLogLines[i], ProjectId: "test-project", ClientId: "marko", Hostname: "::1"}
 		i += 2
 	}
 	slog.Info("Done with odd lines")
@@ -105,7 +105,7 @@ func (suite *OutOfOrderSuite) TestOutOfOrderInsert() {
 	var lastCursorPtr *db.LastCursor
 	for {
 		logPage, err := suite.logService.GetLogs(context.Background(), db.LogPageRequest{
-		ProjectId: "test-project",
+			ProjectId: "test-project",
 			ClientId:  "marko",
 			Instances: nil,
 			PageSize:  int64(pageSize),

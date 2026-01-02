@@ -11,12 +11,13 @@ type LogLineProps struct {
 }
 
 templ LogLine(props LogLineProps) {
-	{{ borderColor := utils.StringToColor(props.LogLine.ID.Hex()) }}
+	{{ borderColor := utils.StringToColor(props.LogLine.Client.InstanceId) }}
 	<pre
 		class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center"
 		style={ fmt.Sprintf("border-left-color: %s;", borderColor) }
-		data-timestamp={ fmt.Sprintf("%d", props.LogLine.Timestamp.UnixNano()) }
-		data-sequence={ fmt.Sprintf("%d", props.LogLine.SequenceNumber) }
+		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
+		data-sequence={ props.LogLine.SequenceNumber }
+		data-instance-id={ props.LogLine.Client.InstanceId }
 	>
 		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{
@@ -66,7 +67,7 @@ templ SharedLogMenu() {
 			onclick="logMenu.filterByInstance()"
 		>
 			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
-			Filter by instance
+			Show only logs of this instance
 		</button>
 	</div>
 }

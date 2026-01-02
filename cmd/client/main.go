@@ -69,7 +69,7 @@ func main() {
 	setupLogger(config.Debug)
 
 	instanceId := getInstanceId()
-	slog.Debug("Parsed config", "config", config, "instanceId", instanceId)
+	slog.Debug("Instance ID", "id", instanceId)
 
 	processedLines := make(chan *rpc.LogLine, 1024*1024)
 	natsClient := natsclient.NewNatsClient(config, processedLines)

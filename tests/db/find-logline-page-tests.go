@@ -76,6 +76,9 @@ func findLogLine(logs []types.StoredLog, logLineId string) int {
 func (suite *LogsCollectionRepositorySuite) findRandomLogLine() (*types.StoredLog, error) {
 	var logLine types.StoredLog
 	sort := bson.D{{Key: "timestamp", Value: -1}, {Key: "sequence_number", Value: -1}}
-	err := suite.logsCollection.FindOne(context.Background(), bson.D{}, options.FindOne().SetSort(sort).SetSkip(5_000)).Decode(&logLine)
+	filter := bson.D{
+		{Key: "client.project_id", Value: "test-project"},
+	}
+	err := suite.logsCollection.FindOne(context.Background(), filter, options.FindOne().SetSort(sort).SetSkip(5_000)).Decode(&logLine)
 	return &logLine, err
 }
