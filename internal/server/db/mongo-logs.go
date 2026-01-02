@@ -29,7 +29,7 @@ type LogPage struct {
 	IsLastPage     bool
 }
 
-func (l *LogPage) ToPath(projectId, clientId string, cursor *LastCursor, direction string) string {
+func (l *LogPage) ToPath(projectId, clientId string, instanceId *string, cursor *LastCursor, direction string) string {
 	u := url.URL{
 		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
 	}
@@ -38,6 +38,9 @@ func (l *LogPage) ToPath(projectId, clientId string, cursor *LastCursor, directi
 		query.Set("cursorTime", fmt.Sprintf("%d", cursor.Timestamp.UnixMilli()))
 		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
 		query.Set("direction", direction)
+	}
+	if instanceId != nil {
+		query.Set("instance", *instanceId)
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
