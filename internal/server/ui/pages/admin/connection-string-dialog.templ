@@ -24,6 +24,7 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 		id="connection-string-form"
 		hx-post="/admin/projects/conn-string"
 		hx-swap="none"
+		hx-disabled-elt="input, button"
 	>
 		<input type="hidden" name="projectId" value={ p.ProjectID }/>
 		<div class="space-y-2">
@@ -35,9 +36,10 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 				}
 				@selectbox.SelectBox() {
 					@selectbox.Trigger(selectbox.TriggerProps{
-						ID:       "clientId",
-						Name:     "clientId",
-						HasError: p.ApiError.Fields["clientId"] != "",
+						ID:         "clientId",
+						Name:       "clientId",
+						HasError:   p.ApiError.Fields["clientId"] != "",
+						Attributes: templ.Attributes{"required": ""},
 					}) {
 						@selectbox.Value(selectbox.ValueProps{
 							Placeholder: "Select a client",
@@ -76,6 +78,7 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 					Name:        "expiry",
 					Placeholder: "Select expiry date",
 					HasError:    p.ApiError.Fields["expiry"] != "",
+					Attributes:  templ.Attributes{"required": ""},
 				})
 				if p.ApiError.Fields["expiry"] != "" {
 					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {

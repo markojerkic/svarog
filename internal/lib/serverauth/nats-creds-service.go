@@ -8,6 +8,7 @@ import (
 
 	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -44,9 +45,9 @@ func NewNatsCredentialService(accountSeed string, projectsService projects.Proje
 }
 
 type CredentialGenerationRequest struct {
-	ProjectID string    `form:"projectId" validate:"required"`
-	ClientID  string    `form:"clientId" validate:"required"`
-	Expiry    time.Time `form:"expiry"`
+	ProjectID string             `form:"projectId" validate:"required"`
+	ClientID  string             `form:"clientId" validate:"required"`
+	Expiry    types.NullableDate `form:"expiry"`
 }
 
 func (s *NatsCredentialService) GenerateConnString(ctx context.Context, generationRequest CredentialGenerationRequest) (config.ClientConfig, error) {
@@ -68,7 +69,14 @@ func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generatio
 		return "", errors.New("project not found")
 	}
 
-	return s.generateUserCreds(generationRequest.ProjectID, []string{generationRequest.ClientID}, []string{"_INBOX.>"}, nil)
+	var expiry *time.Duration
+	if generationRequest.Expiry.Valid {
+		duration := time.Until(generationRequest.Expiry.Time)
+		expiry = &duration
+	}
+
+	topic := fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID)
+	return s.generateUserCreds(generationRequest.ProjectID, []string{topic}, []string{"_INBOX.>"}, expiry)
 }
 
 func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
