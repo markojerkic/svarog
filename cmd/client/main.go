@@ -28,11 +28,23 @@ func setupLogger(debug bool) {
 	util.SetupLogger(util.LoggerOptions{Debug: debug})
 }
 
-func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("Expected 1 argument", "len", len(os.Args)-1, "args", os.Args)
+func getConnString() string {
+	var connString string
+	if len(os.Args) == 2 {
+		connString = os.Args[1]
+	} else if len(os.Args) == 1 {
+		connString = os.Getenv("SVAROG_CONN_STRING")
 	}
-	connString := os.Args[1]
+
+	if connString == "" {
+		log.Fatal("Connection string not provided", "add as the first argument or set env var SVAROG_CONN_STRING")
+	}
+
+	return connString
+}
+
+func main() {
+	connString := getConnString()
 
 	config, err := config.NewClientConfig(connString)
 	if err != nil {

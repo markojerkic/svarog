@@ -2,6 +2,7 @@ package serverauth
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -56,12 +57,13 @@ func (s *NatsCredentialService) GenerateConnString(ctx context.Context, generati
 	if err != nil {
 		return config.ClientConfig{}, err
 	}
+	base64EncodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
 
 	return config.ClientConfig{
 		Protocol:   "nats",
 		ServerAddr: s.natsPublicAddr,
 		Topic:      fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID),
-		Creds:      creds,
+		Creds:      base64EncodedCreds,
 	}, nil
 }
 

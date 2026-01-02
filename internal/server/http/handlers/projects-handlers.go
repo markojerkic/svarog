@@ -1,14 +1,12 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
 
 	"log/slog"
 
 	"github.com/labstack/echo/v4"
-	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -208,20 +206,14 @@ func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
 		return c.JSON(400, err)
 	}
 
-	creds, err := p.natsCredsService.GenerateUserCreds(c.Request().Context(), request)
+	creds, err := p.natsCredsService.GenerateConnString(c.Request().Context(), request)
 	if err != nil {
 		htmx.AddErrorToast(c, "Failed to generate credentials")
 		return c.JSON(500, types.ApiError{Message: "Error generating credentials"})
 	}
 
-	base64EncodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
-	natsConfig := config.ClientConfig{
-		Protocol: "nats",
-		Topic:    fmt.Sprintf("projects.%s.%s", request.ProjectID, request.ClientID),
-		Creds:    base64EncodedCreds,
-	}
-
-	connString := natsConfig.GetConnString()
+	connString := creds.GetConnString()
+	slog.Debug("Generated connection string", "connString", connString)
 
 	htmx.CloseDialog(c)
 	htmx.AddSuccessToast(c, "Connection string generated and copied to clipboard")
