@@ -61,12 +61,11 @@ func newMongoDB(connectionUrl string) (*mongo.Client, *mongo.Database, error) {
 }
 
 type serverDependencies struct {
-	httpServer     *http.HttpServer
-	ingestService  *ingest.IngestService
-	natsAppConn    *natsconn.NatsConnection
-	natsSystemConn *natsconn.NatsConnection
-	mongoClient    *mongo.Client
-	cancel         context.CancelFunc
+	httpServer    *http.HttpServer
+	ingestService *ingest.IngestService
+	natsConn      *natsconn.NatsConnection
+	mongoClient   *mongo.Client
+	cancel        context.CancelFunc
 }
 
 func gracefulShutdown(deps serverDependencies) {
@@ -83,8 +82,7 @@ func gracefulShutdown(deps serverDependencies) {
 
 	deps.cancel()
 
-	deps.natsAppConn.Close()
-	deps.natsSystemConn.Close()
+	deps.natsConn.Close()
 
 	if err := deps.mongoClient.Disconnect(shutdownCtx); err != nil {
 		log.Error("MongoDB disconnect error", "error", err)
@@ -107,24 +105,20 @@ func main() {
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
-	tokenService, err := serverauth.NewTokenService(env.NatsJwtSecret)
+	// Create credential service for generating client credentials
+	credentialService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed)
 	if err != nil {
-		log.Fatal("Failed to create token service", "error", err)
+		log.Fatal("Failed to create credential service", "error", err)
 	}
+	// Log the account public key for verification/debugging
+	log.Info("NATS credential service initialized", "accountPublicKey", credentialService.GetAccountPublicKey())
 
-	natsSystemConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
-		NatsAddr: env.NatsAddr,
-		User:     env.NatsSystemUser,
-		Password: env.NatsSystemPassword,
-	})
-	if err != nil {
-		log.Fatal("Failed to connect to NATS SYSTEM account", "error", err)
-	}
-
-	natsLogsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
+	// Use server user JWT credentials for NATS connections
+	// Server user is in APP account with full permissions and JetStream access
+	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        env.NatsAddr,
-		User:            env.NatsAppUser,
-		Password:        env.NatsAppPassword,
+		JWT:             env.NatsServerUserJWT,
+		Seed:            env.NatsServerUserSeed,
 		EnableJetStream: true,
 		JetStreamConfig: natsconn.JetStreamConfig{
 			Name:     "LOGS",
@@ -132,18 +126,10 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatal("Failed to connect to NATS APP account", "error", err)
-	}
-	natsWsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
-		NatsAddr: env.NatsAddr,
-		User:     env.NatsAppUser,
-		Password: env.NatsAppPassword,
-	})
-	if err != nil {
-		log.Fatal("Failed to connect to NATS APP account", "error", err)
+		log.Fatal("Failed to connect to NATS", "error", err)
 	}
 
-	watchHub := websocket.NewWatchHub(natsWsConn.Conn)
+	watchHub := websocket.NewWatchHub(natsConn.Conn)
 	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
 
 	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte("secret"))
@@ -157,19 +143,7 @@ func main() {
 	authService.CreateInitialAdminUser(context.Background())
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
-	ingestService := ingest.NewIngestService(logIngestChannel, natsLogsConn)
-
-	natsAuthConfig := serverauth.NatsAuthConfig{
-		IssuerSeed: env.NatsIssuerSeed,
-	}
-	natsAuthService, err := serverauth.NewNatsAuthCalloutHandler(
-		natsAuthConfig,
-		natsSystemConn.Conn,
-		tokenService,
-		projectsService)
-	if err != nil {
-		log.Fatal("Failed to create NATS auth handler", "error", err)
-	}
+	ingestService := ingest.NewIngestService(logIngestChannel, natsConn)
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
@@ -189,7 +163,6 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	go natsAuthService.Run()
 	go logServer.Run(ctx, logIngestChannel)
 	go ingestService.Run(ctx)
 	go func() {
@@ -200,11 +173,10 @@ func main() {
 
 	<-quit
 	gracefulShutdown(serverDependencies{
-		httpServer:     httpServer,
-		ingestService:  ingestService,
-		natsAppConn:    natsLogsConn,
-		natsSystemConn: natsSystemConn,
-		mongoClient:    client,
-		cancel:         cancel,
+		httpServer:    httpServer,
+		ingestService: ingestService,
+		natsConn:      natsConn,
+		mongoClient:   client,
+		cancel:        cancel,
 	})
 }

@@ -11,15 +11,13 @@ import (
 type NatsAuthSuite struct {
 	testutils.BaseSuite
 
-	tokenService *serverauth.TokenService
-	authHandler  *serverauth.NatsAuthCalloutHandler
+	credentialService *serverauth.NatsCredentialService
 }
 
 func (s *NatsAuthSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
-	s.tokenService = s.TokenService
-	s.authHandler = s.AuthHandler
+	s.credentialService = s.CredentialService
 }
 
 func (s *NatsAuthSuite) TearDownTest() {

@@ -3,7 +3,6 @@ package testutils
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
@@ -11,7 +10,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -31,11 +29,12 @@ type BaseSuite struct {
 	NatsContainer *nats.NATSContainer
 	NatsAddr      string
 	NatsConn      *natsconn.NatsConnection
-	IssuerSeed    string
+
+	// NATS Auth Setup
+	NatsAuthSetup     *serverauth.NatsAuthSetup
+	CredentialService *serverauth.NatsCredentialService
 
 	// Services
-	TokenService    *serverauth.TokenService
-	AuthHandler     *serverauth.NatsAuthCalloutHandler
 	ProjectsService projects.ProjectsService
 
 	// WebSocket
@@ -52,26 +51,14 @@ type BaseSuiteConfig struct {
 	DatabaseName string
 
 	// NATS
-	SystemUser     string
-	SystemPassword string
-	AppUser        string
-	AppPassword    string
-	JWTSecret      string
-	NatsWsPort     string
-	ConfigPath     string
+	NatsWsPort string
 }
 
 // DefaultBaseSuiteConfig returns sensible defaults
 func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	return BaseSuiteConfig{
-		DatabaseName:   "svarog_test",
-		SystemUser:     "system",
-		SystemPassword: "password",
-		AppUser:        "app",
-		AppPassword:    "apppass",
-		JWTSecret:      "test-jwt-secret",
-		NatsWsPort:     "9222",
-		ConfigPath:     "../../nats-server.conf",
+		DatabaseName: "svarog_test",
+		NatsWsPort:   "9222",
 	}
 }
 
@@ -112,28 +99,22 @@ func (s *BaseSuite) SetupSuite() {
 }
 
 func (s *BaseSuite) setupNats(ctx context.Context) error {
-	// Generate NATS issuer key pair
-	issuerKp, err := nkeys.CreateAccount()
+	// Generate complete NATS auth setup (operator, account, system account)
+	authSetup, err := serverauth.GenerateNatsAuthSetup()
 	if err != nil {
-		return fmt.Errorf("failed to create issuer key pair: %w", err)
+		return fmt.Errorf("failed to generate NATS auth setup: %w", err)
 	}
+	s.NatsAuthSetup = authSetup
 
-	issuerSeed, err := issuerKp.Seed()
+	// Create credential service using the account seed
+	credService, err := serverauth.NewNatsCredentialService(authSetup.AccountSeed)
 	if err != nil {
-		return fmt.Errorf("failed to get issuer seed: %w", err)
+		return fmt.Errorf("failed to create credential service: %w", err)
 	}
-	s.IssuerSeed = string(issuerSeed)
+	s.CredentialService = credService
 
-	issuerPublicKey, err := issuerKp.PublicKey()
-	if err != nil {
-		return fmt.Errorf("failed to get issuer public key: %w", err)
-	}
-
-	// Read and substitute variables in nats-server.conf
-	natsConfig, err := s.loadNatsConfig(issuerPublicKey)
-	if err != nil {
-		return fmt.Errorf("failed to load NATS config: %w", err)
-	}
+	// Generate NATS config for testing
+	natsConfig := authSetup.GenerateNatsConfig(s.config.NatsWsPort)
 
 	// Start NATS container
 	container, err := nats.Run(ctx, "nats:latest",
@@ -150,18 +131,12 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 	s.NatsAddr = natsAddr
 
-	// Create token service
-	tokenService, err := serverauth.NewTokenService(s.config.JWTSecret)
-	if err != nil {
-		return fmt.Errorf("failed to create token service: %w", err)
-	}
-	s.TokenService = tokenService
-
-	// Create NATS connection for auth callout (SYSTEM account)
+	// Create NATS connection for server using server user JWT credentials
+	// Server user is in APP account (has JetStream access)
 	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        natsAddr,
-		User:            s.config.SystemUser,
-		Password:        s.config.SystemPassword,
+		JWT:             authSetup.ServerUserJWT,
+		Seed:            authSetup.ServerUserSeed,
 		EnableJetStream: true,
 		JetStreamConfig: natsconn.JetStreamConfig{
 			Name:     "LOGS",
@@ -173,47 +148,11 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 	s.NatsConn = natsConn
 
-	// Create auth handler
-	authHandler, err := serverauth.NewNatsAuthCalloutHandler(serverauth.NatsAuthConfig{
-		IssuerSeed: s.IssuerSeed,
-	}, natsConn.Conn, tokenService, s.ProjectsService)
-	if err != nil {
-		natsConn.Close()
-		return fmt.Errorf("failed to create auth handler: %w", err)
-	}
-	s.AuthHandler = authHandler
-
-	// Start the auth callout handler
-	if err := authHandler.Run(); err != nil {
-		natsConn.Close()
-		return fmt.Errorf("failed to start auth callout handler: %w", err)
-	}
-
 	// Create WatchHub and WsLogLineRenderer
 	s.WatchHub = websocket.NewWatchHub(natsConn.Conn)
 	s.WsLogRenderer = websocket.NewWsLogLineRenderer(s.WatchHub)
 
 	return nil
-}
-
-func (s *BaseSuite) loadNatsConfig(issuerPublicKey string) (string, error) {
-	configBytes, err := os.ReadFile(s.config.ConfigPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read nats-server.conf: %w", err)
-	}
-
-	configStr := string(configBytes)
-
-	replacer := strings.NewReplacer(
-		"$NATS_WS_PORT", s.config.NatsWsPort,
-		"$NATS_SYSTEM_USER", s.config.SystemUser,
-		"$NATS_SYSTEM_PASSWORD", s.config.SystemPassword,
-		"$NATS_APP_USER", s.config.AppUser,
-		"$NATS_APP_PASSWORD", s.config.AppPassword,
-		"$NATS_ISSUER_PUBLIC_KEY", issuerPublicKey,
-	)
-
-	return replacer.Replace(configStr), nil
 }
 
 // TearDownSuite cleans up all containers

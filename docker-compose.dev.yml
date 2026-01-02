@@ -14,18 +14,16 @@ services:
     container_name: svarog-nats
     ports:
       - "4222:4222"
-      - "${NATS_WS_PORT:-9222}:${NATS_WS_PORT:-9222}"
     command: ["--config", "/config/nats-server.conf"]
     volumes:
       - ./nats-server.conf:/config/nats-server.conf:ro
       - nats_data:/data/jetstream
     environment:
-      - NATS_WS_PORT=${NATS_WS_PORT:-9222}
-      - NATS_SYSTEM_USER=${NATS_SYSTEM_USER:-auth_service}
-      - NATS_SYSTEM_PASSWORD=${NATS_SYSTEM_PASSWORD:-auth-service-secret-789}
-      - NATS_APP_USER=${NATS_APP_USER:-app_service}
-      - NATS_APP_PASSWORD=${NATS_APP_PASSWORD:-app-service-secret-456}
-      - NATS_ISSUER_PUBLIC_KEY=${NATS_ISSUER_PUBLIC_KEY:-ACOAJABFNQGIVX7KATSTGKAD6ALP6END7576EM2VSUZ53M26CXR2OSLK}
+      - NATS_OPERATOR_JWT=${NATS_OPERATOR_JWT}
+      - NATS_ACCOUNT_PUBLIC_KEY=${NATS_ACCOUNT_PUBLIC_KEY}
+      - NATS_ACCOUNT_JWT=${NATS_ACCOUNT_JWT}
+      - NATS_SYSTEM_ACCOUNT_PUBLIC_KEY=${NATS_SYSTEM_ACCOUNT_PUBLIC_KEY}
+      - NATS_SYSTEM_ACCOUNT_JWT=${NATS_SYSTEM_ACCOUNT_JWT}
     restart: unless-stopped
 volumes:
   dbdata:

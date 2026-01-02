@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,7 +11,7 @@ type ClientConfig struct {
 	Protocol   string
 	ServerAddr string
 	Topic      string
-	Token      string
+	Creds      string
 	Debug      bool
 	connString string
 }
@@ -21,12 +22,22 @@ func NewClientConfig(connString string) (ClientConfig, error) {
 		panic(fmt.Errorf("Failed to parse connection string: %w", err))
 	}
 
+	tokenB64 := url.Query().Get("token")
+	var creds string
+	if tokenB64 != "" {
+		credsBytes, err := base64.StdEncoding.DecodeString(tokenB64)
+		if err != nil {
+			return ClientConfig{}, fmt.Errorf("failed to decode credentials: %w", err)
+		}
+		creds = string(credsBytes)
+	}
+
 	config := ClientConfig{
 		connString: connString,
 		Protocol:   url.Scheme,
 		ServerAddr: url.Host,
 		Topic:      strings.TrimPrefix(url.Path, "/"),
-		Token:      url.Query().Get("token"),
+		Creds:      creds,
 		Debug:      url.Query().Get("debug") == "true",
 	}
 
@@ -55,8 +66,8 @@ func (c ClientConfig) Validate() error {
 	if c.Topic == "" {
 		return fmt.Errorf("topic is required")
 	}
-	if c.Token == "" {
-		return fmt.Errorf("token is required")
+	if c.Creds == "" {
+		return fmt.Errorf("credentials are required (token param)")
 	}
 
 	return nil

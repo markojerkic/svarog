@@ -7,11 +7,13 @@ type ServerEnv struct {
 	HttpServerPort           int      `env:"HTTP_SERVER_PORT"`
 	HttpServerAllowedOrigins []string `env:"HTTP_SERVER_ALLOWED_ORIGINS"`
 
-	NatsAddr           string `env:"NATS_ADDR"`
-	NatsIssuerSeed     string `env:"NATS_ISSUER_SEED"`
-	NatsJwtSecret      string `env:"NATS_JWT_SECRET"`
-	NatsSystemUser     string `env:"NATS_SYSTEM_USER"`
-	NatsSystemPassword string `env:"NATS_SYSTEM_PASSWORD"`
-	NatsAppUser        string `env:"NATS_APP_USER"`
-	NatsAppPassword    string `env:"NATS_APP_PASSWORD"`
+	NatsAddr string `env:"NATS_ADDR"`
+
+	// Account seed for signing client user JWTs
+	NatsAccountSeed string `env:"NATS_ACCOUNT_SEED"`
+
+	// Server user credentials for server to connect to NATS
+	// Generated once with: go run cmd/nats-setup/main.go
+	NatsServerUserJWT  string `env:"NATS_SERVER_USER_JWT"`
+	NatsServerUserSeed string `env:"NATS_SERVER_USER_SEED"`
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,107 +14,139 @@ func TestNatsAuthSuite(t *testing.T) {
 	suite.Run(t, new(NatsAuthSuite))
 }
 
-func (s *NatsAuthSuite) TestGenerateToken() {
+func (s *NatsAuthSuite) TestGenerateCredentials() {
 	t := s.T()
 
-	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
+	creds, err := s.credentialService.GenerateCredentials("testuser", "logs.myapp.client", nil)
 	require.NoError(t, err)
-	assert.NotEmpty(t, token)
+	assert.NotEmpty(t, creds.JWT)
+	assert.NotEmpty(t, creds.Seed)
 }
 
-func (s *NatsAuthSuite) TestGenerateTokenEmptyTopicFails() {
+func (s *NatsAuthSuite) TestGenerateCredentialsEmptyTopicFails() {
 	t := s.T()
 
-	token, err := s.tokenService.GenerateToken("testuser", "")
+	creds, err := s.credentialService.GenerateCredentials("testuser", "", nil)
 	assert.Error(t, err)
-	assert.Empty(t, token)
+	assert.Nil(t, creds)
 	assert.Contains(t, err.Error(), "topic is required")
 }
 
-func (s *NatsAuthSuite) TestValidateJWT() {
+func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 	t := s.T()
 
-	token, err := s.tokenService.GenerateToken("testuser", "logs.myapp")
+	expiry := 24 * time.Hour
+	creds, err := s.credentialService.GenerateCredentials("testuser", "logs.myapp.client", &expiry)
+	require.NoError(t, err)
+	assert.NotEmpty(t, creds.JWT)
+	assert.NotEmpty(t, creds.Seed)
+}
+
+func (s *NatsAuthSuite) TestGenerateCredsFile() {
+	t := s.T()
+
+	credsFile, err := s.credentialService.GenerateCredsFile("testuser", "logs.myapp.client", nil)
+	require.NoError(t, err)
+	assert.Contains(t, credsFile, "-----BEGIN NATS USER JWT-----")
+	assert.Contains(t, credsFile, "------END NATS USER JWT------")
+	assert.Contains(t, credsFile, "-----BEGIN USER NKEY SEED-----")
+	assert.Contains(t, credsFile, "------END USER NKEY SEED------")
+}
+
+func (s *NatsAuthSuite) TestParseCredsFile() {
+	t := s.T()
+
+	// Generate a creds file
+	credsFile, err := s.credentialService.GenerateCredsFile("testuser", "logs.myapp.client", nil)
 	require.NoError(t, err)
 
-	claims, err := s.tokenService.ValidateJWT(token)
+	// Parse it back
+	jwt, seed, err := serverauth.ParseCredsFile(credsFile)
 	require.NoError(t, err)
-	assert.Equal(t, "testuser", claims.Username)
-	assert.Equal(t, "logs.myapp", claims.Topic)
+	assert.NotEmpty(t, jwt)
+	assert.NotEmpty(t, seed)
+	assert.True(t, len(jwt) > 100, "JWT should be a substantial string")
+	assert.True(t, len(seed) > 20, "Seed should be a substantial string")
 }
 
-func (s *NatsAuthSuite) TestValidateJWTEmptyToken() {
+func (s *NatsAuthSuite) TestParseCredsFileInvalidFormat() {
 	t := s.T()
 
-	claims, err := s.tokenService.ValidateJWT("")
+	// Invalid creds file
+	_, _, err := serverauth.ParseCredsFile("invalid content")
 	assert.Error(t, err)
-	assert.Nil(t, claims)
-	assert.Contains(t, err.Error(), "token is empty")
+	assert.Contains(t, err.Error(), "invalid creds format")
 }
 
-func (s *NatsAuthSuite) TestValidateJWTInvalidToken() {
+func (s *NatsAuthSuite) TestParseCredsFileMissingSeed() {
 	t := s.T()
 
-	claims, err := s.tokenService.ValidateJWT("invalid.token.here")
+	// Creds file missing seed section
+	invalidCreds := `-----BEGIN NATS USER JWT-----
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
+------END NATS USER JWT------
+`
+	_, _, err := serverauth.ParseCredsFile(invalidCreds)
 	assert.Error(t, err)
-	assert.Nil(t, claims)
+	assert.Contains(t, err.Error(), "missing seed section")
 }
 
-func (s *NatsAuthSuite) TestValidateJWTWrongSecret() {
+func (s *NatsAuthSuite) TestFormatCredsFile() {
 	t := s.T()
 
-	// Create a token with a different secret
-	claims := serverauth.NatsAuthClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-		Username: "testuser",
-		Topic:    "logs.myapp",
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte("wrong-secret"))
-	require.NoError(t, err)
+	jwt := "test-jwt-token"
+	seed := "SUAM-test-seed"
 
-	result, err := s.tokenService.ValidateJWT(tokenString)
-	assert.Error(t, err)
-	assert.Nil(t, result)
+	credsFile := serverauth.FormatCredsFile(jwt, seed)
+
+	assert.Contains(t, credsFile, "-----BEGIN NATS USER JWT-----")
+	assert.Contains(t, credsFile, jwt)
+	assert.Contains(t, credsFile, "------END NATS USER JWT------")
+	assert.Contains(t, credsFile, "-----BEGIN USER NKEY SEED-----")
+	assert.Contains(t, credsFile, seed)
+	assert.Contains(t, credsFile, "------END USER NKEY SEED------")
 }
 
-func (s *NatsAuthSuite) TestValidateJWTExpiredToken() {
-	t := s.T()
-
-	// Create an expired token
-	claims := serverauth.NatsAuthClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
-		},
-		Username: "testuser",
-		Topic:    "logs.myapp",
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte("test-jwt-secret"))
-	require.NoError(t, err)
-
-	result, err := s.tokenService.ValidateJWT(tokenString)
-	assert.Error(t, err)
-	assert.Nil(t, result)
-}
-
-func (s *NatsAuthSuite) TestGenerateAndValidateRoundTrip() {
+func (s *NatsAuthSuite) TestGenerateAndParseRoundTrip() {
 	t := s.T()
 
 	username := "myuser"
 	topic := "logs.service.production"
 
-	token, err := s.tokenService.GenerateToken(username, topic)
+	// Generate creds file
+	credsFile, err := s.credentialService.GenerateCredsFile(username, topic, nil)
 	require.NoError(t, err)
 
-	claims, err := s.tokenService.ValidateJWT(token)
+	// Parse it
+	jwt, seed, err := serverauth.ParseCredsFile(credsFile)
 	require.NoError(t, err)
 
-	assert.Equal(t, username, claims.Username)
-	assert.Equal(t, topic, claims.Topic)
-	assert.True(t, claims.ExpiresAt.After(time.Now()))
+	// Both should be non-empty
+	assert.NotEmpty(t, jwt)
+	assert.NotEmpty(t, seed)
+}
+
+func (s *NatsAuthSuite) TestGetAccountPublicKey() {
+	t := s.T()
+
+	pubKey := s.credentialService.GetAccountPublicKey()
+	assert.NotEmpty(t, pubKey)
+	// Account public keys start with 'A'
+	assert.True(t, pubKey[0] == 'A', "Account public key should start with 'A'")
+}
+
+func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
+	t := s.T()
+
+	_, err := serverauth.NewNatsCredentialService("")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "accountSeed is required")
+}
+
+func (s *NatsAuthSuite) TestNewNatsCredentialServiceInvalidSeed() {
+	t := s.T()
+
+	_, err := serverauth.NewNatsCredentialService("invalid-seed")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse account seed")
 }

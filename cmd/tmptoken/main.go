@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -22,15 +23,18 @@ func main() {
 		panic("Topic is required")
 	}
 
-	tokenService, err := serverauth.NewTokenService(os.Getenv("NATS_JWT_SECRET"))
+	credService, err := serverauth.NewNatsCredentialService(os.Getenv("NATS_ACCOUNT_SEED"))
 	if err != nil {
 		panic(err)
 	}
 
-	token, err := tokenService.GenerateToken("svarog-temp", *topic)
+	// Generate credentials without expiry (nil = never expires)
+	credsFile, err := credService.GenerateCredsFile("svarog-temp", *topic, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Print(token)
+	// Base64 encode for URL-safe transport
+	encoded := base64.StdEncoding.EncodeToString([]byte(credsFile))
+	fmt.Print(encoded)
 }
