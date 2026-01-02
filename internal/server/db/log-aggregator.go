@@ -87,9 +87,9 @@ outer:
 				Timestamp:      line.Timestamp,
 				SequenceNumber: line.Sequence,
 				Client: types.StoredClient{
-					ProjectId: line.ProjectId,
-					ClientId:  line.ClientId,
-					IpAddress: line.Hostname,
+					ProjectId:  line.ProjectId,
+					ClientId:   line.ClientId,
+					InstanceId: line.Hostname,
 				},
 			}
 			self.backlog.AddToBacklog(logLine)

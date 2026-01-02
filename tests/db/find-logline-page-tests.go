@@ -49,6 +49,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	// Find logline page
 	logLineId := randomLogLine.ID.Hex()
 	logPage, err := suite.logService.GetLogs(logServerContext, db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  randomLogLine.Client.ClientId,
 		Instances: nil,
 		PageSize:  300,

@@ -76,6 +76,7 @@ func (suite *MassImportSuite) TestMassImport() {
 	var lastCursorPtr *db.LastCursor
 	for {
 		logPage, err := suite.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 			ClientId:  "marko",
 			Instances: nil,
 			PageSize:  int64(pageSize),

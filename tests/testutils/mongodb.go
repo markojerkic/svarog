@@ -44,7 +44,6 @@ func NewMongoDBTestContainer(ctx context.Context, databaseName string) (*MongoDB
 		Database:         mongoClient.Database(databaseName),
 	}
 
-
 	return tc, nil
 }
 

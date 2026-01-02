@@ -26,10 +26,11 @@ type Line struct {
 }
 
 type ReaderImpl struct {
-	input    *bufio.Scanner
-	file     *os.File
-	output   chan<- *rpc.LogLine
-	fileName string
+	input      *bufio.Scanner
+	file       *os.File
+	output     chan<- *rpc.LogLine
+	fileName   string
+	instanceId string
 }
 
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
@@ -54,9 +55,10 @@ func (r *ReaderImpl) Run(ctx context.Context, waitGroup *sync.WaitGroup) {
 		fmt.Println(message)
 		message = ansiRegex.ReplaceAllString(message, "")
 		logLine = &rpc.LogLine{
-			Message:   message,
-			Timestamp: timestamp,
-			Sequence:  i,
+			Message:    message,
+			Timestamp:  timestamp,
+			Sequence:   i,
+			InstanceId: r.instanceId,
 		}
 		r.output <- logLine
 		i = (i + 1) % math.MaxInt64
@@ -77,11 +79,12 @@ func (r *ReaderImpl) next() (string, error) {
 	return r.input.Text(), nil
 }
 
-func NewReader(input *os.File, output chan<- *rpc.LogLine) Reader {
+func NewReader(input *os.File, output chan<- *rpc.LogLine, instanceId string) Reader {
 	return &ReaderImpl{
-		input:    bufio.NewScanner(input),
-		file:     input,
-		fileName: input.Name(),
-		output:   output,
+		input:      bufio.NewScanner(input),
+		file:       input,
+		fileName:   input.Name(),
+		output:     output,
+		instanceId: instanceId,
 	}
 }

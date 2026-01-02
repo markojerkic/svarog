@@ -25,6 +25,7 @@ templ LogLine(props LogLineProps) {
 				"data-log-menu-trigger": "true",
 				"data-log-id":           props.LogLine.ID.Hex(),
 				"data-log-content":      props.LogLine.LogLine,
+				"data-instance-id":      props.LogLine.Client.InstanceId,
 			},
 		}) {
 			@icon.EllipsisVertical()
@@ -58,6 +59,14 @@ templ SharedLogMenu() {
 		>
 			@icon.Link(icon.Props{Size: 16, Class: "mr-2"})
 			Copy link
+		</button>
+		<button
+			type="button"
+			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+			onclick="logMenu.filterByInstance()"
+		>
+			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
+			Filter by instance
 		</button>
 	</div>
 }

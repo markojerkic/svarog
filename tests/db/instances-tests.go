@@ -17,32 +17,36 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 	mockLogLines := []types.StoredLog{
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "jerkić",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
@@ -51,7 +55,7 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 	err := self.logService.SaveLogs(context.Background(), mockLogLines)
 	assert.NoError(t, err)
 
-	instances, err := self.logService.GetInstances(context.Background(), "marko")
+	instances, err := self.logService.GetInstances(context.Background(), "test-project", "marko")
 	assert.NoError(t, err)
 
 	sort.Sort(sort.StringSlice(instances))
@@ -67,32 +71,36 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	mockLogLines := []types.StoredLog{
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
@@ -102,6 +110,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	assert.NoError(t, err)
 
 	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  "marko",
 		Instances: &[]string{"::1"},
 		PageSize:  10,
@@ -111,7 +120,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(logPage.Logs))
 	for _, log := range logPage.Logs {
-		assert.Equal(t, "::1", log.Client.IpAddress)
+		assert.Equal(t, "::1", log.Client.InstanceId)
 
 	}
 }
@@ -122,40 +131,45 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	mockLogLines := []types.StoredLog{
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::3",
+				InstanceId: "::3",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
@@ -165,6 +179,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	assert.NoError(t, err)
 
 	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  "marko",
 		Instances: &[]string{"::1", "::2"},
 		PageSize:  10,
@@ -174,7 +189,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(logPage.Logs))
 	for _, log := range logPage.Logs {
-		assert.NotEqual(t, "::3", log.Client.IpAddress)
+		assert.NotEqual(t, "::3", log.Client.InstanceId)
 
 	}
 }
@@ -185,40 +200,45 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	mockLogLines := []types.StoredLog{
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::3",
+				InstanceId: "::3",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::2",
+				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
@@ -228,6 +248,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 	assert.NoError(t, err)
 
 	logPage, err := self.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  "marko",
 		Instances: &[]string{"::1", "::2", "::3"},
 		PageSize:  10,

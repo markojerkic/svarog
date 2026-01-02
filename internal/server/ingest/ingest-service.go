@@ -60,7 +60,7 @@ func (i *IngestService) Run(ctx context.Context) error {
 			LogLine:   &logLine,
 			ClientId:  clientId,
 			ProjectId: projectId,
-			Hostname:  "<TODO>",
+			Hostname:  logLine.InstanceId,
 		}
 		msg.Ack()
 	}, jetstream.PullMaxMessages(100))

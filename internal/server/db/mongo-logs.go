@@ -44,6 +44,7 @@ func (l *LogPage) ToPath(projectId, clientId string, cursor *LastCursor, directi
 }
 
 type LogPageRequest struct {
+	ProjectId string
 	ClientId  string
 	Instances *[]string
 	PageSize  int64
@@ -54,8 +55,8 @@ type LogPageRequest struct {
 type LogService interface {
 	SaveLogs(ctx context.Context, logs []types.StoredLog) error
 	GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error)
-	GetInstances(ctx context.Context, clientId string) ([]string, error)
-	SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error)
+	SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
 	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
 }
 
@@ -67,8 +68,11 @@ type MongoLogService struct {
 var _ LogService = &MongoLogService{}
 
 // GetInstances implements LogRepository.
-func (self *MongoLogService) GetInstances(ctx context.Context, clientId string) ([]string, error) {
-	rawInstances, err := self.logCollection.Distinct(ctx, "client.ip_address", bson.D{{Key: "client.client_id", Value: clientId}})
+func (self *MongoLogService) GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error) {
+	rawInstances, err := self.logCollection.Distinct(ctx, "client.instance_id", bson.D{
+		{Key: "client.project_id", Value: projectId},
+		{Key: "client.client_id", Value: clientId},
+	})
 	if err != nil {
 		return []string{}, err
 	}
@@ -145,10 +149,11 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}, nil
 }
 
-func (self *MongoLogService) SearchLogs(ctx context.Context, query string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	slog.Debug("Getting logs for client", "clientId", clientId)
+func (self *MongoLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+	slog.Debug("Getting logs for client", "projectId", projectId, "clientId", clientId)
 
 	filter, projection := createFilter(self.logCollection, LogPageRequest{
+		ProjectId: projectId,
 		ClientId:  clientId,
 		Instances: instances,
 		PageSize:  pageSize,
@@ -202,7 +207,10 @@ func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *op
 
 	projection := options.Find().SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
 
-	clientIdFilter := bson.D{{Key: "client.client_id", Value: req.ClientId}}
+	clientIdFilter := bson.D{
+		{Key: "client.project_id", Value: req.ProjectId},
+		{Key: "client.client_id", Value: req.ClientId},
+	}
 	var filter bson.D
 
 	if req.Cursor != nil && req.Cursor.Timestamp.UnixMilli() > 0 {
@@ -219,6 +227,7 @@ func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *op
 		}
 
 		filter = bson.D{
+			{Key: "client.project_id", Value: req.ProjectId},
 			{Key: "client.client_id", Value: req.ClientId},
 			{Key: "$or", Value: bson.A{
 				bson.D{
@@ -234,7 +243,7 @@ func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *op
 	} else if req.LogLineId != nil {
 		// Find page of data where logLineId is in the middle of the page
 		slog.Debug("Adding log line id cursor", "logLineId", *req.LogLineId)
-		newFilter, newProjection, err := createFilterForLogLine(collection, req.ClientId, *req.LogLineId, req.PageSize)
+		newFilter, newProjection, err := createFilterForLogLine(collection, req.ProjectId, req.ClientId, *req.LogLineId, req.PageSize)
 		if err != nil {
 			slog.Error("Failed to create filter for logLineId", "error", err)
 			filter = clientIdFilter
@@ -249,7 +258,7 @@ func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *op
 
 	if req.Instances != nil {
 		filter = append(filter, bson.E{
-			Key: "client.ip_address",
+			Key: "client.instance_id",
 			Value: bson.D{
 				{Key: "$in", Value: req.Instances},
 			},
@@ -275,7 +284,7 @@ func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, p
 	return logs, nil
 }
 
-func createFilterForLogLine(collection *mongo.Collection, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
+func createFilterForLogLine(collection *mongo.Collection, projectId string, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
 	sortDirection := -1
 	projection := options.Find().SetSort(bson.D{
 		{Key: "timestamp", Value: sortDirection},
@@ -295,6 +304,7 @@ func createFilterForLogLine(collection *mongo.Collection, clientId string, logLi
 	}
 	err = collection.FindOne(context.Background(), bson.D{
 		{Key: "_id", Value: logId},
+		{Key: "client.project_id", Value: projectId},
 		{Key: "client.client_id", Value: clientId},
 	}).Decode(&targetLog)
 	if err != nil {
@@ -309,6 +319,7 @@ func createFilterForLogLine(collection *mongo.Collection, clientId string, logLi
 
 	// Create a filter that will find logs around the target log
 	filter := bson.D{
+		{Key: "client.project_id", Value: projectId},
 		{Key: "client.client_id", Value: clientId},
 		{Key: "$or", Value: bson.A{
 			bson.D{
@@ -327,13 +338,31 @@ func createFilterForLogLine(collection *mongo.Collection, clientId string, logLi
 func (self *MongoLogService) createIndexes() {
 	_, err := self.logCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
 		{
-			Keys: bson.D{{Key: "client.client_id", Value: 1}},
+			Keys: bson.D{
+				{Key: "client.project_id", Value: 1},
+				{Key: "client.client_id", Value: 1},
+			},
 		},
 		{
-			Keys: bson.D{{Key: "client.client_id", Value: 1}, {Key: "timestamp", Value: -1}, {Key: "sequence_number", Value: -1}},
+			Keys: bson.D{
+				{Key: "client.project_id", Value: 1},
+				{Key: "client.client_id", Value: 1},
+				{Key: "timestamp", Value: -1},
+				{Key: "sequence_number", Value: -1},
+			},
 		},
 		{
-			Keys: bson.D{{Key: "log_line", Value: "text"}, {Key: "timestamp", Value: -1}},
+			Keys: bson.D{
+				{Key: "log_line", Value: "text"},
+				{Key: "timestamp", Value: -1},
+			},
+		},
+		{
+			Keys: bson.D{
+				{Key: "client.project_id", Value: 1},
+				{Key: "client.client_id", Value: 1},
+				{Key: "client.instance_id", Value: 1},
+			},
 		},
 	})
 	if err != nil {
