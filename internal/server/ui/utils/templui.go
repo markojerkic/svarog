@@ -3,6 +3,7 @@ package utils
 
 import (
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"crypto/rand"
@@ -12,7 +13,21 @@ import (
 	twmerge "github.com/Oudwins/tailwind-merge-go"
 )
 
-// TwMerge combines Tailwind classes and resolves conflicts.
+// Return string in format "hsl(360, 70%, 45%)".
+func StringToColor(str string) string {
+	// 1. Init FNV-1a hasher
+	h := fnv.New32a()
+	h.Write([]byte(str))
+	hashValue := h.Sum32()
+
+	// 2. Hue (0-360)
+	hue := hashValue % 360
+
+	// Saturation: 70%, Lightness: 45%
+	return fmt.Sprintf("hsl(%d, 70%%, 45%%)", hue)
+}
+
+// TwMerge combines Tailwind clas and resolves conflicts.
 // Example: "bg-red-500 hover:bg-blue-500", "bg-green-500" → "hover:bg-blue-500 bg-green-500"
 func TwMerge(classes ...string) string {
 	return twmerge.Merge(classes...)

@@ -4,14 +4,17 @@ import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
+import "github.com/markojerkic/svarog/internal/server/ui/utils"
 
 type LogLineProps struct {
 	LogLine types.StoredLog
 }
 
 templ LogLine(props LogLineProps) {
+	{{ borderColor := utils.StringToColor(props.LogLine.ID.Hex()) }}
 	<pre
 		class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center"
+		style={ fmt.Sprintf("border-left-color: %s;", borderColor) }
 		data-timestamp={ fmt.Sprintf("%d", props.LogLine.Timestamp.UnixNano()) }
 		data-sequence={ fmt.Sprintf("%d", props.LogLine.SequenceNumber) }
 	>
