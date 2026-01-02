@@ -136,7 +136,6 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	}
 
 	isLastPage := forwardCursor == nil && req.Cursor == nil
-	slog.Debug("Is last page", "isLastPage", isLastPage, "cursor", req.Cursor)
 
 	return LogPage{
 		Logs:           logs,
