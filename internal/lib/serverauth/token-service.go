@@ -5,63 +5,72 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
 )
 
-type TokenService struct {
-	jwtSecret []byte
+type NatsCredentialService struct {
+	accountKeyPair   nkeys.KeyPair
+	accountPublicKey string
 }
 
-func NewTokenService(jwtSecret string) (*TokenService, error) {
-	if jwtSecret == "" {
-		return nil, errors.New("jwtSecret is required")
+func NewNatsCredentialService(accountSeed string) (*NatsCredentialService, error) {
+	if accountSeed == "" {
+		return nil, errors.New("accountSeed is required")
 	}
 
-	return &TokenService{
-		jwtSecret: []byte(jwtSecret),
+	accountKp, err := nkeys.FromSeed([]byte(accountSeed))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse account seed: %w", err)
+	}
+
+	accountPubKey, err := accountKp.PublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account public key: %w", err)
+	}
+
+	return &NatsCredentialService{
+		accountKeyPair:   accountKp,
+		accountPublicKey: accountPubKey,
 	}, nil
 }
 
-// GenerateToken creates a signed JWT token that grants access to a specific topic.
-func (t *TokenService) GenerateToken(username, topic string) (string, error) {
-	if topic == "" {
-		return "", errors.New("topic is required")
-	}
-
-	claims := NatsAuthClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-		Username: username,
-		Topic:    topic,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(t.jwtSecret)
-}
-
-// ValidateJWT validates the JWT token and returns the claims if valid.
-func (t *TokenService) ValidateJWT(tokenString string) (*NatsAuthClaims, error) {
-	if tokenString == "" {
-		return nil, errors.New("token is empty")
-	}
-
-	token, err := jwt.ParseWithClaims(tokenString, &NatsAuthClaims{}, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return t.jwtSecret, nil
-	})
+func (s *NatsCredentialService) GenerateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
+	userKp, err := nkeys.CreateUser()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return "", fmt.Errorf("failed to create user key pair: %w", err)
 	}
 
-	claims, ok := token.Claims.(*NatsAuthClaims)
-	if !ok || !token.Valid {
-		return nil, errors.New("invalid token claims")
+	userPub, _ := userKp.PublicKey()
+	userSeed, _ := userKp.Seed()
+
+	claims := jwt.NewUserClaims(userPub)
+	claims.Name = username
+	claims.IssuerAccount = s.accountPublicKey
+
+	if expiry != nil {
+		claims.Expires = time.Now().Add(*expiry).Unix()
 	}
 
-	return claims, nil
+	// Publish Permissions
+	if len(pubAllowed) > 0 {
+		claims.Permissions.Pub.Allow.Add(pubAllowed...)
+	}
+	// Subscribe Permissions
+	if len(subAllowed) > 0 {
+		claims.Permissions.Sub.Allow.Add(subAllowed...)
+	}
+	claims.Permissions.Sub.Allow.Add("_INBOX.>")
+
+	userJwt, err := claims.Encode(s.accountKeyPair)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode user claims: %w", err)
+	}
+
+	credsBytes, err := jwt.FormatUserConfig(userJwt, userSeed)
+	if err != nil {
+		return "", fmt.Errorf("failed to format creds: %w", err)
+	}
+
+	return string(credsBytes), nil
 }

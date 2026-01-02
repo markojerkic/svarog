@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 
@@ -22,15 +24,24 @@ func main() {
 		panic("Topic is required")
 	}
 
-	tokenService, err := serverauth.NewTokenService(os.Getenv("NATS_JWT_SECRET"))
+	credService, err := serverauth.NewNatsCredentialService(os.Getenv("NATS_ACCOUNT_SEED"))
 	if err != nil {
 		panic(err)
 	}
 
-	token, err := tokenService.GenerateToken("svarog-temp", *topic)
+	// Generate credentials without expiry (nil = never expires)
+	expiry := time.Hour * 24
+	creds, err := credService.GenerateUserCreds(
+		"client-user-123",
+		[]string{*topic},     // Can Publish to
+		[]string{"_INBOX.>"}, // Can Subscribe to
+		&expiry,
+	)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Print(token)
+	// Base64 encode for URL-safe transport
+	encoded := base64.StdEncoding.EncodeToString([]byte(creds))
+	fmt.Print(encoded)
 }

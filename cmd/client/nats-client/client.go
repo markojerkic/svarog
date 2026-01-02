@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"log/slog"
+
 	"github.com/markojerkic/svarog/cmd/client/config"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -55,8 +57,14 @@ func (n *NatsClient) Close() {
 }
 
 func (n *NatsClient) connectNats() {
+	jwt, seed, err := serverauth.ParseCredsFile(n.config.Creds)
+	if err != nil {
+		slog.Error("Failed to parse credentials", "err", err)
+		panic(err)
+	}
+
 	opts := []nats.Option{
-		nats.Token(n.config.Token),
+		nats.UserJWTAndSeed(jwt, seed),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
