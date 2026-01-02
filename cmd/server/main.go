@@ -105,16 +105,11 @@ func main() {
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
-	// Create credential service for generating client credentials
-	credentialService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed)
+	_, err = serverauth.NewNatsCredentialService(env.NatsAccountSeed)
 	if err != nil {
 		log.Fatal("Failed to create credential service", "error", err)
 	}
-	// Log the account public key for verification/debugging
-	log.Info("NATS credential service initialized", "accountPublicKey", credentialService.GetAccountPublicKey())
 
-	// Use server user JWT credentials for NATS connections
-	// Server user is in APP account with full permissions and JetStream access
 	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        env.NatsAddr,
 		JWT:             env.NatsServerUserJWT,

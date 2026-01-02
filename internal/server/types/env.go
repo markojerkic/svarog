@@ -9,11 +9,8 @@ type ServerEnv struct {
 
 	NatsAddr string `env:"NATS_ADDR"`
 
-	// Account seed for signing client user JWTs
 	NatsAccountSeed string `env:"NATS_ACCOUNT_SEED"`
 
-	// Server user credentials for server to connect to NATS
-	// Generated once with: go run cmd/nats-setup/main.go
 	NatsServerUserJWT  string `env:"NATS_SERVER_USER_JWT"`
 	NatsServerUserSeed string `env:"NATS_SERVER_USER_SEED"`
 }

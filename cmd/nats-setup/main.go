@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -34,6 +33,7 @@ func main() {
 	accJwt, _ := accClaims.Encode(opKp)
 
 	// 4. Create the "Admin" User (Inside the APP account)
+	// This is the user the server uses to connect
 	adminKp, _ := nkeys.CreateUser()
 	adminPub, _ := adminKp.PublicKey()
 	adminSeed, _ := adminKp.Seed()
@@ -44,21 +44,22 @@ func main() {
 	adminClaims.Permissions.Sub.Allow.Add(">")
 	adminJwt, _ := adminClaims.Encode(accKp)
 
-	// Save admin.creds for your backend to connect
-	adminCreds, _ := jwt.FormatUserConfig(adminJwt, adminSeed)
-	os.WriteFile("admin.creds", adminCreds, 0600)
-
-	// Output for .env
-	fmt.Println("# --- COPY TO .env ---")
-	fmt.Printf("NATS_OPERATOR_JWT=%s\n", opJwt)
-	fmt.Printf("NATS_ACCOUNT_PUBLIC_KEY=%s\n", accPub)
-	fmt.Printf("NATS_ACCOUNT_JWT=%s\n", accJwt)
+	// --- OUTPUT FOR .env ---
+	fmt.Println("# ===========================================================")
+	fmt.Println("# COPY TO YOUR .env FILE")
+	fmt.Println("# ===========================================================")
 	fmt.Printf("NATS_ACCOUNT_SEED=%s\n", accSeed)
+	fmt.Printf("NATS_SERVER_USER_JWT=%s\n", adminJwt)
+	fmt.Printf("NATS_SERVER_USER_SEED=%s\n", adminSeed)
 
-	// Output for nats-server.conf
-	fmt.Println("\n# --- COPY TO nats-server.conf ---")
-	fmt.Printf(`
-operator: %s
+	// Optional: You still need NATS_ADDR and likely the Public Key for reference
+	fmt.Printf("NATS_ACCOUNT_PUBLIC_KEY=%s\n", accPub)
+
+	// --- OUTPUT FOR nats-server.conf ---
+	fmt.Println("\n# ===========================================================")
+	fmt.Println("# COPY TO YOUR nats-server.conf")
+	fmt.Println("# ===========================================================")
+	fmt.Printf(`operator: %s
 system_account: %s
 
 resolver: MEMORY
@@ -67,6 +68,4 @@ resolver_preload: {
     %s: %s
 }
 `, opJwt, sysPub, accPub, accJwt, sysPub, sysJwt)
-
-	fmt.Println("\nSuccess! 'admin.creds' file created.")
 }
