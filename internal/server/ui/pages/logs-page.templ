@@ -22,11 +22,13 @@ templ LogsPage(props LogsPageProps) {
 		</div>
 		@logs.SharedLogMenu()
 	}
-	<script>
+	<script type="text/javascript">
+		{`
 		(function scrollToBottom() {
 			const logsContainer = document.getElementById("logs-container");
 			logsContainer.scrollTop = 0;
 		})();
+		`}
 	</script>
 }
 
