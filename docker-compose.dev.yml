@@ -18,12 +18,6 @@ services:
     volumes:
       - ./nats-server.conf:/config/nats-server.conf:ro
       - nats_data:/data/jetstream
-    environment:
-      - NATS_OPERATOR_JWT=${NATS_OPERATOR_JWT}
-      - NATS_ACCOUNT_PUBLIC_KEY=${NATS_ACCOUNT_PUBLIC_KEY}
-      - NATS_ACCOUNT_JWT=${NATS_ACCOUNT_JWT}
-      - NATS_SYSTEM_ACCOUNT_PUBLIC_KEY=${NATS_SYSTEM_ACCOUNT_PUBLIC_KEY}
-      - NATS_SYSTEM_ACCOUNT_JWT=${NATS_SYSTEM_ACCOUNT_JWT}
     restart: unless-stopped
 volumes:
   dbdata:
