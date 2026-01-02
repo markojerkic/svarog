@@ -135,7 +135,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	s.NatsAddr = natsAddr
 
 	// Create token service
-	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsAccountSeed, &NoopProjectService{})
+	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsAccountSeed, s.NatsAddr, &NoopProjectService{})
 	if err != nil {
 		return fmt.Errorf("failed to create token service: %w", err)
 	}

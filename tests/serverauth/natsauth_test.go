@@ -110,7 +110,7 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("", "", &testutils.NoopProjectService{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "accountSeed is required")
 }
@@ -118,7 +118,7 @@ func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceInvalidSeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("invalid-seed", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("invalid-seed", "", &testutils.NoopProjectService{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse account seed")
 }

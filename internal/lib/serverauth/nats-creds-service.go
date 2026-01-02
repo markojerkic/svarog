@@ -21,7 +21,10 @@ type NatsCredentialService struct {
 	projectsService  projects.ProjectsService
 }
 
-func NewNatsCredentialService(accountSeed string, projectsService projects.ProjectsService) (*NatsCredentialService, error) {
+func NewNatsCredentialService(
+	accountSeed string,
+	natsPublicAddr string,
+	projectsService projects.ProjectsService) (*NatsCredentialService, error) {
 	if projectsService == nil {
 		return nil, errors.New("projectsService is required")
 	}
@@ -43,6 +46,7 @@ func NewNatsCredentialService(accountSeed string, projectsService projects.Proje
 		accountKeyPair:   accountKp,
 		accountPublicKey: accountPubKey,
 		projectsService:  projectsService,
+		natsPublicAddr:   natsPublicAddr,
 	}, nil
 }
 

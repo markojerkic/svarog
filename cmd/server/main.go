@@ -108,7 +108,7 @@ func main() {
 
 	projectsService := projects.NewProjectsService(projectsCollection, client)
 
-	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, projectsService)
+	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {
 		log.Fatal("Failed to create credential service", "error", err)
 	}
