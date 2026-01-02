@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 
@@ -29,12 +30,18 @@ func main() {
 	}
 
 	// Generate credentials without expiry (nil = never expires)
-	credsFile, err := credService.GenerateCredsFile("svarog-temp", *topic, nil)
+	expiry := time.Hour * 24
+	creds, err := credService.GenerateUserCreds(
+		"client-user-123",
+		[]string{*topic},     // Can Publish to
+		[]string{"_INBOX.>"}, // Can Subscribe to
+		&expiry,
+	)
 	if err != nil {
 		panic(err)
 	}
 
 	// Base64 encode for URL-safe transport
-	encoded := base64.StdEncoding.EncodeToString([]byte(credsFile))
+	encoded := base64.StdEncoding.EncodeToString([]byte(creds))
 	fmt.Print(encoded)
 }

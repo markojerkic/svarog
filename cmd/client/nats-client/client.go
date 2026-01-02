@@ -57,7 +57,6 @@ func (n *NatsClient) Close() {
 }
 
 func (n *NatsClient) connectNats() {
-	// Parse credentials from the creds file content
 	jwt, seed, err := serverauth.ParseCredsFile(n.config.Creds)
 	if err != nil {
 		slog.Error("Failed to parse credentials", "err", err)
