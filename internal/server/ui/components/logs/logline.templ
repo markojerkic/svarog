@@ -69,5 +69,15 @@ templ SharedLogMenu() {
 			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
 			Show only logs of this instance
 		</button>
+		<!-- Hidden button for HTMX-boosted instance filtering -->
+		<button
+			id="filter-instance-button"
+			class="hidden"
+			hx-get=""
+			hx-push-url="true"
+			hx-target="#logs-container"
+			hx-select="#logs-container"
+			hx-swap="innerHTML"
+		></button>
 	</div>
 }

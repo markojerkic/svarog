@@ -106,10 +106,15 @@
     },
     filterByInstance: function () {
       if (currentInstanceId) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("logLine");
-        url.searchParams.set("instance", currentInstanceId);
-        window.location.href = url.toString();
+        const filterButton = document.getElementById("filter-instance-button");
+        if (filterButton) {
+          filterButton.setAttribute(
+            "hx-vals",
+            JSON.stringify({ instance: currentInstanceId }),
+          );
+          filterButton.click();
+        }
+
         hideMenu();
       }
     },
