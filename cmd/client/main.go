@@ -14,8 +14,23 @@ import (
 	"github.com/markojerkic/svarog/internal/rpc"
 )
 
-func readStdin(output chan *rpc.LogLine) {
-	r := reader.NewReader(os.Stdin, output)
+func getInstanceId() string {
+	instanceId := os.Getenv("SVAROG_INSTANCE_ID")
+	if instanceId != "" {
+		return instanceId
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warn("Failed to get hostname, using 'unknown'", "error", err)
+		return "unknown"
+	}
+
+	return hostname
+}
+
+func readStdin(output chan *rpc.LogLine, instanceId string) {
+	r := reader.NewReader(os.Stdin, output, instanceId)
 
 	waitGroup := &sync.WaitGroup{}
 	waitGroup.Add(1)
@@ -53,7 +68,8 @@ func main() {
 
 	setupLogger(config.Debug)
 
-	slog.Debug("Parsed config", "config", config)
+	instanceId := getInstanceId()
+	slog.Debug("Instance ID", "id", instanceId)
 
 	processedLines := make(chan *rpc.LogLine, 1024*1024)
 	natsClient := natsclient.NewNatsClient(config, processedLines)
@@ -65,7 +81,7 @@ func main() {
 		natsClient.Run()
 	}()
 
-	readStdin(processedLines)
+	readStdin(processedLines, instanceId)
 	close(processedLines) // Signal NATS client to drain and exit
 	wg.Wait()
 }

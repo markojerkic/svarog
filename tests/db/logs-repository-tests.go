@@ -15,16 +15,18 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 	mockLogLines := []types.StoredLog{
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "marko",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "marko",
 		},
 		{
 			Client: types.StoredClient{
+				ProjectId:  "test-project",
 				ClientId:  "jerkić",
-				IpAddress: "::1",
+				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
 			LogLine:   "jerkić",
@@ -36,6 +38,7 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 
 	// Verify logs were saved by retrieving them
 	logPage, err := s.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  "marko",
 		Instances: nil,
 		PageSize:  10,
@@ -46,6 +49,7 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 	assert.Equal(t, 1, len(logPage.Logs))
 
 	logPage, err = s.logService.GetLogs(context.Background(), db.LogPageRequest{
+		ProjectId: "test-project",
 		ClientId:  "jerkić",
 		Instances: nil,
 		PageSize:  10,

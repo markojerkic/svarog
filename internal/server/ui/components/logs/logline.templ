@@ -11,12 +11,13 @@ type LogLineProps struct {
 }
 
 templ LogLine(props LogLineProps) {
-	{{ borderColor := utils.StringToColor(props.LogLine.ID.Hex()) }}
+	{{ borderColor := utils.StringToColor(props.LogLine.Client.InstanceId) }}
 	<pre
 		class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center"
 		style={ fmt.Sprintf("border-left-color: %s;", borderColor) }
-		data-timestamp={ fmt.Sprintf("%d", props.LogLine.Timestamp.UnixNano()) }
-		data-sequence={ fmt.Sprintf("%d", props.LogLine.SequenceNumber) }
+		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
+		data-sequence={ props.LogLine.SequenceNumber }
+		data-instance-id={ props.LogLine.Client.InstanceId }
 	>
 		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{
@@ -25,6 +26,7 @@ templ LogLine(props LogLineProps) {
 				"data-log-menu-trigger": "true",
 				"data-log-id":           props.LogLine.ID.Hex(),
 				"data-log-content":      props.LogLine.LogLine,
+				"data-instance-id":      props.LogLine.Client.InstanceId,
 			},
 		}) {
 			@icon.EllipsisVertical()
@@ -33,7 +35,7 @@ templ LogLine(props LogLineProps) {
 }
 
 templ OobSwapLogLine(props LogLineProps) {
-	<div hx-swap-oob="afterbegin:#logs-container">
+	<div hx-swap-oob="afterbegin:#log-scroll-container">
 		@LogLine(props)
 	</div>
 }
@@ -59,5 +61,23 @@ templ SharedLogMenu() {
 			@icon.Link(icon.Props{Size: 16, Class: "mr-2"})
 			Copy link
 		</button>
+		<button
+			type="button"
+			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+			onclick="logMenu.filterByInstance()"
+		>
+			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
+			Show only logs of this instance
+		</button>
+		<!-- Hidden button for HTMX-boosted instance filtering -->
+		<button
+			id="filter-instance-button"
+			class="hidden"
+			hx-get=""
+			hx-push-url="true"
+			hx-target="#logs-container"
+			hx-select="#logs-container"
+			hx-swap="innerHTML"
+		></button>
 	</div>
 }

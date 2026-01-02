@@ -36,6 +36,7 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 		tempFile := filepath.Join(tempDir, fmt.Sprintf("archive_%s_%s_%d.log", projectID, clientID, fileIndex))
 		fileContent := make([]byte, 0, 1024*1024)
 		logPage, err := a.logsService.GetLogs(ctx, db.LogPageRequest{
+			ProjectId: projectID,
 			ClientId:  clientID,
 			Instances: nil,
 			PageSize:  5000,
@@ -53,7 +54,7 @@ func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir s
 		}
 
 		for _, log := range logPage.Logs {
-			line := fmt.Sprintf("[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.IpAddress, log.LogLine)
+			line := fmt.Sprintf("[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.InstanceId, log.LogLine)
 			fileContent = append(fileContent, []byte(line)...)
 			if result.toDate.Before(log.Timestamp) {
 				result.toDate = log.Timestamp

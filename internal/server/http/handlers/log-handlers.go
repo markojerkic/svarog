@@ -40,13 +40,14 @@ type LogsByClientBinding struct {
 }
 
 func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
+	projectId := c.Param("projectId")
 	clientId := c.Param("clientId")
-	if clientId == "" {
-		return c.JSON(400, "No client id")
+	if projectId == "" || clientId == "" {
+		return c.JSON(400, "No project id or client id")
 	}
-	slog.Debug("Getting instances by client", "clientId", clientId)
+	slog.Debug("Getting instances by client", "projectId", projectId, "clientId", clientId)
 
-	instances, err := self.logService.GetInstances(c.Request().Context(), clientId)
+	instances, err := self.logService.GetInstances(c.Request().Context(), projectId, clientId)
 	if err != nil {
 		return err
 	}
@@ -75,6 +76,7 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 	}
 
 	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
+		ProjectId: params.ProjectId,
 		ClientId:  params.ClientId,
 		Instances: params.Instances,
 		PageSize:  DEFAULT_PAGE_SIZE,
@@ -91,6 +93,11 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 		ClientId:  params.ClientId,
 		ProjectId: params.ProjectId,
 	}
+	if params.Instances != nil && len(*params.Instances) > 0 {
+		instances := (*params.Instances)
+		props.InstanceId = &instances[0]
+	}
+
 	isHx := c.Request().Header.Get("HX-Request") == "true"
 	if isHx && nextCursor != nil {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
@@ -123,7 +130,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	}
 
 	slog.Debug("next", "cursor", nextCursor)
-	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ProjectId, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
 
 	if err != nil {
 		return err

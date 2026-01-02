@@ -1,6 +1,7 @@
 (function () {
   let currentLogId = null;
   let currentLogContent = null;
+  let currentInstanceId = null;
   let menu = null;
 
   function positionMenu(trigger) {
@@ -36,6 +37,7 @@
 
     currentLogId = trigger.getAttribute("data-log-id");
     currentLogContent = trigger.getAttribute("data-log-content");
+    currentInstanceId = trigger.getAttribute("data-instance-id");
 
     menu.style.display = "block";
     menu.classList.remove("hidden");
@@ -84,6 +86,9 @@
     getCurrentLogContent: function () {
       return currentLogContent;
     },
+    getCurrentInstanceId: function () {
+      return currentInstanceId;
+    },
     copyLogContent: function () {
       if (currentLogContent) {
         navigator.clipboard.writeText(currentLogContent);
@@ -97,6 +102,20 @@
         navigator.clipboard.writeText(url.toString());
         hideMenu();
         showToast("Copied log line link to clipboard");
+      }
+    },
+    filterByInstance: function () {
+      if (currentInstanceId) {
+        const filterButton = document.getElementById("filter-instance-button");
+        if (filterButton) {
+          filterButton.setAttribute(
+            "hx-vals",
+            JSON.stringify({ instance: currentInstanceId }),
+          );
+          filterButton.click();
+        }
+
+        hideMenu();
       }
     },
   };

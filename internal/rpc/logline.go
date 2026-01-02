@@ -6,9 +6,10 @@ import (
 )
 
 type LogLine struct {
-	Message   string    `json:"message"`
-	Timestamp time.Time `json:"timestamp"`
-	Sequence  int       `json:"sequence"`
+	Message    string    `json:"message"`
+	Timestamp  time.Time `json:"timestamp"`
+	Sequence   int       `json:"sequence"`
+	InstanceId string    `json:"instanceId"`
 }
 
 func (l *LogLine) Validate() error {

@@ -20,7 +20,7 @@ type StoredLog struct {
 }
 
 type StoredClient struct {
-	ProjectId string `bson:"project_id" json:"projectId"`
-	ClientId  string `bson:"client_id" json:"clientId"`
-	IpAddress string `bson:"ip_address" json:"ipAddress"`
+	ProjectId  string `bson:"project_id" json:"projectId"`
+	ClientId   string `bson:"client_id" json:"clientId"`
+	InstanceId string `bson:"instance_id" json:"instanceId"`
 }

@@ -1,33 +1,67 @@
 package pages
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
+import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/db"
 import "fmt"
+import "github.com/markojerkic/svarog/internal/server/http/htmx"
 
 type LogsPageProps struct {
-	LogPage   db.LogPage
-	ClientId  string
-	ProjectId string
+	LogPage    db.LogPage
+	ClientId   string
+	ProjectId  string
+	InstanceId *string
 }
 
 templ LogsPage(props LogsPageProps) {
 	@AdminLayout(AdminLayoutProps{Title: "Svarog"}) {
 		<script defer src="/assets/js/log-menu.js"></script>
 		<script defer src="/assets/js/log-line-swapping.js" type="module"></script>
-		<div
-			class="flex flex-col-reverse overflow-auto h-full"
-			id="logs-container"
-		>
-			@LogPageLines(props)
+		<div id="logs-container" class="h-full">
+			if props.InstanceId != nil {
+				@InstanceFilter(props)
+			}
+			<div
+				class="flex flex-col-reverse overflow-auto h-full"
+				id="log-scroll-container"
+			>
+				@LogPageLines(props)
+			</div>
 		</div>
 		@logs.SharedLogMenu()
 	}
-	<script>
+	<script type="text/javascript">
+		{
+			`
 		(function scrollToBottom() {
-			const logsContainer = document.getElementById("logs-container");
+			const logsContainer = document.getElementById("log-scroll-container");
 			logsContainer.scrollTop = 0;
 		})();
+		`;
+		}
 	</script>
+}
+
+templ InstanceFilter(props LogsPageProps) {
+	<div class="px-4 -mt-4 flex items-center gap-2">
+		<span class="text-sm text-muted-foreground">Filtered by instance:</span>
+		@badge.Badge(badge.Props{
+			Variant: badge.VariantDefault,
+			Class:   "cursor-pointer gap-1.5",
+			Attributes: templ.Attributes{
+				"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+				"hx-vals":     htmx.HxVals(map[string]string{}),
+				"hx-push-url": "true",
+				"hx-target":   "#logs-container",
+				"hx-select":   "#logs-container",
+				"hx-swap":     "innerHTML",
+			},
+		}) {
+			<span>{ *props.InstanceId }</span>
+			@icon.X(icon.Props{Size: 12})
+		}
+	</div>
 }
 
 templ LogPageLines(props LogsPageProps) {
@@ -36,7 +70,7 @@ templ LogPageLines(props LogsPageProps) {
 	}
 	if props.LogPage.BackwardCursor != nil {
 		<div
-			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.LogPage.BackwardCursor, "backward") }
+			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.InstanceId, props.LogPage.BackwardCursor, "backward") }
 			hx-swap="outerHTML"
 			hx-trigger="intersect once"
 			class="-m-40"
