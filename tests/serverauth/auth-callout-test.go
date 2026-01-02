@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,12 +56,13 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 	// Generate credentials that expire immediately (negative duration for testing)
 	// Note: NATS JWT uses Unix timestamp, so we use a very short duration
 	shortExpiry := time.Millisecond * 100
+	expiryTime := time.Now().Add(shortExpiry)
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
 			ClientID:  "expired-client",
-			Expiry:    time.Now().Add(shortExpiry),
+			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
 	require.NoError(t, err)
@@ -269,12 +271,13 @@ func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 
 	// Generate credentials with 24 hour expiry
 	expiry := 24 * time.Hour
+	expiryTime := time.Now().Add(expiry)
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
 			ClientID:  "long-expiry-client",
-			Expiry:    time.Now().Add(expiry),
+			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
 	require.NoError(t, err)

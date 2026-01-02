@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -112,6 +113,7 @@ func main() {
 		log.Fatal("Failed to create credential service", "error", err)
 	}
 
+	slog.Debug("Starting NATS connection", "addr", env.NatsAddr, "publicAddr", env.NatsPublicAddr)
 	natsConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:        env.NatsAddr,
 		JWT:             env.NatsServerUserJWT,

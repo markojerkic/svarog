@@ -16,6 +16,7 @@ import (
 type NatsCredentialService struct {
 	accountKeyPair   nkeys.KeyPair
 	accountPublicKey string
+	natsPublicAddr   string
 	projectsService  projects.ProjectsService
 }
 
@@ -58,7 +59,7 @@ func (s *NatsCredentialService) GenerateConnString(ctx context.Context, generati
 
 	return config.ClientConfig{
 		Protocol:   "nats",
-		ServerAddr: generationRequest.ProjectID,
+		ServerAddr: s.natsPublicAddr,
 		Topic:      fmt.Sprintf("projects.%s.%s", generationRequest.ProjectID, generationRequest.ClientID),
 		Creds:      creds,
 	}, nil

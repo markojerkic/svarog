@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,13 +34,14 @@ func (s *NatsAuthSuite) TestGenerateCredentials() {
 func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 	t := s.T()
 	expiry := 24 * time.Hour
+	expiryTime := time.Now().Add(expiry)
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: "client-user-123",
 			ClientID:  "topic",
-			Expiry:    time.Now().Add(expiry),
+			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
 	require.NoError(t, err)
