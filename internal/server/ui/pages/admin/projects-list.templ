@@ -107,17 +107,33 @@ templ projectActions(project projects.Project) {
 						Delete project
 					</span>
 				}
-				@dropdown.Item(dropdown.ItemProps{
-					Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
-					Attributes: templ.Attributes{
-						"target":   "_blank",
-						"download": fmt.Sprintf("%s-certificates.zip", project.Name),
-					},
-				}) {
-					<span class="flex items-center">
-						@icon.HardDriveDownload(icon.Props{Size: 16, Class: "mr-2"})
-						Download certificates
-					</span>
+				@dropdown.Group() {
+					@dropdown.Sub() {
+						@dropdown.SubTrigger(dropdown.SubTriggerProps{
+							Class: "inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center",
+						}) {
+							@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
+							Connection string
+						}
+						@dropdown.SubContent() {
+							@dropdown.Item(dropdown.ItemProps{
+								Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
+							}) {
+								<span class="flex items-center">
+									@icon.FileStack(icon.Props{Size: 16, Class: "mr-2"})
+									Project-wide connection string
+								</span>
+							}
+							@dropdown.Item(dropdown.ItemProps{
+								Href: fmt.Sprintf("/admin/projects/%s/certificate", project.ID.Hex()),
+							}) {
+								<span class="flex items-center">
+									@icon.File(icon.Props{Size: 16, Class: "mr-2"})
+									Client-specific connection string
+								</span>
+							}
+						}
+					}
 				}
 			}
 		}

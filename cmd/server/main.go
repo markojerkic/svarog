@@ -105,7 +105,9 @@ func main() {
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
-	_, err = serverauth.NewNatsCredentialService(env.NatsAccountSeed)
+	projectsService := projects.NewProjectsService(projectsCollection, client)
+
+	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, projectsService)
 	if err != nil {
 		log.Fatal("Failed to create credential service", "error", err)
 	}
@@ -133,7 +135,6 @@ func main() {
 
 	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
-	projectsService := projects.NewProjectsService(projectsCollection, client)
 
 	authService.CreateInitialAdminUser(context.Background())
 
@@ -142,13 +143,14 @@ func main() {
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
-			ServerPort:      env.HttpServerPort,
-			SessionStore:    sessionStore,
-			LogService:      logsService,
-			AuthService:     authService,
-			FilesService:    filesService,
-			ProjectsService: projectsService,
-			WatchHub:        watchHub,
+			ServerPort:            env.HttpServerPort,
+			SessionStore:          sessionStore,
+			LogService:            logsService,
+			AuthService:           authService,
+			FilesService:          filesService,
+			ProjectsService:       projectsService,
+			NatsCredentialService: natsCredService,
+			WatchHub:              watchHub,
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())

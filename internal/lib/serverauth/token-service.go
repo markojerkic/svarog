@@ -1,10 +1,12 @@
 package serverauth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -12,9 +14,13 @@ import (
 type NatsCredentialService struct {
 	accountKeyPair   nkeys.KeyPair
 	accountPublicKey string
+	projectsService  projects.ProjectsService
 }
 
-func NewNatsCredentialService(accountSeed string) (*NatsCredentialService, error) {
+func NewNatsCredentialService(accountSeed string, projectsService projects.ProjectsService) (*NatsCredentialService, error) {
+	if projectsService == nil {
+		return nil, errors.New("projectsService is required")
+	}
 	if accountSeed == "" {
 		return nil, errors.New("accountSeed is required")
 	}
@@ -32,10 +38,31 @@ func NewNatsCredentialService(accountSeed string) (*NatsCredentialService, error
 	return &NatsCredentialService{
 		accountKeyPair:   accountKp,
 		accountPublicKey: accountPubKey,
+		projectsService:  projectsService,
 	}, nil
 }
 
-func (s *NatsCredentialService) GenerateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
+type CredentialGenerationRequest struct {
+	ProjectID string `form:"projectId" validate:"required"`
+	ClientID  string `form:"clientId"`
+}
+
+func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generationRequest CredentialGenerationRequest) (string, error) {
+	var clientId string
+	if generationRequest.ClientID == "" {
+		clientId = "*"
+	} else {
+		clientId = generationRequest.ClientID
+	}
+
+	if exists := s.projectsService.ProjectExists(ctx, generationRequest.ProjectID, clientId); !exists {
+		return "", errors.New("project not found")
+	}
+
+	return s.generateUserCreds(generationRequest.ProjectID, []string{clientId}, []string{}, nil)
+}
+
+func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
 	userKp, err := nkeys.CreateUser()
 	if err != nil {
 		return "", fmt.Errorf("failed to create user key pair: %w", err)

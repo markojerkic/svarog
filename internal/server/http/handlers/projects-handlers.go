@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
@@ -15,7 +16,8 @@ import (
 )
 
 type ProjectsRouter struct {
-	projectsService projects.ProjectsService
+	projectsService  projects.ProjectsService
+	natsCredsService serverauth.NatsCredentialService
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
@@ -70,24 +72,6 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 			Clients: project.Clients,
 		},
 	}))
-}
-
-func (p *ProjectsRouter) getProjectByClient(c echo.Context) error {
-	client := c.Param("client")
-	if client == "" {
-		return c.JSON(400, types.ApiError{Message: "Client ID is required", Fields: map[string]string{"id": "Client ID is required"}})
-	}
-	project, err := p.projectsService.GetProjectByClient(c.Request().Context(), client)
-	if err != nil {
-		slog.Error("Error fetching project", "error", err)
-		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
-		} else {
-			return c.JSON(500, types.ApiError{Message: "Error getting project"})
-		}
-	}
-
-	return c.JSON(200, project)
 }
 
 func (p *ProjectsRouter) createProject(c echo.Context) error {
@@ -171,8 +155,29 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
-func NewProjectsRouter(projectsService projects.ProjectsService, e *echo.Group) *ProjectsRouter {
-	router := &ProjectsRouter{projectsService}
+func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
+	var request serverauth.CredentialGenerationRequest
+	if err := c.Bind(&request); err != nil {
+		return c.JSON(400, err)
+	}
+	if err := c.Validate(&request); err != nil {
+		return c.JSON(400, err)
+	}
+	creds, err := p.natsCredsService.GenerateUserCreds(c.Request().Context(), request)
+
+	if err != nil {
+		return c.JSON(500, types.ApiError{Message: "Error generating credentials"})
+	}
+
+	return c.String(200, creds)
+}
+
+func NewProjectsRouter(
+	projectsService projects.ProjectsService,
+	natsCredsService serverauth.NatsCredentialService,
+	e *echo.Group,
+) *ProjectsRouter {
+	router := &ProjectsRouter{projectsService, natsCredsService}
 
 	if router.projectsService == nil {
 		panic("No projectsService")
@@ -182,8 +187,8 @@ func NewProjectsRouter(projectsService projects.ProjectsService, e *echo.Group) 
 	group.GET("", router.getProjects)
 	group.GET("/:id", router.getProject)
 	group.GET("/:id/edit", router.getEditProjectForm)
-	group.GET("/client/:client", router.getProjectByClient)
 	group.POST("", router.createProject)
+	group.POST("/conn-string", router.createProjectConnString)
 	group.DELETE("/:id", router.deleteProject)
 
 	return router

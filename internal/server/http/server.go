@@ -15,6 +15,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -22,26 +23,26 @@ import (
 )
 
 type HttpServer struct {
-	logService      db.LogService
-	sessionStore    sessions.Store
-	authService     auth.AuthService
-	filesService    files.FileService
-	projectsService projects.ProjectsService
-	watchHub        *websocket.WatchHub
+	logService            db.LogService
+	sessionStore          sessions.Store
+	authService           auth.AuthService
+	filesService          files.FileService
+	projectsService       projects.ProjectsService
+	natsCredentialService *serverauth.NatsCredentialService
+	watchHub              *websocket.WatchHub
 
-	allowedOrigins []string
-	serverPort     int
-
-	echo *echo.Echo
+	serverPort int
+	echo       *echo.Echo
 }
 
 type HttpServerOptions struct {
-	LogService      db.LogService
-	SessionStore    sessions.Store
-	AuthService     auth.AuthService
-	FilesService    files.FileService
-	ProjectsService projects.ProjectsService
-	WatchHub        *websocket.WatchHub
+	LogService            db.LogService
+	SessionStore          sessions.Store
+	AuthService           auth.AuthService
+	FilesService          files.FileService
+	ProjectsService       projects.ProjectsService
+	NatsCredentialService *serverauth.NatsCredentialService
+	WatchHub              *websocket.WatchHub
 
 	ServerPort int
 }
@@ -64,7 +65,7 @@ func (self *HttpServer) Start() error {
 	adminApi := e.Group("/admin", sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	handlers.NewHomeHandler(privateApi, self.projectsService)
-	handlers.NewProjectsRouter(self.projectsService, adminApi)
+	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
 	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
 	handlers.NewWsConnectionRouter(self.watchHub, privateApi)
@@ -96,13 +97,14 @@ func (self *HttpServer) Shutdown(ctx context.Context) error {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logService:      options.LogService,
-		sessionStore:    options.SessionStore,
-		serverPort:      options.ServerPort,
-		authService:     options.AuthService,
-		filesService:    options.FilesService,
-		projectsService: options.ProjectsService,
-		watchHub:        options.WatchHub,
+		logService:            options.LogService,
+		sessionStore:          options.SessionStore,
+		serverPort:            options.ServerPort,
+		authService:           options.AuthService,
+		filesService:          options.FilesService,
+		projectsService:       options.ProjectsService,
+		natsCredentialService: options.NatsCredentialService,
+		watchHub:              options.WatchHub,
 	}
 
 	return server
