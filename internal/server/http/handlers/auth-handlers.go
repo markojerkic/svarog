@@ -56,6 +56,10 @@ func (a *AuthRouter) login(c echo.Context) error {
 		))
 	}
 
+	if c.QueryParams().Has("redirect") {
+		return utils.HxRedirect(c, c.QueryParams().Get("redirect"))
+	}
+
 	return utils.HxRedirect(c, "/")
 }
 

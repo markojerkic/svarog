@@ -10,6 +10,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+func IsHXRequest(c echo.Context) bool {
+	return c.Request().Header.Get("HX-Request") == "true"
+}
+
 func Redirect(c echo.Context, url string) error {
 	if c.Request().Header.Get("HX-Request") == "true" {
 		c.Response().Header().Set("HX-Redirect", url)
