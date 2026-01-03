@@ -144,8 +144,23 @@ templ userActions(user auth.User) {
 		@dropdown.Trigger() {
 			@button.Button(button.Props{
 				Variant: button.VariantOutline,
+				Attributes: templ.Attributes{
+					"data-user-actions-id": user.ID.Hex(),
+				},
 			}) {
-				@icon.EllipsisVertical()
+				<span
+					class="svarog-indicator"
+					data-indicator-user-id={ user.ID.Hex() }
+					data-fallback
+				>
+					@icon.EllipsisVertical()
+				</span>
+				<span
+					class="svarog-indicator animate-spin"
+					data-indicator-user-id={ user.ID.Hex() }
+				>
+					@icon.LoaderCircle(icon.Props{Size: 16})
+				</span>
 			}
 		}
 		@dropdown.Content(dropdown.ContentProps{
@@ -185,6 +200,8 @@ templ userActions(user auth.User) {
 						"hx-vals": htmx.HxVals(map[string]string{
 							"userId": user.ID.Hex(),
 						}),
+						"hx-indicator":    fmt.Sprintf(".svarog-indicator[data-indicator-user-id='%s']", user.ID.Hex()),
+						"hx-disabled-elt": fmt.Sprintf("[data-user-actions-id='%s']", user.ID.Hex()),
 					},
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">

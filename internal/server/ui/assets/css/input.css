@@ -115,4 +115,17 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  .svarog-indicator:not([data-fallback]) {
+    display: none;
+  }
+  .htmx-request .svarog-indicator:not([data-fallback]),
+  .htmx-request.svarog-indicator:not([data-fallback]) {
+    display: inline;
+  }
+
+  .htmx-request .svarog-indicator[data-fallback],
+  .htmx-request.svarog-indicator[data-fallback] {
+    display: none;
+  }
 }
