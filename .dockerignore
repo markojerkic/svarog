@@ -3,28 +3,13 @@ build
 **/*_templ.txt
 **/tmp/
 .zed
-.env
+public
+.idea/
+deploy
+node_modules/
+**/assets/css/output.css
+.task
 
-dist
-.solid
-.output
-.vercel
-.netlify
-.vinxi
-
-# dependencies
-/node_modules
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-*.launch
-.settings/
-
-# Temp
-gitignore
-
-# System Files
-.DS_Store
-Thumbs.db
+# Playwright
+test-results/
+tests/**/*.spec.js

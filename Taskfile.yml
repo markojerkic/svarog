@@ -44,8 +44,23 @@ tasks:
       - find /tmp -maxdepth 1 -name "go-build*" -exec rm -rf {} +
       - echo "Cleaned /tmp/go-build* directories"
 
-  default:
-    desc: Print a greeting message
+  docker:client:
+    desc: Build the client Docker image
     cmds:
-      - echo "{{.TAILWIND_CMD}}"
+      - docker build --progress=plain -t svarog-client:{{.SVAROG_VERSION | default "latest"}} -f cmd/client/Dockerfile .
+
+  docker:server:
+    desc: Build the server Docker image
+    cmds:
+      - docker build --progress=plain -t svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
+
+  docker:build:
+    desc: Build both Docker images in parallel
+    cmds:
+      - task --parallel --output=prefixed docker:client docker:server
+
+  default:
+    desc: Build the Docker images
+    cmds:
+      - task docker:build
     silent: true
