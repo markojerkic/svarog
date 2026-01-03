@@ -12,7 +12,7 @@ type LoginForm struct {
 }
 
 type LoginFormWithToken struct {
-	Token string `json:"token" form:"token" validate:"required,gte=5"`
+	Token string `json:"token" form:"token" query:"token" validate:"required,gte=5"`
 }
 
 type RegisterForm struct {

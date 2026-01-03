@@ -68,10 +68,12 @@ func (a *AuthRouter) loginWithToken(c echo.Context) error {
 
 	err := a.authService.LoginWithToken(c, loginForm.Token)
 	if err != nil {
-		return c.JSON(401, types.ApiError{Message: "Invalid credentials"})
+		htmx.AddErrorToast(c, "Token is invalid")
+		return htmx.Redirect(c, "/login")
 	}
 
-	return c.JSON(200, "Logged in")
+	htmx.AddSuccessToast(c, "Logged in")
+	return htmx.Redirect(c, "/reset-password")
 }
 
 func (a *AuthRouter) loginPage(c echo.Context) error {
@@ -318,9 +320,13 @@ func NewAuthRouter(authService auth.AuthService,
 	privateGroup.GET("/reset-password", router.resetPasswordPage)
 	privateGroup.POST("/reset-password", router.resetPassword)
 
-	publicGroup.GET("/login", router.loginPage)
+	publicGroup.GET("/login", func(c echo.Context) error {
+		if c.QueryParams().Has("token") {
+			return router.loginWithToken(c)
+		}
+		return router.loginPage(c)
+	})
 	publicGroup.POST("/login", router.login)
-	publicGroup.POST("/auth/login/token", router.loginWithToken)
 
 	return router
 }

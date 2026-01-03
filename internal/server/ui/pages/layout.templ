@@ -97,13 +97,13 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 				@sidebar.Content() {
-					@sidebar.MenuItem() {
-						@sidebar.Group() {
-							@sidebar.GroupLabel() {
-								Admin
-							}
-							@sidebar.Menu() {
-								if auth.IsAdmin(ctx) {
+					if auth.IsAdmin(ctx) {
+						@sidebar.MenuItem() {
+							@sidebar.Group() {
+								@sidebar.GroupLabel() {
+									Admin
+								}
+								@sidebar.Menu() {
 									@sidebar.MenuButton(sidebar.MenuButtonProps{
 										Href:     "/admin/dashboard",
 										Tooltip:  "Dashboard",
@@ -112,40 +112,40 @@ templ AdminLayout(props AdminLayoutProps) {
 										@icon.Gauge(icon.Props{Class: "size-4"})
 										<span>Dashboard</span>
 									}
-								}
-								@sidebar.MenuItem() {
-									@sidebar.MenuButton(sidebar.MenuButtonProps{
-										Href:     "/admin/projects",
-										Tooltip:  "Projects",
-										IsActive: props.CurrentPath == "/admin/projects",
-									}) {
-										@icon.FolderKanban(icon.Props{Class: "size-4"})
-										<span>Projects</span>
+									@sidebar.MenuItem() {
+										@sidebar.MenuButton(sidebar.MenuButtonProps{
+											Href:     "/admin/projects",
+											Tooltip:  "Projects",
+											IsActive: props.CurrentPath == "/admin/projects",
+										}) {
+											@icon.FolderKanban(icon.Props{Class: "size-4"})
+											<span>Projects</span>
+										}
 									}
-								}
-								@sidebar.MenuItem() {
-									@sidebar.MenuButton(sidebar.MenuButtonProps{
-										Href:     "/admin/users",
-										Tooltip:  "Users",
-										IsActive: props.CurrentPath == "/admin/users",
-									}) {
-										@icon.Users(icon.Props{Class: "size-4"})
-										<span>Users</span>
+									@sidebar.MenuItem() {
+										@sidebar.MenuButton(sidebar.MenuButtonProps{
+											Href:     "/admin/users",
+											Tooltip:  "Users",
+											IsActive: props.CurrentPath == "/admin/users",
+										}) {
+											@icon.Users(icon.Props{Class: "size-4"})
+											<span>Users</span>
+										}
 									}
 								}
 							}
 						}
 					}
-				}
-				@sidebar.Footer() {
-					@sidebar.Menu() {
-						@sidebar.MenuItem() {
-							@sidebar.MenuButton(sidebar.MenuButtonProps{
-								Href:    "/logout",
-								Tooltip: "Settings",
-							}) {
-								@icon.UserMinus(icon.Props{Class: "size-4"})
-								<span>Logout</span>
+					@sidebar.Footer() {
+						@sidebar.Menu() {
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:    "/logout",
+									Tooltip: "Settings",
+								}) {
+									@icon.UserMinus(icon.Props{Class: "size-4"})
+									<span>Logout</span>
+								}
 							}
 						}
 					}
