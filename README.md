@@ -10,6 +10,7 @@ make watch
 ```
 
 In a separate terminal:
+
 ```bash
 cd web && bun run dev
 ```
@@ -30,7 +31,7 @@ CMD ["sh", "-c", "sh echo.sh | /svarog/client"] # and set the environment variab
 ```
 
 ```yaml docker-compose.yml
-version: '3'
+version: "3"
 services:
   svarog-echo-example:
     image: svarog-echo-example:latest
@@ -48,7 +49,7 @@ services:
 # Server usage
 
 ```yaml docker-compose.yml
-version: '3'
+version: "3"
 services:
   svarog:
     image: svarog:latest
@@ -57,10 +58,10 @@ services:
       - 1323:1323
       - 50051:50051
     environment:
-    - MONGO_URL=mongodb://user:pass@svarog-mongodb:27017/
-    - GPRC_PORT=50051
-    - HTTP_SERVER_PORT=1323
-    - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:3000
+      - MONGO_URL=mongodb://user:pass@svarog-mongodb:27017/
+      - GPRC_PORT=50051
+      - HTTP_SERVER_PORT=1323
+      - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:3000
     depends_on:
       - svarog-mongodb
   svarog-mongodb:

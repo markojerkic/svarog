@@ -20,9 +20,11 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 	if len(props) > 0 {
 		{{ p = props[0] }}
 	}
-	{{ if p.FormID == "" {
-	p.FormID = "new-project-form"
-} }}
+	{{
+		if p.FormID == "" {
+			p.FormID = "new-project-form"
+		}
+	}}
 	<form
 		class="space-y-4"
 		id={ p.FormID }

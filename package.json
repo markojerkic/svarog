@@ -1,9 +1,12 @@
 {
+  "name": "svarog",
+  "private": true,
   "scripts": {
     "tw": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch",
     "tw:build": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css",
     "playwright:setup": "playwright install chromium",
-    "test": "playwright test ./tests"
+    "test": "playwright test ./tests",
+    "prepare": "husky"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.18",
@@ -11,11 +14,17 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.21.0"
   },
-  "name": "svarog",
-  "private": true,
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{js,css,json,md}": "oxfmt",
+    "*.go": "gofmt -w",
+    "*.templ": "templ fmt"
   }
 }
