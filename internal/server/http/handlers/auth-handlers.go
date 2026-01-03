@@ -1,14 +1,17 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"log/slog"
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
+	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -161,13 +164,131 @@ func (a *AuthRouter) getUsersPage(c echo.Context) error {
 	if err := c.Bind(&query); err != nil {
 		return c.JSON(400, err)
 	}
-	users, err := a.authService.GetUserPage(c.Request().Context(), query)
+
+	// Set defaults
+	if query.Size == 0 {
+		query.Size = 10
+	}
+
+	users, totalCount, err := a.authService.GetUserPage(c.Request().Context(), query)
 	if err != nil {
+		slog.Error("Error fetching users", "error", err)
 		return err
 	}
 	return utils.Render(c, http.StatusOK, admin.UsersListPage(admin.UsersListPageProps{
-		Users: users,
+		Users:      users,
+		Page:       query.Page,
+		Size:       query.Size,
+		TotalCount: totalCount,
 	}))
+}
+
+func (a *AuthRouter) getEditUserForm(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return c.JSON(400, types.ApiError{Message: "User ID is required"})
+	}
+
+	user, err := a.authService.GetUserByID(c.Request().Context(), id)
+	if err != nil {
+		slog.Error("Error fetching user", "error", err)
+		if err.Error() == auth.ErrUserNotFound {
+			return c.JSON(404, types.ApiError{Message: "User not found"})
+		}
+		return c.JSON(500, types.ApiError{Message: "Error getting user"})
+	}
+
+	return utils.Render(c, http.StatusOK, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
+		FormID: "edit-user-form",
+		Value: types.CreateUserForm{
+			ID:        user.ID.Hex(),
+			Username:  user.Username,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			Role:      string(user.Role),
+		},
+	}))
+}
+
+func (a *AuthRouter) createOrUpdateUser(c echo.Context) error {
+	var createUserForm types.CreateUserForm
+	if err := c.Bind(&createUserForm); err != nil {
+		return c.JSON(400, err)
+	}
+	if err := c.Validate(&createUserForm); err != nil {
+		if apiErr, ok := err.(types.ApiError); ok {
+			htmx.Reswap(c, htmx.ReswapProps{
+				Swap:   "outerHTML",
+				Target: "this",
+				Select: "form",
+			})
+			return utils.Render(c, http.StatusBadRequest, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
+				ApiError: apiErr,
+				Value:    createUserForm,
+			}))
+		}
+
+		return err
+	}
+
+	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
+	if err != nil {
+		htmx.Reswap(c, htmx.ReswapProps{
+			Swap:   "outerHTML",
+			Target: "this",
+			Select: "form",
+		})
+		if err.Error() == auth.UserAlreadyExists {
+			return utils.Render(c, http.StatusConflict, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
+				ApiError: types.ApiError{
+					Message: "User already exists",
+					Fields:  map[string]string{"username": "User with this username already exists"}},
+				Value: createUserForm,
+			}))
+		}
+
+		slog.Error("Error creating/updating user", "error", err)
+		return utils.Render(c, http.StatusInternalServerError, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
+			ApiError: types.ApiError{
+				Message: "Error creating/updating user",
+			},
+			Value: createUserForm,
+		}))
+	}
+
+	htmx.CloseDialog(c)
+	if createUserForm.ID != "" {
+		htmx.AddSuccessToast(c, "User updated")
+		htmx.Reswap(c, htmx.ReswapProps{
+			Swap:   "outerHTML",
+			Target: fmt.Sprintf("[data-user-id='%s']", createUserForm.ID),
+			Select: "tr",
+		})
+	} else {
+		htmx.AddSuccessToast(c, "User created")
+	}
+
+	return utils.Render(c, http.StatusOK, admin.UsersTableBody(admin.UsersListPageProps{
+		Users: []auth.User{user},
+	}))
+}
+
+func (a *AuthRouter) deleteUser(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return c.JSON(400, types.ApiError{Message: "User ID is required", Fields: map[string]string{"id": "User ID is required"}})
+	}
+	err := a.authService.DeleteUser(c, id)
+	if err != nil {
+		slog.Error("Error deleting user", "error", err)
+		if err.Error() == auth.ErrUserNotFound {
+			return c.JSON(404, types.ApiError{Message: "User not found"})
+		}
+		return c.JSON(500, types.ApiError{Message: "Error deleting user"})
+	}
+
+	htmx.AddSuccessToast(c, "User deleted")
+	return c.HTML(200, "")
 }
 
 func NewAuthRouter(authService auth.AuthService, adminGroup *echo.Group, publicGroup *echo.Group) *AuthRouter {
@@ -179,6 +300,9 @@ func NewAuthRouter(authService auth.AuthService, adminGroup *echo.Group, publicG
 
 	adminGroup.GET("/current-user", router.getCurrentUser)
 	adminGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.GET("/users/:id/edit", router.getEditUserForm, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.POST("/users", router.createOrUpdateUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.DELETE("/users/:id", router.deleteUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
 	adminGroup.GET("/logout", router.logout)
 	adminGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 

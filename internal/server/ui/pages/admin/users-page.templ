@@ -5,18 +5,23 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/table"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
 import "fmt"
 import "github.com/markojerkic/svarog/internal/lib/auth"
+import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 
 type UsersListPageProps struct {
-	Users []auth.User
+	Users      []auth.User
+	Page       int64
+	Size       int64
+	TotalCount int64
 }
 
 templ UsersListPage(props UsersListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users"}) {
-		<div class="grid grid-cols-1 p-4">
+		<div class="grid grid-cols-1 p-4 space-y-4">
 			<span class="flex justify-end">
-				<button>Novi korisnik</button>
+				@usercomponents.NewUser()
 			</span>
 			@table.Table() {
 				@table.Caption() {
@@ -25,12 +30,81 @@ templ UsersListPage(props UsersListPageProps) {
 				@UsersTableBody(props)
 				@table.Header() {
 					@table.Head() {
+						Username
+					}
+					@table.Head() {
 						Name
 					}
 					@table.Head() {
 						Role
 					}
 					@table.Head() {
+					}
+				}
+			}
+			{{
+				totalPages := int((props.TotalCount + props.Size - 1) / props.Size)
+				currentPage := int(props.Page + 1)
+				p := pagination.CreatePagination(currentPage, totalPages, 5)
+			}}
+			if totalPages > 1 {
+				@pagination.Pagination() {
+					@pagination.Content() {
+						@pagination.Item() {
+							@pagination.Previous(pagination.PreviousProps{
+								Disabled: !p.HasPrevious,
+								Label:    "Previous",
+								Href:     fmt.Sprintf("/admin/users?page=%d", props.Page-1),
+							})
+						}
+						// First page with ellipsis if needed
+						if p.Pages[0] > 1 {
+							@pagination.Item() {
+								@pagination.Link(pagination.LinkProps{
+									Href: "/admin/users?page=0",
+								}) {
+									1
+								}
+							}
+							if p.Pages[0] > 2 {
+								@pagination.Item() {
+									@pagination.Ellipsis()
+								}
+							}
+						}
+						// Visible pages
+						for _, page := range p.Pages {
+							@pagination.Item() {
+								@pagination.Link(pagination.LinkProps{
+									IsActive: page == p.CurrentPage,
+									Href:     fmt.Sprintf("/admin/users?page=%d", page-1),
+								}) {
+									{ fmt.Sprint(page) }
+								}
+							}
+						}
+						// Last page with ellipsis if needed
+						if p.Pages[len(p.Pages)-1] < p.TotalPages {
+							if p.Pages[len(p.Pages)-1] < p.TotalPages-1 {
+								@pagination.Item() {
+									@pagination.Ellipsis()
+								}
+							}
+							@pagination.Item() {
+								@pagination.Link(pagination.LinkProps{
+									Href: fmt.Sprintf("/admin/users?page=%d", p.TotalPages-1),
+								}) {
+									{ fmt.Sprint(p.TotalPages) }
+								}
+							}
+						}
+						@pagination.Item() {
+							@pagination.Next(pagination.NextProps{
+								Disabled: !p.HasNext,
+								Label:    "Next",
+								Href:     fmt.Sprintf("/admin/users?page=%d", props.Page+1),
+							})
+						}
 					}
 				}
 			}
@@ -47,6 +121,9 @@ templ UsersTableBody(props UsersListPageProps) {
 				Attributes: templ.Attributes{"data-user-id": user.ID.Hex()},
 			}) {
 				@table.Cell() {
+					{ user.Username }
+				}
+				@table.Cell() {
 					{ 	user.FirstName + " " + user.LastName }
 				}
 				@table.Cell() {
@@ -58,8 +135,7 @@ templ UsersTableBody(props UsersListPageProps) {
 			}
 		}
 	}
-	// @projectcomponents.EditProjectDialog()
-	// @projectcomponents.ConnectionStringDialog()
+	@usercomponents.EditUserDialog()
 }
 
 templ userActions(user auth.User) {

@@ -29,7 +29,8 @@ type AuthService interface {
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
-	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error)
+	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error)
+	CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error)
 }
 
 type MongoAuthService struct {
@@ -274,15 +275,23 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 }
 
 // GetUserPage implements AuthService.
-func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error) {
+func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
 	var users []User
 
 	limit := query.Size
 	skip := query.Page * query.Size
 
-	cursor, err := self.userCollection.Find(ctx, bson.M{
-		"username": bson.M{"$regex": query.Username},
-	}, &options.FindOptions{
+	filter := bson.M{}
+	if query.Username != "" {
+		filter["username"] = bson.M{"$regex": query.Username}
+	}
+
+	totalCount, err := self.userCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return users, 0, err
+	}
+
+	cursor, err := self.userCollection.Find(ctx, filter, &options.FindOptions{
 		Limit: &limit,
 		Skip:  &skip,
 		Projection: bson.M{
@@ -290,15 +299,93 @@ func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUs
 		},
 	})
 	if err != nil {
-		return users, err
+		return users, 0, err
 	}
 
 	err = cursor.All(ctx, &users)
 	if err != nil {
-		return users, err
+		return users, 0, err
 	}
 
-	return users, nil
+	return users, totalCount, nil
+}
+
+// CreateOrUpdateUser implements AuthService.
+func (self *MongoAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
+	var user User
+
+	if form.ID != "" {
+		// Update existing user
+		userID, err := primitive.ObjectIDFromHex(form.ID)
+		if err != nil {
+			return user, err
+		}
+
+		existingUser, err := self.GetUserByID(ctx, form.ID)
+		if err != nil {
+			return user, errors.New(ErrUserNotFound)
+		}
+
+		// Check if username is being changed and if it already exists
+		if existingUser.Username != form.Username {
+			existingUserResult := self.userCollection.FindOne(ctx, bson.M{
+				"username": form.Username,
+			})
+			if existingUserResult.Err() == nil {
+				return user, errors.New(UserAlreadyExists)
+			}
+		}
+
+		_, err = self.userCollection.UpdateByID(ctx, userID, bson.M{
+			"$set": bson.M{
+				"username":  form.Username,
+				"firstName": form.FirstName,
+				"lastName":  form.LastName,
+				"role":      form.Role,
+			},
+		})
+		if err != nil {
+			return user, err
+		}
+
+		user, err = self.GetUserByID(ctx, form.ID)
+		return user, err
+	}
+
+	// Create new user
+	existingUserResult := self.userCollection.FindOne(ctx, bson.M{
+		"username": form.Username,
+	})
+	if existingUserResult.Err() == nil {
+		return user, errors.New(UserAlreadyExists)
+	}
+
+	hashedPassword, err := hashPassword(generateRandomPassword())
+	if err != nil {
+		return user, err
+	}
+
+	loginToken := generateLoginToken()
+	result, err := self.userCollection.InsertOne(ctx, User{
+		Username:           form.Username,
+		FirstName:          form.FirstName,
+		LastName:           form.LastName,
+		Password:           hashedPassword,
+		Role:               Role(form.Role),
+		LoginTokens:        []string{loginToken},
+		NeedsPasswordReset: true,
+	})
+	if err != nil {
+		return user, err
+	}
+
+	insertedID, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return user, errors.New("Failed to get user ID")
+	}
+
+	user, err = self.GetUserByID(ctx, insertedID.Hex())
+	return user, err
 }
 
 func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {

@@ -1,0 +1,187 @@
+package usercomponents
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/form"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+import "github.com/markojerkic/svarog/internal/server/types"
+import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/lib/auth"
+
+type NewUserFormProps struct {
+	FormID   string
+	ApiError types.ApiError
+	Value    types.CreateUserForm
+}
+
+templ NewUserForm(props ...NewUserFormProps) {
+	{{ var p NewUserFormProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{
+		if p.FormID == "" {
+			p.FormID = "new-user-form"
+		}
+	}}
+	<form
+		class="space-y-4"
+		id={ p.FormID }
+		hx-post="/admin/users"
+		hx-swap="beforeend"
+		hx-select="tr"
+		hx-target="#users-list-table-body"
+		hx-disabled-elt="input, button, #new-user-dialog &> button[type=submit]"
+	>
+		<input type="hidden" name="id" value={ p.Value.ID }/>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "username"}) {
+					Username
+				}
+				@input.Input(input.Props{
+					Name:        "username",
+					Placeholder: "Enter username",
+					Value:       p.Value.Username,
+					HasError:    p.ApiError.Fields["username"] != "",
+					Attributes:  templ.Attributes{"required": ""},
+				})
+				if p.ApiError.Fields["username"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["username"] }
+					}
+				}
+			}
+		</div>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "firstName"}) {
+					First Name
+				}
+				@input.Input(input.Props{
+					Name:        "firstName",
+					Placeholder: "Enter first name",
+					Value:       p.Value.FirstName,
+					HasError:    p.ApiError.Fields["firstName"] != "",
+					Attributes:  templ.Attributes{"required": ""},
+				})
+				if p.ApiError.Fields["firstName"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["firstName"] }
+					}
+				}
+			}
+		</div>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "lastName"}) {
+					Last Name
+				}
+				@input.Input(input.Props{
+					Name:        "lastName",
+					Placeholder: "Enter last name",
+					Value:       p.Value.LastName,
+					HasError:    p.ApiError.Fields["lastName"] != "",
+					Attributes:  templ.Attributes{"required": ""},
+				})
+				if p.ApiError.Fields["lastName"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["lastName"] }
+					}
+				}
+			}
+		</div>
+		<div class="space-y-2">
+			@form.Item(form.ItemProps{
+				Class: "space-y-2",
+			}) {
+				@form.Label(form.LabelProps{For: "role"}) {
+					Role
+				}
+				@selectbox.SelectBox(selectbox.Props{}) {
+					@selectbox.Trigger(selectbox.TriggerProps{
+						Name:     "role",
+						HasError: p.ApiError.Fields["role"] != "",
+					}) {
+						@selectbox.Value(selectbox.ValueProps{
+							Placeholder: "Select role",
+						})
+					}
+					@selectbox.Content() {
+						@selectbox.Item(selectbox.ItemProps{
+							Value: string(auth.USER),
+						}) {
+							User
+						}
+						@selectbox.Item(selectbox.ItemProps{
+							Value: string(auth.ADMIN),
+						}) {
+							Admin
+						}
+					}
+				}
+				if p.ApiError.Fields["role"] != "" {
+					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+						{ p.ApiError.Fields["role"] }
+					}
+				}
+			}
+		</div>
+		@erroralert.ErrorAlert(erroralert.Props{Message: p.ApiError.Message})
+	</form>
+}
+
+templ NewUser() {
+	@dialog.Dialog(dialog.Props{
+		ID: "new-user-dialog",
+	}) {
+		@dialog.Trigger() {
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+			}) {
+				<span class="flex items-center">
+					@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
+					Create a new user
+				</span>
+			}
+		}
+		@dialog.Content(dialog.ContentProps{
+			Class: "max-w-md",
+		}) {
+			@dialog.Header() {
+				@dialog.Title() {
+					Create a new user
+				}
+				@dialog.Description() {
+					Enter the details for the new user
+				}
+			}
+			@NewUserForm()
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+					}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Type: button.TypeSubmit,
+					Attributes: templ.Attributes{
+						"form": "new-user-form",
+					},
+				}) {
+					Save
+				}
+			}
+		}
+	}
+}
