@@ -117,12 +117,14 @@ templ NewUserForm(props ...NewUserFormProps) {
 					}
 					@selectbox.Content() {
 						@selectbox.Item(selectbox.ItemProps{
-							Value: string(auth.USER),
+							Value:    string(auth.USER),
+							Selected: p.Value.Role == string(auth.USER),
 						}) {
 							User
 						}
 						@selectbox.Item(selectbox.ItemProps{
-							Value: string(auth.ADMIN),
+							Value:    string(auth.ADMIN),
+							Selected: p.Value.Role == string(auth.ADMIN),
 						}) {
 							Admin
 						}

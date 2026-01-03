@@ -165,7 +165,6 @@ func (a *AuthRouter) getUsersPage(c echo.Context) error {
 		return c.JSON(400, err)
 	}
 
-	// Set defaults
 	if query.Size == 0 {
 		query.Size = 10
 	}
@@ -291,23 +290,25 @@ func (a *AuthRouter) deleteUser(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
-func NewAuthRouter(authService auth.AuthService, adminGroup *echo.Group, publicGroup *echo.Group) *AuthRouter {
+func NewAuthRouter(authService auth.AuthService,
+	adminGroup *echo.Group,
+	privateGroup *echo.Group,
+	publicGroup *echo.Group) *AuthRouter {
 	router := &AuthRouter{authService}
 
 	if router.authService == nil {
 		panic("No authService")
 	}
 
-	adminGroup.GET("/current-user", router.getCurrentUser)
 	adminGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
 	adminGroup.GET("/users/:id/edit", router.getEditUserForm, middleware.RequiresRoleMiddleware(auth.ADMIN))
 	adminGroup.POST("/users", router.createOrUpdateUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
 	adminGroup.DELETE("/users/:id", router.deleteUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	adminGroup.GET("/logout", router.logout)
 	adminGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
-	adminGroup.GET("/reset-password", router.resetPasswordPage)
-	adminGroup.POST("/reset-password", router.resetPassword)
+	privateGroup.GET("/logout", router.logout)
+	privateGroup.GET("/reset-password", router.resetPasswordPage)
+	privateGroup.POST("/reset-password", router.resetPassword)
 
 	publicGroup.GET("/login", router.loginPage)
 	publicGroup.POST("/login", router.login)

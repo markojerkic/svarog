@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"log/slog"
 
@@ -232,7 +233,7 @@ func (m *MongoAuthService) LoginWithToken(ctx echo.Context, token string) error 
 }
 
 func (m *MongoAuthService) DeleteUser(ctx echo.Context, id string) error {
-	_, err := util.StartTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (interface{}, error) {
+	_, err := util.StartTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (any, error) {
 		user, err := m.GetUserByID(c, id)
 		if err != nil {
 			return struct{}{}, err
@@ -419,6 +420,20 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 	return err
 }
 
+func (a *MongoAuthService) createIndexes() {
+	_, err := a.userCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "username", Value: 1},
+			},
+			Options: options.Index().SetUnique(true),
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Error creating indexes: %v", err))
+	}
+}
+
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
@@ -446,10 +461,12 @@ func generateLoginToken() string {
 var _ AuthService = &MongoAuthService{}
 
 func NewMongoAuthService(userCollection *mongo.Collection, sessionCollection *mongo.Collection, client *mongo.Client, sessionStore sessions.Store) *MongoAuthService {
-	return &MongoAuthService{
+	service := &MongoAuthService{
 		userCollection:    userCollection,
 		sessionCollection: sessionCollection,
 		mongoClient:       client,
 		sessionStore:      sessionStore,
 	}
+	service.createIndexes()
+	return service
 }
