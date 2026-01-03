@@ -46,6 +46,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 				@input.Input(input.Props{
 					Name:        "username",
 					Placeholder: "Enter username",
+					Disabled:    p.Value.ID != "",
 					Value:       p.Value.Username,
 					HasError:    p.ApiError.Fields["username"] != "",
 					Attributes:  templ.Attributes{"required": ""},
@@ -106,7 +107,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 				@form.Label(form.LabelProps{For: "role"}) {
 					Role
 				}
-				@selectbox.SelectBox(selectbox.Props{}) {
+				@selectbox.SelectBox() {
 					@selectbox.Trigger(selectbox.TriggerProps{
 						Name:     "role",
 						HasError: p.ApiError.Fields["role"] != "",
@@ -115,7 +116,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 							Placeholder: "Select role",
 						})
 					}
-					@selectbox.Content() {
+					@selectbox.Content(selectbox.ContentProps{NoSearch: true}) {
 						@selectbox.Item(selectbox.ItemProps{
 							Value:    string(auth.USER),
 							Selected: p.Value.Role == string(auth.USER),

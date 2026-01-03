@@ -16,7 +16,6 @@ type ProjectsListPageProps struct {
 
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
-		<script defer src="/assets/js/copy-conn-string.js"></script>
 		<div class="grid grid-cols-1 p-4">
 			<span class="flex justify-end">
 				@projectcomponents.NewProject()

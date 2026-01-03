@@ -26,6 +26,7 @@ type AuthService interface {
 	Register(ctx echo.Context, form types.RegisterForm) (string, error)
 	Logout(ctx echo.Context) error
 	ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error
+	GenerateLoginToken(ctx context.Context, userId string) (string, error)
 	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
@@ -48,6 +49,46 @@ const (
 	LoginTokenNotValid  = "Login token not valid"
 	PasswordsDoNotMatch = "Passwords do not match"
 ) // Error codes
+
+// GenerateLoginToken implements [AuthService].
+func (self *MongoAuthService) GenerateLoginToken(ctx context.Context, userId string) (string, error) {
+	res, err := util.StartTransaction(ctx, func(c mongo.SessionContext) (any, error) {
+		user, err := self.GetUserByID(c, userId)
+		if err != nil {
+			return struct{}{}, err
+		}
+		loginToken := generateLoginToken()
+		regeneratedPassword, err := hashPassword(generateRandomPassword())
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		_, err = self.userCollection.UpdateByID(c, user.ID, bson.M{
+			"$set": bson.M{
+				"password":             regeneratedPassword,
+				"needs_password_reset": true,
+				"login_tokens":         []string{loginToken},
+			},
+		})
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		return struct {
+			LoginToken string `json:"loginToken"`
+		}{
+			LoginToken: loginToken,
+		}, nil
+	}, self.mongoClient)
+
+	if err != nil {
+		return "", err
+	}
+
+	return res.(struct {
+		LoginToken string `json:"loginToken"`
+	}).LoginToken, nil
+}
 
 // ResetPassword implements AuthService.
 func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error {

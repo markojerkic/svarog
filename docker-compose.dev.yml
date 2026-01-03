@@ -4,11 +4,28 @@ services:
     container_name: svarog-mongodb
     ports:
       - 27017:27017
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     environment:
       - MONGODB_INITDB_ROOT_USERNAME=user
       - MONGODB_INITDB_ROOT_PASSWORD=pass
     volumes:
       - dbdata:/data/db
+    healthcheck:
+      test: |
+        mongosh --eval "
+        try {
+          rs.status();
+        } catch(err) {
+          rs.initiate({
+            _id: 'rs0',
+            members: [{_id: 0, host: 'localhost:27017'}]
+          });
+        }
+        " --quiet
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
   nats:
     image: nats:latest
     container_name: svarog-nats

@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
-	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
@@ -19,15 +18,6 @@ import (
 
 type AuthRouter struct {
 	authService auth.AuthService
-}
-
-func (a *AuthRouter) getCurrentUser(c echo.Context) error {
-	user, err := a.authService.GetCurrentUser(c)
-	if err != nil {
-		return c.JSON(401, types.ApiError{Message: "Not logged in"})
-	}
-
-	return c.JSON(200, user)
 }
 
 func (a *AuthRouter) login(c echo.Context) error {
@@ -290,6 +280,23 @@ func (a *AuthRouter) deleteUser(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
+func (a *AuthRouter) generateLoginToken(c echo.Context) error {
+	userId := c.FormValue("userId")
+	if userId == "" {
+		return c.JSON(400, types.ApiError{Message: "User ID is required"})
+	}
+
+	loginToken, err := a.authService.GenerateLoginToken(c.Request().Context(), userId)
+	if err != nil {
+		slog.Error("Error generating login token", "error", err)
+		return err
+	}
+
+	htmx.AddSuccessToast(c, "Login token generated")
+	c.Response().Header().Set("HX-Trigger-After-Swap", fmt.Sprintf(`{"copyToClipboard":"%s"}`, loginToken))
+	return c.String(200, loginToken)
+}
+
 func NewAuthRouter(authService auth.AuthService,
 	adminGroup *echo.Group,
 	privateGroup *echo.Group,
@@ -300,11 +307,12 @@ func NewAuthRouter(authService auth.AuthService,
 		panic("No authService")
 	}
 
-	adminGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	adminGroup.GET("/users/:id/edit", router.getEditUserForm, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	adminGroup.POST("/users", router.createOrUpdateUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	adminGroup.DELETE("/users/:id", router.deleteUser, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	adminGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.GET("/users", router.getUsersPage)
+	adminGroup.GET("/users/:id/edit", router.getEditUserForm)
+	adminGroup.POST("/users", router.createOrUpdateUser)
+	adminGroup.DELETE("/users/:id", router.deleteUser)
+	adminGroup.POST("/register", router.register)
+	adminGroup.POST("/users/generate-login-token", router.generateLoginToken)
 
 	privateGroup.GET("/logout", router.logout)
 	privateGroup.GET("/reset-password", router.resetPasswordPage)

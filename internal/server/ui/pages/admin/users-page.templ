@@ -8,6 +8,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
 import "fmt"
 import "github.com/markojerkic/svarog/internal/lib/auth"
+import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 
 type UsersListPageProps struct {
@@ -179,10 +180,11 @@ templ userActions(user auth.User) {
 				}
 				@dropdown.Item(dropdown.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-get":    "/admin/users/" + user.ID.Hex() + "/connection-string-form",
-						"hx-target": "#connection-string-form-container",
-						"hx-swap":   "innerHTML",
-						"onclick":   "window.tui.dialog.open('connection-string-dialog')",
+						"hx-post": "/admin/users/generate-login-token",
+						"hx-swap": "none",
+						"hx-vals": htmx.HxVals(map[string]string{
+							"userId": user.ID.Hex(),
+						}),
 					},
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
