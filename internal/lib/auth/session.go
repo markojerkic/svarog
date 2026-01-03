@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	"log/slog"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log/slog"
 )
 
 type MongoSessionStore struct {
@@ -85,12 +85,20 @@ func (self *MongoSessionStore) Get(r *http.Request, name string) (*sessions.Sess
 // New implements sessions.Store.
 func (self *MongoSessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
 	newSession := sessions.NewSession(self, name)
+
+	var domain string
+	if r.Header.Get("X-Forwarded-Host") != "" {
+		domain = r.Header.Get("X-Forwarded-Host")
+	} else {
+		domain = r.Host
+	}
+
 	newSession.Options = &sessions.Options{
 		Path: "/",
 		// 24 hours
 		MaxAge:   24 * 60 * 60,
-		Domain:   r.URL.Host,
-		Secure:   r.URL.Scheme == "https",
+		Domain:   domain,
+		Secure:   r.Header.Get("X-Forwarded-Proto") == "https" || r.URL.Scheme == "https",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	}

@@ -302,10 +302,14 @@ func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUs
 
 func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 	// Check if admin user already exists
-	existingUserResult := m.userCollection.FindOne(ctx, bson.M{
+	existingUserResult, err := m.userCollection.CountDocuments(ctx, bson.M{
 		"username": "admin",
 	})
-	if existingUserResult.Err() == nil {
+	if err != nil {
+		return err
+	}
+
+	if existingUserResult > 0 {
 		slog.Warn("Admin user already exists, not creating")
 		return nil
 	}

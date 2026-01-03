@@ -3,13 +3,13 @@ package handlers
 import (
 	"net/http"
 
-	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
+	"log/slog"
 )
 
 type AuthRouter struct {
@@ -46,7 +46,7 @@ func (a *AuthRouter) login(c echo.Context) error {
 
 	err := a.authService.Login(c, loginForm.Username, loginForm.Password)
 	if err != nil {
-		return utils.Render(c, http.StatusOK, authpages.LoginPage(
+		return utils.Render(c, http.StatusUnauthorized, authpages.LoginPage(
 			authpages.LoginPageProps{
 				Error:    "Invalid credentials",
 				Username: loginForm.Username,
