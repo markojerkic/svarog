@@ -3,13 +3,14 @@ package handlers
 import (
 	"net/http"
 
+	"log/slog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
-	"log/slog"
 )
 
 type AuthRouter struct {

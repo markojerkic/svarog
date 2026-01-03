@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"github.com/markojerkic/svarog/internal/server/web-socket"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/markojerkic/svarog/tests/testutils"
 )
 

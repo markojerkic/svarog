@@ -2,11 +2,12 @@ package auth
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
-	"net/http"
-	"net/http/httptest"
 )
 
 func (suite *AuthSuite) TestResetPassword() {

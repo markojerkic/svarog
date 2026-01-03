@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	logs "github.com/markojerkic/svarog/internal/server/db"
@@ -16,7 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 type ArhiveService interface {

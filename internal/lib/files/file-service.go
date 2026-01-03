@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"log/slog"
 )
 
 type FileService interface {

@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/db"
-	"log/slog"
 )
 
 type archivingResult struct {

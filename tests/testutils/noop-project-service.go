@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson/primitive"

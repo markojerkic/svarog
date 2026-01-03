@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"log/slog"
+
 	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
-	"log/slog"
 )
 
 func Redirect(c echo.Context, url string) error {

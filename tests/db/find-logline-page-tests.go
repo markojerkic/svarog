@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"log/slog"
+
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
