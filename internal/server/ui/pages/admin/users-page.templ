@@ -1,0 +1,120 @@
+package admin
+
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/table"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "fmt"
+import "github.com/markojerkic/svarog/internal/lib/auth"
+
+type UsersListPageProps struct {
+	Users []auth.User
+}
+
+templ UsersListPage(props UsersListPageProps) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users"}) {
+		<div class="grid grid-cols-1 p-4">
+			<span class="flex justify-end">
+				<button>Novi korisnik</button>
+			</span>
+			@table.Table() {
+				@table.Caption() {
+					User administration
+				}
+				@UsersTableBody(props)
+				@table.Header() {
+					@table.Head() {
+						Name
+					}
+					@table.Head() {
+						Role
+					}
+					@table.Head() {
+					}
+				}
+			}
+		</div>
+	}
+}
+
+templ UsersTableBody(props UsersListPageProps) {
+	@table.Body(table.BodyProps{
+		ID: "users-list-table-body",
+	}) {
+		for _, user := range props.Users {
+			@table.Row(table.RowProps{
+				Attributes: templ.Attributes{"data-user-id": user.ID.Hex()},
+			}) {
+				@table.Cell() {
+					{ 	user.FirstName + " " + user.LastName }
+				}
+				@table.Cell() {
+					{ user.Role }
+				}
+				@table.Cell(table.CellProps{Class: "flex justify-end"}) {
+					@userActions(user)
+				}
+			}
+		}
+	}
+	// @projectcomponents.EditProjectDialog()
+	// @projectcomponents.ConnectionStringDialog()
+}
+
+templ userActions(user auth.User) {
+	@dropdown.Dropdown() {
+		@dropdown.Trigger() {
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+			}) {
+				@icon.EllipsisVertical()
+			}
+		}
+		@dropdown.Content(dropdown.ContentProps{
+			Class: "w-56",
+		}) {
+			@dropdown.Group() {
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-get":    "/admin/users/" + user.ID.Hex() + "/edit",
+						"hx-target": "#edit-user-form-container",
+						"hx-swap":   "innerHTML",
+						"onclick":   "window.tui.dialog.open('edit-user-dialog')",
+					},
+				}) {
+					<span class="flex items-center">
+						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+						Edit
+					</span>
+				}
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-delete":       "/admin/users/" + user.ID.Hex(),
+						"hx-confirm":      "Are you sure you want to delete this user?",
+						"hx-target":       fmt.Sprintf("tr[data-user-id='%s']", user.ID.Hex()),
+						"hx-disabled-elt": "input, button, #new-user-dialog &> button[type=submit]",
+					},
+				}) {
+					<span class="flex items-center">
+						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
+						Delete user
+					</span>
+				}
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-get":    "/admin/users/" + user.ID.Hex() + "/connection-string-form",
+						"hx-target": "#connection-string-form-container",
+						"hx-swap":   "innerHTML",
+						"onclick":   "window.tui.dialog.open('connection-string-dialog')",
+					},
+				}) {
+					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
+						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
+						Connection string
+					</span>
+				}
+			}
+		}
+	}
+}

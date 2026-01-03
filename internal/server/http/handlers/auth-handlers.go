@@ -9,6 +9,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -162,25 +163,27 @@ func (a *AuthRouter) getUsersPage(c echo.Context) error {
 	}
 	users, err := a.authService.GetUserPage(c.Request().Context(), query)
 	if err != nil {
-		return c.JSON(500, err)
+		return err
 	}
-	return c.JSON(200, users)
+	return utils.Render(c, http.StatusOK, admin.UsersListPage(admin.UsersListPageProps{
+		Users: users,
+	}))
 }
 
-func NewAuthRouter(authService auth.AuthService, privateGroup *echo.Group, publicGroup *echo.Group) *AuthRouter {
+func NewAuthRouter(authService auth.AuthService, adminGroup *echo.Group, publicGroup *echo.Group) *AuthRouter {
 	router := &AuthRouter{authService}
 
 	if router.authService == nil {
 		panic("No authService")
 	}
 
-	privateGroup.GET("/current-user", router.getCurrentUser)
-	privateGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
-	privateGroup.GET("/logout", router.logout)
-	privateGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.GET("/current-user", router.getCurrentUser)
+	adminGroup.GET("/users", router.getUsersPage, middleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminGroup.GET("/logout", router.logout)
+	adminGroup.POST("/register", router.register, middleware.RequiresRoleMiddleware(auth.ADMIN))
 
-	privateGroup.GET("/reset-password", router.resetPasswordPage)
-	privateGroup.POST("/reset-password", router.resetPassword)
+	adminGroup.GET("/reset-password", router.resetPasswordPage)
+	adminGroup.POST("/reset-password", router.resetPassword)
 
 	publicGroup.GET("/login", router.loginPage)
 	publicGroup.POST("/login", router.login)

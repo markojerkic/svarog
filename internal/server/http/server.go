@@ -66,8 +66,8 @@ func (self *HttpServer) Start() error {
 
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
-	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
+	handlers.NewAuthRouter(self.authService, adminApi, publicApi)
 	handlers.NewWsConnectionRouter(self.watchHub, privateApi)
 
 	e.Static("/assets", "internal/server/ui/assets")
