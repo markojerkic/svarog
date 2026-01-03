@@ -12,6 +12,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
 import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
 import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
+import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
 	Title string
@@ -95,39 +96,41 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 				@sidebar.Content() {
-					@sidebar.Group() {
-						@sidebar.GroupLabel() {
-							Admin
-						}
-						@sidebar.Menu() {
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/dashboard",
-									Tooltip:  "Dashboard",
-									IsActive: props.CurrentPath == "/admin/dashboard",
-								}) {
-									@icon.Gauge(icon.Props{Class: "size-4"})
-									<span>Dashboard</span>
-								}
+					@sidebar.MenuItem() {
+						@sidebar.Group() {
+							@sidebar.GroupLabel() {
+								Admin
 							}
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/projects",
-									Tooltip:  "Projects",
-									IsActive: props.CurrentPath == "/admin/projects",
-								}) {
-									@icon.FolderKanban(icon.Props{Class: "size-4"})
-									<span>Projects</span>
+							@sidebar.Menu() {
+								if auth.IsAdmin(ctx) {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/dashboard",
+										Tooltip:  "Dashboard",
+										IsActive: props.CurrentPath == "/admin/dashboard",
+									}) {
+										@icon.Gauge(icon.Props{Class: "size-4"})
+										<span>Dashboard</span>
+									}
 								}
-							}
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/users",
-									Tooltip:  "Users",
-									IsActive: props.CurrentPath == "/admin/users",
-								}) {
-									@icon.Users(icon.Props{Class: "size-4"})
-									<span>Users</span>
+								@sidebar.MenuItem() {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/projects",
+										Tooltip:  "Projects",
+										IsActive: props.CurrentPath == "/admin/projects",
+									}) {
+										@icon.FolderKanban(icon.Props{Class: "size-4"})
+										<span>Projects</span>
+									}
+								}
+								@sidebar.MenuItem() {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/users",
+										Tooltip:  "Users",
+										IsActive: props.CurrentPath == "/admin/users",
+									}) {
+										@icon.Users(icon.Props{Class: "size-4"})
+										<span>Users</span>
+									}
 								}
 							}
 						}

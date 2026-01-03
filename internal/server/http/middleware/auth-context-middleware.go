@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -16,7 +17,15 @@ func AuthContextMiddleware(authService auth.AuthService) echo.MiddlewareFunc {
 				slog.Debug("No user in context")
 				return c.Redirect(http.StatusTemporaryRedirect, "/login")
 			}
-			c.Set("user", &user)
+
+			c.Set(auth.UserKey.String(), user)
+			c.Set(auth.IsAdminKey.String(), user.Role == auth.ADMIN)
+
+			ctx := c.Request().Context()
+			ctx = context.WithValue(ctx, auth.UserKey, user)
+			ctx = context.WithValue(ctx, auth.IsAdminKey, user.Role == auth.ADMIN)
+			c.SetRequest(c.Request().WithContext(ctx))
+
 			return next(c)
 		}
 	}

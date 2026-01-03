@@ -10,7 +10,7 @@ import (
 func RequiresRoleMiddleware(role auth.Role) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			user, ok := c.Get("user").(*auth.LoggedInUser)
+			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 			if !ok || user == nil {
 				htmx.AddErrorToast(c, "You are not logged in")
 				return utils.HxRedirect(c, "/login")
