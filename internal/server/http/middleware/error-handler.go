@@ -3,11 +3,11 @@ package middleware
 import (
 	"net/http"
 
-	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
+	"log/slog"
 )
 
 func CustomHTTPErrorHandler(err error, c echo.Context) {

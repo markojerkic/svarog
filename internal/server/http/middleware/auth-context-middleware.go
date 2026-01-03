@@ -3,9 +3,9 @@ package middleware
 import (
 	"net/http"
 
-	"log/slog"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"log/slog"
 )
 
 func AuthContextMiddleware(authService auth.AuthService) echo.MiddlewareFunc {

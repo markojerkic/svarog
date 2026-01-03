@@ -18,7 +18,7 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -27,7 +27,7 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -36,7 +36,7 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
@@ -45,7 +45,7 @@ func (self *LogsCollectionRepositorySuite) TestInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "jerkić",
+				ClientId:   "jerkić",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -72,7 +72,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -81,7 +81,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -90,7 +90,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
@@ -99,7 +99,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -132,7 +132,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -141,7 +141,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -150,7 +150,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
@@ -159,7 +159,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::3",
 			},
 			Timestamp: time.Now(),
@@ -168,7 +168,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByMultipleInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
@@ -201,7 +201,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -210,7 +210,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -219,7 +219,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),
@@ -228,7 +228,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::3",
 			},
 			Timestamp: time.Now(),
@@ -237,7 +237,7 @@ func (self *LogsCollectionRepositorySuite) TestFilterByAllInstances() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::2",
 			},
 			Timestamp: time.Now(),

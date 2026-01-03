@@ -16,7 +16,7 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "marko",
+				ClientId:   "marko",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),
@@ -25,7 +25,7 @@ func (s *LogsCollectionRepositorySuite) TestAddClient() {
 		{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "jerkić",
+				ClientId:   "jerkić",
 				InstanceId: "::1",
 			},
 			Timestamp: time.Now(),

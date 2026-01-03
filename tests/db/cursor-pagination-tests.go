@@ -20,7 +20,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsReturnsCorrectCursors() {
 		logs[i] = types.StoredLog{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "test-client",
+				ClientId:   "test-client",
 				InstanceId: "::1",
 			},
 			Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
@@ -34,9 +34,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsReturnsCorrectCursors() {
 
 	logPage, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   nil,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, logPage)
@@ -64,7 +64,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsBackwardPagination() {
 		logs[i] = types.StoredLog{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "test-client",
+				ClientId:   "test-client",
 				InstanceId: "::1",
 			},
 			Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
@@ -78,18 +78,18 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsBackwardPagination() {
 
 	page1, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   nil,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Log line 19", page1.Logs[0].LogLine)
 
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   page1.BackwardCursor,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Nil(t, page2.ForwardCursor)
@@ -113,7 +113,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 		logs[i] = types.StoredLog{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "test-client",
+				ClientId:   "test-client",
 				InstanceId: "::1",
 			},
 			Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
@@ -127,9 +127,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 
 	page1, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   nil,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page1.Logs))
@@ -141,9 +141,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   page1.BackwardCursor,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page2.Logs))
@@ -155,9 +155,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsForwardPagination() {
 
 	page3, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   page2.BackwardCursor,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    page2.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page3.Logs))
@@ -171,9 +171,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsEmptyResult() {
 
 	logPage, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "non-existent-client",
-		PageSize: 10,
-		Cursor:   nil,
+		ClientId:  "non-existent-client",
+		PageSize:  10,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, logPage)
@@ -193,7 +193,7 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsLastPage() {
 		logs[i] = types.StoredLog{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "test-client",
+				ClientId:   "test-client",
 				InstanceId: "::1",
 			},
 			Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
@@ -207,9 +207,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsLastPage() {
 
 	page1, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   nil,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page1.Logs))
@@ -218,9 +218,9 @@ func (suite *LogsCollectionRepositorySuite) TestGetLogsLastPage() {
 
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   page1.BackwardCursor,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(page2.Logs))
@@ -238,7 +238,7 @@ func (suite *LogsCollectionRepositorySuite) TestCursorWithSameTimestamp() {
 		logs[i] = types.StoredLog{
 			Client: types.StoredClient{
 				ProjectId:  "test-project",
-				ClientId:  "test-client",
+				ClientId:   "test-client",
 				InstanceId: "::1",
 			},
 			Timestamp:      sameTime,
@@ -252,9 +252,9 @@ func (suite *LogsCollectionRepositorySuite) TestCursorWithSameTimestamp() {
 
 	page1, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   nil,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    nil,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page1.Logs))
@@ -263,9 +263,9 @@ func (suite *LogsCollectionRepositorySuite) TestCursorWithSameTimestamp() {
 
 	page2, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: "test-project",
-		ClientId: "test-client",
-		PageSize: 5,
-		Cursor:   page1.BackwardCursor,
+		ClientId:  "test-client",
+		PageSize:  5,
+		Cursor:    page1.BackwardCursor,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(page2.Logs))
