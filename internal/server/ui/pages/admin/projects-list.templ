@@ -8,6 +8,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
+import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
 
 type ProjectsListPageProps struct {
 	Projects []projects.Project
@@ -18,7 +19,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 		<script defer src="/assets/js/copy-conn-string.js"></script>
 		<div class="grid grid-cols-1 p-4">
 			<span class="flex justify-end">
-				@newProject()
+				@projectcomponents.NewProject()
 			</span>
 			@table.Table() {
 				@table.Caption() {
@@ -66,8 +67,8 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 			}
 		}
 	}
-	@editProjectDialog()
-	@connectionStringDialog()
+	@projectcomponents.EditProjectDialog()
+	@projectcomponents.ConnectionStringDialog()
 }
 
 templ projectActions(project projects.Project) {

@@ -1,4 +1,4 @@
-package admin
+package projectcomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
@@ -80,7 +80,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 	</form>
 }
 
-templ newProject() {
+templ NewProject() {
 	@dialog.Dialog(dialog.Props{
 		ID: "new-project-dialog",
 	}) {

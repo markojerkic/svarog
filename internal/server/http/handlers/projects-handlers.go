@@ -11,6 +11,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
+	projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -64,7 +65,7 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 		return c.JSON(500, types.ApiError{Message: "Error getting project"})
 	}
 
-	return utils.Render(c, http.StatusOK, admin.NewProjectForm(admin.NewProjectFormProps{
+	return utils.Render(c, http.StatusOK, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 		FormID: "edit-project-form",
 		Value: types.CreateProjectForm{
 			ID:      project.ID.Hex(),
@@ -89,7 +90,7 @@ func (p *ProjectsRouter) getConnectionStringForm(c echo.Context) error {
 		return c.JSON(500, types.ApiError{Message: "Error getting project"})
 	}
 
-	return utils.Render(c, http.StatusOK, admin.ConnectionStringForm(admin.ConnectionStringFormProps{
+	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
 		ProjectID: project.ID.Hex(),
 		Clients:   project.Clients,
 	}))
@@ -107,7 +108,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 				Target: "this",
 				Select: "form",
 			})
-			return utils.Render(c, http.StatusBadRequest, admin.NewProjectForm(admin.NewProjectFormProps{
+			return utils.Render(c, http.StatusBadRequest, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: apiErr,
 				Value:    createProjectForm,
 			}))
@@ -124,7 +125,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 			Select: "form",
 		})
 		if err.Error() == projects.ErrProjectExists {
-			return utils.Render(c, http.StatusConflict, admin.NewProjectForm(admin.NewProjectFormProps{
+			return utils.Render(c, http.StatusConflict, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: types.ApiError{
 					Message: "Project already exists",
 					Fields:  map[string]string{"name": "Project with this name already exists"}},
@@ -133,7 +134,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 		}
 
 		slog.Error("Error creating project", "error", err)
-		return utils.Render(c, http.StatusInternalServerError, admin.NewProjectForm(admin.NewProjectFormProps{
+		return utils.Render(c, http.StatusInternalServerError, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 			ApiError: types.ApiError{
 				Message: "Error creating project",
 			},
@@ -196,7 +197,7 @@ func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
 				return c.JSON(500, types.ApiError{Message: "Error getting project"})
 			}
 
-			return utils.Render(c, http.StatusBadRequest, admin.ConnectionStringForm(admin.ConnectionStringFormProps{
+			return utils.Render(c, http.StatusBadRequest, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
 				ProjectID: request.ProjectID,
 				Clients:   project.Clients,
 				ApiError:  apiErr,
