@@ -117,11 +117,12 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 			Logs:           logs,
 			ForwardCursor:  nil,
 			BackwardCursor: nil,
-			IsLastPage:     true,
+			IsLastPage:     req.Cursor == nil,
 		}, nil
 	}
 
 	// BackwardCursor: for scrolling up (older logs)
+	// Always provide it when we're at the top (no cursor) or scrolling backward
 	var backwardCursor *LastCursor
 	shouldHaveBackwardCursor := req.Cursor == nil || req.Cursor.IsBackward
 	if shouldHaveBackwardCursor {
@@ -142,7 +143,8 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 		}
 	}
 
-	isLastPage := forwardCursor == nil && req.Cursor == nil
+	// IsLastPage = true only when showing the most recent logs (initial query)
+	isLastPage := req.Cursor == nil
 
 	return LogPage{
 		Logs:           logs,
