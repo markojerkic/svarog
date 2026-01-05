@@ -50,6 +50,7 @@ type ContentProps struct {
 	Class             string
 	Attributes        templ.Attributes
 	SearchAttributes  templ.Attributes
+	SearchName        string
 	NoSearch          bool
 	SearchPlaceholder string
 }
@@ -227,8 +228,15 @@ templ Content(props ...ContentProps) {
 		if !p.NoSearch {
 			<div class="sticky top-0 bg-popover p-1">
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none">
-						@icon.Search(icon.Props{Size: 16})
+					<span
+						class="svarog-indicator-container absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none"
+					>
+						<span class="animate-spin" data-fallback>
+							@icon.Search(icon.Props{Size: 16})
+						</span>
+						<span class="animate-spin">
+							@icon.LoaderCircle(icon.Props{Size: 16})
+						</span>
 					</span>
 					{{
 						var searchAttributes templ.Attributes
@@ -244,12 +252,13 @@ templ Content(props ...ContentProps) {
 						Class:       "pl-8",
 						Placeholder: utils.IfElse(p.SearchPlaceholder != "", p.SearchPlaceholder, "Search..."),
 						Attributes:  searchAttributes,
+						Name:        p.SearchName,
 					})
 				</div>
 			</div>
 		}
 		<div
-			class="max-h-75 overflow-y-auto"
+			class="max-h-75 overflow-y-auto relative"
 			data-tui-selectbox-content-children
 		>
 			{ children... }

@@ -169,10 +169,11 @@ templ userActions(user auth.User) {
 			@dropdown.Group() {
 				@dropdown.Item(dropdown.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-get":    "/admin/users/" + user.ID.Hex() + "/edit",
-						"hx-target": "#edit-user-form-container",
-						"hx-swap":   "innerHTML",
-						"onclick":   "window.tui.dialog.open('edit-user-dialog')",
+						"hx-get":          "/admin/users/" + user.ID.Hex() + "/edit",
+						"hx-target":       "#edit-user-form-container",
+						"hx-swap":         "innerHTML",
+						"onclick":         "window.tui.dialog.open('edit-user-dialog')",
+						"hx-disabled-elt": "#edit-user-dialog button[type=submit], #edit-user-dialog input",
 					},
 				}) {
 					<span class="flex items-center">
@@ -185,7 +186,7 @@ templ userActions(user auth.User) {
 						"hx-delete":       "/admin/users/" + user.ID.Hex(),
 						"hx-confirm":      "Are you sure you want to delete this user?",
 						"hx-target":       fmt.Sprintf("tr[data-user-id='%s']", user.ID.Hex()),
-						"hx-disabled-elt": "input, button, #new-user-dialog &> button[type=submit]",
+						"hx-disabled-elt": "input, button, #new-user-dialog button[type=submit]",
 					},
 				}) {
 					<span class="flex items-center">

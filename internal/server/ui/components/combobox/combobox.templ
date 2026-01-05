@@ -25,11 +25,13 @@ templ ComboBox(props ...Props) {
 				Placeholder: "Select role",
 			})
 			@selectbox.Content(selectbox.ContentProps{
+				SearchName: "search",
 				SearchAttributes: templ.Attributes{
-					"hx-get":     p.SearchUrl,
-					"hx-trigger": "change delay:300ms",
-					"hx-target":  "closest .select-content find [data-tui-selectbox-content-children]",
-					"hx-swap":    "beforeend",
+					"hx-get":       p.SearchUrl,
+					"hx-trigger":   "input changed delay:300ms, intersect once",
+					"hx-target":    "next [data-tui-selectbox-content-children]",
+					"hx-indicator": "previous .svarog-indicator-container",
+					"hx-swap":      "innerHTML",
 				},
 			}) {
 			}

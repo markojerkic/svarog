@@ -128,4 +128,23 @@
   .htmx-request.svarog-indicator[data-fallback] {
     display: none;
   }
+
+  .svarog-indicator-container {
+    & > [data-fallback] {
+      display: inline;
+    }
+    & > :not([data-fallback]) {
+      display: none;
+    }
+  }
+
+  .htmx-request .svarog-indicator-container,
+  .htmx-request.svarog-indicator-container {
+    & > [data-fallback] {
+      display: none;
+    }
+    & > :not([data-fallback]) {
+      display: inline;
+    }
+  }
 }
