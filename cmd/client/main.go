@@ -75,11 +75,9 @@ func main() {
 	natsClient := natsclient.NewNatsClient(config, processedLines)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		natsClient.Run()
-	}()
+	})
 
 	readStdin(processedLines, instanceId)
 	close(processedLines) // Signal NATS client to drain and exit
