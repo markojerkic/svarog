@@ -28,6 +28,7 @@ type ItemProps struct {
 
 type LinkProps struct {
 	ID         string
+	Type       button.Type
 	Class      string
 	Attributes templ.Attributes
 	Href       string
@@ -36,8 +37,10 @@ type LinkProps struct {
 }
 
 type PreviousProps struct {
+	button.Props
 	ID         string
 	Class      string
+	Type       button.Type
 	Attributes templ.Attributes
 	Href       string
 	Disabled   bool
@@ -46,6 +49,7 @@ type PreviousProps struct {
 
 type NextProps struct {
 	ID         string
+	Type       button.Type
 	Class      string
 	Attributes templ.Attributes
 	Href       string
@@ -121,6 +125,7 @@ templ Link(props ...LinkProps) {
 	} else {
 		@button.Button(button.Props{
 			ID:         p.ID,
+			Type:       p.Type,
 			Href:       p.Href,
 			Size:       button.SizeIcon,
 			Variant:    button.Variant(buttonVariant(p.IsActive)),
@@ -140,6 +145,7 @@ templ Previous(props ...PreviousProps) {
 	@button.Button(button.Props{
 		ID:         p.ID,
 		Href:       p.Href,
+		Type:       p.Type,
 		Disabled:   p.Disabled,
 		Variant:    button.VariantGhost,
 		Class:      utils.TwMerge("gap-1", p.Class),
@@ -160,6 +166,7 @@ templ Next(props ...NextProps) {
 	@button.Button(button.Props{
 		ID:         p.ID,
 		Href:       p.Href,
+		Type:       p.Type,
 		Disabled:   p.Disabled,
 		Variant:    button.VariantGhost,
 		Class:      utils.TwMerge("gap-1", p.Class),

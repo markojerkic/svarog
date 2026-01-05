@@ -71,6 +71,7 @@ func (p *ProjectsRouter) getProjects(c echo.Context) error {
 		Projects:   projects,
 		Page:       query.Page,
 		Size:       query.Size,
+		Search:     query.Search,
 		TotalCount: totalCount,
 	}))
 }

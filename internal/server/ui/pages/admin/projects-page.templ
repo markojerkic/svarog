@@ -17,6 +17,7 @@ type ProjectsListPageProps struct {
 	Projects   []projects.Project
 	Page       int64
 	Size       int64
+	Search     string
 	TotalCount int64
 }
 
@@ -24,38 +25,51 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
 		<div class="grid grid-cols-1 p-4 space-y-4">
 			<span class="flex justify-between gap-2">
-				@input.Input(input.Props{
-					Type:        input.TypeSearch,
-					Class:       "max-w-2xs md:max-w-xs",
-					Placeholder: "Search...",
-				})
+				<form
+					id="search-form"
+					hx-get="/admin/projects"
+					hx-push-url="true"
+					hx-target=".projects-table-wrapper"
+					hx-select=".projects-table-wrapper"
+					hx-trigger="input changed delay:300ms"
+				>
+					@input.Input(input.Props{
+						Type:        input.TypeSearch,
+						Value:       props.Search,
+						Name:        "search",
+						Class:       "max-w-2xs md:max-w-xs",
+						Placeholder: "Search...",
+					})
+				</form>
 				@projectcomponents.NewProject()
 			</span>
-			@table.Table() {
-				@table.Caption() {
-					A list of your projects.
+			<div class="projects-table-wrapper">
+				@table.Table() {
+					@table.Caption() {
+						A list of your projects.
+					}
+					@ProjectsTableBody(props)
+					@table.Header() {
+						@table.Head() {
+							Project name
+						}
+						@table.Head() {
+							Clients
+						}
+						@table.Head() {
+							Storage
+						}
+						@table.Head() {
+						}
+					}
 				}
-				@ProjectsTableBody(props)
-				@table.Header() {
-					@table.Head() {
-						Project name
-					}
-					@table.Head() {
-						Clients
-					}
-					@table.Head() {
-						Storage
-					}
-					@table.Head() {
-					}
-				}
-			}
-			@pagination.PaginationWrapper(pagination.WrapperProps{
-				Page:       props.Page,
-				Size:       props.Size,
-				TotalCount: props.TotalCount,
-				BaseURL:    "/admin/projects",
-			})
+				@pagination.PaginationWrapper(pagination.WrapperProps{
+					Page:       props.Page,
+					Size:       props.Size,
+					TotalCount: props.TotalCount,
+					BaseURL:    "/admin/projects",
+				})
+			</div>
 		</div>
 	}
 }
