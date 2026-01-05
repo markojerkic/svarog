@@ -53,7 +53,10 @@ templ BaseLayout(props BaseProps) {
 			@calendar.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
-		<body class="bg-background text-foreground h-screen overflow-hidden">
+		<body
+			class="bg-background text-foreground h-screen overflow-hidden"
+			hx-indicator="#htmx-global-indicator"
+		>
 			{ children... }
 			@ConfirmDialog()
 		</body>
@@ -152,6 +155,12 @@ templ AdminLayout(props AdminLayoutProps) {
 				}
 			}
 			@sidebar.Inset(sidebar.InsetProps{Class: "h-screen overflow-hidden"}) {
+				<span
+					class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 absolute z-10 pointer-events-none animate-spin"
+					id="htmx-global-indicator"
+				>
+					@icon.LoaderCircle(icon.Props{Size: 16})
+				</span>
 				<div class="flex h-full flex-col">
 					<div class="flex h-14 shrink-0 items-center gap-4 border-b px-6">
 						@sidebar.Trigger()

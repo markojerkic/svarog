@@ -10,45 +10,66 @@ import "fmt"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 
 type UsersListPageProps struct {
 	Users      []auth.User
 	Page       int64
 	Size       int64
+	Search     string
 	TotalCount int64
 }
 
 templ UsersListPage(props UsersListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users"}) {
 		<div class="grid grid-cols-1 p-4 space-y-4">
-			<span class="flex justify-end">
+			<span class="flex justify-between gap-2">
+				<form
+					id="search-form"
+					hx-get="/admin/projects"
+					hx-boost="true"
+					hx-push-url="true"
+					hx-target=".table-wrapper"
+					hx-select=".table-wrapper"
+					hx-trigger="input changed delay:300ms"
+				>
+					@input.Input(input.Props{
+						Type:        input.TypeSearch,
+						Value:       props.Search,
+						Name:        "search",
+						Class:       "max-w-2xs md:max-w-xs",
+						Placeholder: "Search...",
+					})
+				</form>
 				@usercomponents.NewUser()
 			</span>
-			@table.Table() {
-				@table.Caption() {
-					User administration
+			<div class="table-wrapper">
+				@table.Table() {
+					@table.Caption() {
+						User administration
+					}
+					@UsersTableBody(props)
+					@table.Header() {
+						@table.Head() {
+							Username
+						}
+						@table.Head() {
+							Name
+						}
+						@table.Head() {
+							Role
+						}
+						@table.Head() {
+						}
+					}
 				}
-				@UsersTableBody(props)
-				@table.Header() {
-					@table.Head() {
-						Username
-					}
-					@table.Head() {
-						Name
-					}
-					@table.Head() {
-						Role
-					}
-					@table.Head() {
-					}
-				}
-			}
-			@pagination.PaginationWrapper(pagination.WrapperProps{
-				Page:       props.Page,
-				Size:       props.Size,
-				TotalCount: props.TotalCount,
-				BaseURL:    "/admin/users",
-			})
+				@pagination.PaginationWrapper(pagination.WrapperProps{
+					Page:       props.Page,
+					Size:       props.Size,
+					TotalCount: props.TotalCount,
+					BaseURL:    "/admin/users",
+				})
+			</div>
 		</div>
 	}
 }

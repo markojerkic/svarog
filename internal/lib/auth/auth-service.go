@@ -337,8 +337,16 @@ func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUs
 	skip := query.Page * query.Size
 
 	filter := bson.M{}
-	if query.Username != "" {
-		filter["username"] = bson.M{"$regex": query.Username}
+	if query.Search != "" {
+		escapedSearch := primitive.Regex{
+			Pattern: query.Search,
+			Options: "i",
+		}
+		filter["$or"] = []bson.M{
+			{"username": bson.M{"$regex": escapedSearch}},
+			{"firstName": bson.M{"$regex": escapedSearch}},
+			{"lastName": bson.M{"$regex": escapedSearch}},
+		}
 	}
 
 	totalCount, err := self.userCollection.CountDocuments(ctx, filter)
