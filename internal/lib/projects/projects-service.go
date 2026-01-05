@@ -7,6 +7,7 @@ import (
 
 	"log/slog"
 
+	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -27,6 +28,7 @@ type ProjectsService interface {
 type MongoProjectsService struct {
 	mongoClient        *mongo.Client
 	projectsCollection *mongo.Collection
+	userCollection     *mongo.Collection
 }
 
 const (
@@ -161,10 +163,31 @@ func (m *MongoProjectsService) DeleteProject(ctx context.Context, id string) err
 	if err != nil {
 		return err
 	}
-	_, err = m.projectsCollection.DeleteOne(ctx, bson.M{"_id": objID})
-	if err != nil && err == mongo.ErrNoDocuments {
-		return errors.New(ErrProjectNotFound)
-	}
+
+	_, err = util.StartTransaction(ctx, func(c mongo.SessionContext) (any, error) {
+
+		_, err = m.projectsCollection.DeleteOne(c, bson.M{"_id": objID})
+		if err != nil && err == mongo.ErrNoDocuments {
+			return struct{}{}, errors.New(ErrProjectNotFound)
+		}
+
+		// delete projectId from user.project_ids
+		_, err = m.userCollection.UpdateMany(c,
+			bson.M{
+				"project_ids": objID,
+			},
+			bson.M{
+				"$pull": bson.M{
+					"project_ids": objID,
+				},
+			})
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		return struct{}{}, nil
+
+	}, m.mongoClient)
 
 	return err
 }
@@ -217,9 +240,10 @@ func (m *MongoProjectsService) ProjectExists(ctx context.Context, projectId, cli
 
 var _ ProjectsService = &MongoProjectsService{}
 
-func NewProjectsService(projectsCollection *mongo.Collection, mongoClient *mongo.Client) ProjectsService {
+func NewProjectsService(projectsCollection *mongo.Collection, userCollection *mongo.Collection, mongoClient *mongo.Client) ProjectsService {
 	service := &MongoProjectsService{
 		projectsCollection: projectsCollection,
+		userCollection:     userCollection,
 		mongoClient:        mongoClient,
 	}
 

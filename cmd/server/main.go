@@ -106,7 +106,7 @@ func main() {
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
-	projectsService := projects.NewProjectsService(projectsCollection, client)
+	projectsService := projects.NewProjectsService(projectsCollection, userCollection, client)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {

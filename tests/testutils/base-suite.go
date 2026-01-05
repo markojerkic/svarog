@@ -104,7 +104,8 @@ func (s *BaseSuite) SetupSuite() {
 
 	// Create projects service (always needed)
 	projectsCollection := s.Database.Collection("projects")
-	s.ProjectsService = projects.NewProjectsService(projectsCollection, s.MongoClient)
+	userCollection := s.Database.Collection("users")
+	s.ProjectsService = projects.NewProjectsService(projectsCollection, userCollection, s.MongoClient)
 
 	// Start NATS
 	if err := s.setupNats(ctx); err != nil {

@@ -22,11 +22,12 @@ type RegisterForm struct {
 }
 
 type CreateUserForm struct {
-	ID        string `json:"id" form:"id"`
-	Username  string `json:"username" form:"username" validate:"required,gte=3"`
-	FirstName string `json:"firstName" form:"firstName" validate:"required,gte=3"`
-	LastName  string `json:"lastName" form:"lastName" validate:"required,gte=3"`
-	Role      string `json:"role" form:"role" validate:"required,oneof=user admin"`
+	ID         string   `json:"id" form:"id"`
+	Username   string   `json:"username" form:"username" validate:"required,gte=3"`
+	FirstName  string   `json:"firstName" form:"firstName" validate:"required,gte=3"`
+	LastName   string   `json:"lastName" form:"lastName" validate:"required,gte=3"`
+	Role       string   `json:"role" form:"role" validate:"required,oneof=user admin"`
+	ProjectIDs []string `json:"projectIds" form:"projectIds"`
 }
 
 type ResetPasswordForm struct {
