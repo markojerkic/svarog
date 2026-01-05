@@ -27,6 +27,7 @@ type ProjectsService interface {
 	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
+	GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error)
 	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	ProjectExists(ctx context.Context, projectId, clientId string) bool
@@ -176,6 +177,12 @@ func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, erro
 				}},
 			}},
 		},
+		// Sort stage
+		{
+			{Key: "$sort", Value: bson.D{
+				{Key: "name", Value: 1},
+			}},
+		},
 	}
 
 	// Execute aggregation
@@ -192,6 +199,88 @@ func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, erro
 	}
 
 	return projects, nil
+}
+
+// GetProjectPage implements ProjectsService.
+func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
+	pipeline := mongo.Pipeline{
+		// Lookup stage
+		{
+			{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: "log_lines"},
+				{Key: "localField", Value: "clients"},
+				{Key: "foreignField", Value: "client.client_id"},
+				{Key: "as", Value: "log_lines"},
+			}},
+		},
+		// Add fields stage
+		{
+			{Key: "$addFields", Value: bson.D{
+				{Key: "totalSizeBytes", Value: bson.D{
+					{Key: "$sum", Value: bson.D{
+						{Key: "$map", Value: bson.D{
+							{Key: "input", Value: "$log_lines"},
+							{Key: "as", Value: "log_line"},
+							{Key: "in", Value: bson.D{
+								{Key: "$bsonSize", Value: "$$log_line"},
+							}},
+						}},
+					}},
+				}},
+			}},
+		},
+		// Project stage
+		{
+			{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 1},
+				{Key: "name", Value: 1},
+				{Key: "clients", Value: 1},
+				{Key: "totalSizeMB", Value: bson.D{
+					{Key: "$round", Value: bson.A{
+						bson.D{
+							{Key: "$divide", Value: bson.A{"$totalSizeBytes", 1024 * 1024}},
+						},
+						2,
+					}},
+				}},
+			}},
+		},
+		// Sort stage
+		{
+			{Key: "$sort", Value: bson.D{
+				{Key: "name", Value: 1},
+			}},
+		},
+		// Skip stage
+		{
+			{Key: "$skip", Value: query.Page * query.Size},
+		},
+		// Limit stage
+		{
+			{Key: "$limit", Value: query.Size},
+		},
+	}
+
+	// Get total count
+	totalCount, err := m.projectsCollection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count projects: %w", err)
+	}
+
+	// Execute aggregation
+	cursor, err := m.projectsCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to execute aggregation: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	// Decode results
+	var projects []Project
+	if err := cursor.All(ctx, &projects); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode results: %w", err)
+	}
+
+	return projects, totalCount, nil
 }
 
 // DeleteProject implements ProjectsService.

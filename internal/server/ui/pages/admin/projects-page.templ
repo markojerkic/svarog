@@ -1,22 +1,27 @@
 package admin
 
-import "github.com/markojerkic/svarog/internal/lib/projects"
-import "github.com/markojerkic/svarog/internal/server/ui/pages"
-import "github.com/markojerkic/svarog/internal/server/ui/components/table"
-import "strings"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
-import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
+import "strings"
+
+import "github.com/markojerkic/svarog/internal/lib/projects"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
 import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
+import "github.com/markojerkic/svarog/internal/server/ui/components/table"
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
 
 type ProjectsListPageProps struct {
-	Projects []projects.Project
+	Projects   []projects.Project
+	Page       int64
+	Size       int64
+	TotalCount int64
 }
 
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
-		<div class="grid grid-cols-1 p-4">
+		<div class="grid grid-cols-1 p-4 space-y-4">
 			<span class="flex justify-end">
 				@projectcomponents.NewProject()
 			</span>
@@ -39,6 +44,12 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					}
 				}
 			}
+			@pagination.PaginationWrapper(pagination.WrapperProps{
+				Page:       props.Page,
+				Size:       props.Size,
+				TotalCount: props.TotalCount,
+				BaseURL:    "/admin/projects",
+			})
 		</div>
 	}
 }

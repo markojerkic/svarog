@@ -4,6 +4,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type GetProjectPageInput struct {
+	Page int64 `json:"page" query:"page" default:"0"`
+	Size int64 `json:"size" query:"size" default:"10"`
+}
+
 type CreateProjectForm struct {
 	ID      string   `json:"id" form:"id"`
 	Name    string   `json:"name" form:"name" validate:"required,gte=3"`

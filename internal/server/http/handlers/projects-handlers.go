@@ -52,14 +52,26 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
-	projects, err := p.projectsService.GetProjects(c.Request().Context())
+	var query types.GetProjectPageInput
+	if err := c.Bind(&query); err != nil {
+		return c.JSON(400, err)
+	}
+
+	if query.Size == 0 {
+		query.Size = 10
+	}
+
+	projects, totalCount, err := p.projectsService.GetProjectPage(c.Request().Context(), query)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
 		return c.JSON(500, types.ApiError{Message: "Error getting projects"})
 	}
 
 	return utils.Render(c, http.StatusOK, admin.ProjectsListPage(admin.ProjectsListPageProps{
-		Projects: projects,
+		Projects:   projects,
+		Page:       query.Page,
+		Size:       query.Size,
+		TotalCount: totalCount,
 	}))
 }
 

@@ -43,72 +43,12 @@ templ UsersListPage(props UsersListPageProps) {
 					}
 				}
 			}
-			{{
-				totalPages := int((props.TotalCount + props.Size - 1) / props.Size)
-				currentPage := int(props.Page + 1)
-				p := pagination.CreatePagination(currentPage, totalPages, 5)
-			}}
-			if totalPages > 1 {
-				@pagination.Pagination() {
-					@pagination.Content() {
-						@pagination.Item() {
-							@pagination.Previous(pagination.PreviousProps{
-								Disabled: !p.HasPrevious,
-								Label:    "Previous",
-								Href:     fmt.Sprintf("/admin/users?page=%d", props.Page-1),
-							})
-						}
-						// First page with ellipsis if needed
-						if p.Pages[0] > 1 {
-							@pagination.Item() {
-								@pagination.Link(pagination.LinkProps{
-									Href: "/admin/users?page=0",
-								}) {
-									1
-								}
-							}
-							if p.Pages[0] > 2 {
-								@pagination.Item() {
-									@pagination.Ellipsis()
-								}
-							}
-						}
-						// Visible pages
-						for _, page := range p.Pages {
-							@pagination.Item() {
-								@pagination.Link(pagination.LinkProps{
-									IsActive: page == p.CurrentPage,
-									Href:     fmt.Sprintf("/admin/users?page=%d", page-1),
-								}) {
-									{ fmt.Sprint(page) }
-								}
-							}
-						}
-						// Last page with ellipsis if needed
-						if p.Pages[len(p.Pages)-1] < p.TotalPages {
-							if p.Pages[len(p.Pages)-1] < p.TotalPages-1 {
-								@pagination.Item() {
-									@pagination.Ellipsis()
-								}
-							}
-							@pagination.Item() {
-								@pagination.Link(pagination.LinkProps{
-									Href: fmt.Sprintf("/admin/users?page=%d", p.TotalPages-1),
-								}) {
-									{ fmt.Sprint(p.TotalPages) }
-								}
-							}
-						}
-						@pagination.Item() {
-							@pagination.Next(pagination.NextProps{
-								Disabled: !p.HasNext,
-								Label:    "Next",
-								Href:     fmt.Sprintf("/admin/users?page=%d", props.Page+1),
-							})
-						}
-					}
-				}
-			}
+			@pagination.PaginationWrapper(pagination.WrapperProps{
+				Page:       props.Page,
+				Size:       props.Size,
+				TotalCount: props.TotalCount,
+				BaseURL:    "/admin/users",
+			})
 		</div>
 	}
 }

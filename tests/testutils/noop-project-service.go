@@ -35,6 +35,11 @@ func (n *NoopProjectService) GetProjects(ctx context.Context) ([]projects.Projec
 	panic("unimplemented")
 }
 
+// GetProjectPage implements [projects.ProjectsService].
+func (n *NoopProjectService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
+	panic("unimplemented")
+}
+
 // ProjectExists implements [projects.ProjectsService].
 func (n *NoopProjectService) ProjectExists(ctx context.Context, projectId string, clientId string) bool {
 	return true

@@ -361,3 +361,148 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		}
 	}
 }
+
+func (p *ProjectsSuite) TestGetProjectPage() {
+	t := p.Suite.T()
+	ctx := context.Background()
+
+	// Create test projects
+	testProjects := []struct {
+		name    string
+		clients []string
+	}{
+		{"project-1", []string{"client1"}},
+		{"project-2", []string{"client2"}},
+		{"project-3", []string{"client3"}},
+		{"project-4", []string{"client4"}},
+		{"project-5", []string{"client5"}},
+		{"project-6", []string{"client6"}},
+		{"project-7", []string{"client7"}},
+		{"project-8", []string{"client8"}},
+		{"project-9", []string{"client9"}},
+		{"project-10", []string{"client10"}},
+		{"project-11", []string{"client11"}},
+		{"project-12", []string{"client12"}},
+	}
+
+	// Create all test projects
+	for _, tp := range testProjects {
+		_, err := p.ProjectsService.CreateProject(ctx, tp.name, tp.clients)
+		assert.NoError(t, err, "Failed to create project: %s", tp.name)
+	}
+
+	testCases := []struct {
+		name          string
+		query         types.GetProjectPageInput
+		expectedCount int
+		expectedTotal int64
+		wantErr       bool
+	}{
+		{
+			name: "first page with size 5",
+			query: types.GetProjectPageInput{
+				Page: 0,
+				Size: 5,
+			},
+			expectedCount: 5,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "second page with size 5",
+			query: types.GetProjectPageInput{
+				Page: 1,
+				Size: 5,
+			},
+			expectedCount: 5,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "third page with size 5",
+			query: types.GetProjectPageInput{
+				Page: 2,
+				Size: 5,
+			},
+			expectedCount: 2,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "page beyond available data",
+			query: types.GetProjectPageInput{
+				Page: 5,
+				Size: 5,
+			},
+			expectedCount: 0,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "page size 10",
+			query: types.GetProjectPageInput{
+				Page: 0,
+				Size: 10,
+			},
+			expectedCount: 10,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "page 1 with size 10",
+			query: types.GetProjectPageInput{
+				Page: 1,
+				Size: 10,
+			},
+			expectedCount: 2,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "all projects on single page",
+			query: types.GetProjectPageInput{
+				Page: 0,
+				Size: 20,
+			},
+			expectedCount: 12,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "page size 1",
+			query: types.GetProjectPageInput{
+				Page: 0,
+				Size: 1,
+			},
+			expectedCount: 1,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+	}
+
+	for i, tc := range testCases {
+		results, totalCount, err := p.ProjectsService.GetProjectPage(ctx, tc.query)
+
+		if tc.wantErr {
+			assert.Error(t, err, "Test case %d (%s) should return error", i, tc.name)
+			continue
+		}
+
+		assert.NoError(t, err, "Test case %d (%s) should not return error", i, tc.name)
+		assert.Len(t, results, tc.expectedCount, "Test case %d (%s) expected %d results", i, tc.name, tc.expectedCount)
+		assert.Equal(t, tc.expectedTotal, totalCount, "Test case %d (%s) expected total count %d", i, tc.name, tc.expectedTotal)
+
+		// Verify projects have required fields (from aggregation)
+		for _, project := range results {
+			assert.NotEmpty(t, project.ID, "Project should have ID")
+			assert.NotEmpty(t, project.Name, "Project should have name")
+			assert.NotNil(t, project.Clients, "Project should have clients array")
+		}
+
+		// Verify projects are sorted by name
+		for j := 1; j < len(results); j++ {
+			assert.LessOrEqual(t, results[j-1].Name, results[j].Name,
+				"Test case %d (%s) projects should be sorted by name", i, tc.name)
+		}
+	}
+}

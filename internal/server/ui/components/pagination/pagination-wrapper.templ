@@ -1,0 +1,79 @@
+package pagination
+
+import "fmt"
+
+type WrapperProps struct {
+	Page       int64
+	Size       int64
+	TotalCount int64
+	BaseURL    string
+}
+
+templ PaginationWrapper(props WrapperProps) {
+	{{
+		totalPages := int((props.TotalCount + props.Size - 1) / props.Size)
+		currentPage := int(props.Page + 1)
+		p := CreatePagination(currentPage, totalPages, 5)
+	}}
+	if totalPages > 1 {
+		@Pagination() {
+			@Content() {
+				@Item() {
+					@Previous(PreviousProps{
+						Disabled: !p.HasPrevious,
+						Label:    "Previous",
+						Href:     fmt.Sprintf("%s?page=%d", props.BaseURL, props.Page-1),
+					})
+				}
+				// First page with ellipsis if needed
+				if p.Pages[0] > 1 {
+					@Item() {
+						@Link(LinkProps{
+							Href: fmt.Sprintf("%s?page=0", props.BaseURL),
+						}) {
+							1
+						}
+					}
+					if p.Pages[0] > 2 {
+						@Item() {
+							@Ellipsis()
+						}
+					}
+				}
+				// Visible pages
+				for _, page := range p.Pages {
+					@Item() {
+						@Link(LinkProps{
+							IsActive: page == p.CurrentPage,
+							Href:     fmt.Sprintf("%s?page=%d", props.BaseURL, page-1),
+						}) {
+							{ fmt.Sprint(page) }
+						}
+					}
+				}
+				// Last page with ellipsis if needed
+				if p.Pages[len(p.Pages)-1] < p.TotalPages {
+					if p.Pages[len(p.Pages)-1] < p.TotalPages-1 {
+						@Item() {
+							@Ellipsis()
+						}
+					}
+					@Item() {
+						@Link(LinkProps{
+							Href: fmt.Sprintf("%s?page=%d", props.BaseURL, p.TotalPages-1),
+						}) {
+							{ fmt.Sprint(p.TotalPages) }
+						}
+					}
+				}
+				@Item() {
+					@Next(NextProps{
+						Disabled: !p.HasNext,
+						Label:    "Next",
+						Href:     fmt.Sprintf("%s?page=%d", props.BaseURL, props.Page+1),
+					})
+				}
+			}
+		}
+	}
+}
