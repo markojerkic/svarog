@@ -1,5 +1,7 @@
 package pages
 
+import "strings"
+
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
@@ -80,6 +82,14 @@ type AdminLayoutProps struct {
 	CurrentPath string
 }
 
+func isActivePath(currentPath, menuPath string) bool {
+	return strings.HasPrefix(currentPath, menuPath)
+}
+
+func activeMenuClass() string {
+	return "data-[tui-sidebar-active=true]:bg-accent data-[tui-sidebar-active=true]:text-accent-foreground data-[tui-sidebar-active=true]:border-l-2 data-[tui-sidebar-active=true]:border-foreground data-[tui-sidebar-active=true]:font-semibold"
+}
+
 templ AdminLayout(props AdminLayoutProps) {
 	@BaseLayout(BaseProps{Title: props.Title}) {
 		@sidebar.Layout() {
@@ -110,7 +120,8 @@ templ AdminLayout(props AdminLayoutProps) {
 									@sidebar.MenuButton(sidebar.MenuButtonProps{
 										Href:     "/admin/dashboard",
 										Tooltip:  "Dashboard",
-										IsActive: props.CurrentPath == "/admin/dashboard",
+										IsActive: isActivePath(props.CurrentPath, "/admin/dashboard"),
+										Class:    activeMenuClass(),
 									}) {
 										@icon.Gauge(icon.Props{Class: "size-4"})
 										<span>Dashboard</span>
@@ -119,7 +130,8 @@ templ AdminLayout(props AdminLayoutProps) {
 										@sidebar.MenuButton(sidebar.MenuButtonProps{
 											Href:     "/admin/projects",
 											Tooltip:  "Projects",
-											IsActive: props.CurrentPath == "/admin/projects",
+											IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
+											Class:    activeMenuClass(),
 										}) {
 											@icon.FolderKanban(icon.Props{Class: "size-4"})
 											<span>Projects</span>
@@ -129,7 +141,8 @@ templ AdminLayout(props AdminLayoutProps) {
 										@sidebar.MenuButton(sidebar.MenuButtonProps{
 											Href:     "/admin/users",
 											Tooltip:  "Users",
-											IsActive: props.CurrentPath == "/admin/users",
+											IsActive: isActivePath(props.CurrentPath, "/admin/users"),
+											Class:    activeMenuClass(),
 										}) {
 											@icon.Users(icon.Props{Class: "size-4"})
 											<span>Users</span>

@@ -22,7 +22,7 @@ type ProjectsListPageProps struct {
 }
 
 templ ProjectsListPage(props ProjectsListPageProps) {
-	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects", CurrentPath: "/admin/projects"}) {
 		<div class="grid grid-cols-1 p-4 space-y-4">
 			<span class="flex justify-between gap-2">
 				<form

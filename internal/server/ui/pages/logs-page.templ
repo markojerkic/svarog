@@ -15,7 +15,7 @@ type LogsPageProps struct {
 }
 
 templ LogsPage(props LogsPageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Svarog"}) {
+	@AdminLayout(AdminLayoutProps{Title: "Svarog", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)}) {
 		<script defer src="/assets/js/log-menu.js"></script>
 		<script defer src="/assets/js/log-line-swapping.js" type="module"></script>
 		<div id="logs-container" class="h-full">
