@@ -31,7 +31,7 @@ RUN bun run tw:build
 # Stage 2: Build the Go app
 ####################################################################################
 
-FROM golang:1.24 AS builder
+FROM golang:1.25 AS builder
 
 WORKDIR /app
 
@@ -51,7 +51,7 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/se
 # Stage 3: Copy all needed files and run
 ####################################################################################
 
-FROM alpine:3.21.2
+FROM alpine:3.23.2
 
 # Set the working directory
 WORKDIR /app
