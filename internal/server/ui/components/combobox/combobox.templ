@@ -40,12 +40,26 @@ templ ComboBox(props ...Props) {
 	}
 }
 
-templ ComboboxItems(items []Item) {
-	for _, item := range items {
+type ComboboxItemsProps struct {
+	Items   []Item
+	NextURL string
+}
+
+templ ComboboxItems(props ComboboxItemsProps) {
+	for _, item := range props.Items {
 		@selectbox.Item(selectbox.ItemProps{
 			Value: item.Value,
 		}) {
 			{ item.Name }
 		}
+	}
+	if props.NextURL != "" {
+		<div
+			class="-my-2"
+			hx-get={ props.NextURL }
+			hx-swap="outerHTML"
+			hx-trigger="intersect once"
+			hx-indicator="previous .svarog-indicator-container"
+		></div>
 	}
 }

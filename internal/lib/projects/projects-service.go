@@ -94,6 +94,7 @@ func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, c
 func (m *MongoProjectsService) SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error) {
 	// Escape special regex characters to prevent ReDoS
 	escapedSearch := regexp.QuoteMeta(request.Search)
+	slog.Debug("Searching for projects", "search", escapedSearch, "page", request.Page, "size", request.Size)
 
 	cursor, err := m.projectsCollection.Find(ctx, bson.M{
 		"name": bson.M{

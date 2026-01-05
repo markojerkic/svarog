@@ -28,6 +28,10 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid request parameters"})
 	}
 
+	if request.Size == 0 {
+		request.Size = 10
+	}
+
 	if err := c.Validate(&request); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
 			return c.JSON(http.StatusBadRequest, apiErr)
@@ -48,7 +52,19 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 		}
 	}
 
-	return utils.Render(c, http.StatusOK, combobox.ComboboxItems(items))
+	var nextUrl string
+
+	if int(request.Size) > len(results) {
+		url := *c.Request().URL
+		q := url.Query()
+		q.Set("page", fmt.Sprint(request.Page+1))
+		url.RawQuery = q.Encode()
+	}
+
+	return utils.Render(c, http.StatusOK, combobox.ComboboxItems(combobox.ComboboxItemsProps{
+		Items:   items,
+		NextURL: nextUrl,
+	}))
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
