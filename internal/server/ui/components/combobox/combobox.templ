@@ -25,7 +25,8 @@ templ ComboBox(props ...Props) {
 				Placeholder: "Select role",
 			})
 			@selectbox.Content(selectbox.ContentProps{
-				SearchName: "search",
+				SearchName:          "search",
+				DisableClientSearch: true,
 				SearchAttributes: templ.Attributes{
 					"hx-get":       p.SearchUrl,
 					"hx-trigger":   "input changed delay:300ms, intersect once",

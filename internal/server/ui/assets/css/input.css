@@ -131,7 +131,7 @@
 
   .svarog-indicator-container {
     & > [data-fallback] {
-      display: inline;
+      display: inline-block;
     }
     & > :not([data-fallback]) {
       display: none;
@@ -144,7 +144,7 @@
       display: none;
     }
     & > :not([data-fallback]) {
-      display: inline;
+      display: inline-block;
     }
   }
 }
