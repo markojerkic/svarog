@@ -13,3 +13,7 @@ node_modules/
 # Playwright
 test-results/
 tests/**/*.spec.js
+
+# Help files
+README.md
+*.yml
