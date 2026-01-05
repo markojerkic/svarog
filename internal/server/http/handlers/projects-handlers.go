@@ -11,6 +11,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -19,6 +20,35 @@ import (
 type ProjectsRouter struct {
 	projectsService  projects.ProjectsService
 	natsCredsService serverauth.NatsCredentialService
+}
+
+func (p *ProjectsRouter) searchProjects(c echo.Context) error {
+	var request projects.SearchProjectsRequest
+	if err := c.Bind(&request); err != nil {
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid request parameters"})
+	}
+
+	if err := c.Validate(&request); err != nil {
+		if apiErr, ok := err.(types.ApiError); ok {
+			return c.JSON(http.StatusBadRequest, apiErr)
+		}
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Validation failed"})
+	}
+
+	results, err := p.projectsService.SearchProjects(c.Request().Context(), request)
+	if err != nil {
+		slog.Error("Error fetching projects", "error", err)
+		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting projects"})
+	}
+	items := make([]combobox.Item, len(results))
+	for i, project := range results {
+		items[i] = combobox.Item{
+			Name:  project.Name,
+			Value: project.Name,
+		}
+	}
+
+	return utils.Render(c, http.StatusOK, combobox.ComboboxItems(items))
 }
 
 func (p *ProjectsRouter) getProjects(c echo.Context) error {
@@ -237,6 +267,7 @@ func NewProjectsRouter(
 
 	group := e.Group("/projects")
 	group.GET("", router.getProjects)
+	group.GET("/search", router.searchProjects)
 	group.GET("/:id", router.getProject)
 	group.GET("/:id/edit", router.getEditProjectForm)
 	group.GET("/:id/connection-string-form", router.getConnectionStringForm)

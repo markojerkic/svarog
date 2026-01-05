@@ -1,0 +1,48 @@
+package combobox
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+
+type Item struct {
+	Name  string
+	Value string
+}
+
+type Props struct {
+	selectbox.TriggerProps
+	SearchUrl   string
+	Value       string
+	Placeholder string
+}
+
+templ ComboBox(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@selectbox.SelectBox() {
+		@selectbox.Trigger(p.TriggerProps) {
+			@selectbox.Value(selectbox.ValueProps{
+				Placeholder: "Select role",
+			})
+			@selectbox.Content(selectbox.ContentProps{
+				SearchAttributes: templ.Attributes{
+					"hx-get":     p.SearchUrl,
+					"hx-trigger": "change delay:300ms",
+					"hx-target":  "closest .select-content find [data-tui-selectbox-content-children]",
+					"hx-swap":    "beforeend",
+				},
+			}) {
+			}
+		}
+	}
+}
+
+templ ComboboxItems(items []Item) {
+	for _, item := range items {
+		@selectbox.Item(selectbox.ItemProps{
+			Value: item.Value,
+		}) {
+			{ item.Name }
+		}
+	}
+}

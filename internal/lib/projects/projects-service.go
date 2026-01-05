@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"log/slog"
+	"regexp"
 
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -15,12 +15,19 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type SearchProjectsRequest struct {
+	Search string `json:"search" query:"search"`
+	Page   int64  `json:"page" query:"page" default:"0" validate:"min=0"`
+	Size   int64  `json:"size" query:"size" default:"10" validate:"min=0,max=100"`
+}
+
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
 	UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error)
 	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
+	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
 	DeleteProject(ctx context.Context, id string) error
 	ProjectExists(ctx context.Context, projectId, clientId string) bool
 }
@@ -80,6 +87,36 @@ func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, c
 		Name:    name,
 		Clients: uniqueStrings(clients),
 	}, nil
+}
+
+// SearchProjects implements [ProjectsService].
+func (m *MongoProjectsService) SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error) {
+	// Escape special regex characters to prevent ReDoS
+	escapedSearch := regexp.QuoteMeta(request.Search)
+
+	cursor, err := m.projectsCollection.Find(ctx, bson.M{
+		"name": bson.M{
+			"$regex": primitive.Regex{
+				Pattern: escapedSearch,
+				Options: "i",
+			},
+		},
+	},
+		options.Find().
+			SetLimit(request.Size).
+			SetSkip(request.Page*request.Size),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search projects: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var projects []Project
+	if err = cursor.All(ctx, &projects); err != nil {
+		return nil, fmt.Errorf("failed to decode projects: %w", err)
+	}
+
+	return projects, nil
 }
 
 // GetProject implements ProjectsService.

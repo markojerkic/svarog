@@ -40,6 +40,11 @@ func (n *NoopProjectService) ProjectExists(ctx context.Context, projectId string
 	return true
 }
 
+// SearchProjects implements [projects.ProjectsService].
+func (n *NoopProjectService) SearchProjects(ctx context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
+	panic("unimplemented")
+}
+
 // UpdateProject implements [projects.ProjectsService].
 func (n *NoopProjectService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (projects.Project, error) {
 	panic("unimplemented")

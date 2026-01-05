@@ -193,3 +193,171 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	assert.NoError(t, err)
 	assert.False(t, hasAccess, "User2 should not have access after deletion")
 }
+
+func (p *ProjectsSuite) TestSearchProjects() {
+	t := p.Suite.T()
+	ctx := context.Background()
+
+	// Create test projects with various names
+	testProjects := []struct {
+		name    string
+		clients []string
+	}{
+		{"frontend-app", []string{"client1"}},
+		{"backend-api", []string{"client2"}},
+		{"mobile-frontend", []string{"client3"}},
+		{"data-pipeline", []string{"client4"}},
+		{"analytics-dashboard", []string{"client5"}},
+		{"user-service", []string{"client6"}},
+		{"UPPERCASE-PROJECT", []string{"client7"}},
+		{"special.chars-project", []string{"client8"}},
+	}
+
+	// Create all test projects
+	for _, tp := range testProjects {
+		_, err := p.ProjectsService.CreateProject(ctx, tp.name, tp.clients)
+		assert.NoError(t, err, "Failed to create project: %s", tp.name)
+	}
+
+	testCases := []struct {
+		name          string
+		searchRequest projects.SearchProjectsRequest
+		expectedNames []string
+		expectedCount int
+		wantErr       bool
+		errorContains string
+	}{
+		{
+			name: "search for 'frontend' - case insensitive",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "frontend",
+				Page:   0,
+				Size:   10,
+			},
+			expectedNames: []string{"frontend-app", "mobile-frontend"},
+			expectedCount: 2,
+			wantErr:       false,
+		},
+		{
+			name: "search for 'api' - partial match",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "api",
+				Page:   0,
+				Size:   10,
+			},
+			expectedNames: []string{"backend-api"},
+			expectedCount: 1,
+			wantErr:       false,
+		},
+		{
+			name: "search for 'service' - single result",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "service",
+				Page:   0,
+				Size:   10,
+			},
+			expectedNames: []string{"user-service"},
+			expectedCount: 1,
+			wantErr:       false,
+		},
+		{
+			name: "search for 'project' - multiple results",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "project",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 2,
+			wantErr:       false,
+		},
+		{
+			name: "search for 'uppercase' - case insensitive",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "uppercase",
+				Page:   0,
+				Size:   10,
+			},
+			expectedNames: []string{"UPPERCASE-PROJECT"},
+			expectedCount: 1,
+			wantErr:       false,
+		},
+		{
+			name: "search for 'nonexistent' - no results",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "nonexistent",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 0,
+			wantErr:       false,
+		},
+		{
+			name: "pagination - page 0, size 2",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "",
+				Page:   0,
+				Size:   2,
+			},
+			expectedCount: 2,
+			wantErr:       false,
+		},
+		{
+			name: "pagination - page 1, size 3",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "",
+				Page:   1,
+				Size:   3,
+			},
+			expectedCount: 3,
+			wantErr:       false,
+		},
+		{
+			name: "regex special chars escaped - dot",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "special.chars",
+				Page:   0,
+				Size:   10,
+			},
+			expectedNames: []string{"special.chars-project"},
+			expectedCount: 1,
+			wantErr:       false,
+		},
+		{
+			name: "empty search - returns all within page size",
+			searchRequest: projects.SearchProjectsRequest{
+				Search: "",
+				Page:   0,
+				Size:   5,
+			},
+			expectedCount: 5,
+			wantErr:       false,
+		},
+	}
+
+	for i, tc := range testCases {
+		results, err := p.ProjectsService.SearchProjects(ctx, tc.searchRequest)
+
+		if tc.wantErr {
+			assert.Error(t, err, "Test case %d (%s) should return error", i, tc.name)
+			if tc.errorContains != "" {
+				assert.Contains(t, err.Error(), tc.errorContains, "Test case %d (%s) error message", i, tc.name)
+			}
+			continue
+		}
+
+		assert.NoError(t, err, "Test case %d (%s) should not return error", i, tc.name)
+		assert.Len(t, results, tc.expectedCount, "Test case %d (%s) expected %d results", i, tc.name, tc.expectedCount)
+
+		// If specific names are expected, verify them
+		if len(tc.expectedNames) > 0 {
+			resultNames := make([]string, len(results))
+			for j, project := range results {
+				resultNames[j] = project.Name
+			}
+
+			for _, expectedName := range tc.expectedNames {
+				assert.Contains(t, resultNames, expectedName, "Test case %d (%s) should contain %s", i, tc.name, expectedName)
+			}
+		}
+	}
+}
