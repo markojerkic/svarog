@@ -24,9 +24,13 @@ templ PaginationWrapper(props WrapperProps) {
 						Disabled: !p.HasPrevious,
 						Label:    "Previous",
 						Attributes: templ.Attributes{
-							"form":  "search-form",
-							"name":  "page",
-							"value": fmt.Sprintf("%d", props.Page-1),
+							"form":       "search-form",
+							"name":       "page",
+							"value":      fmt.Sprintf("%d", props.Page-1),
+							"hx-get":     props.BaseURL,
+							"hx-include": "[form=search-form]",
+							"hx-target":  ".table-wrapper",
+							"hx-select":  ".table-wrapper",
 						},
 					})
 				}
@@ -36,9 +40,13 @@ templ PaginationWrapper(props WrapperProps) {
 						@Link(LinkProps{
 							Type: button.TypeSubmit,
 							Attributes: templ.Attributes{
-								"form":  "search-form",
-								"name":  "page",
-								"value": fmt.Sprintf("%d", 0),
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", 0),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
 							},
 						}) {
 							1
@@ -57,9 +65,13 @@ templ PaginationWrapper(props WrapperProps) {
 							IsActive: page == p.CurrentPage,
 							Type:     button.TypeSubmit,
 							Attributes: templ.Attributes{
-								"form":  "search-form",
-								"name":  "page",
-								"value": fmt.Sprintf("%d", page-1),
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", page-1),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
 							},
 						}) {
 							{ fmt.Sprint(page) }
@@ -76,9 +88,13 @@ templ PaginationWrapper(props WrapperProps) {
 					@Item() {
 						@Link(LinkProps{
 							Attributes: templ.Attributes{
-								"form":  "search-form",
-								"name":  "page",
-								"value": fmt.Sprintf("%d", p.TotalPages-1),
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", p.TotalPages-1),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
 							},
 						}) {
 							{ fmt.Sprint(p.TotalPages) }
@@ -90,9 +106,13 @@ templ PaginationWrapper(props WrapperProps) {
 						Disabled: !p.HasNext,
 						Label:    "Next",
 						Attributes: templ.Attributes{
-							"form":  "search-form",
-							"name":  "page",
-							"value": fmt.Sprintf("%d", props.Page+1),
+							"form":       "search-form",
+							"name":       "page",
+							"value":      fmt.Sprintf("%d", props.Page+1),
+							"hx-get":     props.BaseURL,
+							"hx-include": "[form=search-form]",
+							"hx-target":  ".table-wrapper",
+							"hx-select":  ".table-wrapper",
 						},
 					})
 				}

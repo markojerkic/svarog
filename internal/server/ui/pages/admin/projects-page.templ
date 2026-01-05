@@ -28,9 +28,10 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				<form
 					id="search-form"
 					hx-get="/admin/projects"
+					hx-boost="true"
 					hx-push-url="true"
-					hx-target=".projects-table-wrapper"
-					hx-select=".projects-table-wrapper"
+					hx-target=".table-wrapper"
+					hx-select=".table-wrapper"
 					hx-trigger="input changed delay:300ms"
 				>
 					@input.Input(input.Props{
@@ -43,7 +44,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				</form>
 				@projectcomponents.NewProject()
 			</span>
-			<div class="projects-table-wrapper">
+			<div class="table-wrapper">
 				@table.Table() {
 					@table.Caption() {
 						A list of your projects.
