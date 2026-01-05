@@ -357,6 +357,11 @@ func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUs
 	cursor, err := self.userCollection.Find(ctx, filter, &options.FindOptions{
 		Limit: &limit,
 		Skip:  &skip,
+		Sort:  bson.D{{Key: "username", Value: 1}},
+		Collation: &options.Collation{
+			Locale:   "en",
+			Strength: 2, // Case-insensitive sorting
+		},
 		Projection: bson.M{
 			"password": 0,
 		},
