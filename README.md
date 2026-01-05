@@ -43,12 +43,12 @@ The Svarog client reads logs from stdin and publishes them to NATS. Integrate it
 ### Docker Integration
 
 ```Dockerfile
-FROM svarog-client:latest AS svarog-client
+FROM markojerkic/svarog-client:latest AS svarog
 
 FROM alpine:3.12
 
 COPY ./your-app .
-COPY --from=svarog-client /svarog/client /svarog/client
+COPY --from=markojerkic/svarog-client:latest /svarog/client /svarog/client
 
 # Pipe application output to Svarog client
 CMD ["sh", "-c", "./your-app | /svarog/client"]
@@ -117,7 +117,7 @@ services:
     command: ["-js"] # Enable JetStream for persistence
 
   svarog-server:
-    image: svarog:latest
+    image: markojerkic/svarog:latest
     container_name: svarog-server
     ports:
       - 1323:1323 # HTTP/WebSocket interface

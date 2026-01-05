@@ -47,14 +47,19 @@ tasks:
   docker:client:
     desc: Build the client Docker image
     cmds:
-      - docker build --progress=plain -t svarog-client:{{.SVAROG_VERSION | default "latest"}} -f cmd/client/Dockerfile .
+      - docker build --progress=plain -t markojerkic/svarog-client:{{.SVAROG_VERSION | default "latest"}} -f cmd/client/Dockerfile .
 
   docker:server:
     desc: Build the server Docker image
     deps:
       - docker:client
     cmds:
-      - docker build --progress=plain --build-arg SVAROG_VERSION={{.SVAROG_VERSION | default "latest"}} -t svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
+      - docker build --progress=plain --build-arg SVAROG_VERSION={{.SVAROG_VERSION | default "latest"}} -t markojerkic/svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
+
+  docker:dev:
+    desc: Run the docker dev environment
+    cmds:
+      - docker compose --env-file .env.docker up -d --force-recreate svarog
 
   default:
     desc: Build the Docker images

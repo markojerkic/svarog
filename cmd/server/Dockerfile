@@ -1,3 +1,5 @@
+ARG SVAROG_VERSION=latest
+
 ####################################################################################
 # Stage 1: Build the web assets
 ####################################################################################
@@ -51,9 +53,9 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/se
 # Stage 3: Copy all needed files and run
 ####################################################################################
 
-FROM alpine:3.23.2
+FROM markojerkic/svarog-client:${SVAROG_VERSION} AS client
 
-ARG SVAROG_VERSION=latest
+FROM alpine:3.23.2
 
 # Set the working directory
 WORKDIR /app
@@ -62,7 +64,7 @@ WORKDIR /app
 COPY --from=builder /app/build/server /app/build/server
 COPY ./internal/server/ui/assets/ /app/internal/server/ui/assets/
 COPY --from=web-build /usr/src/app/internal/server/ui/assets/css/output.css /app/internal/server/ui/assets/css/output.css
-COPY --from=svarog-client:${SVAROG_VERSION} /svarog/client /svarog/client
+COPY --from=client /svarog/client /svarog/client
 
 ENV DOCKER=true
 
