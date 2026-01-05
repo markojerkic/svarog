@@ -396,6 +396,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		query         types.GetProjectPageInput
 		expectedCount int
 		expectedTotal int64
+		expectedNames []string
 		wantErr       bool
 	}{
 		{
@@ -478,6 +479,87 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 			expectedTotal: 12,
 			wantErr:       false,
 		},
+		{
+			name: "search for 'project-1' - partial matches",
+			query: types.GetProjectPageInput{
+				Search: "project-1",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 4,
+			expectedTotal: 4,
+			expectedNames: []string{"project-1", "project-10", "project-11", "project-12"},
+			wantErr:       false,
+		},
+		{
+			name: "search for '-5' - single match",
+			query: types.GetProjectPageInput{
+				Search: "-5",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 1,
+			expectedTotal: 1,
+			expectedNames: []string{"project-5"},
+			wantErr:       false,
+		},
+		{
+			name: "search for '11' - partial match",
+			query: types.GetProjectPageInput{
+				Search: "11",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 1,
+			expectedTotal: 1,
+			expectedNames: []string{"project-11"},
+			wantErr:       false,
+		},
+		{
+			name: "search with pagination - page 0",
+			query: types.GetProjectPageInput{
+				Search: "project-",
+				Page:   0,
+				Size:   5,
+			},
+			expectedCount: 5,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "search with pagination - page 1",
+			query: types.GetProjectPageInput{
+				Search: "project-",
+				Page:   1,
+				Size:   5,
+			},
+			expectedCount: 5,
+			expectedTotal: 12,
+			wantErr:       false,
+		},
+		{
+			name: "search with no results",
+			query: types.GetProjectPageInput{
+				Search: "nonexistent",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 0,
+			expectedTotal: 0,
+			wantErr:       false,
+		},
+		{
+			name: "search case insensitive",
+			query: types.GetProjectPageInput{
+				Search: "PROJECT-5",
+				Page:   0,
+				Size:   10,
+			},
+			expectedCount: 1,
+			expectedTotal: 1,
+			expectedNames: []string{"project-5"},
+			wantErr:       false,
+		},
 	}
 
 	for i, tc := range testCases {
@@ -503,6 +585,18 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		for j := 1; j < len(results); j++ {
 			assert.LessOrEqual(t, results[j-1].Name, results[j].Name,
 				"Test case %d (%s) projects should be sorted by name", i, tc.name)
+		}
+
+		// If specific names are expected, verify them
+		if len(tc.expectedNames) > 0 {
+			resultNames := make([]string, len(results))
+			for j, project := range results {
+				resultNames[j] = project.Name
+			}
+
+			for _, expectedName := range tc.expectedNames {
+				assert.Contains(t, resultNames, expectedName, "Test case %d (%s) should contain %s", i, tc.name, expectedName)
+			}
 		}
 	}
 }

@@ -11,6 +11,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
 import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
 import "github.com/markojerkic/svarog/internal/server/ui/components/table"
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 
 type ProjectsListPageProps struct {
 	Projects   []projects.Project
@@ -22,7 +23,12 @@ type ProjectsListPageProps struct {
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
 		<div class="grid grid-cols-1 p-4 space-y-4">
-			<span class="flex justify-end">
+			<span class="flex justify-between gap-2">
+				@input.Input(input.Props{
+					Type:        input.TypeSearch,
+					Class:       "max-w-2xs md:max-w-xs",
+					Placeholder: "Search...",
+				})
 				@projectcomponents.NewProject()
 			</span>
 			@table.Table() {

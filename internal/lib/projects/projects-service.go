@@ -203,9 +203,34 @@ func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, erro
 
 // GetProjectPage implements ProjectsService.
 func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	pipeline := mongo.Pipeline{
+	// Build match filter for search
+	matchFilter := bson.D{}
+	if query.Search != "" {
+		// Escape special regex characters to prevent ReDoS
+		escapedSearch := regexp.QuoteMeta(query.Search)
+		matchFilter = bson.D{
+			{Key: "name", Value: bson.D{
+				{Key: "$regex", Value: primitive.Regex{
+					Pattern: escapedSearch,
+					Options: "i",
+				}},
+			}},
+		}
+	}
+
+	pipeline := mongo.Pipeline{}
+
+	// Add match stage if search is present
+	if query.Search != "" {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: matchFilter},
+		})
+	}
+
+	// Continue with rest of pipeline
+	pipeline = append(pipeline,
 		// Lookup stage
-		{
+		bson.D{
 			{Key: "$lookup", Value: bson.D{
 				{Key: "from", Value: "log_lines"},
 				{Key: "localField", Value: "clients"},
@@ -214,7 +239,7 @@ func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.G
 			}},
 		},
 		// Add fields stage
-		{
+		bson.D{
 			{Key: "$addFields", Value: bson.D{
 				{Key: "totalSizeBytes", Value: bson.D{
 					{Key: "$sum", Value: bson.D{
@@ -230,7 +255,7 @@ func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.G
 			}},
 		},
 		// Project stage
-		{
+		bson.D{
 			{Key: "$project", Value: bson.D{
 				{Key: "_id", Value: 1},
 				{Key: "name", Value: 1},
@@ -246,23 +271,35 @@ func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.G
 			}},
 		},
 		// Sort stage
-		{
+		bson.D{
 			{Key: "$sort", Value: bson.D{
 				{Key: "name", Value: 1},
 			}},
 		},
 		// Skip stage
-		{
+		bson.D{
 			{Key: "$skip", Value: query.Page * query.Size},
 		},
 		// Limit stage
-		{
+		bson.D{
 			{Key: "$limit", Value: query.Size},
 		},
-	}
+	)
 
-	// Get total count
-	totalCount, err := m.projectsCollection.CountDocuments(ctx, bson.M{})
+	// Get total count with search filter
+	countFilter := bson.M{}
+	if query.Search != "" {
+		escapedSearch := regexp.QuoteMeta(query.Search)
+		countFilter = bson.M{
+			"name": bson.M{
+				"$regex": primitive.Regex{
+					Pattern: escapedSearch,
+					Options: "i",
+				},
+			},
+		}
+	}
+	totalCount, err := m.projectsCollection.CountDocuments(ctx, countFilter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count projects: %w", err)
 	}
