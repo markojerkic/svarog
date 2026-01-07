@@ -1,4 +1,4 @@
-package admin
+package projectcomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
@@ -95,7 +95,7 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 	</form>
 }
 
-templ connectionStringDialog() {
+templ ConnectionStringDialog() {
 	@dialog.Dialog(dialog.Props{
 		Class: "max-w-md",
 		ID:    "connection-string-dialog",

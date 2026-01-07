@@ -1,69 +1,135 @@
 # Svarog
 
-A log aggregation system with gRPC-based client and HTTP/WebSocket server.
+A modern log aggregation and monitoring system that collects logs from distributed clients via NATS messaging and provides a web interface for viewing and analyzing them in real-time.
+
+## Architecture
+
+Svarog uses a NATS-based pub/sub architecture for reliable log ingestion:
+
+- **Clients** pipe their application logs to the Svarog client, which publishes them to a NATS server
+- **NATS** acts as the message broker, ensuring reliable delivery and decoupling clients from the server
+- **Server** subscribes to NATS topics, aggregates logs in MongoDB, and serves them via HTTP/WebSocket
+- **Web UI** provides real-time log viewing with filtering, search, and project management
+
+### Connection Model
+
+Clients connect using a generated connection URL that contains all necessary configuration:
+
+```
+svarog://nats-server:port/logs.project.client?token=authentication_token
+```
+
+This URL format provides:
+
+- **NATS server address** (`nats-server:port`)
+- **Topic hierarchy** (`logs.project.client`) for organizing logs by project and client
+- **Authentication token** for secure access
+
+The server generates these connection URLs through the web interface, making it easy to integrate new clients with a simple copy/paste workflow.
 
 ## Development
 
-```bash
-make deps
-make watch
-```
-
-In a separate terminal:
+Start the development environment with hot reload:
 
 ```bash
-cd web && bun run dev
+task db                    # Start MongoDB in Docker
+task dev                   # Start server with templ hot reload
 ```
 
-# Client usage
+## Client Usage
+
+The Svarog client reads logs from stdin and publishes them to NATS. Integrate it into your application by piping logs:
+
+### Docker Integration
 
 ```Dockerfile
-FROM svarog-client:latest AS svarog-client
+FROM markojerkic/svarog-client:latest AS svarog
 
 FROM alpine:3.12
 
-COPY ./echo.sh .
-COPY --from=svarog-client /svarog /svarog/
+COPY ./your-app .
+COPY --from=markojerkic/svarog-client:latest /svarog/client /svarog/client
 
-CMD ["sh", "-c", "sh echo.sh | /svarog/client -SVAROG_DEBUG_ENABLED -SVAROG_CLIENT_ID=$SVAROG_CLIENT_ID -SVAROG_SERVER_ADDR=$SVAROG_SERVER_ADDR"]
-# or
-CMD ["sh", "-c", "sh echo.sh | /svarog/client"] # and set the environment variables in the docker-compose.yml
+# Pipe application output to Svarog client
+CMD ["sh", "-c", "./your-app | /svarog/client"]
 ```
 
-```yaml docker-compose.yml
+### Configuration
+
+Configure the client using the connection URL generated from the Svarog web interface. The URL can be provided either as a command-line argument or via the `SVAROG_CONN_STRING` environment variable.
+
+**Via environment variable:**
+
+```yaml
+# docker-compose.yml
 version: "3"
 services:
-  svarog-echo-example:
-    image: svarog-echo-example:latest
-    container_name: svarog-echo-example
-    build:
-      context: .
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+  your-app:
+    image: your-app:latest
     environment:
-      - SVAROG_SERVER_ADDR=host.docker.internal:50051
-      - SVAROG_CLIENT_ID=svarog-echo
-      - SVAROG_DEBUG_ENABLED=true
+      - SVAROG_CONN_STRING=svarog://nats-server:4222/logs.myproject.myapp?token=base64_encoded_token
+      - SVAROG_INSTANCE_ID=app-instance-01 # Optional: defaults to hostname, which in docker is the container name
 ```
 
-# Server usage
+**Via command-line argument:**
 
-```yaml docker-compose.yml
+```bash
+your-app | svarog-client "svarog://nats-server:4222/logs.myproject.myapp?token=base64_token"
+```
+
+**Optional query parameters:**
+
+- `debug=true` - Enable debug logging from the client
+
+**Environment variables:**
+
+- `SVAROG_CONN_STRING` - The complete connection URL (if not provided as argument)
+- `SVAROG_INSTANCE_ID` - Custom instance identifier (defaults to hostname)
+
+### Command Line Usage
+
+```bash
+# Using environment variable
+export SVAROG_CONN_STRING="svarog://nats:4222/logs.proj.app?token=xyz"
+tail -f /var/log/app.log | svarog-client
+
+# Using command-line argument
+tail -f /var/log/app.log | svarog-client "svarog://nats:4222/logs.proj.app?token=xyz"
+
+# With debug enabled in URL
+tail -f /var/log/app.log | svarog-client "svarog://nats:4222/logs.proj.app?token=xyz&debug=true"
+```
+
+## Server Deployment
+
+Deploy the complete Svarog stack with NATS, MongoDB, and the web server:
+
+```yaml
+# docker-compose.yml
 version: "3"
 services:
-  svarog:
-    image: svarog:latest
-    container_name: svarog
+  svarog-nats:
+    image: nats:latest
+    container_name: svarog-nats
     ports:
-      - 1323:1323
-      - 50051:50051
+      - 4222:4222
+      - 8222:8222 # HTTP monitoring
+    command: ["-js"] # Enable JetStream for persistence
+
+  svarog-server:
+    image: markojerkic/svarog:latest
+    container_name: svarog-server
+    ports:
+      - 1323:1323 # HTTP/WebSocket interface
     environment:
       - MONGO_URL=mongodb://user:pass@svarog-mongodb:27017/
-      - GPRC_PORT=50051
+      - NATS_URL=nats://svarog-nats:4222
       - HTTP_SERVER_PORT=1323
-      - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:3000
+      - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:1323
     depends_on:
       - svarog-mongodb
+      - svarog-nats
+
   svarog-mongodb:
     image: mongodb/mongodb-community-server:6.0-ubi8
     container_name: svarog-mongodb
@@ -74,6 +140,25 @@ services:
       - MONGODB_INITDB_ROOT_PASSWORD=pass
     volumes:
       - dbdata:/data/db
+
 volumes:
   dbdata:
 ```
+
+## Getting Started
+
+1. **Deploy the server stack** using the docker-compose configuration above
+2. **Access the web interface** at http://localhost:1323
+3. **Create a project** for organizing your logs
+4. **Generate a connection URL** for your client application
+5. **Integrate the client** into your application using the provided URL
+6. **View logs** in real-time through the web interface
+
+## Features
+
+- Real-time log streaming via WebSocket
+- Project-based log organization
+- Full-text search and filtering
+- Log archiving and retention policies
+- Authentication and access control
+- Responsive web interface with HTMX

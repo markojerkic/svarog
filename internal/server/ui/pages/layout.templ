@@ -1,5 +1,7 @@
 package pages
 
+import "strings"
+
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
@@ -12,6 +14,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
 import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
 import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
 import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
+import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
 	Title string
@@ -37,6 +40,7 @@ templ BaseLayout(props BaseProps) {
 			<script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.4" integrity="sha384-1RwI/nvUSrMRuNj7hX1+27J8XDdCoSLf0EjEyF69nacuWyiJYoQ/j39RT1mSnd2G" crossorigin="anonymous"></script>
 			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 			<script defer src="/assets/js/htmx-error-swap.js"></script>
+			<script defer src="/assets/js/copy-result-string.js"></script>
 			<script defer src="/assets/js/close-dialog.js"></script>
 			<script defer src="/assets/js/confirm.js"></script>
 			@input.Script()
@@ -51,7 +55,10 @@ templ BaseLayout(props BaseProps) {
 			@calendar.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
-		<body class="bg-background text-foreground h-screen overflow-hidden">
+		<body
+			class="bg-background text-foreground h-screen overflow-hidden"
+			hx-indicator="#htmx-global-indicator"
+		>
 			{ children... }
 			@ConfirmDialog()
 		</body>
@@ -75,6 +82,14 @@ type AdminLayoutProps struct {
 	CurrentPath string
 }
 
+func isActivePath(currentPath, menuPath string) bool {
+	return strings.HasPrefix(currentPath, menuPath)
+}
+
+func activeMenuClass() string {
+	return "data-[tui-sidebar-active=true]:bg-accent data-[tui-sidebar-active=true]:text-accent-foreground data-[tui-sidebar-active=true]:border-l-2 data-[tui-sidebar-active=true]:border-foreground data-[tui-sidebar-active=true]:font-semibold"
+}
+
 templ AdminLayout(props AdminLayoutProps) {
 	@BaseLayout(BaseProps{Title: props.Title}) {
 		@sidebar.Layout() {
@@ -95,64 +110,75 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 				@sidebar.Content() {
-					@sidebar.Group() {
-						@sidebar.GroupLabel() {
-							Admin
-						}
-						@sidebar.Menu() {
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/dashboard",
-									Tooltip:  "Dashboard",
-									IsActive: props.CurrentPath == "/admin/dashboard",
-								}) {
-									@icon.Gauge(icon.Props{Class: "size-4"})
-									<span>Dashboard</span>
+					if auth.IsAdmin(ctx) {
+						@sidebar.MenuItem() {
+							@sidebar.Group() {
+								@sidebar.GroupLabel() {
+									Admin
 								}
-							}
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/projects",
-									Tooltip:  "Projects",
-									IsActive: props.CurrentPath == "/admin/projects",
-								}) {
-									@icon.FolderKanban(icon.Props{Class: "size-4"})
-									<span>Projects</span>
-								}
-							}
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:     "/admin/users",
-									Tooltip:  "Users",
-									IsActive: props.CurrentPath == "/admin/users",
-								}) {
-									@icon.Users(icon.Props{Class: "size-4"})
-									<span>Users</span>
+								@sidebar.Menu() {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/dashboard",
+										Tooltip:  "Dashboard",
+										IsActive: isActivePath(props.CurrentPath, "/admin/dashboard"),
+										Class:    activeMenuClass(),
+									}) {
+										@icon.Gauge(icon.Props{Class: "size-4"})
+										<span>Dashboard</span>
+									}
+									@sidebar.MenuItem() {
+										@sidebar.MenuButton(sidebar.MenuButtonProps{
+											Href:     "/admin/projects",
+											Tooltip:  "Projects",
+											IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
+											Class:    activeMenuClass(),
+										}) {
+											@icon.FolderKanban(icon.Props{Class: "size-4"})
+											<span>Projects</span>
+										}
+									}
+									@sidebar.MenuItem() {
+										@sidebar.MenuButton(sidebar.MenuButtonProps{
+											Href:     "/admin/users",
+											Tooltip:  "Users",
+											IsActive: isActivePath(props.CurrentPath, "/admin/users"),
+											Class:    activeMenuClass(),
+										}) {
+											@icon.Users(icon.Props{Class: "size-4"})
+											<span>Users</span>
+										}
+									}
 								}
 							}
 						}
 					}
-				}
-				@sidebar.Footer() {
-					@sidebar.Menu() {
-						@sidebar.MenuItem() {
-							@sidebar.MenuButton(sidebar.MenuButtonProps{
-								Href:    "/logout",
-								Tooltip: "Settings",
-							}) {
-								@icon.UserMinus(icon.Props{Class: "size-4"})
-								<span>Logout</span>
+					@sidebar.Footer() {
+						@sidebar.Menu() {
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:    "/logout",
+									Tooltip: "Settings",
+								}) {
+									@icon.UserMinus(icon.Props{Class: "size-4"})
+									<span>Logout</span>
+								}
 							}
 						}
 					}
 				}
 			}
 			@sidebar.Inset(sidebar.InsetProps{Class: "h-screen overflow-hidden"}) {
+				<span
+					class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 absolute z-10 pointer-events-none animate-spin"
+					id="htmx-global-indicator"
+				>
+					@icon.LoaderCircle(icon.Props{Size: 16})
+				</span>
 				<div class="flex h-full flex-col">
 					<div class="flex h-14 shrink-0 items-center gap-4 border-b px-6">
 						@sidebar.Trigger()
 					</div>
-					<div class="flex-1 p-6 min-h-0">
+					<div class="flex-1 overflow-auto p-6 min-h-0">
 						{ children... }
 					</div>
 				</div>

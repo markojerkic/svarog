@@ -3,6 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
+
+	"log/slog"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -15,20 +19,22 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
-	"log/slog"
 )
 
 type AuthService interface {
 	Login(ctx echo.Context, username string, password string) error
 	LoginWithToken(ctx echo.Context, token string) error
-	Register(ctx echo.Context, form types.RegisterForm) (string, error)
 	Logout(ctx echo.Context) error
 	ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error
+	GenerateLoginToken(ctx context.Context, userId string) (string, error)
 	DeleteUser(ctx echo.Context, id string) error
 	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
-	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error)
+	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error)
+	CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error)
+	UserHasAccessToProject(ctx context.Context, userId, projectId string) (bool, error)
+	GetProjectIDsForUser(ctx context.Context, userId string) ([]string, error)
 }
 
 type MongoAuthService struct {
@@ -46,6 +52,46 @@ const (
 	PasswordsDoNotMatch = "Passwords do not match"
 ) // Error codes
 
+// GenerateLoginToken implements [AuthService].
+func (self *MongoAuthService) GenerateLoginToken(ctx context.Context, userId string) (string, error) {
+	res, err := util.StartTransaction(ctx, func(c mongo.SessionContext) (any, error) {
+		user, err := self.GetUserByID(c, userId)
+		if err != nil {
+			return struct{}{}, err
+		}
+		loginToken := generateLoginToken()
+		regeneratedPassword, err := hashPassword(generateRandomPassword())
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		_, err = self.userCollection.UpdateByID(c, user.ID, bson.M{
+			"$set": bson.M{
+				"password":             regeneratedPassword,
+				"needs_password_reset": true,
+				"login_tokens":         []string{loginToken},
+			},
+		})
+		if err != nil {
+			return struct{}{}, err
+		}
+
+		return struct {
+			LoginToken string `json:"loginToken"`
+		}{
+			LoginToken: loginToken,
+		}, nil
+	}, self.mongoClient)
+
+	if err != nil {
+		return "", err
+	}
+
+	return res.(struct {
+		LoginToken string `json:"loginToken"`
+	}).LoginToken, nil
+}
+
 // ResetPassword implements AuthService.
 func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error {
 
@@ -58,7 +104,7 @@ func (self *MongoAuthService) ResetPassword(ctx context.Context, userId string, 
 		return err
 	}
 
-	_, err = util.StartTransaction(ctx, func(c mongo.SessionContext) (interface{}, error) {
+	_, err = util.StartTransaction(ctx, func(c mongo.SessionContext) (any, error) {
 		var user User
 		err = self.userCollection.FindOne(ctx, bson.M{
 			"_id": userID,
@@ -121,41 +167,6 @@ func (self *MongoAuthService) GetUserByUsername(ctx context.Context, username st
 	return user, err
 }
 
-// Register implements AuthService.
-func (m *MongoAuthService) Register(ctx echo.Context, form types.RegisterForm) (string, error) {
-	// Check if user already exists
-	existingUserResult := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
-		"username": form.Username,
-	})
-	if existingUserResult.Err() == nil {
-		return "", errors.New(UserAlreadyExists)
-	}
-
-	hashedPassword, err := hashPassword(generateRandomPassword())
-	if err != nil {
-		return "", err
-	}
-
-	loginToken := generateLoginToken()
-	user, err := m.userCollection.InsertOne(ctx.Request().Context(), User{
-		Username:           form.Username,
-		FirstName:          form.FirstName,
-		LastName:           form.LastName,
-		Password:           hashedPassword,
-		Role:               USER,
-		LoginTokens:        []string{loginToken},
-		NeedsPasswordReset: true,
-	})
-
-	_, ok := user.InsertedID.(primitive.ObjectID)
-
-	if !ok {
-		return "", errors.New("Failed to get user ID")
-	}
-
-	return loginToken, nil
-}
-
 // GetCurrentUser implements AuthService.
 func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error) {
 	session, err := session.Get(SVAROG_SESSION, ctx)
@@ -177,11 +188,17 @@ func (m *MongoAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error
 		return LoggedInUser{}, errors.Join(errors.New(ErrUserNotFound), err)
 	}
 
+	projectIDs := make([]string, 0, len(user.ProjectIDs))
+	for _, pid := range user.ProjectIDs {
+		projectIDs = append(projectIDs, pid.Hex())
+	}
+
 	return LoggedInUser{
 		ID:                 user.ID.Hex(),
 		Username:           user.Username,
 		Role:               user.Role,
 		NeedsPasswordReset: user.NeedsPasswordReset,
+		ProjectIDs:         projectIDs,
 	}, nil
 
 }
@@ -203,7 +220,7 @@ func (m *MongoAuthService) Login(ctx echo.Context, username string, password str
 }
 
 func (m *MongoAuthService) LoginWithToken(ctx echo.Context, token string) error {
-	_, err := util.StartTransaction(ctx.Request().Context(), func(sc mongo.SessionContext) (interface{}, error) {
+	_, err := util.StartTransaction(ctx.Request().Context(), func(sc mongo.SessionContext) (any, error) {
 		var user User
 		err := m.userCollection.FindOne(ctx.Request().Context(), bson.M{
 			"login_tokens": token,
@@ -230,7 +247,7 @@ func (m *MongoAuthService) LoginWithToken(ctx echo.Context, token string) error 
 }
 
 func (m *MongoAuthService) DeleteUser(ctx echo.Context, id string) error {
-	_, err := util.StartTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (interface{}, error) {
+	_, err := util.StartTransaction(ctx.Request().Context(), func(c mongo.SessionContext) (any, error) {
 		user, err := m.GetUserByID(c, id)
 		if err != nil {
 			return struct{}{}, err
@@ -273,31 +290,149 @@ func (self *MongoAuthService) createSession(ctx echo.Context, userID string) err
 }
 
 // GetUserPage implements AuthService.
-func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, error) {
+func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
 	var users []User
 
 	limit := query.Size
 	skip := query.Page * query.Size
 
-	cursor, err := self.userCollection.Find(ctx, bson.M{
-		"username": bson.M{"$regex": query.Username},
-	}, &options.FindOptions{
+	filter := bson.M{}
+	if query.Search != "" {
+		escapedSearch := primitive.Regex{
+			Pattern: query.Search,
+			Options: "i",
+		}
+		filter["$or"] = []bson.M{
+			{"username": bson.M{"$regex": escapedSearch}},
+			{"firstName": bson.M{"$regex": escapedSearch}},
+			{"lastName": bson.M{"$regex": escapedSearch}},
+		}
+	}
+
+	totalCount, err := self.userCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		return users, 0, err
+	}
+
+	cursor, err := self.userCollection.Find(ctx, filter, &options.FindOptions{
 		Limit: &limit,
 		Skip:  &skip,
+		Sort:  bson.D{{Key: "username", Value: 1}},
+		Collation: &options.Collation{
+			Locale:   "en",
+			Strength: 2, // Case-insensitive sorting
+		},
 		Projection: bson.M{
 			"password": 0,
 		},
 	})
 	if err != nil {
-		return users, err
+		return users, 0, err
 	}
 
 	err = cursor.All(ctx, &users)
 	if err != nil {
-		return users, err
+		return users, 0, err
 	}
 
-	return users, nil
+	return users, totalCount, nil
+}
+
+// CreateOrUpdateUser implements AuthService.
+func (self *MongoAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
+	var user User
+
+	if form.ID != "" || form.Username != "" {
+		// Update existing user
+		var userID primitive.ObjectID
+		if form.ID != "" {
+			id, err := primitive.ObjectIDFromHex(form.ID)
+			if err != nil {
+				return user, err
+			}
+			userID = id
+		} else if form.Username != "" {
+			existingUser, err := self.GetUserByUsername(ctx, form.Username)
+			if err != nil {
+				return user, errors.New(ErrUserNotFound)
+			}
+			userID = existingUser.ID
+		} else {
+			return user, types.NewApiError("User ID or username is required", map[string]string{"username": "Username is required"})
+		}
+
+		// Convert project IDs
+		projectObjIDs := make([]primitive.ObjectID, 0, len(form.ProjectIDs))
+		for _, projectId := range form.ProjectIDs {
+			projectObjID, err := primitive.ObjectIDFromHex(projectId)
+			if err != nil {
+				return user, err
+			}
+			projectObjIDs = append(projectObjIDs, projectObjID)
+		}
+
+		_, err := self.userCollection.UpdateByID(ctx, userID, bson.M{
+			"$set": bson.M{
+				"username":    form.Username,
+				"firstName":   form.FirstName,
+				"lastName":    form.LastName,
+				"role":        form.Role,
+				"project_ids": projectObjIDs,
+			},
+		})
+		if err != nil {
+			return user, err
+		}
+
+		user, err = self.GetUserByID(ctx, form.ID)
+		return user, err
+	}
+
+	// Create new user
+	existingUserResult := self.userCollection.FindOne(ctx, bson.M{
+		"username": form.Username,
+	})
+	if existingUserResult.Err() == nil {
+		return user, errors.New(UserAlreadyExists)
+	}
+
+	hashedPassword, err := hashPassword(generateRandomPassword())
+	if err != nil {
+		return user, err
+	}
+
+	// Convert project IDs
+	projectObjIDs := make([]primitive.ObjectID, 0, len(form.ProjectIDs))
+	for _, projectId := range form.ProjectIDs {
+		projectObjID, err := primitive.ObjectIDFromHex(projectId)
+		if err != nil {
+			return user, err
+		}
+		projectObjIDs = append(projectObjIDs, projectObjID)
+	}
+
+	loginToken := generateLoginToken()
+	result, err := self.userCollection.InsertOne(ctx, User{
+		Username:           form.Username,
+		FirstName:          form.FirstName,
+		LastName:           form.LastName,
+		Password:           hashedPassword,
+		Role:               Role(form.Role),
+		LoginTokens:        []string{loginToken},
+		NeedsPasswordReset: true,
+		ProjectIDs:         projectObjIDs,
+	})
+	if err != nil {
+		return user, err
+	}
+
+	insertedID, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return user, errors.New("Failed to get user ID")
+	}
+
+	user, err = self.GetUserByID(ctx, insertedID.Hex())
+	return user, err
 }
 
 func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
@@ -331,6 +466,20 @@ func (m *MongoAuthService) CreateInitialAdminUser(ctx context.Context) error {
 	return err
 }
 
+func (a *MongoAuthService) createIndexes() {
+	_, err := a.userCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "username", Value: 1},
+			},
+			Options: options.Index().SetUnique(true),
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Error creating indexes: %v", err))
+	}
+}
+
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
@@ -355,13 +504,83 @@ func generateLoginToken() string {
 	return primitive.NewObjectID().Hex()
 }
 
+// SetUserProjects implements AuthService.
+// func (self *MongoAuthService) SetUserProjects(ctx context.Context, userId string, projectIds []string) error {
+// 	userObjID, err := primitive.ObjectIDFromHex(userId)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	projectObjIDs := make([]primitive.ObjectID, 0, len(projectIds))
+// 	for _, projectId := range projectIds {
+// 		projectObjID, err := primitive.ObjectIDFromHex(projectId)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		projectObjIDs = append(projectObjIDs, projectObjID)
+// 	}
+//
+// 	_, err = self.userCollection.UpdateByID(ctx, userObjID, bson.M{
+// 		"$set": bson.M{
+// 			"project_ids": projectObjIDs,
+// 		},
+// 	})
+// 	if err != nil {
+// 		return errors.Join(errors.New("Failed to set user projects"), err)
+// 	}
+//
+// 	return nil
+// }
+
+// UserHasAccessToProject implements AuthService.
+func (self *MongoAuthService) UserHasAccessToProject(ctx context.Context, userId, projectId string) (bool, error) {
+	user, err := self.GetUserByID(ctx, userId)
+	if err != nil {
+		return false, err
+	}
+
+	// Admins have access to all projects
+	if user.Role == ADMIN {
+		return true, nil
+	}
+
+	// Check if user has this project in their project list
+	projectObjID, err := primitive.ObjectIDFromHex(projectId)
+	if err != nil {
+		return false, err
+	}
+
+	if slices.Contains(user.ProjectIDs, projectObjID) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// GetProjectIDsForUser implements AuthService.
+func (self *MongoAuthService) GetProjectIDsForUser(ctx context.Context, userId string) ([]string, error) {
+	user, err := self.GetUserByID(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	projectIDs := make([]string, 0, len(user.ProjectIDs))
+	for _, pid := range user.ProjectIDs {
+		projectIDs = append(projectIDs, pid.Hex())
+	}
+
+	return projectIDs, nil
+}
+
 var _ AuthService = &MongoAuthService{}
 
 func NewMongoAuthService(userCollection *mongo.Collection, sessionCollection *mongo.Collection, client *mongo.Client, sessionStore sessions.Store) *MongoAuthService {
-	return &MongoAuthService{
+	service := &MongoAuthService{
 		userCollection:    userCollection,
 		sessionCollection: sessionCollection,
 		mongoClient:       client,
 		sessionStore:      sessionStore,
 	}
+	service.createIndexes()
+	return service
 }

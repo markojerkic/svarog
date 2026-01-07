@@ -1,0 +1,76 @@
+package combobox
+
+import (
+	"github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
+)
+
+type Item struct {
+	Name  string
+	Value string
+}
+
+type Props struct {
+	selectbox.TriggerProps
+	SearchUrl   string
+	Values      []Item
+	Placeholder string
+}
+
+templ ComboBox(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@selectbox.SelectBox() {
+		@selectbox.Trigger(p.TriggerProps) {
+			@selectbox.Value(selectbox.ValueProps{
+				Placeholder: utils.IfElse(p.Placeholder != "", p.Placeholder, "Select..."),
+				Multiple:    p.Multiple,
+			})
+			@selectbox.Content(selectbox.ContentProps{
+				SearchName:          "search",
+				DisableClientSearch: true,
+				SearchAttributes: templ.Attributes{
+					"hx-get":       p.SearchUrl,
+					"hx-trigger":   "input changed delay:300ms, intersect once",
+					"hx-target":    "next [data-tui-selectbox-content-children]",
+					"hx-indicator": "previous .svarog-indicator-container",
+					"hx-swap":      "innerHTML",
+				},
+			}) {
+				for _, selectedValue := range p.Values {
+					@selectbox.Item(selectbox.ItemProps{
+						Value: selectedValue.Value,
+					}) {
+						{ selectedValue.Name }
+					}
+				}
+			}
+		}
+	}
+}
+
+type ComboboxItemsProps struct {
+	Items   []Item
+	NextURL string
+}
+
+templ ComboboxItems(props ComboboxItemsProps) {
+	for _, item := range props.Items {
+		@selectbox.Item(selectbox.ItemProps{
+			Value: item.Value,
+		}) {
+			{ item.Name }
+		}
+	}
+	if props.NextURL != "" {
+		<div
+			class="-my-2"
+			hx-get={ props.NextURL }
+			hx-swap="outerHTML"
+			hx-trigger="intersect once"
+			hx-indicator="previous .svarog-indicator-container"
+		></div>
+	}
+}

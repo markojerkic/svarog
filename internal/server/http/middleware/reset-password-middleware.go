@@ -1,10 +1,11 @@
 package middleware
 
 import (
+	"log/slog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
-	"log/slog"
 )
 
 func RestPasswordMiddleware() echo.MiddlewareFunc {

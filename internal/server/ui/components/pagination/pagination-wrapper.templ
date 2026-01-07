@@ -1,0 +1,122 @@
+package pagination
+
+import "fmt"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+
+type WrapperProps struct {
+	Page       int64
+	Size       int64
+	TotalCount int64
+	BaseURL    string
+}
+
+templ PaginationWrapper(props WrapperProps) {
+	{{
+		totalPages := int((props.TotalCount + props.Size - 1) / props.Size)
+		currentPage := int(props.Page + 1)
+		p := CreatePagination(currentPage, totalPages, 5)
+	}}
+	if totalPages > 1 {
+		@Pagination() {
+			@Content() {
+				@Item() {
+					@Previous(PreviousProps{
+						Disabled: !p.HasPrevious,
+						Label:    "Previous",
+						Attributes: templ.Attributes{
+							"form":       "search-form",
+							"name":       "page",
+							"value":      fmt.Sprintf("%d", props.Page-1),
+							"hx-get":     props.BaseURL,
+							"hx-include": "[form=search-form]",
+							"hx-target":  ".table-wrapper",
+							"hx-select":  ".table-wrapper",
+						},
+					})
+				}
+				// First page with ellipsis if needed
+				if p.Pages[0] > 1 {
+					@Item() {
+						@Link(LinkProps{
+							Type: button.TypeSubmit,
+							Attributes: templ.Attributes{
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", 0),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
+							},
+						}) {
+							1
+						}
+					}
+					if p.Pages[0] > 2 {
+						@Item() {
+							@Ellipsis()
+						}
+					}
+				}
+				// Visible pages
+				for _, page := range p.Pages {
+					@Item() {
+						@Link(LinkProps{
+							IsActive: page == p.CurrentPage,
+							Type:     button.TypeSubmit,
+							Attributes: templ.Attributes{
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", page-1),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
+							},
+						}) {
+							{ fmt.Sprint(page) }
+						}
+					}
+				}
+				// Last page with ellipsis if needed
+				if p.Pages[len(p.Pages)-1] < p.TotalPages {
+					if p.Pages[len(p.Pages)-1] < p.TotalPages-1 {
+						@Item() {
+							@Ellipsis()
+						}
+					}
+					@Item() {
+						@Link(LinkProps{
+							Attributes: templ.Attributes{
+								"form":       "search-form",
+								"name":       "page",
+								"value":      fmt.Sprintf("%d", p.TotalPages-1),
+								"hx-get":     props.BaseURL,
+								"hx-include": "[form=search-form]",
+								"hx-target":  ".table-wrapper",
+								"hx-select":  ".table-wrapper",
+							},
+						}) {
+							{ fmt.Sprint(p.TotalPages) }
+						}
+					}
+				}
+				@Item() {
+					@Next(NextProps{
+						Disabled: !p.HasNext,
+						Label:    "Next",
+						Attributes: templ.Attributes{
+							"form":       "search-form",
+							"name":       "page",
+							"value":      fmt.Sprintf("%d", props.Page+1),
+							"hx-get":     props.BaseURL,
+							"hx-include": "[form=search-form]",
+							"hx-target":  ".table-wrapper",
+							"hx-select":  ".table-wrapper",
+						},
+					})
+				}
+			}
+		}
+	}
+}

@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,9 +35,24 @@ func (n *NoopProjectService) GetProjects(ctx context.Context) ([]projects.Projec
 	panic("unimplemented")
 }
 
+// GetProjectPage implements [projects.ProjectsService].
+func (n *NoopProjectService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
+	panic("unimplemented")
+}
+
+// GetProjectsByIds implements [projects.ProjectsService].
+func (n *NoopProjectService) GetProjectsByIds(ctx context.Context, ids []string) ([]projects.Project, error) {
+	return []projects.Project{}, nil
+}
+
 // ProjectExists implements [projects.ProjectsService].
 func (n *NoopProjectService) ProjectExists(ctx context.Context, projectId string, clientId string) bool {
 	return true
+}
+
+// SearchProjects implements [projects.ProjectsService].
+func (n *NoopProjectService) SearchProjects(ctx context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
+	panic("unimplemented")
 }
 
 // UpdateProject implements [projects.ProjectsService].

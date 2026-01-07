@@ -24,7 +24,10 @@
   },
   "lint-staged": {
     "*.{js,css,json,md}": "oxfmt",
-    "*.go": "gofmt -w",
+    "*.go": [
+      "go tool goimports -w",
+      "gofmt -w"
+    ],
     "*.templ": "templ fmt"
   }
 }

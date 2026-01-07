@@ -2,11 +2,7 @@ package http
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-
-	"log/slog"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
@@ -62,27 +58,15 @@ func (self *HttpServer) Start() error {
 		customMiddleware.AuthContextMiddleware(self.authService),
 		customMiddleware.RestPasswordMiddleware())
 	publicApi := e.Group("", sessionMiddleware)
-	adminApi := e.Group("/admin", sessionMiddleware, customMiddleware.AuthContextMiddleware(self.authService), customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
+	adminApi := privateApi.Group("/admin", customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
-	handlers.NewAuthRouter(self.authService, privateApi, publicApi)
 	handlers.NewLogsRouter(self.logService, privateApi)
+	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
 	handlers.NewWsConnectionRouter(self.watchHub, privateApi)
 
 	e.Static("/assets", "internal/server/ui/assets")
-
-	e.GET("/*", func(c echo.Context) error {
-		// Serve requested file or fallback to index.html
-		requestedFile := fmt.Sprintf("public/%s", c.Request().URL.Path)
-
-		if _, err := os.Stat(requestedFile); errors.Is(err, os.ErrNotExist) {
-			slog.Error("File not found", "file", requestedFile)
-			return c.File("public/index.html")
-		}
-
-		return c.File(requestedFile)
-	})
 
 	serverAddr := fmt.Sprintf(":%d", self.serverPort)
 	return e.Start(serverAddr)

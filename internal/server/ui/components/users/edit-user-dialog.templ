@@ -1,0 +1,40 @@
+package usercomponents
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+
+templ EditUserDialog() {
+	@dialog.Dialog(dialog.Props{
+		Class: "max-w-md",
+		ID:    "edit-user-dialog",
+	}) {
+		{ children... }
+		@dialog.Content() {
+			@dialog.Header() {
+				@dialog.Title() {
+					Edit user
+				}
+			}
+			<div id="edit-user-form-container">
+				@NewUserForm()
+			</div>
+			@dialog.Footer() {
+				@dialog.Close() {
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+					}) {
+						Cancel
+					}
+				}
+				@button.Button(button.Props{
+					Type: button.TypeSubmit,
+					Attributes: templ.Attributes{
+						"form": "edit-user-form",
+					},
+				}) {
+					Save
+				}
+			}
+		}
+	}
+}

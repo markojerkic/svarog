@@ -10,6 +10,50 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func (suite *LogsCollectionRepositorySuite) TestGetLogsNextPageIsEmpty() {
+	t := suite.T()
+	ctx := context.Background()
+
+	baseTime := time.Now().Truncate(time.Millisecond)
+	logs := make([]types.StoredLog, 10)
+	for i := range 10 {
+		logs[i] = types.StoredLog{
+			Client: types.StoredClient{
+				ProjectId:  "test-project",
+				ClientId:   "test-client",
+				InstanceId: "::1",
+			},
+			Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
+			SequenceNumber: i,
+			LogLine:        fmt.Sprintf("Log line %d", i),
+		}
+	}
+
+	err := suite.logService.SaveLogs(ctx, logs)
+	assert.NoError(t, err)
+	logPage, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
+		ProjectId: "test-project",
+		ClientId:  "test-client",
+		PageSize:  10,
+		Cursor:    nil,
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, logPage)
+	assert.Equal(t, 10, len(logPage.Logs))
+	assert.Nil(t, logPage.ForwardCursor)
+	assert.NotNil(t, logPage.BackwardCursor)
+
+	nextPage, err := suite.logService.GetLogs(ctx, db.LogPageRequest{
+		ProjectId: "test-project",
+		ClientId:  "test-client",
+		PageSize:  10,
+		Cursor:    logPage.BackwardCursor,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(nextPage.Logs), "Next page should be empty")
+	assert.False(t, nextPage.IsLastPage, "Next page should not be the last page")
+}
+
 func (suite *LogsCollectionRepositorySuite) TestGetLogsReturnsCorrectCursors() {
 	t := suite.T()
 	ctx := context.Background()

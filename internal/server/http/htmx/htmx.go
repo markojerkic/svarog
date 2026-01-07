@@ -4,10 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"log/slog"
+
 	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
-	"log/slog"
 )
+
+func IsHXRequest(c echo.Context) bool {
+	return c.Request().Header.Get("HX-Request") == "true"
+}
 
 func Redirect(c echo.Context, url string) error {
 	if c.Request().Header.Get("HX-Request") == "true" {

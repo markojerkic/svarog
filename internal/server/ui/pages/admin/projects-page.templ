@@ -1,44 +1,76 @@
 package admin
 
-import "github.com/markojerkic/svarog/internal/lib/projects"
-import "github.com/markojerkic/svarog/internal/server/ui/pages"
-import "github.com/markojerkic/svarog/internal/server/ui/components/table"
-import "strings"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
-import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
+import "strings"
+
+import "github.com/markojerkic/svarog/internal/lib/projects"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
+import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
+import "github.com/markojerkic/svarog/internal/server/ui/components/table"
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 
 type ProjectsListPageProps struct {
-	Projects []projects.Project
+	Projects   []projects.Project
+	Page       int64
+	Size       int64
+	Search     string
+	TotalCount int64
 }
 
 templ ProjectsListPage(props ProjectsListPageProps) {
-	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects"}) {
-		<script defer src="/assets/js/copy-conn-string.js"></script>
-		<div class="grid grid-cols-1 p-4">
-			<span class="flex justify-end">
-				@newProject()
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects", CurrentPath: "/admin/projects"}) {
+		<div class="grid grid-cols-1 p-4 space-y-4">
+			<span class="flex justify-between gap-2">
+				<form
+					id="search-form"
+					hx-get="/admin/projects"
+					hx-boost="true"
+					hx-push-url="true"
+					hx-target=".table-wrapper"
+					hx-select=".table-wrapper"
+					hx-trigger="input changed delay:300ms"
+				>
+					@input.Input(input.Props{
+						Type:        input.TypeSearch,
+						Value:       props.Search,
+						Name:        "search",
+						Class:       "max-w-2xs md:max-w-xs",
+						Placeholder: "Search...",
+					})
+				</form>
+				@projectcomponents.NewProject()
 			</span>
-			@table.Table() {
-				@table.Caption() {
-					A list of your projects.
+			<div class="table-wrapper">
+				@table.Table() {
+					@table.Caption() {
+						A list of your projects.
+					}
+					@ProjectsTableBody(props)
+					@table.Header() {
+						@table.Head() {
+							Project name
+						}
+						@table.Head() {
+							Clients
+						}
+						@table.Head() {
+							Storage
+						}
+						@table.Head() {
+						}
+					}
 				}
-				@ProjectsTableBody(props)
-				@table.Header() {
-					@table.Head() {
-						Project name
-					}
-					@table.Head() {
-						Clients
-					}
-					@table.Head() {
-						Storage
-					}
-					@table.Head() {
-					}
-				}
-			}
+				@pagination.PaginationWrapper(pagination.WrapperProps{
+					Page:       props.Page,
+					Size:       props.Size,
+					TotalCount: props.TotalCount,
+					BaseURL:    "/admin/projects",
+				})
+			</div>
 		</div>
 	}
 }
@@ -66,8 +98,8 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 			}
 		}
 	}
-	@editProjectDialog()
-	@connectionStringDialog()
+	@projectcomponents.EditProjectDialog()
+	@projectcomponents.ConnectionStringDialog()
 }
 
 templ projectActions(project projects.Project) {

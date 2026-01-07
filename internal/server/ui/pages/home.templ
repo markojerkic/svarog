@@ -8,7 +8,7 @@ type HomepageProps struct {
 }
 
 templ Homepage(props HomepageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Svarog"}) {
+	@AdminLayout(AdminLayoutProps{Title: "Svarog", CurrentPath: "/"}) {
 		<main class="container mx-auto p-6">
 			if len(props.Projects) == 0 {
 				<p class="text-muted-foreground">No projects found.</p>

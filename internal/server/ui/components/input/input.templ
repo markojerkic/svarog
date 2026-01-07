@@ -92,8 +92,9 @@ templ Input(props ...Props) {
 					"file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
 					// Focus styles
 					"focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-					// Disabled styles
+					// Disabled and readonly styles
 					"disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+					"read-only:pointer-events-none read-only:cursor-not-allowed read-only:opacity-50",
 					// Error/Invalid styles
 					"aria-invalid:ring-destructive/20 aria-invalid:border-destructive dark:aria-invalid:ring-destructive/40",
 					utils.If(p.HasError, "border-destructive ring-destructive/20 dark:ring-destructive/40"),

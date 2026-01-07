@@ -1,9 +1,13 @@
 package types
 
+import (
+	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
+)
+
 type GetUserPageInput struct {
-	Username string `json:"username"`
-	Page     int64  `json:"page" default:"0"`
-	Size     int64  `json:"size" default:"10"`
+	Page   int64  `json:"page" query:"page" default:"0"`
+	Size   int64  `json:"size" query:"size" default:"10"`
+	Search string `json:"search" query:"search"`
 }
 
 type LoginForm struct {
@@ -12,13 +16,17 @@ type LoginForm struct {
 }
 
 type LoginFormWithToken struct {
-	Token string `json:"token" form:"token" validate:"required,gte=5"`
+	Token string `json:"token" form:"token" query:"token" validate:"required,gte=5"`
 }
 
-type RegisterForm struct {
-	Username  string `json:"username" form:"username" validate:"required,gte=3"`
-	FirstName string `json:"firstName" form:"firstName" validate:"required,gte=3"`
-	LastName  string `json:"lastName" form:"lastName" validate:"required,gte=3"`
+type CreateUserForm struct {
+	ID         string                `json:"id" form:"id"`
+	Username   string                `json:"username" form:"username" validate:"required,gte=3"`
+	FirstName  string                `json:"firstName" form:"firstName" validate:"required,gte=3"`
+	LastName   string                `json:"lastName" form:"lastName" validate:"required,gte=3"`
+	Role       string                `json:"role" form:"role" validate:"required,oneof=user admin"`
+	ProjectIDs CommaSeparatedStrings `json:"projects" form:"projects"`
+	Projects   []combobox.Item       `json:"-" form:"-"`
 }
 
 type ResetPasswordForm struct {

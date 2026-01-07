@@ -1,0 +1,177 @@
+package admin
+
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/table"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
+import "fmt"
+import "github.com/markojerkic/svarog/internal/lib/auth"
+import "github.com/markojerkic/svarog/internal/server/http/htmx"
+import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+
+type UsersListPageProps struct {
+	Users      []auth.User
+	Page       int64
+	Size       int64
+	Search     string
+	TotalCount int64
+}
+
+templ UsersListPage(props UsersListPageProps) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users", CurrentPath: "/admin/users"}) {
+		<div class="grid grid-cols-1 p-4 space-y-4">
+			<span class="flex justify-between gap-2">
+				<form
+					id="search-form"
+					hx-get="/admin/projects"
+					hx-boost="true"
+					hx-push-url="true"
+					hx-target=".table-wrapper"
+					hx-select=".table-wrapper"
+					hx-trigger="input changed delay:300ms"
+				>
+					@input.Input(input.Props{
+						Type:        input.TypeSearch,
+						Value:       props.Search,
+						Name:        "search",
+						Class:       "max-w-2xs md:max-w-xs",
+						Placeholder: "Search...",
+					})
+				</form>
+				@usercomponents.NewUser()
+			</span>
+			<div class="table-wrapper">
+				@table.Table() {
+					@table.Caption() {
+						User administration
+					}
+					@UsersTableBody(props)
+					@table.Header() {
+						@table.Head() {
+							Username
+						}
+						@table.Head() {
+							Name
+						}
+						@table.Head() {
+							Role
+						}
+						@table.Head() {
+						}
+					}
+				}
+				@pagination.PaginationWrapper(pagination.WrapperProps{
+					Page:       props.Page,
+					Size:       props.Size,
+					TotalCount: props.TotalCount,
+					BaseURL:    "/admin/users",
+				})
+			</div>
+		</div>
+	}
+}
+
+templ UsersTableBody(props UsersListPageProps) {
+	@table.Body(table.BodyProps{
+		ID: "users-list-table-body",
+	}) {
+		for _, user := range props.Users {
+			@table.Row(table.RowProps{
+				Attributes: templ.Attributes{"data-user-id": user.ID.Hex()},
+			}) {
+				@table.Cell() {
+					{ user.Username }
+				}
+				@table.Cell() {
+					{ 	user.FirstName + " " + user.LastName }
+				}
+				@table.Cell() {
+					{ user.Role }
+				}
+				@table.Cell(table.CellProps{Class: "flex justify-end"}) {
+					@userActions(user)
+				}
+			}
+		}
+	}
+	@usercomponents.EditUserDialog()
+}
+
+templ userActions(user auth.User) {
+	@dropdown.Dropdown() {
+		@dropdown.Trigger() {
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+				Attributes: templ.Attributes{
+					"data-user-actions-id": user.ID.Hex(),
+				},
+			}) {
+				<span
+					class="svarog-indicator"
+					data-indicator-user-id={ user.ID.Hex() }
+					data-fallback
+				>
+					@icon.EllipsisVertical()
+				</span>
+				<span
+					class="svarog-indicator animate-spin"
+					data-indicator-user-id={ user.ID.Hex() }
+				>
+					@icon.LoaderCircle(icon.Props{Size: 16})
+				</span>
+			}
+		}
+		@dropdown.Content(dropdown.ContentProps{
+			Class: "w-56",
+		}) {
+			@dropdown.Group() {
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-get":          "/admin/users/" + user.ID.Hex() + "/edit",
+						"hx-target":       "#edit-user-form-container",
+						"hx-swap":         "innerHTML",
+						"onclick":         "window.tui.dialog.open('edit-user-dialog')",
+						"hx-disabled-elt": "#edit-user-dialog button[type=submit], #edit-user-dialog input",
+					},
+				}) {
+					<span class="flex items-center">
+						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
+						Edit
+					</span>
+				}
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-delete":       "/admin/users/" + user.ID.Hex(),
+						"hx-confirm":      "Are you sure you want to delete this user?",
+						"hx-target":       fmt.Sprintf("tr[data-user-id='%s']", user.ID.Hex()),
+						"hx-disabled-elt": "input, button, #new-user-dialog button[type=submit]",
+					},
+				}) {
+					<span class="flex items-center">
+						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
+						Delete user
+					</span>
+				}
+				@dropdown.Item(dropdown.ItemProps{
+					Attributes: templ.Attributes{
+						"hx-post": "/admin/users/generate-login-token",
+						"hx-swap": "none",
+						"hx-vals": htmx.HxVals(map[string]string{
+							"userId": user.ID.Hex(),
+						}),
+						"hx-indicator":    fmt.Sprintf(".svarog-indicator[data-indicator-user-id='%s']", user.ID.Hex()),
+						"hx-disabled-elt": fmt.Sprintf("[data-user-actions-id='%s']", user.ID.Hex()),
+					},
+				}) {
+					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
+						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
+						Connection string
+					</span>
+				}
+			}
+		}
+	}
+}
