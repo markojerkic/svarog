@@ -47,7 +47,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 				@input.Input(input.Props{
 					Name:        "username",
 					Placeholder: "Enter username",
-					Disabled:    p.Value.ID != "",
+					Readonly:    p.Value.ID != "",
 					Value:       p.Value.Username,
 					HasError:    p.ApiError.Fields["username"] != "",
 					Attributes:  templ.Attributes{"required": ""},
@@ -147,10 +147,12 @@ templ NewUserForm(props ...NewUserFormProps) {
 			}
 			@combobox.ComboBox(combobox.Props{
 				SearchUrl: "/admin/projects/search",
-				Multiple:  true,
 				TriggerProps: selectbox.TriggerProps{
-					Name: "projects",
+					Name:     "projects",
+					HasError: p.ApiError.Fields["projects"] != "",
+					Multiple: true,
 				},
+				Values: p.Value.Projects,
 			})
 			if p.ApiError.Fields["projects"] != "" {
 				@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {

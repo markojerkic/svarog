@@ -1,6 +1,9 @@
 package combobox
 
-import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+import (
+	"github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+	"github.com/markojerkic/svarog/internal/server/ui/utils"
+)
 
 type Item struct {
 	Name  string
@@ -12,7 +15,6 @@ type Props struct {
 	SearchUrl   string
 	Values      []Item
 	Placeholder string
-	Multiple    bool
 }
 
 templ ComboBox(props ...Props) {
@@ -23,7 +25,7 @@ templ ComboBox(props ...Props) {
 	@selectbox.SelectBox() {
 		@selectbox.Trigger(p.TriggerProps) {
 			@selectbox.Value(selectbox.ValueProps{
-				Placeholder: "Select role",
+				Placeholder: utils.IfElse(p.Placeholder != "", p.Placeholder, "Select..."),
 				Multiple:    p.Multiple,
 			})
 			@selectbox.Content(selectbox.ContentProps{

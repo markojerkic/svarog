@@ -27,6 +27,7 @@ type ProjectsService interface {
 	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
+	GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error)
 	GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error)
 	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
 	DeleteProject(ctx context.Context, id string) error
@@ -119,6 +120,26 @@ func (m *MongoProjectsService) SearchProjects(ctx context.Context, request Searc
 	}
 
 	return projects, nil
+}
+
+// GetProjectsByIds implements [ProjectsService].
+func (m *MongoProjectsService) GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error) {
+	var projects []Project
+	cursor, err := m.projectsCollection.Find(ctx, bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	if err = cursor.All(ctx, &projects); err != nil {
+		return nil, err
+	}
+
+	return projects, err
+
 }
 
 // GetProject implements ProjectsService.

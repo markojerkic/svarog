@@ -8,8 +8,10 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
@@ -17,7 +19,8 @@ import (
 )
 
 type AuthRouter struct {
-	authService auth.AuthService
+	authService     auth.AuthService
+	projectsService projects.ProjectsService
 }
 
 func (a *AuthRouter) login(c echo.Context) error {
@@ -163,6 +166,19 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 		}
 		return c.JSON(500, types.ApiError{Message: "Error getting user"})
 	}
+	projectIds := make([]string, len(user.ProjectIDs))
+	for i, id := range user.ProjectIDs {
+		projectIds[i] = id.Hex()
+	}
+
+	projects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), projectIds)
+	projectItems := make([]combobox.Item, len(projects))
+	for i, project := range projects {
+		projectItems[i] = combobox.Item{
+			Value: project.ID.Hex(),
+			Name:  project.Name,
+		}
+	}
 
 	return utils.Render(c, http.StatusOK, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 		FormID: "edit-user-form",
@@ -172,6 +188,7 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 			FirstName: user.FirstName,
 			LastName:  user.LastName,
 			Role:      string(user.Role),
+			Projects:  projectItems,
 		},
 	}))
 }
@@ -275,10 +292,11 @@ func (a *AuthRouter) generateLoginToken(c echo.Context) error {
 }
 
 func NewAuthRouter(authService auth.AuthService,
+	projectsService projects.ProjectsService,
 	adminGroup *echo.Group,
 	privateGroup *echo.Group,
 	publicGroup *echo.Group) *AuthRouter {
-	router := &AuthRouter{authService}
+	router := &AuthRouter{authService, projectsService}
 
 	if router.authService == nil {
 		panic("No authService")

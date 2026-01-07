@@ -342,26 +342,23 @@ func (self *MongoAuthService) GetUserPage(ctx context.Context, query types.GetUs
 func (self *MongoAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
 	var user User
 
-	if form.ID != "" {
+	if form.ID != "" || form.Username != "" {
 		// Update existing user
-		userID, err := primitive.ObjectIDFromHex(form.ID)
-		if err != nil {
-			return user, err
-		}
-
-		existingUser, err := self.GetUserByID(ctx, form.ID)
-		if err != nil {
-			return user, errors.New(ErrUserNotFound)
-		}
-
-		// Check if username is being changed and if it already exists
-		if existingUser.Username != form.Username {
-			existingUserResult := self.userCollection.FindOne(ctx, bson.M{
-				"username": form.Username,
-			})
-			if existingUserResult.Err() == nil {
-				return user, errors.New(UserAlreadyExists)
+		var userID primitive.ObjectID
+		if form.ID != "" {
+			id, err := primitive.ObjectIDFromHex(form.ID)
+			if err != nil {
+				return user, err
 			}
+			userID = id
+		} else if form.Username != "" {
+			existingUser, err := self.GetUserByUsername(ctx, form.Username)
+			if err != nil {
+				return user, errors.New(ErrUserNotFound)
+			}
+			userID = existingUser.ID
+		} else {
+			return user, types.NewApiError("User ID or username is required", map[string]string{"username": "Username is required"})
 		}
 
 		// Convert project IDs
@@ -374,7 +371,7 @@ func (self *MongoAuthService) CreateOrUpdateUser(ctx context.Context, form types
 			projectObjIDs = append(projectObjIDs, projectObjID)
 		}
 
-		_, err = self.userCollection.UpdateByID(ctx, userID, bson.M{
+		_, err := self.userCollection.UpdateByID(ctx, userID, bson.M{
 			"$set": bson.M{
 				"username":    form.Username,
 				"firstName":   form.FirstName,
