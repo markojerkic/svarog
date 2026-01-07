@@ -20,13 +20,13 @@ type LoginFormWithToken struct {
 }
 
 type CreateUserForm struct {
-	ID         string          `json:"id" form:"id"`
-	Username   string          `json:"username" form:"username" validate:"required,gte=3"`
-	FirstName  string          `json:"firstName" form:"firstName" validate:"required,gte=3"`
-	LastName   string          `json:"lastName" form:"lastName" validate:"required,gte=3"`
-	Role       string          `json:"role" form:"role" validate:"required,oneof=user admin"`
-	ProjectIDs []string        `json:"projectIds" form:"projectIds"`
-	Projects   []combobox.Item `json:"-" form:"-"`
+	ID         string                `json:"id" form:"id"`
+	Username   string                `json:"username" form:"username" validate:"required,gte=3"`
+	FirstName  string                `json:"firstName" form:"firstName" validate:"required,gte=3"`
+	LastName   string                `json:"lastName" form:"lastName" validate:"required,gte=3"`
+	Role       string                `json:"role" form:"role" validate:"required,oneof=user admin"`
+	ProjectIDs CommaSeparatedStrings `json:"projects" form:"projects"`
+	Projects   []combobox.Item       `json:"-" form:"-"`
 }
 
 type ResetPasswordForm struct {

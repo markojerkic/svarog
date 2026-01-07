@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
-	"log/slog"
-
 	"github.com/labstack/echo/v4"
+
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -170,6 +170,7 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 	for i, id := range user.ProjectIDs {
 		projectIds[i] = id.Hex()
 	}
+	slog.Debug("User projects", "projects", projectIds)
 
 	projects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), projectIds)
 	projectItems := make([]combobox.Item, len(projects))
@@ -179,6 +180,8 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 			Name:  project.Name,
 		}
 	}
+
+	slog.Debug("User projects", "projects", projectItems)
 
 	return utils.Render(c, http.StatusOK, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 		FormID: "edit-user-form",
@@ -214,6 +217,7 @@ func (a *AuthRouter) createOrUpdateUser(c echo.Context) error {
 		return err
 	}
 
+	slog.Debug("Creating user", "user", createUserForm)
 	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
 	if err != nil {
 		htmx.Reswap(c, htmx.ReswapProps{

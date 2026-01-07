@@ -47,8 +47,8 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 	items := make([]combobox.Item, len(results))
 	for i, project := range results {
 		items[i] = combobox.Item{
+			Value: project.ID.Hex(),
 			Name:  project.Name,
-			Value: project.Name,
 		}
 	}
 
