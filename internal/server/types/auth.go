@@ -15,12 +15,6 @@ type LoginFormWithToken struct {
 	Token string `json:"token" form:"token" query:"token" validate:"required,gte=5"`
 }
 
-type RegisterForm struct {
-	Username  string `json:"username" form:"username" validate:"required,gte=3"`
-	FirstName string `json:"firstName" form:"firstName" validate:"required,gte=3"`
-	LastName  string `json:"lastName" form:"lastName" validate:"required,gte=3"`
-}
-
 type CreateUserForm struct {
 	ID         string   `json:"id" form:"id"`
 	Username   string   `json:"username" form:"username" validate:"required,gte=3"`

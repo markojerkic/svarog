@@ -54,11 +54,12 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 
 	var nextUrl string
 
-	if int(request.Size) > len(results) {
+	if int(request.Size) == len(results) {
 		url := *c.Request().URL
 		q := url.Query()
 		q.Set("page", fmt.Sprint(request.Page+1))
 		url.RawQuery = q.Encode()
+		nextUrl = url.String()
 	}
 
 	return utils.Render(c, http.StatusOK, combobox.ComboboxItems(combobox.ComboboxItemsProps{

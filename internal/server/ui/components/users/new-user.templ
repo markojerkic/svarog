@@ -142,15 +142,19 @@ templ NewUserForm(props ...NewUserFormProps) {
 		@form.Item(form.ItemProps{
 			Class: "space-y-2",
 		}) {
-			@form.Label(form.LabelProps{For: "role"}) {
+			@form.Label(form.LabelProps{For: "projects"}) {
 				Projects
 			}
 			@combobox.ComboBox(combobox.Props{
 				SearchUrl: "/admin/projects/search",
+				Multiple:  true,
+				TriggerProps: selectbox.TriggerProps{
+					Name: "projects",
+				},
 			})
-			if p.ApiError.Fields["role"] != "" {
+			if p.ApiError.Fields["projects"] != "" {
 				@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
-					{ p.ApiError.Fields["role"] }
+					{ p.ApiError.Fields["projects"] }
 				}
 			}
 		}

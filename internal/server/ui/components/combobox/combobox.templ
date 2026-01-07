@@ -10,8 +10,9 @@ type Item struct {
 type Props struct {
 	selectbox.TriggerProps
 	SearchUrl   string
-	Value       string
+	Values      []Item
 	Placeholder string
+	Multiple    bool
 }
 
 templ ComboBox(props ...Props) {
@@ -23,6 +24,7 @@ templ ComboBox(props ...Props) {
 		@selectbox.Trigger(p.TriggerProps) {
 			@selectbox.Value(selectbox.ValueProps{
 				Placeholder: "Select role",
+				Multiple:    p.Multiple,
 			})
 			@selectbox.Content(selectbox.ContentProps{
 				SearchName:          "search",
@@ -35,6 +37,13 @@ templ ComboBox(props ...Props) {
 					"hx-swap":      "innerHTML",
 				},
 			}) {
+				for _, selectedValue := range p.Values {
+					@selectbox.Item(selectbox.ItemProps{
+						Value: selectedValue.Value,
+					}) {
+						{ selectedValue.Name }
+					}
+				}
 			}
 		}
 	}

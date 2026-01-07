@@ -126,31 +126,6 @@ func (a *AuthRouter) logout(c echo.Context) error {
 	return utils.HxRedirect(c, "/")
 }
 
-func (a *AuthRouter) register(c echo.Context) error {
-	var registerForm types.RegisterForm
-	if err := c.Bind(&registerForm); err != nil {
-		return c.JSON(400, err)
-	}
-
-	if err := c.Validate(&registerForm); err != nil {
-		return err
-	}
-
-	loginToken, err := a.authService.Register(c, registerForm)
-	if err != nil {
-		if err.Error() == auth.UserAlreadyExists {
-			return c.JSON(400, types.ApiError{Message: "User already exists", Fields: map[string]string{"username": "Username already exists"}})
-		}
-		return c.JSON(500, types.ApiError{Message: "Error registering user"})
-	}
-
-	return c.JSON(200, struct {
-		LoginToken string `json:"loginToken"`
-	}{
-		LoginToken: loginToken,
-	})
-}
-
 func (a *AuthRouter) getUsersPage(c echo.Context) error {
 	var query types.GetUserPageInput
 	if err := c.Bind(&query); err != nil {
@@ -313,7 +288,6 @@ func NewAuthRouter(authService auth.AuthService,
 	adminGroup.GET("/users/:id/edit", router.getEditUserForm)
 	adminGroup.POST("/users", router.createOrUpdateUser)
 	adminGroup.DELETE("/users/:id", router.deleteUser)
-	adminGroup.POST("/register", router.register)
 	adminGroup.POST("/users/generate-login-token", router.generateLoginToken)
 
 	privateGroup.GET("/logout", router.logout)
