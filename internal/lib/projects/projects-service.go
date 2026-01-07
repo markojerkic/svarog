@@ -124,10 +124,20 @@ func (m *MongoProjectsService) SearchProjects(ctx context.Context, request Searc
 
 // GetProjectsByIds implements [ProjectsService].
 func (m *MongoProjectsService) GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error) {
+	// Convert string IDs to ObjectIDs
+	objectIDs := make([]primitive.ObjectID, 0, len(ids))
+	for _, id := range ids {
+		objID, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid project ID %s: %w", id, err)
+		}
+		objectIDs = append(objectIDs, objID)
+	}
+
 	var projects []Project
 	cursor, err := m.projectsCollection.Find(ctx, bson.M{
 		"_id": bson.M{
-			"$in": ids,
+			"$in": objectIDs,
 		},
 	})
 	if err != nil {
@@ -139,7 +149,6 @@ func (m *MongoProjectsService) GetProjectsByIds(ctx context.Context, ids []strin
 	}
 
 	return projects, err
-
 }
 
 // GetProject implements ProjectsService.
