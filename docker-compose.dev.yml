@@ -1,13 +1,27 @@
 services:
+  svarog-postgres:
+    image: postgres:18-alpine
+    container_name: svarog-postgres
+    environment:
+      POSTGRES_DB: svarog
+      POSTGRES_USER: svarog
+      POSTGRES_PASSWORD: svarog
+    ports:
+      - "127.0.0.1:${SVAROG_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./internal/persistence/postgres/migrations/000001_initial.up.sql:/docker-entrypoint-initdb.d/000001_initial.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U svarog -d svarog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   svarog-mongodb:
     image: mongo:7.0
     container_name: svarog-mongodb
     ports:
-      - 27017:27017
+      - "127.0.0.1:27017:27017"
     command: ["--replSet", "rs0", "--bind_ip_all"]
-    environment:
-      - MONGODB_INITDB_ROOT_USERNAME=user
-      - MONGODB_INITDB_ROOT_PASSWORD=pass
     volumes:
       - dbdata:/data/db
     healthcheck:
@@ -30,12 +44,13 @@ services:
     image: nats:latest
     container_name: svarog-nats
     ports:
-      - "4222:4222"
+      - "127.0.0.1:4222:4222"
     command: ["--config", "/config/nats-server.conf"]
     volumes:
       - ./nats-server.conf:/config/nats-server.conf:ro
       - nats_data:/data/jetstream
     restart: unless-stopped
 volumes:
+  postgres_data:
   dbdata:
   nats_data:

@@ -1,6 +1,6 @@
 module github.com/markojerkic/svarog
 
-go 1.25
+go 1.27.2
 
 require (
 	github.com/Oudwins/tailwind-merge-go v0.2.1
@@ -21,6 +21,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/nats v0.40.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	go.mongodb.org/mongo-driver v1.17.3
 	golang.org/x/crypto v0.46.0
 )

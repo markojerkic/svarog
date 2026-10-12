@@ -200,6 +200,8 @@ github.com/testcontainers/testcontainers-go/modules/mongodb v0.36.0 h1:HDW6rknSq
 github.com/testcontainers/testcontainers-go/modules/mongodb v0.36.0/go.mod h1:RhguDt49jCUepedF4zBRJwb66VWWvSg5YQ+nQNff370=
 github.com/testcontainers/testcontainers-go/modules/nats v0.40.0 h1:IfMgeVI7Mg7CIu0R9N0c85XYMjai7e4OCCmHvkmG6Hg=
 github.com/testcontainers/testcontainers-go/modules/nats v0.40.0/go.mod h1:HpKiTohLxK5QGdCkF0W57nEUDzOR5aZsazH1uo8nqso=
+github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0 h1:s2bIayFXlbDFexo96y+htn7FzuhpXLYJNnIuglNKqOk=
+github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0/go.mod h1:h+u/2KoREGTnTl9UwrQ/g+XhasAT8E6dClclAADeXoQ=
 github.com/tklauser/go-sysconf v0.3.15 h1:VE89k0criAymJ/Os65CSn1IXaol+1wrsFHEB8Ol49K4=
 github.com/tklauser/go-sysconf v0.3.15/go.mod h1:Dmjwr6tYFIseJw7a3dRLJfsHAMXZ3nEnL/aZY+0IuI4=
 github.com/tklauser/numcpus v0.10.0 h1:18njr6LDBk1zuna922MgdjQuJFjrdppsZG60sHGfjso=
