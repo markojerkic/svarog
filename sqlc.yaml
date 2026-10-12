@@ -1,0 +1,25 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: internal/persistence/postgres/migrations
+    queries: internal/persistence/postgres/queries
+    gen:
+      go:
+        package: sqlc
+        out: internal/persistence/postgres/sqlc
+        sql_package: pgx/v5
+        overrides:
+          - db_type: uuid
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+          - db_type: uuid
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+              pointer: true
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time

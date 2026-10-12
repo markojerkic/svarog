@@ -3,6 +3,11 @@
 version: "3"
 
 tasks:
+  sqlc:
+    desc: Generate PostgreSQL queries
+    cmds:
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
+
   test:watch:
     desc: Run tests in watch mode
     watch: true
