@@ -1,7 +1,7 @@
 package types
 
 import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/google/uuid"
 )
 
 type GetProjectPageInput struct {
@@ -27,8 +27,8 @@ type AddClientForm struct {
 }
 
 type ProjectDto struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name        string             `bson:"name" json:"name"`
-	Clients     []string           `bson:"clients" json:"clients"`
-	StorageSize int64              `json:"storageSize"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `bson:"name" json:"name"`
+	Clients     []string  `bson:"clients" json:"clients"`
+	StorageSize int64     `json:"storageSize"`
 }

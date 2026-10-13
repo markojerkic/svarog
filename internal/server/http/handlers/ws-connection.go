@@ -9,6 +9,7 @@ import (
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/nats-io/nats.go"
@@ -117,8 +118,8 @@ func (self *WsRouter) connectionHandler(c echo.Context) error {
 	return nil
 }
 
-func NewWsConnectionRouter(hub *websocket.WatchHub, parentRouter *echo.Group) *WsRouter {
-	api := parentRouter.Group("/ws", middleware.RequiresRoleMiddleware(auth.ADMIN))
+func NewWsConnectionRouter(hub *websocket.WatchHub, authService auth.AuthService, projectsService projects.ProjectsService, parentRouter *echo.Group) *WsRouter {
+	api := parentRouter.Group("/ws", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 	router := &WsRouter{
 		wsHub:        hub,
 		parentRouter: parentRouter,

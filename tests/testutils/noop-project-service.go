@@ -3,9 +3,9 @@ package testutils
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/types"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type NoopProjectService struct{}
@@ -50,13 +50,17 @@ func (n *NoopProjectService) ProjectExists(ctx context.Context, projectId string
 	return true
 }
 
+func (n *NoopProjectService) ClientBelongsToProject(ctx context.Context, projectID string, clientID string) (bool, error) {
+	return true, nil
+}
+
 // SearchProjects implements [projects.ProjectsService].
 func (n *NoopProjectService) SearchProjects(ctx context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
 	panic("unimplemented")
 }
 
 // UpdateProject implements [projects.ProjectsService].
-func (n *NoopProjectService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (projects.Project, error) {
+func (n *NoopProjectService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (projects.Project, error) {
 	panic("unimplemented")
 }
 

@@ -113,11 +113,9 @@ func main() {
 		log.Fatal("Couldn't connect to Mongodb", "error", err)
 	}
 
-	userCollection := database.Collection("users")
 	filesCollectinon := database.Collection("files")
-	projectsCollection := database.Collection("projects")
 
-	projectsService := projects.NewProjectsService(projectsCollection, userCollection, client)
+	projectsService := projects.NewPostgresProjectsService(postgresPool)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {
@@ -154,7 +152,7 @@ func main() {
 	}
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
-	ingestService := ingest.NewIngestService(logIngestChannel, natsConn)
+	ingestService := ingest.NewIngestService(logIngestChannel, natsConn, postgresPool)
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{

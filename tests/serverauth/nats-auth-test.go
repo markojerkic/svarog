@@ -13,10 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (s *NatsAuthSuite) createTestProject(clientId string) (testProject string, subject string) {
-	project, err := s.ProjectsService.CreateProject(context.Background(), "test-project-"+clientId, []string{clientId})
-	require.NoError(s.T(), err)
-	return project.ID.Hex(), fmt.Sprintf("logs.%s.%s", project.ID.Hex(), clientId)
+func (s *NatsAuthSuite) createTestProject(clientName string) (projectID string, clientID string, subject string) {
+	project, err := s.ProjectsService.CreateProject(context.Background(), "test-project-"+clientName, []string{clientName})
+	require.NoError(s.T(), err, "create PostgreSQL project with client %s for credential tests", clientName)
+	require.Len(s.T(), project.Clients, 1, "credential test project should have one active client")
+	projectID = project.ID.String()
+	clientID = project.Clients[0].ID.String()
+	return projectID, clientID, fmt.Sprintf("logs.%s.%s", projectID, clientID)
 }
 
 func (s *NatsAuthSuite) connectWithCredentials(jwt string, seed string) (*nats.Conn, error) {
@@ -29,12 +32,12 @@ func (s *NatsAuthSuite) connectWithCredentials(jwt string, seed string) (*nats.C
 func (s *NatsAuthSuite) TestConnectWithValidCredentials() {
 	t := s.T()
 
-	projectId, _ := s.createTestProject("test-client")
+	projectId, clientID, _ := s.createTestProject("test-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "test-client",
+			ClientID:  clientID,
 		},
 	)
 	require.NoError(t, err)
@@ -52,7 +55,7 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 	t := s.T()
 
 	// Create a project with a client
-	projectId, _ := s.createTestProject("expired-client")
+	projectId, clientID, _ := s.createTestProject("expired-client")
 
 	// Generate credentials that expire immediately (negative duration for testing)
 	// Note: NATS JWT uses Unix timestamp, so we use a very short duration
@@ -62,7 +65,7 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "expired-client",
+			ClientID:  clientID,
 			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
@@ -92,8 +95,8 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 func (s *NatsAuthSuite) TestPublishToWildcardClient() {
 	t := s.T()
 
-	// Create a project with a wildcard client
-	projectId, topic := s.createTestProject("*")
+	// Wildcard credentials allow publishing to any real client in this project.
+	projectId, _, topic := s.createTestProject("wildcard-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
@@ -122,13 +125,13 @@ func (s *NatsAuthSuite) TestPublishToAllowedTopic() {
 	t := s.T()
 
 	// Create a project with a client
-	projectId, topic := s.createTestProject("allowed-client")
+	projectId, clientID, topic := s.createTestProject("allowed-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "allowed-client",
+			ClientID:  clientID,
 		},
 	)
 	require.NoError(t, err)
@@ -151,13 +154,13 @@ func (s *NatsAuthSuite) TestPublishToDisallowedTopic() {
 	t := s.T()
 
 	// Create a project with a client
-	projectId, _ := s.createTestProject("my-client")
+	projectId, clientID, _ := s.createTestProject("my-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "my-client",
+			ClientID:  clientID,
 		},
 	)
 	require.NoError(t, err)
@@ -191,15 +194,15 @@ func (s *NatsAuthSuite) TestMultipleClientsWithDifferentPermissions() {
 	t := s.T()
 
 	// Create two projects
-	project1, topic1 := s.createTestProject("client1")
-	project2, topic2 := s.createTestProject("client2")
+	project1, client1, topic1 := s.createTestProject("client1")
+	project2, client2, topic2 := s.createTestProject("client2")
 
 	// Generate credentials for each topic
 	creds1, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: project1,
-			ClientID:  "client1",
+			ClientID:  client1,
 		},
 	)
 	require.NoError(t, err)
@@ -207,7 +210,7 @@ func (s *NatsAuthSuite) TestMultipleClientsWithDifferentPermissions() {
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: project2,
-			ClientID:  "client2",
+			ClientID:  client2,
 		},
 	)
 	require.NoError(t, err)
@@ -241,14 +244,14 @@ func (s *NatsAuthSuite) TestMultipleClientsWithDifferentPermissions() {
 func (s *NatsAuthSuite) TestCredentialsWithNoExpiry() {
 	t := s.T()
 
-	projectId, _ := s.createTestProject("no-expiry-client")
+	projectId, clientID, _ := s.createTestProject("no-expiry-client")
 
 	// Generate credentials without expiry (nil)
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "no-expiry-client",
+			ClientID:  clientID,
 		},
 	)
 	require.NoError(t, err)
@@ -268,7 +271,7 @@ func (s *NatsAuthSuite) TestCredentialsWithNoExpiry() {
 func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 	t := s.T()
 
-	projectId, topic := s.createTestProject("long-expiry-client")
+	projectId, clientID, topic := s.createTestProject("long-expiry-client")
 
 	// Generate credentials with 24 hour expiry
 	expiry := 24 * time.Hour
@@ -277,7 +280,7 @@ func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "long-expiry-client",
+			ClientID:  clientID,
 			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
@@ -303,14 +306,14 @@ func (s *NatsAuthSuite) TestJetStreamPublishWithGeneratedConnString() {
 	t := s.T()
 
 	// Create project and client
-	projectId, _ := s.createTestProject("js-client")
+	projectId, clientID, topic := s.createTestProject("js-client")
 
 	// Generate credentials using the same method as the web UI
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
-			ClientID:  "js-client",
+			ClientID:  clientID,
 		},
 	)
 	require.NoError(t, err)
@@ -330,7 +333,6 @@ func (s *NatsAuthSuite) TestJetStreamPublishWithGeneratedConnString() {
 
 	// Publish to JetStream - this requires subscribe permissions for PubAck
 	// This is the critical test that would have caught the permissions bug
-	topic := fmt.Sprintf("logs.%s.%s", projectId, "js-client")
 	testMessage := []byte(`{"message":"test log line","level":"info"}`)
 	pubAck, err := js.Publish(context.Background(), topic, testMessage)
 	require.NoError(t, err, "JetStream publish should succeed with correct permissions")

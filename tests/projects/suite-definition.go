@@ -2,38 +2,24 @@ package projects
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/markojerkic/svarog/tests/testutils"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/stretchr/testify/require"
 )
 
 type ProjectsSuite struct {
 	testutils.BaseSuite
-
-	projectsCollection *mongo.Collection
-	userCollection     *mongo.Collection
 }
 
 // SetupSuite implements suite.SetupAllSuite.
 func (p *ProjectsSuite) SetupSuite() {
 	p.BaseSuite.SetupSuite()
-
-	p.projectsCollection = p.Collection("projects")
-	p.userCollection = p.Collection("users")
 }
 
 // TearDownSubTest implements suite.TearDownSubTest.
 func (p *ProjectsSuite) TearDownSubTest() {
-	deleteRes, err := p.projectsCollection.DeleteMany(context.Background(), bson.M{})
-	slog.Info("Deleted projects", "deleted", deleteRes.DeletedCount)
-	assert.NoError(p.T(), err)
-
-	_, err = p.userCollection.DeleteMany(context.Background(), bson.M{})
-	assert.NoError(p.T(), err)
-
+	_, err := p.PostgresPool.Exec(context.Background(), "TRUNCATE projects, users CASCADE")
+	require.NoError(p.T(), err, "clear PostgreSQL projects, clients, users, and memberships between project tests")
 }
 
 // TearDownTest implements suite.TearDownTestSuite.

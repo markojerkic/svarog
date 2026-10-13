@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +21,7 @@ func TestAuthPersistence(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	pool := newPostgresPool(t, ctx)
+	pool := testutils.NewPostgresPool(t, ctx)
 	queries := sqlc.New(pool)
 
 	run := func(name string, test func(t *testing.T)) {

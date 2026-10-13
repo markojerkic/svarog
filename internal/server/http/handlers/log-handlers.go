@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -153,8 +154,8 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	return c.JSON(200, mappedLogs)
 }
 
-func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
-	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresRoleMiddleware(auth.ADMIN))
+func NewLogsRouter(logService db.LogService, authService auth.AuthService, projectsService projects.ProjectsService, e *echo.Group) *LogsRouter {
+	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 
 	logsRouter := &LogsRouter{
 		logService:   logService,

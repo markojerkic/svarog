@@ -39,7 +39,7 @@ func UpdateProjectWithClients(ctx context.Context, pool *pgxpool.Pool, input Pro
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		var err error
-		// Updating the parent serializes concurrent replacements for this project.
+
 		project, err = q.UpdateProject(ctx, sqlc.UpdateProjectParams{ID: input.ID, Name: input.Name})
 		if err != nil {
 			return err
@@ -68,22 +68,25 @@ func UpdateProjectWithClients(ctx context.Context, pool *pgxpool.Pool, input Pro
 
 func ReplaceUserProjects(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, projectIDs []uuid.UUID) error {
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		if _, err := q.LockUserForProjectAssignment(ctx, userID); err != nil {
-			return err
-		}
-		if err := q.DeleteUserProjects(ctx, userID); err != nil {
-			return err
-		}
-		for _, id := range projectIDs {
-			if err := q.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userID, ProjectID: id}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return replaceUserProjects(ctx, sqlc.New(tx), userID, projectIDs)
 	})
 	if err != nil {
 		return fmt.Errorf("replace user projects: %w", err)
+	}
+	return nil
+}
+
+func replaceUserProjects(ctx context.Context, q *sqlc.Queries, userID uuid.UUID, projectIDs []uuid.UUID) error {
+	if _, err := q.LockUserForProjectAssignment(ctx, userID); err != nil {
+		return err
+	}
+	if err := q.DeleteUserProjects(ctx, userID); err != nil {
+		return err
+	}
+	for _, id := range projectIDs {
+		if err := q.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userID, ProjectID: id}); err != nil {
+			return err
+		}
 	}
 	return nil
 }

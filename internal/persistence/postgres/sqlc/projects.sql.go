@@ -264,6 +264,38 @@ func (q *Queries) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]Proj
 	return items, nil
 }
 
+const listActiveClientsForProjects = `-- name: ListActiveClientsForProjects :many
+SELECT id, project_id, name, is_active, created_at, updated_at FROM clients WHERE project_id = ANY($1::uuid[]) AND is_active
+ORDER BY lower(name), id
+`
+
+func (q *Queries) ListActiveClientsForProjects(ctx context.Context, projectIds []uuid.UUID) ([]Client, error) {
+	rows, err := q.db.Query(ctx, listActiveClientsForProjects, projectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Client
+	for rows.Next() {
+		var i Client
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveProjectClients = `-- name: ListActiveProjectClients :many
 SELECT id, project_id, name, is_active, created_at, updated_at FROM clients WHERE project_id = $1 AND is_active ORDER BY lower(name), id
 `
@@ -282,6 +314,35 @@ func (q *Queries) ListActiveProjectClients(ctx context.Context, projectID uuid.U
 			&i.ProjectID,
 			&i.Name,
 			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllProjects = `-- name: ListAllProjects :many
+SELECT id, name, created_at, updated_at FROM projects ORDER BY lower(name), id
+`
+
+func (q *Queries) ListAllProjects(ctx context.Context) ([]Project, error) {
+	rows, err := q.db.Query(ctx, listAllProjects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

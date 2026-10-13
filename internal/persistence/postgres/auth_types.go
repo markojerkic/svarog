@@ -20,6 +20,16 @@ type CreateUserWithTokenInput struct {
 	Role               string
 	NeedsPasswordReset bool
 	Token              LoginTokenInput
+	ProjectIDs         []uuid.UUID
+}
+
+type UpdateUserProfileWithProjectsInput struct {
+	ID         uuid.UUID
+	Username   string
+	FirstName  string
+	LastName   string
+	Role       string
+	ProjectIDs []uuid.UUID
 }
 
 type ReplaceLoginTokenInput struct {

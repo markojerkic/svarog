@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	envParser "github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
@@ -19,10 +20,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// BaseSuite provides shared MongoDB and NATS infrastructure for all test suites.
-// Embed this in your test suite to get access to both containers.
+// BaseSuite provides PostgreSQL for projects and MongoDB/NATS for their remaining consumers.
 type BaseSuite struct {
 	suite.Suite
+
+	PostgresPool *pgxpool.Pool
 
 	// MongoDB
 	MongoContainer *MongoDBTestContainer
@@ -82,7 +84,7 @@ func (s *BaseSuite) WithConfig(config BaseSuiteConfig) {
 	s.config = config
 }
 
-// SetupSuite starts MongoDB and optionally NATS containers
+// SetupSuite starts PostgreSQL, MongoDB, and NATS containers.
 func (s *BaseSuite) SetupSuite() {
 	ctx := context.Background()
 
@@ -102,10 +104,8 @@ func (s *BaseSuite) SetupSuite() {
 	s.MongoClient = mongoContainer.Client
 	s.Database = mongoContainer.Database
 
-	// Create projects service (always needed)
-	projectsCollection := s.Database.Collection("projects")
-	userCollection := s.Database.Collection("users")
-	s.ProjectsService = projects.NewProjectsService(projectsCollection, userCollection, s.MongoClient)
+	s.PostgresPool = NewPostgresPool(s.T(), ctx)
+	s.ProjectsService = projects.NewPostgresProjectsService(s.PostgresPool)
 
 	// Start NATS
 	if err := s.setupNats(ctx); err != nil {
@@ -136,7 +136,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	s.NatsAddr = natsAddr
 
 	// Create token service
-	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsAccountSeed, s.NatsAddr, &NoopProjectService{})
+	tokenService, err := serverauth.NewNatsCredentialService(s.config.NatsAccountSeed, s.NatsAddr, s.ProjectsService)
 	if err != nil {
 		return fmt.Errorf("failed to create token service: %w", err)
 	}

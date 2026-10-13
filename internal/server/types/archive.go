@@ -13,7 +13,7 @@ type ArchiveEntry struct {
 
 type ArchiveSetting struct {
 	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ProjectID        primitive.ObjectID `bson:"project_id" json:"projectId"`
+	ProjectID        string             `bson:"project_id" json:"projectId"`
 	ClientID         string             `bson:"client_id" json:"clientId"`
 	ArhiveAfterWeeks int                `bson:"arhive_after_weeks" json:"arhiveAfterWeeks"`
 }

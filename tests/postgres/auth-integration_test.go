@@ -16,13 +16,14 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestActivePostgresAuth(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	pool := newPostgresPool(t, ctx)
+	pool := testutils.NewPostgresPool(t, ctx)
 	queries := sqlc.New(pool)
 	store := auth.NewPostgresSessionStore(pool, []byte("test-session-secret-with-32-bytes!"))
 	service := auth.NewPostgresAuthService(pool, store)
@@ -103,7 +104,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, request(http.MethodGet, "/me", cookies).Code, "logout revokes session even when original cookie is replayed")
 	})
 
-	t.Run("create update list and reject project assignment", func(t *testing.T) {
+	t.Run("create update list and reject invalid project assignment", func(t *testing.T) {
 		user, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			Username: "testuser", FirstName: "Test", LastName: "User", Role: "user",
 		})
@@ -122,7 +123,9 @@ func TestActivePostgresAuth(t *testing.T) {
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", Role: "admin", ProjectIDs: []string{"mongo-id"},
 		})
-		require.Error(t, err, "reject unsupported Mongo-style project assignment")
+		var apiError types.ApiError
+		require.ErrorAs(t, err, &apiError, "reject malformed project UUID before profile update")
+		require.NotEmpty(t, apiError.Fields["projects"], "invalid project UUID reports a projects field error")
 		again, err := service.GetUserByID(ctx, user.ID.String())
 		require.NoError(t, err, "reload user after rejected assignment")
 		require.Equal(t, updated, again, "rejected assignment leaves profile unchanged")
@@ -132,8 +135,8 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.Len(t, users, 1, "user page returns searched user")
 		require.Empty(t, users[0].Password, "user page must not expose password hashes")
 		access, err := service.UserHasAccessToProject(ctx, user.ID.String(), "mongo-id")
-		require.NoError(t, err, "check access to unsupported project ID")
-		require.False(t, access, "user has no access to unsupported project ID")
+		require.NoError(t, err, "deny malformed project ID without a database error")
+		require.False(t, access, "user has no access to malformed project ID")
 		ids, err := service.GetProjectIDsForUser(ctx, user.ID.String())
 		require.NoError(t, err, "list projects after rejected assignment")
 		require.Empty(t, ids, "rejected assignment creates no memberships")

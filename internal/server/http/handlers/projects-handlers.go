@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -39,17 +41,50 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Validation failed"})
 	}
 
+	var selectedIDs types.CommaSeparatedStrings
+	if err := selectedIDs.UnmarshalParam(c.QueryParam("projects")); err != nil {
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid selected projects"})
+	}
+	selected := make(map[string]bool, len(selectedIDs))
+	uniqueIDs := make([]string, 0, len(selectedIDs))
+	for _, id := range selectedIDs {
+		parsed, err := uuid.Parse(id)
+		if err != nil || parsed == uuid.Nil || parsed.String() != id {
+			return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid selected project ID"})
+		}
+		if !selected[id] {
+			selected[id] = true
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+	var selectedItems []combobox.Item
+	// First-page searches replace the list, so keep every selection in the DOM.
+	// Later pages append only results that are not already selected.
+	if request.Page == 0 && len(uniqueIDs) > 0 {
+		selectedProjects, err := p.projectsService.GetProjectsByIds(c.Request().Context(), uniqueIDs)
+		if err != nil {
+			slog.Error("Error fetching selected projects", "error", err)
+			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting selected projects"})
+		}
+		for _, project := range selectedProjects {
+			selectedItems = append(selectedItems, combobox.Item{Value: project.ID.String(), Name: project.Name})
+		}
+	}
+
 	results, err := p.projectsService.SearchProjects(c.Request().Context(), request)
 	if err != nil {
 		slog.Error("Error fetching projects", "error", err)
 		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting projects"})
 	}
-	items := make([]combobox.Item, len(results))
-	for i, project := range results {
-		items[i] = combobox.Item{
-			Value: project.ID.Hex(),
-			Name:  project.Name,
+	items := make([]combobox.Item, 0, len(results))
+	for _, project := range results {
+		if selected[project.ID.String()] {
+			continue
 		}
+		items = append(items, combobox.Item{
+			Value: project.ID.String(),
+			Name:  project.Name,
+		})
 	}
 
 	var nextUrl string
@@ -58,13 +93,16 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 		url := *c.Request().URL
 		q := url.Query()
 		q.Set("page", fmt.Sprint(request.Page+1))
+		// The inherited hx-include sends the current input, not this request's snapshot.
+		q.Del("projects")
 		url.RawQuery = q.Encode()
 		nextUrl = url.String()
 	}
 
 	return utils.Render(c, http.StatusOK, combobox.ComboboxItems(combobox.ComboboxItemsProps{
-		Items:   items,
-		NextURL: nextUrl,
+		SelectedItems: selectedItems,
+		Items:         items,
+		NextURL:       nextUrl,
 	}))
 }
 
@@ -128,9 +166,9 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 	return utils.Render(c, http.StatusOK, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 		FormID: "edit-project-form",
 		Value: types.CreateProjectForm{
-			ID:      project.ID.Hex(),
+			ID:      project.ID.String(),
 			Name:    project.Name,
-			Clients: project.Clients,
+			Clients: project.ClientNames(),
 		},
 	}))
 }
@@ -151,7 +189,7 @@ func (p *ProjectsRouter) getConnectionStringForm(c echo.Context) error {
 	}
 
 	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
-		ProjectID: project.ID.Hex(),
+		ProjectID: project.ID.String(),
 		Clients:   project.Clients,
 	}))
 }
@@ -192,6 +230,13 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 				Value: createProjectForm,
 			}))
 		}
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return utils.Render(c, http.StatusBadRequest, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
+				ApiError: apiErr,
+				Value:    createProjectForm,
+			}))
+		}
 
 		slog.Error("Error creating project", "error", err)
 		return utils.Render(c, http.StatusInternalServerError, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
@@ -227,6 +272,12 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	err := p.projectsService.DeleteProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error deleting project", "error", err)
+		if err.Error() == projects.ErrProjectHasClients {
+			message := "Cannot delete a project with clients. Projects with historical clients must be retained."
+			htmx.AddErrorToast(c, message)
+			c.Response().Header().Set("HX-Reswap", "none")
+			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
+		}
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: "Project not found"})
 		}

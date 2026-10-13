@@ -131,7 +131,7 @@ func (a *PostgresAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, er
 	}
 	return LoggedInUser{
 		ID: user.ID.String(), Username: user.Username, Role: user.Role,
-		NeedsPasswordReset: user.NeedsPasswordReset, ProjectIDs: []string{},
+		NeedsPasswordReset: user.NeedsPasswordReset, ProjectIDs: user.ProjectIDs,
 	}, nil
 }
 
@@ -141,12 +141,18 @@ func (a *PostgresAuthService) GetUserByID(ctx context.Context, id string) (User,
 		return User{}, errors.New(ErrUserNotFound)
 	}
 	user, err := a.queries.GetUserByID(ctx, userID)
-	return toUser(user), authError(err)
+	if err != nil {
+		return User{}, authError(err)
+	}
+	return a.userWithProjects(ctx, user)
 }
 
 func (a *PostgresAuthService) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	user, err := a.queries.GetUserByUsername(ctx, username)
-	return toUser(user), authError(err)
+	if err != nil {
+		return User{}, authError(err)
+	}
+	return a.userWithProjects(ctx, user)
 }
 
 func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
@@ -165,29 +171,42 @@ func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUs
 	}
 	users := make([]User, 0, len(rows))
 	for _, row := range rows {
+		projectIDs, err := a.projectIDsForUser(ctx, row.ID)
+		if err != nil {
+			return nil, 0, err
+		}
 		users = append(users, User{
 			ID: row.ID, Username: row.Username, FirstName: row.FirstName, LastName: row.LastName,
-			Role: Role(row.Role), NeedsPasswordReset: row.NeedsPasswordReset, ProjectIDs: []string{},
+			Role: Role(row.Role), NeedsPasswordReset: row.NeedsPasswordReset, ProjectIDs: projectIDs,
 		})
 	}
 	return users, count, nil
 }
 
 func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
-	if len(form.ProjectIDs) > 0 {
-		return User{}, types.NewApiError("Project assignment is unavailable until projects move to PostgreSQL", map[string]string{
-			"projects": "Project assignment is temporarily unavailable",
-		})
+	projectIDs := make([]uuid.UUID, 0, len(form.ProjectIDs))
+	for _, value := range form.ProjectIDs {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return User{}, types.NewApiError("Invalid project ID", map[string]string{
+				"projects": "Select valid projects",
+			})
+		}
+		projectIDs = append(projectIDs, id)
 	}
 	if form.ID != "" {
 		id, err := uuid.Parse(form.ID)
 		if err != nil {
 			return User{}, errors.New(ErrUserNotFound)
 		}
-		user, err := a.queries.UpdateUserProfile(ctx, sqlc.UpdateUserProfileParams{
+		user, err := persistence.UpdateUserProfileWithProjects(ctx, a.pool, persistence.UpdateUserProfileWithProjectsInput{
 			ID: id, Username: form.Username, FirstName: form.FirstName, LastName: form.LastName, Role: form.Role,
+			ProjectIDs: projectIDs,
 		})
-		return toUser(user), authError(err)
+		if err != nil {
+			return User{}, authError(err)
+		}
+		return a.userWithProjects(ctx, user)
 	}
 	hash, err := hashPassword(generateRandomPassword())
 	if err != nil {
@@ -197,9 +216,13 @@ func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types
 	user, err := persistence.CreateUserWithToken(ctx, a.pool, persistence.CreateUserWithTokenInput{
 		ID: uuid.New(), Username: form.Username, FirstName: form.FirstName, LastName: form.LastName,
 		Role: form.Role, PasswordHash: hash, NeedsPasswordReset: true,
-		Token: persistence.LoginTokenInput{Hash: tokenHash(token), ExpiresAt: time.Now().Add(loginTokenDuration)},
+		Token:      persistence.LoginTokenInput{Hash: tokenHash(token), ExpiresAt: time.Now().Add(loginTokenDuration)},
+		ProjectIDs: projectIDs,
 	})
-	return toUser(user), authError(err)
+	if err != nil {
+		return User{}, authError(err)
+	}
+	return a.userWithProjects(ctx, user)
 }
 
 func (a *PostgresAuthService) GenerateLoginToken(ctx context.Context, userID string) (string, error) {
@@ -257,15 +280,50 @@ func (a *PostgresAuthService) DeleteUser(ctx echo.Context, id string) error {
 }
 
 func (a *PostgresAuthService) UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error) {
-	user, err := a.GetUserByID(ctx, userID)
-	return err == nil && user.Role == ADMIN, err
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, nil
+	}
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		return false, nil
+	}
+	return a.queries.UserHasProjectAccess(ctx, sqlc.UserHasProjectAccessParams{
+		UserID: userUUID, ProjectID: projectUUID,
+	})
 }
 
 func (a *PostgresAuthService) GetProjectIDsForUser(ctx context.Context, userID string) ([]string, error) {
-	if _, err := a.GetUserByID(ctx, userID); err != nil {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New(ErrUserNotFound)
+	}
+	if _, err := a.queries.GetUserByID(ctx, id); err != nil {
+		return nil, authError(err)
+	}
+	return a.projectIDsForUser(ctx, id)
+}
+
+func (a *PostgresAuthService) projectIDsForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	projects, err := a.queries.ListUserProjects(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
-	return []string{}, nil
+	ids := make([]string, 0, len(projects))
+	for _, project := range projects {
+		ids = append(ids, project.ID.String())
+	}
+	return ids, nil
+}
+
+func (a *PostgresAuthService) userWithProjects(ctx context.Context, row sqlc.User) (User, error) {
+	user := toUser(row)
+	ids, err := a.projectIDsForUser(ctx, user.ID)
+	if err != nil {
+		return User{}, err
+	}
+	user.ProjectIDs = ids
+	return user, nil
 }
 
 func (a *PostgresAuthService) CreateInitialAdminUser(ctx context.Context) error {
@@ -306,6 +364,11 @@ func authError(err error) error {
 	var pgError *pgconn.PgError
 	if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "users_username_key" {
 		return errors.New(UserAlreadyExists)
+	}
+	if errors.As(err, &pgError) && pgError.Code == "23503" && pgError.ConstraintName == "user_projects_project_id_fkey" {
+		return types.NewApiError("Project not found", map[string]string{
+			"projects": "One or more selected projects do not exist",
+		})
 	}
 	return err
 }

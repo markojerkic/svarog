@@ -5,7 +5,7 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/tests/testutils"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/stretchr/testify/require"
 )
 
 type NatsAuthSuite struct {
@@ -19,8 +19,8 @@ func (s *NatsAuthSuite) SetupSuite() {
 }
 
 func (s *NatsAuthSuite) TearDownTest() {
-	// Clean up projects between tests
-	_, _ = s.Collection("projects").DeleteMany(context.Background(), bson.M{})
+	_, err := s.PostgresPool.Exec(context.Background(), "TRUNCATE projects CASCADE")
+	require.NoError(s.T(), err, "clear PostgreSQL projects and clients between credential tests")
 }
 
 func (s *NatsAuthSuite) TearDownSuite() {

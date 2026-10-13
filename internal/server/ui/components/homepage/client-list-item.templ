@@ -13,17 +13,17 @@ templ ProjectGroup(project projects.Project) {
 		</div>
 		<div class="flex flex-wrap gap-3">
 			for _, client := range project.Clients {
-				@ClientCard(project.ID.Hex(), client)
+				@ClientCard(project.ID.String(), client)
 			}
 		</div>
 	</section>
 }
 
-templ ClientCard(projectID string, client string) {
+templ ClientCard(projectID string, client projects.Client) {
 	<a
-		href={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", projectID, client)) }
+		href={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", projectID, client.ID.String())) }
 		class="inline-block rounded-lg border bg-card p-3 hover:bg-accent transition-colors cursor-pointer"
 	>
-		<span class="font-medium text-sm">{ client }</span>
+		<span class="font-medium text-sm">{ client.Name }</span>
 	</a>
 }

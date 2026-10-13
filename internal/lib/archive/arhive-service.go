@@ -10,6 +10,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	logs "github.com/markojerkic/svarog/internal/server/db"
@@ -124,14 +125,13 @@ func (a *ArchiveServiceImpl) GetArhiveFileID(ctx context.Context, projectID stri
 
 // CreateSetting implements ArhiveService.
 func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error {
-	projectOID, err := primitive.ObjectIDFromHex(projectID)
+	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
-		slog.Error("Error converting projectID to ObjectID", "error", err)
 		return err
 	}
 
 	archiveSetting := types.ArchiveSetting{
-		ProjectID:        projectOID,
+		ProjectID:        projectUUID.String(),
 		ClientID:         clientID,
 		ArhiveAfterWeeks: arhiveAfterWeeks,
 	}
@@ -147,13 +147,12 @@ func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string
 
 func (a *ArchiveServiceImpl) GetSettings(ctx context.Context, projectID string, clientID string) (types.ArchiveSetting, error) {
 	var archiveSetting types.ArchiveSetting
-	projectOID, err := primitive.ObjectIDFromHex(projectID)
+	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
-		slog.Error("Error converting projectID to ObjectID", "error", err)
 		return archiveSetting, err
 	}
 
-	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"project_id": projectOID, "client_id": clientID}).Decode(&archiveSetting)
+	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"project_id": projectUUID.String(), "client_id": clientID}).Decode(&archiveSetting)
 	if err != nil {
 		slog.Error("Error finding archive setting", "error", err)
 		return archiveSetting, err

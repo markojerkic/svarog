@@ -9,8 +9,10 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
@@ -18,7 +20,8 @@ import (
 )
 
 type AuthRouter struct {
-	authService auth.AuthService
+	authService     auth.AuthService
+	projectsService projects.ProjectsService
 }
 
 func (a *AuthRouter) login(c echo.Context) error {
@@ -164,15 +167,28 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 		}
 		return c.JSON(500, types.ApiError{Message: "Error getting user"})
 	}
+	var projectItems []combobox.Item
+	if len(user.ProjectIDs) > 0 {
+		assignedProjects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
+		if err != nil {
+			slog.Error("Error fetching assigned projects", "error", err)
+			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error fetching assigned projects"})
+		}
+		for _, project := range assignedProjects {
+			projectItems = append(projectItems, combobox.Item{Value: project.ID.String(), Name: project.Name})
+		}
+	}
 
 	return utils.Render(c, http.StatusOK, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 		FormID: "edit-user-form",
 		Value: types.CreateUserForm{
-			ID:        user.ID.String(),
-			Username:  user.Username,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-			Role:      string(user.Role),
+			ID:         user.ID.String(),
+			Username:   user.Username,
+			FirstName:  user.FirstName,
+			LastName:   user.LastName,
+			Role:       string(user.Role),
+			ProjectIDs: types.CommaSeparatedStrings(user.ProjectIDs),
+			Projects:   projectItems,
 		},
 	}))
 }
@@ -181,6 +197,10 @@ func (a *AuthRouter) createOrUpdateUser(c echo.Context) error {
 	var createUserForm types.CreateUserForm
 	if err := c.Bind(&createUserForm); err != nil {
 		return c.JSON(400, err)
+	}
+	// Keep submitted assignments selected when the form is rendered with an error.
+	for _, id := range createUserForm.ProjectIDs {
+		createUserForm.Projects = append(createUserForm.Projects, combobox.Item{Value: id, Name: id})
 	}
 	if err := c.Validate(&createUserForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
@@ -284,10 +304,11 @@ func (a *AuthRouter) generateLoginToken(c echo.Context) error {
 }
 
 func NewAuthRouter(authService auth.AuthService,
+	projectsService projects.ProjectsService,
 	adminGroup *echo.Group,
 	privateGroup *echo.Group,
 	publicGroup *echo.Group) *AuthRouter {
-	router := &AuthRouter{authService: authService}
+	router := &AuthRouter{authService: authService, projectsService: projectsService}
 
 	if router.authService == nil {
 		panic("No authService")

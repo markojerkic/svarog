@@ -3,16 +3,16 @@ package projects
 import (
 	"context"
 	"errors"
-	"fmt"
-	"log/slog"
-	"regexp"
+	"math"
+	"strings"
 
-	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
+	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type SearchProjectsRequest struct {
@@ -23,7 +23,7 @@ type SearchProjectsRequest struct {
 
 type ProjectsService interface {
 	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
-	UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error)
+	UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error)
 	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetProjects(ctx context.Context) ([]Project, error)
@@ -31,421 +31,223 @@ type ProjectsService interface {
 	GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error)
 	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
 	DeleteProject(ctx context.Context, id string) error
-	ProjectExists(ctx context.Context, projectId, clientId string) bool
+	ProjectExists(ctx context.Context, projectID, clientID string) bool
+	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
 }
 
-type MongoProjectsService struct {
-	mongoClient        *mongo.Client
-	projectsCollection *mongo.Collection
-	userCollection     *mongo.Collection
+type PostgresProjectsService struct {
+	pool    *pgxpool.Pool
+	queries *sqlc.Queries
 }
 
 const (
-	ErrProjectNotFound = "project not found"
-	ErrClientNotFound  = "client not found"
-	ErrProjectExists   = "project already exists"
+	ErrProjectNotFound   = "project not found"
+	ErrClientNotFound    = "client not found"
+	ErrProjectExists     = "project already exists"
+	ErrProjectHasClients = "project has clients; deactivate clients to preserve history"
 )
 
-func (m *MongoProjectsService) CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error) {
-	if project.ID != "" {
-		parsedId, err := primitive.ObjectIDFromHex(project.ID)
-		if err != nil {
-			return Project{}, err
-		}
-		return m.UpdateProject(ctx, parsedId, project.Name, project.Clients)
-	}
+var _ ProjectsService = (*PostgresProjectsService)(nil)
 
-	return m.CreateProject(ctx, project.Name, project.Clients)
-
+func NewPostgresProjectsService(pool *pgxpool.Pool) *PostgresProjectsService {
+	return &PostgresProjectsService{pool: pool, queries: sqlc.New(pool)}
 }
 
-func (m *MongoProjectsService) UpdateProject(ctx context.Context, id primitive.ObjectID, name string, clients []string) (Project, error) {
-	_, err := m.projectsCollection.UpdateByID(ctx, id, bson.M{"$set": bson.M{"name": name, "clients": clients}})
-	if err != nil {
-		slog.Error("Error updating project", "error", err)
-		return Project{}, err
+func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (Project, error) {
+	if form.ID == "" {
+		return p.CreateProject(ctx, form.Name, form.Clients)
 	}
-	return Project{
-		ID:      id,
-		Name:    name,
-		Clients: uniqueStrings(clients),
-	}, nil
-}
-
-// CreateProject implements ProjectsService.
-func (m *MongoProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
-	result, err := m.projectsCollection.InsertOne(ctx, bson.M{"name": name, "clients": clients})
-	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			return Project{}, errors.New(ErrProjectExists)
-		}
-
-		slog.Error("Error creating project", "error", err)
-		return Project{}, err
-	}
-
-	return Project{
-		ID:      result.InsertedID.(primitive.ObjectID),
-		Name:    name,
-		Clients: uniqueStrings(clients),
-	}, nil
-}
-
-// SearchProjects implements [ProjectsService].
-func (m *MongoProjectsService) SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error) {
-	// Escape special regex characters to prevent ReDoS
-	escapedSearch := regexp.QuoteMeta(request.Search)
-	slog.Debug("Searching for projects", "search", escapedSearch, "page", request.Page, "size", request.Size)
-
-	cursor, err := m.projectsCollection.Find(ctx, bson.M{
-		"name": bson.M{
-			"$regex": primitive.Regex{
-				Pattern: escapedSearch,
-				Options: "i",
-			},
-		},
-	},
-		options.Find().
-			SetLimit(request.Size).
-			SetSkip(request.Page*request.Size),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search projects: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var projects []Project
-	if err = cursor.All(ctx, &projects); err != nil {
-		return nil, fmt.Errorf("failed to decode projects: %w", err)
-	}
-
-	return projects, nil
-}
-
-// GetProjectsByIds implements [ProjectsService].
-func (m *MongoProjectsService) GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error) {
-	// Convert string IDs to ObjectIDs
-	objectIDs := make([]primitive.ObjectID, 0, len(ids))
-	for _, id := range ids {
-		objID, err := primitive.ObjectIDFromHex(id)
-		if err != nil {
-			return nil, fmt.Errorf("invalid project ID %s: %w", id, err)
-		}
-		objectIDs = append(objectIDs, objID)
-	}
-
-	var projects []Project
-	cursor, err := m.projectsCollection.Find(ctx, bson.M{
-		"_id": bson.M{
-			"$in": objectIDs,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-	if err = cursor.All(ctx, &projects); err != nil {
-		return nil, err
-	}
-
-	return projects, err
-}
-
-// GetProject implements ProjectsService.
-func (m *MongoProjectsService) GetProject(ctx context.Context, id string) (Project, error) {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return Project{}, err
-	}
-	var project Project
-	err = m.projectsCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&project)
+	id, err := uuid.Parse(form.ID)
 	if err != nil {
 		return Project{}, errors.New(ErrProjectNotFound)
 	}
-	return project, nil
+	return p.UpdateProject(ctx, id, form.Name, form.Clients)
 }
 
-func (m *MongoProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
-	pipeline := mongo.Pipeline{
-		// Lookup stage
-		{
-			{Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "log_lines"},
-				{Key: "localField", Value: "clients"},
-				{Key: "foreignField", Value: "client.client_id"},
-				{Key: "as", Value: "log_lines"},
-			}},
-		},
-		// Add fields stage
-		{
-			{Key: "$addFields", Value: bson.D{
-				{Key: "totalSizeBytes", Value: bson.D{
-					{Key: "$sum", Value: bson.D{
-						{Key: "$map", Value: bson.D{
-							{Key: "input", Value: "$log_lines"},
-							{Key: "as", Value: "log_line"},
-							{Key: "in", Value: bson.D{
-								{Key: "$bsonSize", Value: "$$log_line"},
-							}},
-						}},
-					}},
-				}},
-			}},
-		},
-		// Project stage
-		{
-			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 1},
-				{Key: "name", Value: 1},
-				{Key: "clients", Value: 1},
-				{Key: "totalSizeMB", Value: bson.D{
-					{Key: "$round", Value: bson.A{
-						bson.D{
-							{Key: "$divide", Value: bson.A{"$totalSizeBytes", 1024 * 1024}},
-						},
-						2,
-					}},
-				}},
-			}},
-		},
-		// Sort stage
-		{
-			{Key: "$sort", Value: bson.D{
-				{Key: "name", Value: 1},
-			}},
-		},
+func validateProject(name string, clients []string) error {
+	if strings.TrimSpace(name) == "" {
+		return types.NewApiError("Project name is required", map[string]string{"name": "Project name is required"})
 	}
-
-	// Execute aggregation
-	cursor, err := m.projectsCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	// Decode results
-	var projects []Project
-	if err := cursor.All(ctx, &projects); err != nil {
-		return nil, fmt.Errorf("failed to decode results: %w", err)
-	}
-
-	return projects, nil
-}
-
-// GetProjectPage implements ProjectsService.
-func (m *MongoProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	// Build match filter for search
-	matchFilter := bson.D{}
-	if query.Search != "" {
-		// Escape special regex characters to prevent ReDoS
-		escapedSearch := regexp.QuoteMeta(query.Search)
-		matchFilter = bson.D{
-			{Key: "name", Value: bson.D{
-				{Key: "$regex", Value: primitive.Regex{
-					Pattern: escapedSearch,
-					Options: "i",
-				}},
-			}},
+	for _, client := range clients {
+		if strings.TrimSpace(client) == "" {
+			return types.NewApiError("Client name is required", map[string]string{"clients": "Client names must not be blank"})
 		}
 	}
-
-	pipeline := mongo.Pipeline{}
-
-	// Add match stage if search is present
-	if query.Search != "" {
-		pipeline = append(pipeline, bson.D{
-			{Key: "$match", Value: matchFilter},
-		})
-	}
-
-	// Continue with rest of pipeline
-	pipeline = append(pipeline,
-		// Lookup stage
-		bson.D{
-			{Key: "$lookup", Value: bson.D{
-				{Key: "from", Value: "log_lines"},
-				{Key: "localField", Value: "clients"},
-				{Key: "foreignField", Value: "client.client_id"},
-				{Key: "as", Value: "log_lines"},
-			}},
-		},
-		// Add fields stage
-		bson.D{
-			{Key: "$addFields", Value: bson.D{
-				{Key: "totalSizeBytes", Value: bson.D{
-					{Key: "$sum", Value: bson.D{
-						{Key: "$map", Value: bson.D{
-							{Key: "input", Value: "$log_lines"},
-							{Key: "as", Value: "log_line"},
-							{Key: "in", Value: bson.D{
-								{Key: "$bsonSize", Value: "$$log_line"},
-							}},
-						}},
-					}},
-				}},
-			}},
-		},
-		// Project stage
-		bson.D{
-			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 1},
-				{Key: "name", Value: 1},
-				{Key: "clients", Value: 1},
-				{Key: "totalSizeMB", Value: bson.D{
-					{Key: "$round", Value: bson.A{
-						bson.D{
-							{Key: "$divide", Value: bson.A{"$totalSizeBytes", 1024 * 1024}},
-						},
-						2,
-					}},
-				}},
-			}},
-		},
-		// Sort stage
-		bson.D{
-			{Key: "$sort", Value: bson.D{
-				{Key: "name", Value: 1},
-			}},
-		},
-		// Skip stage
-		bson.D{
-			{Key: "$skip", Value: query.Page * query.Size},
-		},
-		// Limit stage
-		bson.D{
-			{Key: "$limit", Value: query.Size},
-		},
-	)
-
-	// Get total count with search filter
-	countFilter := bson.M{}
-	if query.Search != "" {
-		escapedSearch := regexp.QuoteMeta(query.Search)
-		countFilter = bson.M{
-			"name": bson.M{
-				"$regex": primitive.Regex{
-					Pattern: escapedSearch,
-					Options: "i",
-				},
-			},
-		}
-	}
-	totalCount, err := m.projectsCollection.CountDocuments(ctx, countFilter)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count projects: %w", err)
-	}
-
-	// Execute aggregation
-	cursor, err := m.projectsCollection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to execute aggregation: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	// Decode results
-	var projects []Project
-	if err := cursor.All(ctx, &projects); err != nil {
-		return nil, 0, fmt.Errorf("failed to decode results: %w", err)
-	}
-
-	return projects, totalCount, nil
-}
-
-// DeleteProject implements ProjectsService.
-func (m *MongoProjectsService) DeleteProject(ctx context.Context, id string) error {
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return err
-	}
-
-	_, err = util.StartTransaction(ctx, func(c mongo.SessionContext) (any, error) {
-
-		_, err = m.projectsCollection.DeleteOne(c, bson.M{"_id": objID})
-		if err != nil && err == mongo.ErrNoDocuments {
-			return struct{}{}, errors.New(ErrProjectNotFound)
-		}
-
-		// delete projectId from user.project_ids
-		_, err = m.userCollection.UpdateMany(c,
-			bson.M{
-				"project_ids": objID,
-			},
-			bson.M{
-				"$pull": bson.M{
-					"project_ids": objID,
-				},
-			})
-		if err != nil {
-			return struct{}{}, err
-		}
-
-		return struct{}{}, nil
-
-	}, m.mongoClient)
-
-	return err
-}
-
-func uniqueStrings(slice []string) []string {
-	keys := make(map[string]bool)
-	list := []string{}
-	for _, entry := range slice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
-func (m *MongoProjectsService) assertUniqeIndex(ctx context.Context) error {
-	// Project name should be unique
-	_, err := m.projectsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"name": 1,
-		},
-		Options: options.Index().SetUnique(true),
-	})
-	if err != nil {
-		return errors.Join(errors.New("error creating unique index on project name"), err)
-	}
-
 	return nil
 }
 
-// ProjectExists implements [ProjectsService].
-func (m *MongoProjectsService) ProjectExists(ctx context.Context, projectId, clientId string) bool {
-	objID, err := primitive.ObjectIDFromHex(projectId)
+func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
+	if err := validateProject(name, clients); err != nil {
+		return Project{}, err
+	}
+	row, err := persistence.CreateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
+		ID: uuid.New(), Name: name, Clients: clients,
+	})
 	if err != nil {
-		return false
+		return Project{}, projectError(err)
 	}
-
-	if clientId == "*" {
-		return true
-	}
-
-	count, err := m.projectsCollection.CountDocuments(ctx, bson.M{
-		"_id":     objID,
-		"clients": clientId,
-	}, options.Count().SetLimit(1))
-
-	return err == nil && count > 0
+	return p.projectWithClients(ctx, row)
 }
 
-var _ ProjectsService = &MongoProjectsService{}
-
-func NewProjectsService(projectsCollection *mongo.Collection, userCollection *mongo.Collection, mongoClient *mongo.Client) ProjectsService {
-	service := &MongoProjectsService{
-		projectsCollection: projectsCollection,
-		userCollection:     userCollection,
-		mongoClient:        mongoClient,
+func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error) {
+	if err := validateProject(name, clients); err != nil {
+		return Project{}, err
 	}
-
-	err := service.assertUniqeIndex(context.Background())
+	row, err := persistence.UpdateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
+		ID: id, Name: name, Clients: clients,
+	})
 	if err != nil {
-		slog.Error("Error creating unique index", "error", err)
-		panic(err)
+		return Project{}, projectError(err)
 	}
+	return p.projectWithClients(ctx, row)
+}
 
-	return service
+func (p *PostgresProjectsService) GetProject(ctx context.Context, id string) (Project, error) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return Project{}, errors.New(ErrProjectNotFound)
+	}
+	row, err := p.queries.GetProjectByID(ctx, parsed)
+	if err != nil {
+		return Project{}, projectError(err)
+	}
+	return p.projectWithClients(ctx, row)
+}
+
+func (p *PostgresProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
+	rows, err := p.queries.ListAllProjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return p.projectsWithClients(ctx, rows)
+}
+
+func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error) {
+	parsed := make([]uuid.UUID, len(ids))
+	for i, id := range ids {
+		var err error
+		parsed[i], err = uuid.Parse(id)
+		if err != nil {
+			return nil, errors.New(ErrProjectNotFound)
+		}
+	}
+	rows, err := p.queries.GetProjectsByIDs(ctx, parsed)
+	if err != nil {
+		return nil, err
+	}
+	return p.projectsWithClients(ctx, rows)
+}
+
+func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
+	if query.Page < 0 || query.Size <= 0 || query.Size > 100 || query.Page > math.MaxInt32/query.Size {
+		return nil, 0, errors.New("Invalid project pagination")
+	}
+	rows, err := p.queries.ListProjects(ctx, sqlc.ListProjectsParams{
+		Search: query.Search, PageSize: int32(query.Size), PageOffset: int32(query.Page * query.Size),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	count, err := p.queries.CountProjects(ctx, query.Search)
+	if err != nil {
+		return nil, 0, err
+	}
+	projects, err := p.projectsWithClients(ctx, rows)
+	return projects, count, err
+}
+
+func (p *PostgresProjectsService) SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error) {
+	projects, _, err := p.GetProjectPage(ctx, types.GetProjectPageInput{
+		Search: request.Search, Page: request.Page, Size: request.Size,
+	})
+	return projects, err
+}
+
+func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id string) error {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return errors.New(ErrProjectNotFound)
+	}
+	_, err = p.queries.DeleteProject(ctx, parsed)
+	return projectError(err)
+}
+
+func (p *PostgresProjectsService) ProjectExists(ctx context.Context, projectID, clientID string) bool {
+	project, err := uuid.Parse(projectID)
+	if err != nil || project.String() != projectID {
+		return false
+	}
+	if clientID == "*" {
+		_, err := p.queries.GetProjectByID(ctx, project)
+		return err == nil
+	}
+	client, err := uuid.Parse(clientID)
+	if err != nil || client.String() != clientID {
+		return false
+	}
+	exists, err := p.queries.ActiveProjectClientExists(ctx, sqlc.ActiveProjectClientExistsParams{ProjectID: project, ID: client})
+	return err == nil && exists
+}
+
+func (p *PostgresProjectsService) ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error) {
+	project, err := uuid.Parse(projectID)
+	if err != nil {
+		return false, nil
+	}
+	client, err := uuid.Parse(clientID)
+	if err != nil {
+		return false, nil
+	}
+	row, err := p.queries.GetClientByID(ctx, client)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && row.ProjectID == project, err
+}
+
+func (p *PostgresProjectsService) projectWithClients(ctx context.Context, row sqlc.Project) (Project, error) {
+	projects, err := p.projectsWithClients(ctx, []sqlc.Project{row})
+	if err != nil {
+		return Project{}, err
+	}
+	return projects[0], nil
+}
+
+func (p *PostgresProjectsService) projectsWithClients(ctx context.Context, rows []sqlc.Project) ([]Project, error) {
+	projects := make([]Project, len(rows))
+	ids := make([]uuid.UUID, len(rows))
+	index := make(map[uuid.UUID]int, len(rows))
+	for i, row := range rows {
+		projects[i] = Project{ID: row.ID, Name: row.Name, Clients: []Client{}}
+		ids[i] = row.ID
+		index[row.ID] = i
+	}
+	if len(rows) == 0 {
+		return projects, nil
+	}
+	clients, err := p.queries.ListActiveClientsForProjects(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, client := range clients {
+		i := index[client.ProjectID]
+		projects[i].Clients = append(projects[i].Clients, Client{ID: client.ID, Name: client.Name})
+	}
+	return projects, nil
+}
+
+func projectError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errors.New(ErrProjectNotFound)
+	}
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) {
+		if pgError.Code == "23505" && pgError.ConstraintName == "projects_name_key" {
+			return errors.New(ErrProjectExists)
+		}
+		if pgError.Code == "23001" && pgError.ConstraintName == "clients_project_id_fkey" {
+			return errors.New(ErrProjectHasClients)
+		}
+	}
+	return err
 }

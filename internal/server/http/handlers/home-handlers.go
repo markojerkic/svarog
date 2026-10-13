@@ -22,15 +22,22 @@ func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService)
 }
 
 func (h *HomeHandler) homeHandler(c echo.Context) error {
-	if !auth.IsAdmin(c.Request().Context()) {
-		return utils.Render(c, http.StatusOK, pages.Homepage(pages.HomepageProps{}))
+	user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
+	if !ok || user == nil {
+		return utils.HxRedirect(c, "/login")
 	}
-	projects, err := h.projectsService.GetProjects(c.Request().Context())
+	var visibleProjects []projects.Project
+	var err error
+	if user.Role == auth.ADMIN {
+		visibleProjects, err = h.projectsService.GetProjects(c.Request().Context())
+	} else if len(user.ProjectIDs) > 0 {
+		visibleProjects, err = h.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
+	}
 	if err != nil {
 		return err
 	}
 
-	props := pages.HomepageProps{Projects: projects}
+	props := pages.HomepageProps{Projects: visibleProjects}
 	return utils.Render(c, http.StatusOK, pages.Homepage(props))
 }
 

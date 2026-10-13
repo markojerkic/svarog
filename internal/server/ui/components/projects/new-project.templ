@@ -23,6 +23,9 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 	{{
 		if p.FormID == "" {
 			p.FormID = "new-project-form"
+			if p.Value.ID != "" {
+				p.FormID = "edit-project-form"
+			}
 		}
 	}}
 	<form

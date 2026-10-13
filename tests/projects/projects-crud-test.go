@@ -3,12 +3,12 @@ package projects
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (p *ProjectsSuite) TestCreateProject() {
@@ -44,11 +44,20 @@ func (p *ProjectsSuite) TestCreateProject() {
 	}
 
 	for i, tc := range testCases {
-		_, err := p.ProjectsService.CreateProject(context.Background(), tc.name, tc.clients)
+		project, err := p.ProjectsService.CreateProject(context.Background(), tc.name, tc.clients)
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 		} else {
-			assert.NoError(t, err, "Test case %d failed", i)
+			require.NoError(t, err, "creating project %s should succeed", tc.name)
+			assert.NotEqual(t, uuid.Nil, project.ID, "project %s should have a UUID", tc.name)
+			expectedNames := tc.clients
+			if tc.name == "test2" {
+				expectedNames = []string{"test client"}
+			}
+			assert.ElementsMatch(t, expectedNames, project.ClientNames(), "project %s should contain unique client names", tc.name)
+			for _, client := range project.Clients {
+				assert.NotEqual(t, uuid.Nil, client.ID, "client %s should have a UUID distinct from its display name", client.Name)
+			}
 		}
 	}
 
@@ -70,13 +79,13 @@ func (p *ProjectsSuite) TestGetProject() {
 	}{
 		{
 			name:    "test1",
-			id:      project.ID.Hex(),
+			id:      project.ID.String(),
 			clients: []string{"test client"},
 			wantErr: false,
 		},
 		{
 			name:    "test2",
-			id:      primitive.NewObjectID().Hex(),
+			id:      uuid.NewString(),
 			clients: []string{"test client", "test client2"},
 			wantErr: true,
 		},
@@ -98,58 +107,99 @@ func (p *ProjectsSuite) TestGetProject() {
 func (p *ProjectsSuite) TestDeleteProject() {
 	t := p.Suite.T()
 
-	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{"test client"})
+	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", nil)
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
 
-	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.Hex())
-	assert.NoError(t, err)
+	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.String())
+	require.NoError(t, err, "deleting a project without clients should succeed")
 
-	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.Hex())
-	assert.Error(t, err)
+	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.String())
+	assert.EqualError(t, err, projects.ErrProjectNotFound, "deleted project should no longer exist")
 }
 
 func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	t := p.Suite.T()
 	ctx := context.Background()
 
-	// Create a project
-	project, err := p.ProjectsService.CreateProject(ctx, "test-project", []string{"test-client"})
-	assert.NoError(t, err)
-	assert.NotEmpty(t, project.ID)
-
-	// Project metadata still uses Mongo. Test legacy reference cleanup directly,
-	// without depending on the human-auth implementation, which now uses PostgreSQL.
-	otherProject, err := p.ProjectsService.CreateProject(ctx, "other-project", []string{"other-client"})
+	project, err := p.ProjectsService.CreateProject(ctx, "test-project", nil)
+	require.NoError(t, err, "creating a clientless project for membership cleanup should succeed")
+	otherProject, err := p.ProjectsService.CreateProject(ctx, "other-project", nil)
 	require.NoError(t, err, "Creating the project that should remain assigned after deletion should succeed")
-	userIDs := []primitive.ObjectID{primitive.NewObjectID(), primitive.NewObjectID(), primitive.NewObjectID()}
-	_, err = p.userCollection.InsertMany(ctx, []any{
-		bson.M{"_id": userIDs[0], "username": "user1", "project_ids": []primitive.ObjectID{project.ID}},
-		bson.M{"_id": userIDs[1], "username": "user2", "project_ids": []primitive.ObjectID{project.ID}},
-		bson.M{"_id": userIDs[2], "username": "user3", "project_ids": []primitive.ObjectID{project.ID, otherProject.ID}},
-	})
-	require.NoError(t, err, "Inserting legacy Mongo users with references to the project should succeed")
+	queries := sqlc.New(p.PostgresPool)
+	userIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	for _, userID := range userIDs {
+		_, err := queries.CreateUser(ctx, sqlc.CreateUserParams{
+			ID: userID, Username: userID.String(), FirstName: "Test", LastName: "User", PasswordHash: "unused", Role: "user",
+		})
+		require.NoError(t, err, "create PostgreSQL user %s for membership cleanup", userID)
+		require.NoError(t, queries.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userID, ProjectID: project.ID}), "assign user %s to the project being deleted", userID)
+	}
+	require.NoError(t, queries.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userIDs[2], ProjectID: otherProject.ID}), "assign third user to the project that should remain")
 
-	// Delete the project
-	err = p.ProjectsService.DeleteProject(ctx, project.ID.Hex())
-	assert.NoError(t, err)
-
-	// Verify project is deleted
-	_, err = p.ProjectsService.GetProject(ctx, project.ID.Hex())
-	assert.Error(t, err, "Project should not exist after deletion")
+	require.NoError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), "delete the clientless project with user memberships")
+	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
+	assert.EqualError(t, err, projects.ErrProjectNotFound, "project should not exist after deletion")
 
 	for i, userID := range userIDs {
-		var user struct {
-			ProjectIDs []primitive.ObjectID `bson:"project_ids"`
-		}
-		require.NoError(t, p.userCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user), "Legacy user %s should still exist after project deletion", userID.Hex())
+		_, err := queries.GetUserByID(ctx, userID)
+		require.NoError(t, err, "user %s should survive project deletion", userID)
+		memberships, err := queries.ListUserProjects(ctx, userID)
+		require.NoError(t, err, "read user %s memberships after cascading deletion", userID)
 		if i == 2 {
-			assert.Equal(t, []primitive.ObjectID{otherProject.ID}, user.ProjectIDs, "Legacy user %s should retain only the other project after deletion", userID.Hex())
+			require.Len(t, memberships, 1, "third user should retain only their other project membership")
+			assert.Equal(t, otherProject.ID, memberships[0].ID, "deletion should preserve membership in the unrelated project")
 		} else {
-			assert.Empty(t, user.ProjectIDs, "Legacy user %s should have no project references after its only project is deleted", userID.Hex())
+			assert.Empty(t, memberships, "user %s should have no memberships after their only project is deleted", userID)
 		}
 	}
+}
+
+func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
+	t := p.T()
+	ctx := context.Background()
+	project, err := p.ProjectsService.CreateProject(ctx, "client-lifecycle", []string{"client"})
+	require.NoError(t, err, "create project with a client for lifecycle checks")
+	require.Len(t, project.Clients, 1, "created project should expose one active client")
+	client := project.Clients[0]
+	assert.True(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.ID.String()), "active client UUID should be eligible for credentials and ingestion")
+	assert.False(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.Name), "display names must not be accepted as client IDs")
+	assert.True(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), "*"), "wildcard credentials should recognize an existing project")
+	assert.False(t, p.ProjectsService.ProjectExists(ctx, uuid.NewString(), "*"), "wildcard credentials must not authorize a missing project")
+
+	updated, err := p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, nil)
+	require.NoError(t, err, "removing a client from the form should deactivate it")
+	assert.Empty(t, updated.Clients, "updated project should hide inactive clients")
+	loaded, err := p.ProjectsService.GetProject(ctx, project.ID.String())
+	require.NoError(t, err, "load project after deactivating its client")
+	assert.Empty(t, loaded.Clients, "project reads should hide inactive clients")
+	assert.False(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.ID.String()), "inactive client UUID must not authorize credentials or ingestion")
+	belongs, err := p.ProjectsService.ClientBelongsToProject(ctx, project.ID.String(), client.ID.String())
+	require.NoError(t, err, "check inactive client ownership for historical log access")
+	assert.True(t, belongs, "inactive client should retain ownership for historical logs")
+	stored, err := sqlc.New(p.PostgresPool).GetClientByID(ctx, client.ID)
+	require.NoError(t, err, "deactivated client row must be retained")
+	assert.False(t, stored.IsActive, "omitted client should be persisted as inactive rather than deleted")
+
+	updated, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, []string{client.Name, client.Name})
+	require.NoError(t, err, "restoring the same client name should reactivate its existing row")
+	require.Len(t, updated.Clients, 1, "duplicate submitted names should yield one reactivated client")
+	assert.Equal(t, client.ID, updated.Clients[0].ID, "reactivation must preserve the original client UUID")
+	assert.True(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.ID.String()), "reactivated client should regain credentials and ingestion eligibility")
+}
+
+func (p *ProjectsSuite) TestDeleteProject_RejectsActiveAndInactiveClients() {
+	t := p.T()
+	ctx := context.Background()
+	project, err := p.ProjectsService.CreateProject(ctx, "cannot-delete-clients", []string{"client"})
+	require.NoError(t, err, "create project with a client for deletion restrictions")
+	assert.EqualError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), projects.ErrProjectHasClients, "project deletion must reject active clients")
+	_, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, nil)
+	require.NoError(t, err, "deactivate the client before retrying deletion")
+	assert.EqualError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), projects.ErrProjectHasClients, "project deletion must also reject retained inactive clients")
+	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
+	require.NoError(t, err, "rejected deletion must leave the project intact")
 }
 
 func (p *ProjectsSuite) TestSearchProjects() {

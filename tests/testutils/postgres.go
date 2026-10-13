@@ -1,4 +1,4 @@
-package postgres_test
+package testutils
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func newPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+func NewPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
 
 	container, err := postgres.Run(ctx, "postgres:18-alpine",
@@ -30,5 +30,6 @@ func newPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	pool, err := pgxpool.New(ctx, connectionString)
 	require.NoError(t, err, "create PostgreSQL connection pool")
 	t.Cleanup(pool.Close)
+	require.NoError(t, pool.Ping(ctx), "connect to migrated PostgreSQL test database")
 	return pool
 }

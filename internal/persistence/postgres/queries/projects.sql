@@ -17,6 +17,9 @@ WHERE strpos(lower(name), lower(sqlc.arg(search)::text)) > 0
 ORDER BY lower(name), id
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
+-- name: ListAllProjects :many
+SELECT * FROM projects ORDER BY lower(name), id;
+
 -- name: CountProjects :one
 SELECT count(*) FROM projects
 WHERE strpos(lower(name), lower(sqlc.arg(search)::text)) > 0;
@@ -43,6 +46,10 @@ SELECT * FROM clients WHERE project_id = $1 ORDER BY lower(name), id;
 
 -- name: ListActiveProjectClients :many
 SELECT * FROM clients WHERE project_id = $1 AND is_active ORDER BY lower(name), id;
+
+-- name: ListActiveClientsForProjects :many
+SELECT * FROM clients WHERE project_id = ANY(sqlc.arg(project_ids)::uuid[]) AND is_active
+ORDER BY lower(name), id;
 
 -- name: DeactivateClient :one
 UPDATE clients SET is_active = false, updated_at = now()

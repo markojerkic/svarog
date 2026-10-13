@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
@@ -19,43 +20,83 @@ func TestNatsAuthSuite(t *testing.T) {
 
 func (s *NatsAuthSuite) TestGenerateCredentials() {
 	t := s.T()
+	projectID, clientID, _ := s.createTestProject("generate-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
-			ProjectID: "client-user-123",
-			ClientID:  "topic",
+			ProjectID: projectID,
+			ClientID:  clientID,
 		},
 	)
-	require.NoError(t, err)
-	assert.NotEmpty(t, creds)
+	require.NoError(t, err, "generate credentials for actual project and client UUIDs")
+	assert.NotEmpty(t, creds, "valid project/client UUIDs should produce a credentials file")
+}
+
+func (s *NatsAuthSuite) TestGenerateCredentialsRejectsInvalidMembership() {
+	t := s.T()
+	ctx := context.Background()
+	projectID, clientID, _ := s.createTestProject("membership-client")
+	otherProjectID, otherClientID, _ := s.createTestProject("other-client")
+	for _, tc := range []struct {
+		name      string
+		projectID string
+		clientID  string
+	}{
+		{"client display name", projectID, "membership-client"},
+		{"missing client UUID", projectID, uuid.NewString()},
+		{"client from another project", projectID, otherClientID},
+		{"project from another client", otherProjectID, clientID},
+		{"wildcard for missing project", uuid.NewString(), "*"},
+	} {
+		creds, err := s.NatsCredsService.GenerateUserCreds(ctx, serverauth.CredentialGenerationRequest{ProjectID: tc.projectID, ClientID: tc.clientID})
+		assert.Error(t, err, "%s must not be authorized for credentials", tc.name)
+		assert.Empty(t, creds, "%s must not receive a credentials file", tc.name)
+	}
+
+	_, err := s.ProjectsService.UpdateProject(ctx, uuid.MustParse(projectID), "test-project-membership-client", nil)
+	require.NoError(t, err, "deactivate the real client before credential validation")
+	creds, err := s.NatsCredsService.GenerateUserCreds(ctx, serverauth.CredentialGenerationRequest{ProjectID: projectID, ClientID: clientID})
+	assert.Error(t, err, "inactive client UUID must not receive new credentials")
+	assert.Empty(t, creds, "inactive client UUID must not produce a credentials file")
+}
+
+func (s *NatsAuthSuite) TestGenerateConnStringUsesClientUUID() {
+	t := s.T()
+	projectID, clientID, subject := s.createTestProject("connection-client")
+	config, err := s.NatsCredsService.GenerateConnString(context.Background(), serverauth.CredentialGenerationRequest{ProjectID: projectID, ClientID: clientID})
+	require.NoError(t, err, "generate connection configuration for real UUID fixtures")
+	assert.Equal(t, subject, config.Topic, "connection topic must contain project and client UUIDs rather than display names")
+	assert.NotEmpty(t, config.Creds, "connection configuration must include encoded credentials")
 }
 
 func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 	t := s.T()
+	projectID, clientID, _ := s.createTestProject("expiry-client")
 	expiry := 24 * time.Hour
 	expiryTime := time.Now().Add(expiry)
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
-			ProjectID: "client-user-123",
-			ClientID:  "topic",
+			ProjectID: projectID,
+			ClientID:  clientID,
 			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
 		},
 	)
-	require.NoError(t, err)
-	assert.NotEmpty(t, creds)
+	require.NoError(t, err, "generate expiring credentials for actual project and client UUIDs")
+	assert.NotEmpty(t, creds, "valid project/client UUIDs should produce expiring credentials")
 }
 
 func (s *NatsAuthSuite) TestGenerateCredsFile() {
 	t := s.T()
+	projectID, clientID, _ := s.createTestProject("file-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
-			ProjectID: "client-user-123",
-			ClientID:  "topic",
+			ProjectID: projectID,
+			ClientID:  clientID,
 		},
 	)
 	assert.NoError(t, err)
@@ -68,12 +109,13 @@ func (s *NatsAuthSuite) TestGenerateCredsFile() {
 
 func (s *NatsAuthSuite) TestParseCredsFile() {
 	t := s.T()
+	projectID, clientID, _ := s.createTestProject("parse-client")
 
 	creds, err := s.NatsCredsService.GenerateUserCreds(
 		context.Background(),
 		serverauth.CredentialGenerationRequest{
-			ProjectID: "client-user-123",
-			ClientID:  "topic",
+			ProjectID: projectID,
+			ClientID:  clientID,
 		},
 	)
 	assert.NoError(t, err)

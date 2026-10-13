@@ -33,10 +33,30 @@ func CreateUserWithToken(ctx context.Context, pool *pgxpool.Pool, input CreateUs
 		}); err != nil {
 			return fmt.Errorf("create login token: %w", err)
 		}
-		return nil
+		return replaceUserProjects(ctx, queries, user.ID, input.ProjectIDs)
 	})
 	if err != nil {
 		return sqlc.User{}, fmt.Errorf("create user with token: %w", err)
+	}
+	return user, nil
+}
+
+func UpdateUserProfileWithProjects(ctx context.Context, pool *pgxpool.Pool, input UpdateUserProfileWithProjectsInput) (sqlc.User, error) {
+	var user sqlc.User
+	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		queries := sqlc.New(tx)
+		var err error
+		user, err = queries.UpdateUserProfile(ctx, sqlc.UpdateUserProfileParams{
+			ID: input.ID, Username: input.Username, FirstName: input.FirstName,
+			LastName: input.LastName, Role: input.Role,
+		})
+		if err != nil {
+			return fmt.Errorf("update user profile: %w", err)
+		}
+		return replaceUserProjects(ctx, queries, user.ID, input.ProjectIDs)
+	})
+	if err != nil {
+		return sqlc.User{}, fmt.Errorf("update user profile with projects: %w", err)
 	}
 	return user, nil
 }

@@ -3,40 +3,40 @@ package archive
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (a *ArchiveSuite) TestCreateSettings() {
 	t := a.T()
 
-	projectId := primitive.NewObjectID()
-	clientID := "clientID"
-	err := a.archiveService.CreateSetting(context.Background(), projectId.Hex(), clientID, 10)
-	assert.NoError(t, err)
+	projectId := uuid.NewString()
+	clientID := uuid.NewString()
+	err := a.archiveService.CreateSetting(context.Background(), projectId, clientID, 10)
+	assert.NoError(t, err, "create archive setting with UUID project and client references")
 }
 
 func (a *ArchiveSuite) TestCreateSettingsForExistingPair() {
 	t := a.T()
 
-	projectId := primitive.NewObjectID()
-	clientID := "clientID"
-	err := a.archiveService.CreateSetting(context.Background(), projectId.Hex(), clientID, 10)
-	assert.NoError(t, err)
+	projectId := uuid.NewString()
+	clientID := uuid.NewString()
+	err := a.archiveService.CreateSetting(context.Background(), projectId, clientID, 10)
+	assert.NoError(t, err, "create initial archive setting with UUID references")
 
-	err = a.archiveService.CreateSetting(context.Background(), projectId.Hex(), clientID, 10)
-	assert.Error(t, err)
+	err = a.archiveService.CreateSetting(context.Background(), projectId, clientID, 10)
+	assert.Error(t, err, "duplicate UUID project/client setting must be rejected")
 }
 
 func (a *ArchiveSuite) TestUpdateSettings() {
 	t := a.T()
 
-	projectId := primitive.NewObjectID()
-	clientID := "clientID"
-	err := a.archiveService.CreateSetting(context.Background(), projectId.Hex(), clientID, 10)
-	assert.NoError(t, err)
+	projectId := uuid.NewString()
+	clientID := uuid.NewString()
+	err := a.archiveService.CreateSetting(context.Background(), projectId, clientID, 10)
+	assert.NoError(t, err, "create setting to update using UUID references")
 	var setting types.ArchiveSetting
 
 	err = a.archiveSettingCollection.FindOne(context.Background(), bson.M{"client_id": clientID, "project_id": projectId}).Decode(&setting)

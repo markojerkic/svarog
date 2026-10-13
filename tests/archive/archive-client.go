@@ -7,39 +7,40 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (a *ArchiveSuite) TestCreateArchiveForClient() {
 	t := a.T()
 
-	projectId := primitive.NewObjectID()
-	clientID := "clientID"
-	err := a.archiveService.CreateSetting(context.Background(), projectId.Hex(), clientID, 10)
-	assert.NoError(t, err)
+	projectId := uuid.NewString()
+	clientID := uuid.NewString()
+	err := a.archiveService.CreateSetting(context.Background(), projectId, clientID, 10)
+	assert.NoError(t, err, "create archive setting with UUID project and client references")
 
 	tenWeeksAgo := time.Now().Add(-10*7*24*time.Hour - 1*time.Second)
-	err = a.prepopulateLogs(10_000, tenWeeksAgo, projectId.Hex(), clientID, "::1")
-	assert.NoError(t, err)
+	err = a.prepopulateLogs(10_000, tenWeeksAgo, projectId, clientID, "::1")
+	assert.NoError(t, err, "save old logs under UUID project/client references")
 
-	err = a.prepopulateLogs(1000, time.Now(), projectId.Hex(), clientID, "::1")
+	err = a.prepopulateLogs(1000, time.Now(), projectId, clientID, "::1")
+	assert.NoError(t, err, "save recent logs under UUID project/client references")
 
 	count, err := a.logCollection.CountDocuments(context.Background(), bson.M{
-		"client.project_id": projectId.Hex(),
+		"client.project_id": projectId,
 		"client.client_id":  clientID,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(11_000), count, "Should have 11,000 test logs")
 
-	archiveResult, err := a.archiveService.CreateArhiveForClient(context.Background(), projectId.Hex(), clientID)
-	assert.NoError(t, err)
+	archiveResult, err := a.archiveService.CreateArhiveForClient(context.Background(), projectId, clientID)
+	assert.NoError(t, err, "archive Mongo logs identified by UUID project/client references")
 
 	// assert only 1000 logs remain, all not older than 10 weeks
 	count, err = a.logCollection.CountDocuments(context.Background(), bson.M{
-		"client.project_id": projectId.Hex(),
+		"client.project_id": projectId,
 		"client.client_id":  clientID,
 	})
 	assert.NoError(t, err)
@@ -69,7 +70,7 @@ func (a *ArchiveSuite) TestCreateArchiveForClient() {
 
 	// Optionally, verify the age of remaining logs
 	cursor, err := a.logCollection.Find(context.Background(), bson.M{
-		"client.project_id": projectId.Hex(),
+		"client.project_id": projectId,
 		"client.client_id":  clientID,
 		"timestamp": bson.M{
 			"$lt": tenWeeksAgo,

@@ -1,6 +1,7 @@
 package combobox
 
 import (
+	"fmt"
 	"github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -31,9 +32,14 @@ templ ComboBox(props ...Props) {
 			@selectbox.Content(selectbox.ContentProps{
 				SearchName:          "search",
 				DisableClientSearch: true,
+				// The popover is portaled outside the form, so use a form-scoped selector.
+				Attributes: templ.Attributes{
+					"hx-include": fmt.Sprintf("#%s [name='%s']", p.Form, p.Name),
+					"hx-sync":    fmt.Sprintf("#%s [name='%s']:replace", p.Form, p.Name),
+				},
 				SearchAttributes: templ.Attributes{
 					"hx-get":       p.SearchUrl,
-					"hx-trigger":   "input changed delay:300ms, intersect once",
+					"hx-trigger":   fmt.Sprintf("input changed delay:300ms, intersect once, change from:(#%s [name='%s'])", p.Form, p.Name),
 					"hx-target":    "next [data-tui-selectbox-content-children]",
 					"hx-indicator": "previous .svarog-indicator-container",
 					"hx-swap":      "innerHTML",
@@ -41,7 +47,8 @@ templ ComboBox(props ...Props) {
 			}) {
 				for _, selectedValue := range p.Values {
 					@selectbox.Item(selectbox.ItemProps{
-						Value: selectedValue.Value,
+						Value:    selectedValue.Value,
+						Selected: true,
 					}) {
 						{ selectedValue.Name }
 					}
@@ -52,11 +59,20 @@ templ ComboBox(props ...Props) {
 }
 
 type ComboboxItemsProps struct {
-	Items   []Item
-	NextURL string
+	SelectedItems []Item
+	Items         []Item
+	NextURL       string
 }
 
 templ ComboboxItems(props ComboboxItemsProps) {
+	for _, item := range props.SelectedItems {
+		@selectbox.Item(selectbox.ItemProps{
+			Value:    item.Value,
+			Selected: true,
+		}) {
+			{ item.Name }
+		}
+	}
 	for _, item := range props.Items {
 		@selectbox.Item(selectbox.ItemProps{
 			Value: item.Value,
