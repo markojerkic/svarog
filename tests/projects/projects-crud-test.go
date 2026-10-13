@@ -122,14 +122,14 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	// Project metadata still uses Mongo. Test legacy reference cleanup directly,
 	// without depending on the human-auth implementation, which now uses PostgreSQL.
 	otherProject, err := p.ProjectsService.CreateProject(ctx, "other-project", []string{"other-client"})
-	require.NoError(t, err)
+	require.NoError(t, err, "Creating the project that should remain assigned after deletion should succeed")
 	userIDs := []primitive.ObjectID{primitive.NewObjectID(), primitive.NewObjectID(), primitive.NewObjectID()}
 	_, err = p.userCollection.InsertMany(ctx, []any{
 		bson.M{"_id": userIDs[0], "username": "user1", "project_ids": []primitive.ObjectID{project.ID}},
 		bson.M{"_id": userIDs[1], "username": "user2", "project_ids": []primitive.ObjectID{project.ID}},
 		bson.M{"_id": userIDs[2], "username": "user3", "project_ids": []primitive.ObjectID{project.ID, otherProject.ID}},
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "Inserting legacy Mongo users with references to the project should succeed")
 
 	// Delete the project
 	err = p.ProjectsService.DeleteProject(ctx, project.ID.Hex())
@@ -143,11 +143,11 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 		var user struct {
 			ProjectIDs []primitive.ObjectID `bson:"project_ids"`
 		}
-		require.NoError(t, p.userCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user))
+		require.NoError(t, p.userCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user), "Legacy user %s should still exist after project deletion", userID.Hex())
 		if i == 2 {
-			assert.Equal(t, []primitive.ObjectID{otherProject.ID}, user.ProjectIDs)
+			assert.Equal(t, []primitive.ObjectID{otherProject.ID}, user.ProjectIDs, "Legacy user %s should retain only the other project after deletion", userID.Hex())
 		} else {
-			assert.Empty(t, user.ProjectIDs)
+			assert.Empty(t, user.ProjectIDs, "Legacy user %s should have no project references after its only project is deleted", userID.Hex())
 		}
 	}
 }

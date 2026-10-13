@@ -31,13 +31,13 @@ func TestUsersWithoutProjectAssignmentsCannotReadProjectData(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, req)
-			require.Equal(t, "/", rec.Header().Get("HX-Location"))
-			require.Empty(t, rec.Body.String())
+			require.Equal(t, "/", rec.Header().Get("HX-Location"), "Users without project assignments should be redirected home from %s", path)
+			require.Empty(t, rec.Body.String(), "Denied requests to %s should not return project data", path)
 		})
 	}
 	t.Run("home does not query projects", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, http.StatusOK, rec.Code, "The home page should load for users without project assignments without querying projects")
 	})
 }
