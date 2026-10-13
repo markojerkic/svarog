@@ -6,8 +6,8 @@ import (
 
 type GetProjectPageInput struct {
 	Search string `json:"search" query:"search"`
-	Page   int64  `json:"page" query:"page" default:"0"`
-	Size   int64  `json:"size" query:"size" default:"10"`
+	Page   int64  `json:"page" query:"page" default:"0" validate:"gte=0"`
+	Size   int64  `json:"size" query:"size" default:"10" validate:"gte=1,lte=100"`
 }
 
 type CreateProjectForm struct {

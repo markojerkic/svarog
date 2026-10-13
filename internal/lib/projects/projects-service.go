@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
@@ -17,8 +16,8 @@ import (
 
 type SearchProjectsRequest struct {
 	Search string `json:"search" query:"search"`
-	Page   int64  `json:"page" query:"page" default:"0" validate:"min=0"`
-	Size   int64  `json:"size" query:"size" default:"10" validate:"min=0,max=100"`
+	Page   int64  `json:"page" query:"page" default:"0" validate:"gte=0"`
+	Size   int64  `json:"size" query:"size" default:"10" validate:"gte=1,lte=100"`
 }
 
 type ProjectsService interface {
@@ -139,11 +138,13 @@ func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []st
 }
 
 func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	if query.Page < 0 || query.Size <= 0 || query.Size > 100 || query.Page > math.MaxInt32/query.Size {
+	if query.Page < 0 || query.Size <= 0 || query.Size > 100 || query.Page > math.MaxInt64/query.Size {
 		return nil, 0, errors.New("Invalid project pagination")
 	}
 	rows, err := p.queries.ListProjects(ctx, sqlc.ListProjectsParams{
-		Search: query.Search, PageSize: int32(query.Size), PageOffset: int32(query.Page * query.Size),
+		Search:     query.Search,
+		PageSize:   query.Size,
+		PageOffset: query.Page * query.Size,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -240,14 +241,11 @@ func projectError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errors.New(ErrProjectNotFound)
 	}
-	var pgError *pgconn.PgError
-	if errors.As(err, &pgError) {
-		if pgError.Code == "23505" && pgError.ConstraintName == "projects_name_key" {
-			return errors.New(ErrProjectExists)
-		}
-		if pgError.Code == "23001" && pgError.ConstraintName == "clients_project_id_fkey" {
-			return errors.New(ErrProjectHasClients)
-		}
+	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "projects_name_key") {
+		return errors.New(ErrProjectExists)
+	}
+	if persistence.IsConstraintViolation(err, persistence.SQLStateRestrictViolation, "clients_project_id_fkey") {
+		return errors.New(ErrProjectHasClients)
 	}
 	return err
 }

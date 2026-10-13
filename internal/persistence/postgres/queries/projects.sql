@@ -15,7 +15,7 @@ ORDER BY lower(name), id;
 SELECT * FROM projects
 WHERE strpos(lower(name), lower(sqlc.arg(search)::text)) > 0
 ORDER BY lower(name), id
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+LIMIT sqlc.arg(page_size)::bigint OFFSET sqlc.arg(page_offset)::bigint;
 
 -- name: ListAllProjects :many
 SELECT * FROM projects ORDER BY lower(name), id;

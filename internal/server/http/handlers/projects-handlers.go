@@ -115,6 +115,13 @@ func (p *ProjectsRouter) getProjects(c echo.Context) error {
 	if query.Size == 0 {
 		query.Size = 10
 	}
+	if err := c.Validate(&query); err != nil {
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return c.JSON(http.StatusBadRequest, apiErr)
+		}
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid project pagination"})
+	}
 
 	projects, totalCount, err := p.projectsService.GetProjectPage(c.Request().Context(), query)
 	if err != nil {

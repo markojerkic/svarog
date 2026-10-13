@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -342,8 +341,7 @@ func (a *PostgresAuthService) CreateInitialAdminUser(ctx context.Context) error 
 		ID: uuid.New(), Username: "admin", FirstName: "Admin", LastName: "Admin",
 		PasswordHash: hash, Role: string(ADMIN), NeedsPasswordReset: true,
 	})
-	var pgError *pgconn.PgError
-	if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "users_username_key" {
+	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "users_username_key") {
 		return nil
 	}
 	return err
@@ -361,11 +359,10 @@ func authError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errors.New(ErrUserNotFound)
 	}
-	var pgError *pgconn.PgError
-	if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "users_username_key" {
+	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "users_username_key") {
 		return errors.New(UserAlreadyExists)
 	}
-	if errors.As(err, &pgError) && pgError.Code == "23503" && pgError.ConstraintName == "user_projects_project_id_fkey" {
+	if persistence.IsConstraintViolation(err, persistence.SQLStateForeignKeyViolation, "user_projects_project_id_fkey") {
 		return types.NewApiError("Project not found", map[string]string{
 			"projects": "One or more selected projects do not exist",
 		})

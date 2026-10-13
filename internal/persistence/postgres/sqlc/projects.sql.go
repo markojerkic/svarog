@@ -391,13 +391,13 @@ const listProjects = `-- name: ListProjects :many
 SELECT id, name, created_at, updated_at FROM projects
 WHERE strpos(lower(name), lower($1::text)) > 0
 ORDER BY lower(name), id
-LIMIT $3 OFFSET $2
+LIMIT $3::bigint OFFSET $2::bigint
 `
 
 type ListProjectsParams struct {
 	Search     string
-	PageOffset int32
-	PageSize   int32
+	PageOffset int64
+	PageSize   int64
 }
 
 func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]Project, error) {

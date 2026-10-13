@@ -2,13 +2,16 @@ package postgres_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -87,6 +90,16 @@ func TestProjectPersistence(t *testing.T) {
 		rest, err := q.ListProjects(ctx, sqlc.ListProjectsParams{Search: "", PageSize: 10, PageOffset: 2})
 		require.NoError(t, err, "fetch remaining project page")
 		require.Equal(t, all, append(first, rest...), "pagination preserves ordering without omissions or duplicates")
+
+		projectService := projects.NewPostgresProjectsService(pool)
+		largePage, count, err := projectService.GetProjectPage(ctx, types.GetProjectPageInput{
+			Page: math.MaxInt32 + 1,
+			Size: 1,
+		})
+		require.NoError(t, err, "project pagination accepts offsets beyond int32 without truncation")
+		require.Empty(t, largePage, "large int64 page is beyond the fixture projects")
+		require.EqualValues(t, 5, count, "large page offset must not affect matching project count")
+
 		for search, expected := range map[string]int{"": 5, "ALpHa": 2, "%": 1, "_": 1, "missing": 0} {
 			rows, err := q.ListProjects(ctx, sqlc.ListProjectsParams{Search: search, PageSize: 10})
 			require.NoError(t, err, "list projects matching literal case-insensitive search %q", search)

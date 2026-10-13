@@ -27,6 +27,8 @@ import (
 func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+
+	// Set up PostgreSQL projects with distinct client UUIDs, JetStream, and Mongo log storage.
 	pool := testutils.NewPostgresPool(t, ctx)
 	projectService := projects.NewPostgresProjectsService(pool)
 	first, err := projectService.CreateProject(ctx, "First", []string{"api"})
@@ -44,8 +46,12 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	natsURL, err := natsContainer.ConnectionString(ctx)
 	require.NoError(t, err, "get JetStream connection string")
 	conn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
-		NatsAddr: natsURL, EnableJetStream: true,
-		JetStreamConfig: natsconn.JetStreamConfig{Name: "LOGS", Subjects: []string{"logs.>"}},
+		NatsAddr:        natsURL,
+		EnableJetStream: true,
+		JetStreamConfig: natsconn.JetStreamConfig{
+			Name:     "LOGS",
+			Subjects: []string{"logs.>"},
+		},
 	})
 	require.NoError(t, err, "connect to JetStream and create log stream")
 	t.Cleanup(conn.Close)
@@ -62,6 +68,8 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, mongoClient.Disconnect(context.Background()), "close MongoDB connection")
 	})
+
+	// Run ingestion and log aggregation together; wait for both before cleaning up storage.
 	logService := db.NewLogService(mongoClient.Database("svarog_test"),
 		websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn)))
 	logServer := db.NewLogServer(logService)
@@ -90,10 +98,14 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 			t.Error("log aggregation did not stop")
 		}
 	})
+
 	publish := func(projectID, clientID, message string) {
 		t.Helper()
 		payload, err := json.Marshal(rpc.LogLine{
-			Message: message, Timestamp: time.Now().UTC(), InstanceId: "instance", Sequence: 1,
+			Message:    message,
+			Timestamp:  time.Now().UTC(),
+			InstanceId: "instance",
+			Sequence:   1,
 		})
 		require.NoError(t, err, "encode valid RPC log line")
 		_, err = conn.JetStream.Publish(ctx, fmt.Sprintf("logs.%s.%s", projectID, clientID), payload)
@@ -102,7 +114,11 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	waitForMessage := func(projectID, clientID, message string) {
 		t.Helper()
 		require.Eventually(t, func() bool {
-			page, err := logService.GetLogs(ctx, db.LogPageRequest{ProjectId: projectID, ClientId: clientID, PageSize: 100})
+			page, err := logService.GetLogs(ctx, db.LogPageRequest{
+				ProjectId: projectID,
+				ClientId:  clientID,
+				PageSize:  100,
+			})
 			if err != nil {
 				return false
 			}
@@ -115,31 +131,40 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 		}, 15*time.Second, 50*time.Millisecond, "accepted log %q must reach Mongo under UUID references", message)
 	}
 
+	// Valid project/client UUID pairs reach Mongo and remain queryable by those UUIDs.
 	publish(first.ID.String(), first.Clients[0].ID.String(), "first accepted")
 	publish(second.ID.String(), second.Clients[0].ID.String(), "second accepted")
+
 	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "first accepted")
 	waitForMessage(second.ID.String(), second.Clients[0].ID.String(), "second accepted")
 	instances, err := logService.GetInstances(ctx, first.ID.String(), first.Clients[0].ID.String())
+
 	require.NoError(t, err, "query instances using UUID references")
 	require.Equal(t, []string{"instance"}, instances, "UUID-filtered logs retain instance identity")
 
+	// A temporary DB validation failure retries the message until the lock is released.
 	tx, err := pool.Begin(ctx)
 	require.NoError(t, err, "begin temporary database lock to simulate unavailable client validation")
 	defer tx.Rollback(context.Background())
 	_, err = tx.Exec(ctx, "LOCK TABLE clients IN ACCESS EXCLUSIVE MODE")
 	require.NoError(t, err, "block client validation until its query timeout")
+
 	publish(first.ID.String(), first.Clients[0].ID.String(), "retry accepted")
 	consumer, err := conn.JetStream.Consumer(ctx, "LOGS", "log-processor")
 	require.NoError(t, err, "load ingest consumer to observe retries")
+
 	require.Eventually(t, func() bool {
 		info, err := consumer.Info(ctx)
 		return err == nil && info.NumRedelivered > 0
 	}, 15*time.Second, 50*time.Millisecond, "database validation timeout must retry the message rather than acknowledge or discard it")
+
 	require.NoError(t, tx.Commit(ctx), "restore database validation before retry is processed")
 	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "retry accepted")
 
+	// Inactive, foreign, unknown, legacy, and malformed messages must not be persisted.
 	_, err = projectService.UpdateProject(ctx, first.ID, first.Name, nil)
 	require.NoError(t, err, "deactivate first client while preserving Mongo history")
+
 	publish(first.ID.String(), first.Clients[0].ID.String(), "inactive rejected")
 	publish(second.ID.String(), first.Clients[0].ID.String(), "foreign client rejected")
 	publish(second.ID.String(), uuid.NewString(), "unknown client rejected")
@@ -150,35 +175,61 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 		subject string
 		payload string
 	}{
-		{"logs.invalid", `{}`},
-		{"logs.extra." + second.ID.String() + "." + second.Clients[0].ID.String(), `{}`},
-		{validSubject, `{"sequence":-1}`},
-		{validSubject, `not json`},
+		{
+			subject: "logs.invalid",
+			payload: `{}`,
+		},
+		{
+			subject: "logs.extra." + second.ID.String() + "." + second.Clients[0].ID.String(),
+			payload: `{}`,
+		},
+		{
+			subject: validSubject,
+			payload: `{"sequence":-1}`,
+		},
+		{
+			subject: validSubject,
+			payload: `not json`,
+		},
 	} {
 		_, err := conn.JetStream.Publish(ctx, invalid.subject, []byte(invalid.payload))
 		require.NoError(t, err, "publish invalid message to ensure ingest terminates it safely")
 	}
+
+	// Wait for the valid barrier and all acknowledgements before checking rejection counts.
 	publish(second.ID.String(), second.Clients[0].ID.String(), "validation barrier")
+
 	waitForMessage(second.ID.String(), second.Clients[0].ID.String(), "validation barrier")
 	require.Eventually(t, func() bool {
 		info, err := consumer.Info(ctx)
 		return err == nil && info.NumPending == 0 && info.NumAckPending == 0
 	}, 10*time.Second, 50*time.Millisecond, "permanently invalid messages must be terminated, not retried forever")
+
 	var total int64
 	total, err = mongoClient.Database("svarog_test").Collection("log_lines").CountDocuments(ctx, struct{}{})
 	require.NoError(t, err, "count persisted logs after validation barrier")
 	require.EqualValues(t, 4, total, "inactive, foreign, missing and malformed client logs must not reach Mongo; retried valid log is stored exactly once")
+
+	// Deactivation preserves historical ownership but disallows new credentials.
 	belongs, err := projectService.ClientBelongsToProject(ctx, first.ID.String(), first.Clients[0].ID.String())
+
 	require.NoError(t, err, "check historical client ownership after deactivation")
 	require.True(t, belongs, "inactive client still belongs to its project for historical log reads")
 	require.False(t, projectService.ProjectExists(ctx, first.ID.String(), first.Clients[0].ID.String()), "inactive client cannot receive new credentials")
+
+	// Reactivation keeps the client UUID and both original and retried history.
 	_, err = projectService.UpdateProject(ctx, first.ID, first.Name, []string{"api"})
 	require.NoError(t, err, "reactivate first client by name without changing its UUID")
+
 	publish(first.ID.String(), first.Clients[0].ID.String(), "reactivated accepted")
+
 	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "reactivated accepted")
 	page, err := logService.GetLogs(ctx, db.LogPageRequest{
-		ProjectId: first.ID.String(), ClientId: first.Clients[0].ID.String(), PageSize: 100,
+		ProjectId: first.ID.String(),
+		ClientId:  first.Clients[0].ID.String(),
+		PageSize:  100,
 	})
+
 	require.NoError(t, err, "read old and new Mongo logs after UUID-preserving reactivation")
 	require.Len(t, page.Logs, 3, "reactivated client retains original and retried history and adds only the new accepted log")
 }
