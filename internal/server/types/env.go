@@ -1,6 +1,7 @@
 package types
 
 type ServerEnv struct {
+	PostgresURL    string `env:"POSTGRES_URL" envDefault:"postgres://svarog:svarog@localhost:5434/svarog?sslmode=disable"`
 	MongoUrl       string `env:"MONGO_URL"`
 	ServerDnsName  string `env:"SERVER_DNS_NAME"`
 	HttpServerPort int    `env:"HTTP_SERVER_PORT"`

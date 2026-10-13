@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	authlayer "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,8 +15,6 @@ type ProjectsSuite struct {
 
 	projectsCollection *mongo.Collection
 	userCollection     *mongo.Collection
-	sessionCollection  *mongo.Collection
-	authService        authlayer.AuthService
 }
 
 // SetupSuite implements suite.SetupAllSuite.
@@ -26,10 +23,6 @@ func (p *ProjectsSuite) SetupSuite() {
 
 	p.projectsCollection = p.Collection("projects")
 	p.userCollection = p.Collection("users")
-	p.sessionCollection = p.Collection("sessions")
-
-	sessionStore := authlayer.NewMongoSessionStore(p.sessionCollection, p.userCollection, []byte("test-key"))
-	p.authService = authlayer.NewMongoAuthService(p.userCollection, p.sessionCollection, p.MongoClient, sessionStore)
 }
 
 // TearDownSubTest implements suite.TearDownSubTest.
@@ -41,8 +34,6 @@ func (p *ProjectsSuite) TearDownSubTest() {
 	_, err = p.userCollection.DeleteMany(context.Background(), bson.M{})
 	assert.NoError(p.T(), err)
 
-	_, err = p.sessionCollection.DeleteMany(context.Background(), bson.M{})
-	assert.NoError(p.T(), err)
 }
 
 // TearDownTest implements suite.TearDownTestSuite.

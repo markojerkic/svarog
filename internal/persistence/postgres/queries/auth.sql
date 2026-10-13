@@ -52,3 +52,6 @@ SET token_hash = EXCLUDED.token_hash,
 DELETE FROM login_tokens
 WHERE token_hash = $1 AND expires_at > now()
 RETURNING user_id;
+
+-- name: DeleteLoginTokensForUser :exec
+DELETE FROM login_tokens WHERE user_id = $1;

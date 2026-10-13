@@ -13,6 +13,7 @@ services:
     environment:
       - SVAROG_CONN_STRING=${SVAROG_CONN_STRING}
       - MONGO_URL=mongodb://svarog-mongodb:27017/?directConnection=true
+      - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
       - HTTP_SERVER_PORT=1323
       - NATS_PUBLIC_ADDR=localhost:4222
@@ -22,8 +23,12 @@ services:
       - NATS_SERVER_USER_SEED=${NATS_SERVER_USER_SEED}
       - NATS_ACCOUNT_PUBLIC_KEY=${NATS_ACCOUNT_PUBLIC_KEY}
     depends_on:
-      - svarog-mongodb
-      - nats
+      svarog-postgres:
+        condition: service_healthy
+      svarog-mongodb:
+        condition: service_started
+      nats:
+        condition: service_started
     develop:
       watch:
         - path: .

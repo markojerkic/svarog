@@ -81,6 +81,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteLoginTokensForUser = `-- name: DeleteLoginTokensForUser :exec
+DELETE FROM login_tokens WHERE user_id = $1
+`
+
+func (q *Queries) DeleteLoginTokensForUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLoginTokensForUser, userID)
+	return err
+}
+
 const deleteUser = `-- name: DeleteUser :one
 DELETE FROM users WHERE id = $1 RETURNING id
 `

@@ -80,7 +80,7 @@ templ UsersTableBody(props UsersListPageProps) {
 	}) {
 		for _, user := range props.Users {
 			@table.Row(table.RowProps{
-				Attributes: templ.Attributes{"data-user-id": user.ID.Hex()},
+				Attributes: templ.Attributes{"data-user-id": user.ID.String()},
 			}) {
 				@table.Cell() {
 					{ user.Username }
@@ -106,19 +106,19 @@ templ userActions(user auth.User) {
 			@button.Button(button.Props{
 				Variant: button.VariantOutline,
 				Attributes: templ.Attributes{
-					"data-user-actions-id": user.ID.Hex(),
+					"data-user-actions-id": user.ID.String(),
 				},
 			}) {
 				<span
 					class="svarog-indicator"
-					data-indicator-user-id={ user.ID.Hex() }
+					data-indicator-user-id={ user.ID.String() }
 					data-fallback
 				>
 					@icon.EllipsisVertical()
 				</span>
 				<span
 					class="svarog-indicator animate-spin"
-					data-indicator-user-id={ user.ID.Hex() }
+					data-indicator-user-id={ user.ID.String() }
 				>
 					@icon.LoaderCircle(icon.Props{Size: 16})
 				</span>
@@ -130,7 +130,7 @@ templ userActions(user auth.User) {
 			@dropdown.Group() {
 				@dropdown.Item(dropdown.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-get":          "/admin/users/" + user.ID.Hex() + "/edit",
+						"hx-get":          "/admin/users/" + user.ID.String() + "/edit",
 						"hx-target":       "#edit-user-form-container",
 						"hx-swap":         "innerHTML",
 						"onclick":         "window.tui.dialog.open('edit-user-dialog')",
@@ -144,9 +144,9 @@ templ userActions(user auth.User) {
 				}
 				@dropdown.Item(dropdown.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-delete":       "/admin/users/" + user.ID.Hex(),
+						"hx-delete":       "/admin/users/" + user.ID.String(),
 						"hx-confirm":      "Are you sure you want to delete this user?",
-						"hx-target":       fmt.Sprintf("tr[data-user-id='%s']", user.ID.Hex()),
+						"hx-target":       fmt.Sprintf("tr[data-user-id='%s']", user.ID.String()),
 						"hx-disabled-elt": "input, button, #new-user-dialog button[type=submit]",
 					},
 				}) {
@@ -160,10 +160,10 @@ templ userActions(user auth.User) {
 						"hx-post": "/admin/users/generate-login-token",
 						"hx-swap": "none",
 						"hx-vals": htmx.HxVals(map[string]string{
-							"userId": user.ID.Hex(),
+							"userId": user.ID.String(),
 						}),
-						"hx-indicator":    fmt.Sprintf(".svarog-indicator[data-indicator-user-id='%s']", user.ID.Hex()),
-						"hx-disabled-elt": fmt.Sprintf("[data-user-actions-id='%s']", user.ID.Hex()),
+						"hx-indicator":    fmt.Sprintf(".svarog-indicator[data-indicator-user-id='%s']", user.ID.String()),
+						"hx-disabled-elt": fmt.Sprintf("[data-user-actions-id='%s']", user.ID.String()),
 					},
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">

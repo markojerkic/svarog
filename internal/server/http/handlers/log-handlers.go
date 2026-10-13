@@ -7,7 +7,9 @@ import (
 	"log/slog"
 
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -152,7 +154,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 }
 
 func NewLogsRouter(logService db.LogService, e *echo.Group) *LogsRouter {
-	logsApi := e.Group("/logs/:projectId/:clientId")
+	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresRoleMiddleware(auth.ADMIN))
 
 	logsRouter := &LogsRouter{
 		logService:   logService,

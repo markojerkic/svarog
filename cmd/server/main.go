@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	envParser "github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/files"
@@ -66,6 +67,7 @@ type serverDependencies struct {
 	ingestService *ingest.IngestService
 	natsConn      *natsconn.NatsConnection
 	mongoClient   *mongo.Client
+	postgresPool  *pgxpool.Pool
 	cancel        context.CancelFunc
 }
 
@@ -84,6 +86,7 @@ func gracefulShutdown(deps serverDependencies) {
 	deps.cancel()
 
 	deps.natsConn.Close()
+	deps.postgresPool.Close()
 
 	if err := deps.mongoClient.Disconnect(shutdownCtx); err != nil {
 		log.Error("MongoDB disconnect error", "error", err)
@@ -95,6 +98,15 @@ func gracefulShutdown(deps serverDependencies) {
 func main() {
 	setupLogger()
 	env := loadEnv()
+	postgresCtx, postgresCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	postgresPool, err := pgxpool.New(postgresCtx, env.PostgresURL)
+	if err == nil {
+		err = postgresPool.Ping(postgresCtx)
+	}
+	postgresCancel()
+	if err != nil {
+		log.Fatal("Couldn't connect to PostgreSQL", "error", err)
+	}
 
 	client, database, err := newMongoDB(env.MongoUrl)
 	if err != nil {
@@ -102,7 +114,6 @@ func main() {
 	}
 
 	userCollection := database.Collection("users")
-	sessionCollection := database.Collection("sessions")
 	filesCollectinon := database.Collection("files")
 	projectsCollection := database.Collection("projects")
 
@@ -131,14 +142,16 @@ func main() {
 	watchHub := websocket.NewWatchHub(natsConn.Conn)
 	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
 
-	sessionStore := auth.NewMongoSessionStore(sessionCollection, userCollection, []byte(env.SessionSecret))
+	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
 	logsService := db.NewLogService(database, wsLoglineRenderer)
 	logServer := db.NewLogServer(logsService)
 
-	authService := auth.NewMongoAuthService(userCollection, sessionCollection, client, sessionStore)
+	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 	filesService := files.NewFileService(filesCollectinon)
 
-	authService.CreateInitialAdminUser(context.Background())
+	if err := authService.CreateInitialAdminUser(context.Background()); err != nil {
+		log.Fatal("Couldn't initialize PostgreSQL admin user; apply database migrations first", "error", err)
+	}
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)
 	ingestService := ingest.NewIngestService(logIngestChannel, natsConn)
@@ -175,6 +188,7 @@ func main() {
 		ingestService: ingestService,
 		natsConn:      natsConn,
 		mongoClient:   client,
+		postgresPool:  postgresPool,
 		cancel:        cancel,
 	})
 }

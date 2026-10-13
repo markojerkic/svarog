@@ -8,7 +8,7 @@ Svarog uses a NATS-based pub/sub architecture for reliable log ingestion:
 
 - **Clients** pipe their application logs to the Svarog client, which publishes them to a NATS server
 - **NATS** acts as the message broker, ensuring reliable delivery and decoupling clients from the server
-- **Server** subscribes to NATS topics, aggregates logs in MongoDB, and serves them via HTTP/WebSocket
+- **Server** subscribes to NATS topics, aggregates logs in MongoDB, and serves them via HTTP/WebSocket. Human-user authentication and sessions use PostgreSQL.
 - **Web UI** provides real-time log viewing with filtering, search, and project management
 
 ### Connection Model
@@ -32,7 +32,7 @@ The server generates these connection URLs through the web interface, making it 
 Start the development environment with hot reload:
 
 ```bash
-task db                    # Start MongoDB in Docker
+task db                    # Start PostgreSQL, MongoDB and NATS in Docker
 task dev                   # Start server with templ hot reload
 ```
 

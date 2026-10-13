@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -21,6 +22,9 @@ func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService)
 }
 
 func (h *HomeHandler) homeHandler(c echo.Context) error {
+	if !auth.IsAdmin(c.Request().Context()) {
+		return utils.Render(c, http.StatusOK, pages.Homepage(pages.HomepageProps{}))
+	}
 	projects, err := h.projectsService.GetProjects(c.Request().Context())
 	if err != nil {
 		return err

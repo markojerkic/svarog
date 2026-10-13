@@ -6,6 +6,10 @@ type ApiError struct {
 	Fields  map[string]string `json:"fields"`
 }
 
+func (e ApiError) Error() string {
+	return e.Message
+}
+
 func NewApiError(message string, fields ...map[string]string) ApiError {
 	var fieldMap map[string]string
 	if len(fields) > 0 {

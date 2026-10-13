@@ -1,220 +1,123 @@
 package auth
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
-	"log/slog"
-
+	"github.com/google/uuid"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
-type MongoSessionStore struct {
-	sessionCollection *mongo.Collection
-	userCollection    *mongo.Collection
+const sessionDuration = 24 * time.Hour
 
-	secretKey []byte
+type PostgresSessionStore struct {
+	queries *sqlc.Queries
+	codecs  []securecookie.Codec
 }
 
-// Get implements sessions.Store.
-func (self *MongoSessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
-	session := sessions.NewSession(self, name)
+var _ sessions.Store = (*PostgresSessionStore)(nil)
 
-	// Get the cookie
-	cookie, err := r.Cookie(name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode the session ID from the cookie
-	var sessionID string
-	err = securecookie.DecodeMulti(name, cookie.Value, &sessionID, securecookie.CodecsFromPairs(self.secretKey)...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert session ID to ObjectID
-	sessionObjID, err := primitive.ObjectIDFromHex(sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the session in database
-	var dbSession Session
-	err = self.sessionCollection.FindOne(r.Context(), bson.M{
-		"_id": sessionObjID,
-	}).Decode(&dbSession)
-	if err != nil {
-		return nil, err
-	}
-
-	if dbSession.UserID.IsZero() {
-		return nil, errors.New("Session does not have a user")
-	}
-
-	if dbSession.Modified.Add(24 * time.Hour).Before(time.Now()) {
-		// Delete expired session
-		_, _ = self.sessionCollection.DeleteOne(r.Context(), bson.M{"_id": sessionObjID})
-		return nil, errors.New("Session has expired")
-	}
-
-	// Update session modified time
-	_, err = self.sessionCollection.UpdateOne(
-		r.Context(),
-		bson.M{"_id": sessionObjID},
-		bson.M{"$set": bson.M{"modified": time.Now()}},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	session.ID = sessionID
-	session.Values["user_id"] = dbSession.UserID.Hex()
-	session.IsNew = false
-
-	return session, nil
+func NewPostgresSessionStore(pool *pgxpool.Pool, secretKey []byte) *PostgresSessionStore {
+	return &PostgresSessionStore{queries: sqlc.New(pool), codecs: securecookie.CodecsFromPairs(secretKey)}
 }
 
-// New implements sessions.Store.
-func (self *MongoSessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
-	newSession := sessions.NewSession(self, name)
-
-	var domain string
-	if r.Header.Get("X-Forwarded-Host") != "" {
-		domain = r.Header.Get("X-Forwarded-Host")
-	} else {
-		domain = r.Host
-	}
-
-	newSession.Options = &sessions.Options{
-		Path: "/",
-		// 24 hours
-		MaxAge:   24 * 60 * 60,
-		Domain:   domain,
-		Secure:   r.Header.Get("X-Forwarded-Proto") == "https" || r.URL.Scheme == "https",
-		HttpOnly: true,
+func (s *PostgresSessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
+	sess := sessions.NewSession(s, name)
+	sess.Options = &sessions.Options{
+		Path: "/", MaxAge: int(sessionDuration.Seconds()), HttpOnly: true,
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		SameSite: http.SameSiteStrictMode,
 	}
-	newSession.IsNew = true
-
-	return newSession, nil
+	return sess, nil
 }
 
-// Save implements sessions.Store.
-func (self *MongoSessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	userId, ok := session.Values["user_id"].(string)
-	if !ok || userId == "" {
-		return errors.New("session does not have a user ID")
-	}
-
-	userObjectId, err := primitive.ObjectIDFromHex(userId)
+func (s *PostgresSessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
+	sess, err := s.New(r, name)
 	if err != nil {
-		return fmt.Errorf("invalid user ID: %w", err)
+		return nil, err
 	}
+	cookie, err := r.Cookie(name)
+	if errors.Is(err, http.ErrNoCookie) {
+		return sess, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var id string
+	if err := securecookie.DecodeMulti(name, cookie.Value, &id, s.codecs...); err != nil {
+		return nil, err
+	}
+	sessionID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	stored, err := s.queries.TouchSession(r.Context(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	sess.ID = stored.ID.String()
+	sess.Values["user_id"] = stored.UserID.String()
+	sess.IsNew = false
+	return sess, nil
+}
 
-	// Verify user exists
-	if err := self.verifyUser(r.Context(), userObjectId); err != nil {
+func (s *PostgresSessionStore) Save(r *http.Request, w http.ResponseWriter, sess *sessions.Session) error {
+	if sess.Options == nil {
+		return errors.New("Session options are missing")
+	}
+	if sess.Options.MaxAge <= 0 {
+		if sess.ID != "" {
+			id, err := uuid.Parse(sess.ID)
+			if err != nil {
+				return err
+			}
+			if err := s.queries.DeleteSession(r.Context(), id); err != nil {
+				return err
+			}
+		}
+		return s.setSessionCookie(w, sess)
+	}
+	userID, ok := sess.Values["user_id"].(string)
+	if !ok {
+		return errors.New("Session does not have a user ID")
+	}
+	id, err := uuid.Parse(userID)
+	if err != nil {
 		return err
 	}
-
-	sessionData := Session{
-		UserID:   userObjectId,
-		Modified: time.Now(),
-	}
-
-	ctx := r.Context()
-
-	if session.ID != "" {
-		sessionId, err := primitive.ObjectIDFromHex(session.ID)
+	if sess.ID == "" {
+		if err := s.queries.DeleteExpiredSessions(r.Context()); err != nil {
+			return err
+		}
+		stored, err := s.queries.CreateSession(r.Context(), sqlc.CreateSessionParams{
+			ID: uuid.New(), UserID: id, ExpiresAt: time.Now().Add(sessionDuration),
+		})
 		if err != nil {
-			return errors.Join(errors.New("Failed to get sessionId"), err)
+			return err
 		}
-		if session.Options.MaxAge <= 0 {
-			// Delete session from DB
-			slog.Debug("Deleting session")
-
-			count, err := self.sessionCollection.DeleteOne(ctx, bson.M{"_id": sessionId})
-			slog.Debug("Deleted session", "count", count, "err", err)
-
-		} else {
-			// Update existing session
-			_, err = self.sessionCollection.UpdateOne(ctx,
-				bson.M{"_id": sessionId},
-				bson.M{"$set": sessionData})
-		}
-
+		sess.ID = stored.ID.String()
 	} else {
-		// Create new session
-		inserted, err := self.sessionCollection.InsertOne(ctx, sessionData)
-		if err == nil {
-			session.ID = inserted.InsertedID.(primitive.ObjectID).Hex()
+		sessionID, err := uuid.Parse(sess.ID)
+		if err != nil {
+			return err
+		}
+		if _, err := s.queries.UpdateSession(r.Context(), sqlc.UpdateSessionParams{ID: sessionID, UserID: id}); err != nil {
+			return err
 		}
 	}
-
-	return self.setSessionCookie(w, session)
+	sess.IsNew = false
+	return s.setSessionCookie(w, sess)
 }
 
-func (self *MongoSessionStore) verifyUser(ctx context.Context, userId primitive.ObjectID) error {
-	var user User
-	err := self.userCollection.FindOne(ctx, bson.M{"_id": userId}).Decode(&user)
-	if err != nil {
-		return fmt.Errorf("failed to verify user: %w", err)
-	}
-
-	return nil
-}
-
-func (self *MongoSessionStore) setSessionCookie(w http.ResponseWriter, session *sessions.Session) error {
-	codecs := securecookie.CodecsFromPairs(self.secretKey)
-	encoded, err := securecookie.EncodeMulti(session.Name(), session.ID, codecs...)
+func (s *PostgresSessionStore) setSessionCookie(w http.ResponseWriter, sess *sessions.Session) error {
+	encoded, err := securecookie.EncodeMulti(sess.Name(), sess.ID, s.codecs...)
 	if err != nil {
 		return err
 	}
-
-	http.SetCookie(w, sessions.NewCookie(session.Name(), encoded, session.Options))
-
+	http.SetCookie(w, sessions.NewCookie(sess.Name(), encoded, sess.Options))
 	return nil
-}
-
-var _ sessions.Store = &MongoSessionStore{}
-
-const SESSION_DURATION = int32(24 * 60 * 60)
-
-func CreateSessionCollection(db *mongo.Database) (*mongo.Collection, error) {
-	err := db.CreateCollection(context.Background(), "sessions")
-	if err != nil {
-		return nil, errors.Join(errors.New("Error creating sessions collection"), err)
-	}
-
-	collection := db.Collection("sessions")
-
-	// Create index on modified field
-	index := mongo.IndexModel{
-		Keys:    bson.D{{Key: "modified", Value: int32(1)}},
-		Options: options.Index().SetExpireAfterSeconds(int32(60 * 60 * 24)), // Will be removed after 24 Hours.
-	}
-
-	_, err = collection.Indexes().CreateOne(context.Background(), index)
-	if err != nil {
-		return nil, errors.Join(errors.New("Error creating index on sessions collection"), err)
-	}
-
-	return collection, nil
-
-}
-
-func NewMongoSessionStore(sessionCollection *mongo.Collection, userCollection *mongo.Collection, secretKey []byte) *MongoSessionStore {
-	return &MongoSessionStore{
-		sessionCollection: sessionCollection,
-		userCollection:    userCollection,
-		secretKey:         secretKey,
-	}
 }
