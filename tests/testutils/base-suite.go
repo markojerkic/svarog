@@ -17,19 +17,13 @@ import (
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// BaseSuite provides PostgreSQL for projects and MongoDB/NATS for their remaining consumers.
+// BaseSuite provides PostgreSQL and NATS for integration suites.
 type BaseSuite struct {
 	suite.Suite
 
 	PostgresPool *pgxpool.Pool
-
-	// MongoDB
-	MongoContainer *MongoDBTestContainer
-	MongoClient    *mongo.Client
-	Database       *mongo.Database
 
 	// NATS
 	NatsContainer *nats.NATSContainer
@@ -50,10 +44,6 @@ type BaseSuite struct {
 
 // BaseSuiteConfig holds configuration for the base test suite
 type BaseSuiteConfig struct {
-	// MongoDB
-	DatabaseName string
-
-	// NATS
 	ConfigPath      string
 	NatsAccountSeed string
 	NatsJwt         string
@@ -71,7 +61,6 @@ func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	}
 
 	return BaseSuiteConfig{
-		DatabaseName:    "svarog_test",
 		ConfigPath:      "../../nats-server.conf",
 		NatsAccountSeed: env.NatsAccountSeed,
 		NatsJwt:         env.NatsServerUserJWT,
@@ -84,32 +73,20 @@ func (s *BaseSuite) WithConfig(config BaseSuiteConfig) {
 	s.config = config
 }
 
-// SetupSuite starts PostgreSQL, MongoDB, and NATS containers.
+// SetupSuite starts PostgreSQL and NATS containers.
 func (s *BaseSuite) SetupSuite() {
 	ctx := context.Background()
 
-	// Use default config if none set
-	if s.config.DatabaseName == "" {
+	if s.config.ConfigPath == "" {
 		s.config = DefaultBaseSuiteConfig()
 	}
 
 	util.SetupLogger()
 
-	// Start MongoDB
-	mongoContainer, err := NewMongoDBTestContainer(ctx, s.config.DatabaseName)
-	if err != nil {
-		s.T().Fatalf("failed to start MongoDB container: %v", err)
-	}
-	s.MongoContainer = mongoContainer
-	s.MongoClient = mongoContainer.Client
-	s.Database = mongoContainer.Database
-
 	s.PostgresPool = NewPostgresPool(s.T(), ctx)
 	s.ProjectsService = projects.NewPostgresProjectsService(s.PostgresPool)
 
-	// Start NATS
 	if err := s.setupNats(ctx); err != nil {
-		_ = mongoContainer.Terminate(ctx)
 		s.T().Fatalf("failed to start NATS: %v", err)
 	}
 }
@@ -175,12 +152,4 @@ func (s *BaseSuite) TearDownSuite() {
 	if s.NatsContainer != nil {
 		_ = s.NatsContainer.Terminate(ctx)
 	}
-	if s.MongoContainer != nil {
-		_ = s.MongoContainer.Terminate(ctx)
-	}
-}
-
-// Collection is a helper to get a MongoDB collection
-func (s *BaseSuite) Collection(name string) *mongo.Collection {
-	return s.Database.Collection(name)
 }

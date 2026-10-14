@@ -23,7 +23,7 @@ func TestSearchLogs(t *testing.T) {
 	require.NoError(t, err, "create project and clients for log search")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
-	logs := db.NewLogService(nil, pool, nil)
+	logs := db.NewLogService(pool, nil)
 	base := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 
 	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{
@@ -101,7 +101,7 @@ func TestSearchLogs(t *testing.T) {
 	})
 }
 
-func mustSearch(t *testing.T, ctx context.Context, logs *db.MongoLogService, search, projectID, clientID string, instances *[]string, pageSize int64, cursor *db.LastCursor) []types.StoredLog {
+func mustSearch(t *testing.T, ctx context.Context, logs *db.PostgresLogService, search, projectID, clientID string, instances *[]string, pageSize int64, cursor *db.LastCursor) []types.StoredLog {
 	t.Helper()
 	found, err := logs.SearchLogs(ctx, search, projectID, clientID, instances, pageSize, cursor)
 	require.NoError(t, err, "search %q", search)

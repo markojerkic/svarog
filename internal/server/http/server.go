@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -22,7 +21,6 @@ type HttpServer struct {
 	logService            db.LogService
 	sessionStore          sessions.Store
 	authService           auth.AuthService
-	filesService          files.FileService
 	projectsService       projects.ProjectsService
 	natsCredentialService *serverauth.NatsCredentialService
 	watchHub              *websocket.WatchHub
@@ -35,7 +33,6 @@ type HttpServerOptions struct {
 	LogService            db.LogService
 	SessionStore          sessions.Store
 	AuthService           auth.AuthService
-	FilesService          files.FileService
 	ProjectsService       projects.ProjectsService
 	NatsCredentialService *serverauth.NatsCredentialService
 	WatchHub              *websocket.WatchHub
@@ -85,7 +82,6 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		sessionStore:          options.SessionStore,
 		serverPort:            options.ServerPort,
 		authService:           options.AuthService,
-		filesService:          options.FilesService,
 		projectsService:       options.ProjectsService,
 		natsCredentialService: options.NatsCredentialService,
 		watchHub:              options.WatchHub,

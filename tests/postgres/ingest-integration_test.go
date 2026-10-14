@@ -18,17 +18,14 @@ import (
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	natscontainer "github.com/testcontainers/testcontainers-go/modules/nats"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	// Set up PostgreSQL projects with distinct client UUIDs, JetStream, and Mongo log storage.
+	// Set up PostgreSQL projects with distinct client UUIDs and JetStream.
 	pool := testutils.NewPostgresPool(t, ctx)
 	projectService := projects.NewPostgresProjectsService(pool)
 	first, err := projectService.CreateProject(ctx, "First", []string{"api"})
@@ -56,21 +53,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	require.NoError(t, err, "connect to JetStream and create log stream")
 	t.Cleanup(conn.Close)
 
-	mongoContainer, err := mongodb.Run(ctx, "mongo:7")
-	if mongoContainer != nil {
-		testcontainers.CleanupContainer(t, mongoContainer)
-	}
-	require.NoError(t, err, "start MongoDB for unmigrated log reads")
-	mongoURL, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err, "get MongoDB connection string")
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURL))
-	require.NoError(t, err, "connect MongoDB log storage")
-	t.Cleanup(func() {
-		require.NoError(t, mongoClient.Disconnect(context.Background()), "close MongoDB connection")
-	})
-
-	// Run ingestion and log aggregation together; wait for both before cleaning up storage.
-	logService := db.NewLogService(mongoClient.Database("svarog_test"), pool,
+	logService := db.NewLogService(pool,
 		websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn)))
 	logServer := db.NewLogServer(logService)
 	channel := make(chan db.LogLineWithHost, 100)
@@ -120,7 +103,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 		}, 15*time.Second, 50*time.Millisecond, "accepted log %q must reach PostgreSQL for client %s", message, clientID)
 	}
 
-	// Valid project/client UUID pairs are stored in PostgreSQL. Reads remain on MongoDB.
+	// Valid project/client UUID pairs are stored in PostgreSQL.
 	publish(first.ID.String(), first.Clients[0].ID.String(), "first accepted")
 	publish(second.ID.String(), second.Clients[0].ID.String(), "second accepted")
 
@@ -154,7 +137,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	publish(second.ID.String(), first.Clients[0].ID.String(), "foreign client rejected")
 	publish(second.ID.String(), uuid.NewString(), "unknown client rejected")
 	publish(uuid.NewString(), second.Clients[0].ID.String(), "unknown project rejected")
-	publish("mongo-object-id", "client-name", "legacy ids rejected")
+	publish("not-a-uuid", "client-name", "legacy ids rejected")
 	validSubject := "logs." + second.ID.String() + "." + second.Clients[0].ID.String()
 	for _, invalid := range []struct {
 		subject string

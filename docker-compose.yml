@@ -12,7 +12,6 @@ services:
       - 1324:1323
     environment:
       - SVAROG_CONN_STRING=${SVAROG_CONN_STRING}
-      - MONGO_URL=mongodb://svarog-mongodb:27017/?directConnection=true
       - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
       - HTTP_SERVER_PORT=1323
@@ -25,8 +24,6 @@ services:
     depends_on:
       svarog-postgres:
         condition: service_healthy
-      svarog-mongodb:
-        condition: service_started
       nats:
         condition: service_started
     develop:

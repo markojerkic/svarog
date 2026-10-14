@@ -8,7 +8,7 @@ Svarog uses a NATS-based pub/sub architecture for reliable log ingestion:
 
 - **Clients** pipe their application logs to the Svarog client, which publishes them to a NATS server
 - **NATS** acts as the message broker, ensuring reliable delivery and decoupling clients from the server
-- **Server** subscribes to NATS topics, aggregates logs in MongoDB, and serves them via HTTP/WebSocket. Human-user authentication and sessions use PostgreSQL.
+- **Server** subscribes to NATS topics, stores logs in PostgreSQL, and serves them via HTTP/WebSocket.
 - **Web UI** provides real-time log viewing with filtering, search, and project management
 
 ### Connection Model
@@ -32,7 +32,7 @@ The server generates these connection URLs through the web interface, making it 
 Start the development environment with hot reload:
 
 ```bash
-task db                    # Start PostgreSQL, MongoDB and NATS in Docker
+task db                    # Start PostgreSQL and NATS in Docker
 task dev                   # Start server with templ hot reload
 ```
 
@@ -102,7 +102,7 @@ tail -f /var/log/app.log | svarog-client "svarog://nats:4222/logs.proj.app?token
 
 ## Server Deployment
 
-Deploy the complete Svarog stack with NATS, MongoDB, and the web server:
+Deploy the complete Svarog stack with NATS, PostgreSQL, and the web server:
 
 ```yaml
 # docker-compose.yml
@@ -122,27 +122,28 @@ services:
     ports:
       - 1323:1323 # HTTP/WebSocket interface
     environment:
-      - MONGO_URL=mongodb://user:pass@svarog-mongodb:27017/
+      - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
       - NATS_URL=nats://svarog-nats:4222
       - HTTP_SERVER_PORT=1323
       - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:1323
     depends_on:
-      - svarog-mongodb
+      - svarog-postgres
       - svarog-nats
 
-  svarog-mongodb:
-    image: mongodb/mongodb-community-server:6.0-ubi8
-    container_name: svarog-mongodb
-    ports:
-      - 27017:27017
+  svarog-postgres:
+    image: postgres:18-alpine
+    container_name: svarog-postgres
     environment:
-      - MONGODB_INITDB_ROOT_USERNAME=user
-      - MONGODB_INITDB_ROOT_PASSWORD=pass
+      POSTGRES_DB: svarog
+      POSTGRES_USER: svarog
+      POSTGRES_PASSWORD: svarog
+    ports:
+      - 5432:5432
     volumes:
-      - dbdata:/data/db
+      - postgres_data:/var/lib/postgresql
 
 volumes:
-  dbdata:
+  postgres_data:
 ```
 
 ## Getting Started

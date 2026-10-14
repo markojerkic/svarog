@@ -21,7 +21,7 @@ func TestArchivePolicies(t *testing.T) {
 	require.NoError(t, err, "create project and clients for archive policies")
 	other, err := projectService.CreateProject(ctx, "ArchivePoliciesOther", []string{"api"})
 	require.NoError(t, err, "create a second project")
-	service := archive.NewArchiveService(nil, nil, nil, nil, nil, pool, "")
+	service := archive.NewArchiveService(nil, pool, "")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
 	projectID := project.ID.String()

@@ -26,7 +26,7 @@ func TestProjectInputRejectedBeforeDatabaseAccess(t *testing.T) {
 
 	require.Error(t, err, "updating with a blank client must fail before database access")
 
-	_, err = service.GetProject(ctx, "mongo-object-id")
+	_, err = service.GetProject(ctx, "not-a-uuid")
 
 	require.EqualError(t, err, projects.ErrProjectNotFound, "legacy project ID must not be accepted as a UUID")
 

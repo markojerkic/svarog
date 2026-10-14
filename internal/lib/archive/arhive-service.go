@@ -14,19 +14,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/markojerkic/svarog/internal/lib/files"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ArhiveService interface {
 	CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (ArchiveRecord, error)
-	GetArhiveFileID(ctx context.Context, projectID string, clientID string) (primitive.ObjectID, error)
 	DeleteArchiveForClient(ctx context.Context, projectID string, clientID string, olderThanWeeks int) error
 	CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error
 	GetSettings(ctx context.Context, projectID string, clientID string) (types.ArchiveSetting, error)
@@ -56,13 +50,9 @@ type ArchiveRecord struct {
 }
 
 type ArchiveServiceImpl struct {
-	mongoClient              *mongo.Client
-	archiveCollection        *mongo.Collection
-	archiveSettingCollection *mongo.Collection
-	filesService             files.FileService
-	logsService              logs.LogService
-	pool                     *pgxpool.Pool
-	archiveDir               string
+	logsService logs.LogService
+	pool        *pgxpool.Pool
+	archiveDir  string
 }
 
 // CreateArhiveForClient implements ArhiveService.
@@ -155,11 +145,6 @@ func (a *ArchiveServiceImpl) DeleteArchiveForClient(ctx context.Context, project
 	panic("unimplemented")
 }
 
-// GetArhiveFileID implements ArhiveService.
-func (a *ArchiveServiceImpl) GetArhiveFileID(ctx context.Context, projectID string, clientID string) (primitive.ObjectID, error) {
-	panic("unimplemented")
-}
-
 // CreateSetting implements ArhiveService.
 func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error {
 	projectUUID, clientUUID, err := parseArchiveScope(projectID, clientID)
@@ -238,26 +223,6 @@ func (a *ArchiveServiceImpl) UpdateSetting(ctx context.Context, id string, arhiv
 	return nil
 }
 
-func (a *ArchiveServiceImpl) createIndexes(ctx context.Context) error {
-	// Create compound index for archive settings
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "projectID", Value: 1},
-			{Key: "clientID", Value: 1},
-		},
-		Options: options.Index().
-			SetUnique(true).
-			SetName("projectID_clientID_unique"),
-	}
-
-	_, err := a.archiveSettingCollection.Indexes().CreateOne(ctx, indexModel)
-	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
-	}
-
-	return nil
-}
-
 func parseArchiveScope(projectID, clientID string) (uuid.UUID, uuid.UUID, error) {
 	project, err := uuid.Parse(projectID)
 	if err != nil || project == uuid.Nil {
@@ -296,31 +261,10 @@ func archiveSetting(policy persistence.ArchivePolicy) types.ArchiveSetting {
 
 var _ ArhiveService = &ArchiveServiceImpl{}
 
-func NewArchiveService(mongoClient *mongo.Client,
-	archiveCollection *mongo.Collection,
-	archiveSettingCollection *mongo.Collection,
-	logService logs.LogService,
-	filesService files.FileService,
-	pool *pgxpool.Pool,
-	archiveDir string) *ArchiveServiceImpl {
-	service := &ArchiveServiceImpl{
-		filesService: filesService,
-		logsService:  logService,
-		pool:         pool,
-		archiveDir:   archiveDir,
+func NewArchiveService(logService logs.LogService, pool *pgxpool.Pool, archiveDir string) *ArchiveServiceImpl {
+	return &ArchiveServiceImpl{
+		logsService: logService,
+		pool:        pool,
+		archiveDir:  archiveDir,
 	}
-	if mongoClient == nil {
-		return service
-	}
-	if archiveCollection == nil {
-		panic("archiveCollection is nil")
-	}
-	if archiveSettingCollection == nil {
-		panic("archiveSettingCollection is nil")
-	}
-	service.mongoClient = mongoClient
-	service.archiveCollection = archiveCollection
-	service.archiveSettingCollection = archiveSettingCollection
-	service.createIndexes(context.Background())
-	return service
 }

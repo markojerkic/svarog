@@ -31,8 +31,8 @@ func TestCreateArchiveForClient(t *testing.T) {
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
 	dir := t.TempDir()
-	logs := db.NewLogService(nil, pool, nil)
-	service := archive.NewArchiveService(nil, nil, nil, logs, nil, pool, dir)
+	logs := db.NewLogService(pool, nil)
+	service := archive.NewArchiveService(logs, pool, dir)
 	projectID := project.ID.String()
 	clientID := apiID.String()
 	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
@@ -79,7 +79,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	})
 
 	t.Run("missing directory and missing policy", func(t *testing.T) {
-		unconfigured := archive.NewArchiveService(nil, nil, nil, logs, nil, pool, "")
+		unconfigured := archive.NewArchiveService(logs, pool, "")
 		_, err := unconfigured.CreateArhiveForClient(ctx, projectID, clientID)
 		require.EqualError(t, err, "archive directory is not configured", "the job refuses to write without ARCHIVE_DIR")
 		_, err = service.CreateArhiveForClient(ctx, projectID, workerID.String())

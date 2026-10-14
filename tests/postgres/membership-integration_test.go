@@ -111,14 +111,14 @@ func TestActivePostgresMembership(t *testing.T) {
 		checkAccess(t, admin.ID.String(), uuid.NewString(), false, "admin cannot access a missing project")
 		checkAccess(t, user.ID.String(), uuid.NewString(), false, "regular user cannot access a missing project")
 		checkAccess(t, uuid.NewString(), first.ID.String(), false, "unknown user cannot access an existing project")
-		checkAccess(t, "mongo-user", first.ID.String(), false, "malformed user identifier cannot grant access")
-		checkAccess(t, admin.ID.String(), "mongo-project", false, "malformed project identifier is denied even for admin")
+		checkAccess(t, "not-a-uuid", first.ID.String(), false, "malformed user identifier cannot grant access")
+		checkAccess(t, admin.ID.String(), "not-a-uuid", false, "malformed project identifier is denied even for admin")
 		_, err = service.GetProjectIDsForUser(ctx, uuid.NewString())
 		require.EqualError(t, err, auth.ErrUserNotFound, "project ID lookup preserves missing-user error mapping")
 	})
 
 	t.Run("failed create leaves no user token or memberships", func(t *testing.T) {
-		for _, projectID := range []string{"mongo-project", uuid.NewString()} {
+		for _, projectID := range []string{"not-a-uuid", uuid.NewString()} {
 			result, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 				Username: "rejected-member", FirstName: "Rejected", Role: "user",
 				ProjectIDs: []string{first.ID.String(), projectID},
@@ -149,7 +149,7 @@ func TestActivePostgresMembership(t *testing.T) {
 	t.Run("failed update preserves profile token and memberships", func(t *testing.T) {
 		before, err := q.GetUserByID(ctx, user.ID)
 		require.NoError(t, err, "snapshot all profile fields before rejected update")
-		for _, projectID := range []string{"mongo-project", uuid.NewString()} {
+		for _, projectID := range []string{"not-a-uuid", uuid.NewString()} {
 			result, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 				ID: user.ID.String(), Username: "rejected-rename", FirstName: "Rejected", LastName: "Changed", Role: "admin",
 				ProjectIDs: []string{second.ID.String(), projectID},

@@ -14,7 +14,7 @@ func TestPostgresAuthRejectsInvalidInputBeforeDatabaseAccess(t *testing.T) {
 	service := auth.NewPostgresAuthService(nil, nil)
 
 	_, err := service.CreateOrUpdateUser(context.Background(), types.CreateUserForm{
-		ProjectIDs: []string{uuid.NewString(), "mongo-project"},
+		ProjectIDs: []string{uuid.NewString(), "not-a-uuid"},
 	})
 
 	var apiError types.ApiError
@@ -23,7 +23,7 @@ func TestPostgresAuthRejectsInvalidInputBeforeDatabaseAccess(t *testing.T) {
 
 	_, err = service.CreateOrUpdateUser(context.Background(), types.CreateUserForm{
 		ID:         uuid.NewString(),
-		ProjectIDs: []string{uuid.NewString(), "mongo-project"},
+		ProjectIDs: []string{uuid.NewString(), "not-a-uuid"},
 	})
 
 	require.ErrorAs(t, err, &apiError, "Invalid project UUID should be rejected before database access on profile updates")

@@ -17,9 +17,6 @@ import (
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type LastCursor struct {
@@ -70,19 +67,17 @@ type LogService interface {
 	GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error)
 	GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
-	DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error
 }
 
-type MongoLogService struct {
-	logCollection *mongo.Collection
+type PostgresLogService struct {
 	pool          *pgxpool.Pool
 	wsLogRenderer *websocket.WsLogLineRenderer
 }
 
-var _ LogService = &MongoLogService{}
+var _ LogService = &PostgresLogService{}
 
 // GetInstances implements LogRepository.
-func (self *MongoLogService) GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error) {
+func (self *PostgresLogService) GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error) {
 	projectID, clientID, ok := parseLogScope(projectId, clientId)
 	if !ok {
 		return []string{}, nil
@@ -94,23 +89,8 @@ func (self *MongoLogService) GetInstances(ctx context.Context, projectId string,
 	return instances, nil
 }
 
-// DeleteLogAfterTimestamp implements LogService.
-func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, timestamp time.Time) error {
-	deleteResult, err := self.logCollection.DeleteMany(ctx, bson.D{{Key: "timestamp", Value: bson.D{{
-		Key:   "$lte",
-		Value: primitive.NewDateTimeFromTime(timestamp),
-	}}}})
-	slog.Debug("Deleting logs before timestamp", "timestamp", timestamp, "deleted", deleteResult.DeletedCount)
-	if err != nil {
-		slog.Error("Error deleting logs", "error", err)
-		return err
-	}
-
-	return nil
-}
-
 // GetLogs implements LogRepository.
-func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
+func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
 	projectID, clientID, ok := parseLogScope(req.ProjectId, req.ClientId)
 	if !ok {
 		return emptyLogPage(req), nil
@@ -162,7 +142,7 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 	return pageFromLogs(mapLogRows(rows), req), nil
 }
 
-func (self *MongoLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	projectID, clientID, ok := parseLogScope(projectId, clientId)
 	if !ok {
 		return []types.StoredLog{}, nil
@@ -200,7 +180,7 @@ func (self *MongoLogService) SearchLogs(ctx context.Context, query string, proje
 	return mapLogRows(rows), nil
 }
 
-func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
+func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
@@ -230,17 +210,11 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 	return nil
 }
 
-func NewLogService(db *mongo.Database, pool *pgxpool.Pool, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
-	repo := &MongoLogService{
+func NewLogService(pool *pgxpool.Pool, wsLogRenderer *websocket.WsLogLineRenderer) *PostgresLogService {
+	return &PostgresLogService{
 		pool:          pool,
 		wsLogRenderer: wsLogRenderer,
 	}
-	if db == nil {
-		return repo
-	}
-	repo.logCollection = db.Collection("log_lines")
-	repo.createIndexes()
-	return repo
 }
 
 func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
@@ -256,7 +230,7 @@ func emptyLogPage(req LogPageRequest) LogPage {
 	return LogPage{IsLastPage: req.Cursor == nil}
 }
 
-func (self *MongoLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogAnchor, bool, error) {
+func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogAnchor, bool, error) {
 	id, err := strconv.ParseInt(logLineID, 10, 64)
 	if err != nil || id <= 0 {
 		return persistence.LogAnchor{}, false, nil
@@ -318,40 +292,5 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,
 		IsLastPage:     req.Cursor == nil,
-	}
-}
-
-func (self *MongoLogService) createIndexes() {
-	_, err := self.logCollection.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
-		{
-			Keys: bson.D{
-				{Key: "client.project_id", Value: 1},
-				{Key: "client.client_id", Value: 1},
-			},
-		},
-		{
-			Keys: bson.D{
-				{Key: "client.project_id", Value: 1},
-				{Key: "client.client_id", Value: 1},
-				{Key: "timestamp", Value: -1},
-				{Key: "sequence_number", Value: -1},
-			},
-		},
-		{
-			Keys: bson.D{
-				{Key: "log_line", Value: "text"},
-				{Key: "timestamp", Value: -1},
-			},
-		},
-		{
-			Keys: bson.D{
-				{Key: "client.project_id", Value: 1},
-				{Key: "client.client_id", Value: 1},
-				{Key: "client.instance_id", Value: 1},
-			},
-		},
-	})
-	if err != nil {
-		panic(fmt.Sprintf("Error creating indexes: %v", err))
 	}
 }

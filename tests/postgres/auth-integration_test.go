@@ -121,7 +121,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.Equal(t, "Changed", updated.FirstName, "profile update persists first name")
 		require.Equal(t, user.Password, updated.Password, "profile update preserves password")
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", Role: "admin", ProjectIDs: []string{"mongo-id"},
+			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
 		})
 		var apiError types.ApiError
 		require.ErrorAs(t, err, &apiError, "reject malformed project UUID before profile update")
@@ -134,7 +134,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.EqualValues(t, 1, count, "user page count matches searched username")
 		require.Len(t, users, 1, "user page returns searched user")
 		require.Empty(t, users[0].Password, "user page must not expose password hashes")
-		access, err := service.UserHasAccessToProject(ctx, user.ID.String(), "mongo-id")
+		access, err := service.UserHasAccessToProject(ctx, user.ID.String(), "not-a-uuid")
 		require.NoError(t, err, "deny malformed project ID without a database error")
 		require.False(t, access, "user has no access to malformed project ID")
 		ids, err := service.GetProjectIDsForUser(ctx, user.ID.String())
