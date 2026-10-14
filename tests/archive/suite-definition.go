@@ -41,7 +41,8 @@ func (s *ArchiveSuite) SetupSuite() {
 		s.archiveSettingCollection,
 		s.logService,
 		s.filesService,
-		nil)
+		nil,
+		"")
 }
 
 // After each

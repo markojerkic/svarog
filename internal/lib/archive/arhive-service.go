@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/files"
-	"github.com/markojerkic/svarog/internal/lib/util"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -26,7 +25,7 @@ import (
 )
 
 type ArhiveService interface {
-	CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (types.ArchiveEntry, error)
+	CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (ArchiveRecord, error)
 	GetArhiveFileID(ctx context.Context, projectID string, clientID string) (primitive.ObjectID, error)
 	DeleteArchiveForClient(ctx context.Context, projectID string, clientID string, olderThanWeeks int) error
 	CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error
@@ -38,7 +37,23 @@ type ArhiveService interface {
 var (
 	ErrArchivePolicyNotFound = errors.New("archive policy not found")
 	ErrArchivePolicyExists   = errors.New("archive policy already exists")
+	ErrArchiveInProgress     = errors.New("archive already in progress")
 )
+
+type ArchiveRecord struct {
+	ID             uuid.UUID
+	ClientID       uuid.UUID
+	Status         string
+	StorageBackend string
+	ObjectKey      string
+	FileName       string
+	SizeBytes      int64
+	SHA256         [32]byte
+	LogCount       int64
+	CutoffAt       time.Time
+	FromAt         time.Time
+	ToAt           time.Time
+}
 
 type ArchiveServiceImpl struct {
 	mongoClient              *mongo.Client
@@ -47,80 +62,92 @@ type ArchiveServiceImpl struct {
 	filesService             files.FileService
 	logsService              logs.LogService
 	pool                     *pgxpool.Pool
+	archiveDir               string
 }
 
 // CreateArhiveForClient implements ArhiveService.
-func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (types.ArchiveEntry, error) {
-
-	archive, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		settings, err := a.GetSettings(ctx, projectID, clientID)
-		if err != nil {
-			slog.Error("Error getting settings", "error", err)
-			return struct{}{}, err
-		}
-
-		cuttoffDate := time.Now().Add(-time.Duration(settings.ArhiveAfterWeeks) * 7 * 24 * time.Hour)
-		slog.Debug("Creating archive for client", "projectID", projectID, "clientID", "arhiveAfterWeeks", settings.ArhiveAfterWeeks, clientID, "cuttoffDate", cuttoffDate)
-		tempDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))
-		if err != nil {
-			slog.Error("Error creating temp dir", "error", err)
-			return struct{}{}, err
-		}
-		defer os.RemoveAll(tempDir)
-		archiveResult, err := a.createRollingArchive(sc, tempDir, projectID, clientID, cuttoffDate)
-		if err != nil {
-			slog.Error("Error creating rolling archive", "error", err)
-			return struct{}{}, err
-		}
-
-		if archiveResult.toDate.IsZero() {
-			slog.Debug("No logs found for client", "projectID", projectID, "clientID", clientID)
-			return struct{}{}, errors.New("no logs found for period")
-		}
-
-		zipFileName := filepath.Base(archiveResult.zipFilePath)
-		fileId, err := a.filesService.SaveFile(sc, zipFileName, archiveResult.zipFilePath)
-		if err != nil {
-			slog.Error("Error saving file", "error", err)
-			return struct{}{}, err
-		}
-
-		slog.Debug("Successfully created archive for client", "projectID", projectID, "clientID", clientID)
-
-		archive := types.ArchiveEntry{
-			FileID:    fileId,
-			CreatedAt: primitive.DateTime(time.Now().UnixNano() / int64(time.Millisecond)),
-			FromDate:  primitive.DateTime(archiveResult.fromDate.UnixNano() / int64(time.Millisecond)),
-			ToDate:    primitive.DateTime(archiveResult.toDate.UnixNano() / int64(time.Millisecond)),
-		}
-
-		insertResult, err := a.archiveCollection.InsertOne(sc, archive)
-		if err != nil {
-			slog.Error("Error inserting archive", "error", err)
-			return struct{ archive types.ArchiveEntry }{}, err
-		}
-
-		archiveId, ok := insertResult.InsertedID.(primitive.ObjectID)
-		if !ok {
-			slog.Error("Error converting InsertedID to ObjectID", "error", err)
-			return struct{}{}, err
-		}
-
-		archive.ID = archiveId
-
-		return struct {
-			archive types.ArchiveEntry
-		}{archive}, nil
-
-	}, a.mongoClient)
-
-	if err != nil {
-		slog.Error("Error creating archive", "error", err)
-		return types.ArchiveEntry{}, err
+func (a *ArchiveServiceImpl) CreateArhiveForClient(ctx context.Context, projectID string, clientID string) (record ArchiveRecord, err error) {
+	if a.archiveDir == "" {
+		return ArchiveRecord{}, fmt.Errorf("archive directory is not configured")
 	}
-
-	return archive.(struct{ archive types.ArchiveEntry }).archive, nil
-
+	_, clientUUID, err := parseArchiveScope(projectID, clientID)
+	if err != nil {
+		return ArchiveRecord{}, err
+	}
+	settings, err := a.GetSettings(ctx, projectID, clientID)
+	if err != nil {
+		return ArchiveRecord{}, err
+	}
+	cutoff := time.Now().Add(-time.Duration(settings.ArhiveAfterWeeks) * 7 * 24 * time.Hour)
+	archiveID := uuid.New()
+	objectKey := clientUUID.String() + "/" + archiveID.String() + ".zip"
+	fileName := fmt.Sprintf("archive_%s.zip", clientUUID.String())
+	if err = persistence.InsertBuildingArchive(ctx, a.pool, archiveID, clientUUID, objectKey, fileName, cutoff); err != nil {
+		if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "archives_one_building_per_client_idx") {
+			return ArchiveRecord{}, ErrArchiveInProgress
+		}
+		slog.Error("Error inserting archive", "error", err)
+		return ArchiveRecord{}, err
+	}
+	zipPath := filepath.Join(a.archiveDir, filepath.FromSlash(objectKey))
+	defer func() {
+		if err == nil {
+			return
+		}
+		if removeErr := os.Remove(zipPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			slog.Error("Error removing unfinished archive file", "error", removeErr)
+		}
+		if deleteErr := persistence.DeleteBuildingArchive(ctx, a.pool, archiveID); deleteErr != nil {
+			slog.Error("Error deleting unfinished archive", "error", deleteErr)
+		}
+	}()
+	if err = os.MkdirAll(filepath.Dir(zipPath), 0o755); err != nil {
+		return ArchiveRecord{}, err
+	}
+	tempDir, err := os.MkdirTemp("", "svarog-archive-")
+	if err != nil {
+		return ArchiveRecord{}, err
+	}
+	defer os.RemoveAll(tempDir)
+	written, err := a.createRollingArchive(ctx, tempDir, zipPath, projectID, clientID, cutoff)
+	if err != nil {
+		slog.Error("Error creating rolling archive", "error", err)
+		return ArchiveRecord{}, err
+	}
+	if written.count == 0 {
+		return ArchiveRecord{}, errors.New("no logs found for period")
+	}
+	sum, size, err := hashFile(zipPath)
+	if err != nil {
+		return ArchiveRecord{}, err
+	}
+	if err = persistence.CompleteArchive(ctx, a.pool, persistence.ReadyArchive{
+		ID:        archiveID,
+		ClientID:  clientUUID,
+		SizeBytes: size,
+		SHA256:    sum[:],
+		LogCount:  written.count,
+		FromAt:    written.from,
+		ToAt:      written.to,
+		CutoffAt:  cutoff,
+	}); err != nil {
+		slog.Error("Error completing archive", "error", err)
+		return ArchiveRecord{}, err
+	}
+	return ArchiveRecord{
+		ID:             archiveID,
+		ClientID:       clientUUID,
+		Status:         "ready",
+		StorageBackend: "disk",
+		ObjectKey:      objectKey,
+		FileName:       fileName,
+		SizeBytes:      size,
+		SHA256:         sum,
+		LogCount:       written.count,
+		CutoffAt:       cutoff,
+		FromAt:         written.from,
+		ToAt:           written.to,
+	}, nil
 }
 
 // DeleteArchiveForClient implements ArhiveService.
@@ -274,11 +301,13 @@ func NewArchiveService(mongoClient *mongo.Client,
 	archiveSettingCollection *mongo.Collection,
 	logService logs.LogService,
 	filesService files.FileService,
-	pool *pgxpool.Pool) *ArchiveServiceImpl {
+	pool *pgxpool.Pool,
+	archiveDir string) *ArchiveServiceImpl {
 	service := &ArchiveServiceImpl{
 		filesService: filesService,
 		logsService:  logService,
 		pool:         pool,
+		archiveDir:   archiveDir,
 	}
 	if mongoClient == nil {
 		return service

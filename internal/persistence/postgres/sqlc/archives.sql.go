@@ -47,6 +47,35 @@ func (q *Queries) DeleteArchivePolicy(ctx context.Context, clientID uuid.UUID) (
 	return result.RowsAffected(), nil
 }
 
+const deleteBuildingArchive = `-- name: DeleteBuildingArchive :exec
+DELETE FROM archives
+WHERE id = $1 AND status = 'building'
+`
+
+func (q *Queries) DeleteBuildingArchive(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteBuildingArchive, id)
+	return err
+}
+
+const deleteClientLogsBefore = `-- name: DeleteClientLogsBefore :execrows
+DELETE FROM logs
+WHERE client_id = $1
+  AND occurred_at < $2
+`
+
+type DeleteClientLogsBeforeParams struct {
+	ClientID uuid.UUID
+	CutoffAt time.Time
+}
+
+func (q *Queries) DeleteClientLogsBefore(ctx context.Context, arg DeleteClientLogsBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteClientLogsBefore, arg.ClientID, arg.CutoffAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getArchivePolicy = `-- name: GetArchivePolicy :one
 SELECT c.project_id, p.client_id, p.archive_after_weeks, p.updated_at
 FROM archive_policies p
@@ -77,6 +106,74 @@ func (q *Queries) GetArchivePolicy(ctx context.Context, arg GetArchivePolicyPara
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertBuildingArchive = `-- name: InsertBuildingArchive :exec
+INSERT INTO archives (
+    id, client_id, status, storage_backend, object_key, file_name, cutoff_at
+) VALUES (
+    $1, $2, 'building', 'disk',
+    $3, $4, $5
+)
+`
+
+type InsertBuildingArchiveParams struct {
+	ID        uuid.UUID
+	ClientID  uuid.UUID
+	ObjectKey string
+	FileName  string
+	CutoffAt  time.Time
+}
+
+func (q *Queries) InsertBuildingArchive(ctx context.Context, arg InsertBuildingArchiveParams) error {
+	_, err := q.db.Exec(ctx, insertBuildingArchive,
+		arg.ID,
+		arg.ClientID,
+		arg.ObjectKey,
+		arg.FileName,
+		arg.CutoffAt,
+	)
+	return err
+}
+
+const markArchiveReady = `-- name: MarkArchiveReady :execrows
+UPDATE archives
+SET status = 'ready',
+    size_bytes = $1::bigint,
+    sha256 = $2::bytea,
+    log_count = $3::bigint,
+    from_at = $4::timestamptz,
+    to_at = $5::timestamptz,
+    updated_at = now()
+WHERE id = $6
+  AND client_id = $7
+  AND status = 'building'
+`
+
+type MarkArchiveReadyParams struct {
+	SizeBytes int64
+	Sha256    []byte
+	LogCount  int64
+	FromAt    time.Time
+	ToAt      time.Time
+	ID        uuid.UUID
+	ClientID  uuid.UUID
+}
+
+func (q *Queries) MarkArchiveReady(ctx context.Context, arg MarkArchiveReadyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markArchiveReady,
+		arg.SizeBytes,
+		arg.Sha256,
+		arg.LogCount,
+		arg.FromAt,
+		arg.ToAt,
+		arg.ID,
+		arg.ClientID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateArchivePolicy = `-- name: UpdateArchivePolicy :execrows

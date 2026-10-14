@@ -6,6 +6,7 @@ type ServerEnv struct {
 	ServerDnsName  string `env:"SERVER_DNS_NAME"`
 	HttpServerPort int    `env:"HTTP_SERVER_PORT"`
 	SessionSecret  string `env:"SESSION_SECRET"`
+	ArchiveDir     string `env:"ARCHIVE_DIR"`
 
 	NatsPublicAddr     string `env:"NATS_PUBLIC_ADDR"`
 	NatsAddr           string `env:"NATS_ADDR"`

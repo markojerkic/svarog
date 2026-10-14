@@ -2,8 +2,9 @@ package archive
 
 import (
 	"context"
-	"errors"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,85 +16,79 @@ import (
 )
 
 type archivingResult struct {
-	zipFilePath string
-	fromDate    time.Time
-	toDate      time.Time
+	count int64
+	from  time.Time
+	to    time.Time
 }
 
-func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir string, projectID string, clientID string, cuttoffDate time.Time) (archivingResult, error) {
-	fileIndex := 0
-
+func (a *ArchiveServiceImpl) createRollingArchive(ctx context.Context, tempDir string, destZip string, projectID string, clientID string, cutoff time.Time) (archivingResult, error) {
 	cursor := &db.LastCursor{
-		Timestamp:  cuttoffDate,
+		Timestamp:  cutoff,
 		IsBackward: true,
 	}
-
-	result := &archivingResult{
-		zipFilePath: "",
-		fromDate:    cuttoffDate,
-	}
-
+	var result archivingResult
+	fileIndex := 0
 	for {
-		tempFile := filepath.Join(tempDir, fmt.Sprintf("archive_%s_%s_%d.log", projectID, clientID, fileIndex))
-		fileContent := make([]byte, 0, 1024*1024)
-		logPage, err := a.logsService.GetLogs(ctx, db.LogPageRequest{
+		page, err := a.logsService.GetLogs(ctx, db.LogPageRequest{
 			ProjectId: projectID,
 			ClientId:  clientID,
-			Instances: nil,
 			PageSize:  5000,
-			LogLineId: nil,
 			Cursor:    cursor,
 		})
 		if err != nil {
 			slog.Error("Error getting logs", "error", err)
 			return archivingResult{}, err
 		}
-
-		if len(logPage.Logs) == 0 {
-			slog.Debug("No logs found")
+		if len(page.Logs) == 0 {
 			break
 		}
-
-		for _, log := range logPage.Logs {
-			line := fmt.Sprintf("[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.InstanceId, log.LogLine)
-			fileContent = append(fileContent, []byte(line)...)
-			if result.toDate.Before(log.Timestamp) {
-				result.toDate = log.Timestamp
+		content := make([]byte, 0, 1024*1024)
+		for _, log := range page.Logs {
+			content = append(content, fmt.Appendf(nil, "[%s %s] %s\n", log.Timestamp.Format(time.RFC3339), log.Client.InstanceId, log.LogLine)...)
+			if result.count == 0 || log.Timestamp.Before(result.from) {
+				result.from = log.Timestamp
 			}
+			if log.Timestamp.After(result.to) {
+				result.to = log.Timestamp
+			}
+			result.count++
 		}
-
-		err = os.WriteFile(tempFile, fileContent, 0644)
-		if err != nil {
+		tempFile := filepath.Join(tempDir, fmt.Sprintf("archive_%s_%s_%d.log", projectID, clientID, fileIndex))
+		if err := os.WriteFile(tempFile, content, 0o644); err != nil {
 			slog.Error("Error writing file", "error", err)
 			return archivingResult{}, err
 		}
-		fileIndex++
-
+		last := page.Logs[len(page.Logs)-1]
 		cursor = &db.LastCursor{
-			Timestamp:      logPage.Logs[len(logPage.Logs)-1].Timestamp,
-			SequenceNumber: int(logPage.Logs[len(logPage.Logs)-1].SequenceNumber),
+			Timestamp:      last.Timestamp,
+			SequenceNumber: last.SequenceNumber,
+			ID:             last.ID,
 			IsBackward:     true,
 		}
-
+		fileIndex++
 	}
-	err := a.logsService.DeleteLogBeforeTimestamp(ctx, cuttoffDate)
-	if err != nil {
-		return archivingResult{}, errors.Join(errors.New("error deleting log lines while archiving"), err)
+	if result.count == 0 {
+		return result, nil
 	}
-
-	zipDir, err := os.MkdirTemp("", fmt.Sprintf("archive_%s_%s", projectID, clientID))
-	if err != nil {
-		slog.Error("Error creating temp dir", "error", err)
+	if err := util.ZipDir(tempDir, destZip); err != nil {
+		slog.Error("Error zipping dir", "error", err)
 		return archivingResult{}, err
 	}
+	return result, nil
+}
 
-	zipFile := filepath.Join(zipDir, fmt.Sprintf("archive_%s_%s.zip", projectID, clientID))
-	err = util.ZipDir(tempDir, zipFile)
+func hashFile(path string) ([32]byte, int64, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		slog.Error("Error zipping dir", "error", err)
+		return [32]byte{}, 0, err
 	}
-
-	result.zipFilePath = zipFile
-
-	return *result, err
+	defer file.Close()
+	hash := sha256.New()
+	size, err := io.Copy(hash, file)
+	if err != nil {
+		return [32]byte{}, 0, err
+	}
+	var sum [32]byte
+	copy(sum[:], hash.Sum(nil))
+	return sum, size, nil
 }
