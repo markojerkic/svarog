@@ -141,7 +141,7 @@ func main() {
 	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
-	logsService := db.NewLogService(database, wsLoglineRenderer)
+	logsService := db.NewLogService(database, postgresPool, wsLoglineRenderer)
 	logServer := db.NewLogServer(logsService)
 
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)

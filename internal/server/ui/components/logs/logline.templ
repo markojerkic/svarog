@@ -1,5 +1,6 @@
 package logs
 
+import "strconv"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
@@ -24,7 +25,7 @@ templ LogLine(props LogLineProps) {
 			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 !h-6 !w-6 !m-0 !p-0",
 			Attributes: templ.Attributes{
 				"data-log-menu-trigger": "true",
-				"data-log-id":           props.LogLine.ID.Hex(),
+				"data-log-id":           strconv.FormatInt(props.LogLine.ID, 10),
 				"data-log-content":      props.LogLine.LogLine,
 				"data-instance-id":      props.LogLine.Client.InstanceId,
 			},

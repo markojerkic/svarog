@@ -35,7 +35,7 @@ func (s *ArchiveSuite) SetupSuite() {
 	s.logCollection = s.Collection("log_lines")
 
 	s.filesService = files.NewFileService(s.filesCollection)
-	s.logService = db.NewLogService(s.Database, s.WsLogRenderer)
+	s.logService = db.NewLogService(s.Database, nil, s.WsLogRenderer)
 	s.archiveService = archive.NewArchiveService(s.MongoClient,
 		s.archiveCollection,
 		s.archiveSettingCollection,

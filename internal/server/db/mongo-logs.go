@@ -8,6 +8,9 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"go.mongodb.org/mongo-driver/bson"
@@ -65,6 +68,7 @@ type LogService interface {
 
 type MongoLogService struct {
 	logCollection *mongo.Collection
+	pool          *pgxpool.Pool
 	wsLogRenderer *websocket.WsLogLineRenderer
 }
 
@@ -172,33 +176,41 @@ func (self *MongoLogService) SearchLogs(ctx context.Context, query string, proje
 }
 
 func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
-	saveableLogs := make([]any, len(logs))
-	for i, log := range logs {
-		saveableLogs[i] = log
+	if len(logs) == 0 {
+		return nil
 	}
-	insertedLines, err := self.logCollection.InsertMany(
-		ctx,
-		saveableLogs,
-		options.InsertMany().SetOrdered(false),
-	)
+	input := make([]persistence.LogInsert, len(logs))
+	for i, log := range logs {
+		clientID, err := uuid.Parse(log.Client.ClientId)
+		if err != nil || clientID == uuid.Nil || clientID.String() != log.Client.ClientId {
+			return fmt.Errorf("invalid log client id %q", log.Client.ClientId)
+		}
+		input[i] = persistence.LogInsert{
+			ClientID:       clientID,
+			InstanceName:   log.Client.InstanceId,
+			OccurredAt:     log.Timestamp,
+			SequenceNumber: int64(log.SequenceNumber),
+			Message:        log.LogLine,
+		}
+	}
+	ids, err := persistence.InsertLogs(ctx, self.pool, input)
 	if err != nil {
 		slog.Error("Error saving logs", "error", err)
 		return err
 	}
-
 	for i := range logs {
-		logs[i].ID = insertedLines.InsertedIDs[i].(primitive.ObjectID)
+		logs[i].ID = ids[i]
 		self.wsLogRenderer.Render(ctx, logs[i])
 	}
-
 	return nil
 }
 
-func NewLogService(db *mongo.Database, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
+func NewLogService(db *mongo.Database, pool *pgxpool.Pool, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
 	collection := db.Collection("log_lines")
 
 	repo := &MongoLogService{
 		logCollection: collection,
+		pool:          pool,
 		wsLogRenderer: wsLogRenderer,
 	}
 

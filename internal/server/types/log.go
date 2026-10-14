@@ -2,8 +2,6 @@ package types
 
 import (
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Client struct {
@@ -12,11 +10,11 @@ type Client struct {
 }
 
 type StoredLog struct {
-	ID             primitive.ObjectID `bson:"_id,omitempty"`
-	LogLine        string             `bson:"log_line"`
-	Timestamp      time.Time          `bson:"timestamp"`
-	Client         StoredClient       `bson:"client"`
-	SequenceNumber int                `bson:"sequence_number"`
+	ID             int64        `bson:"_id,omitempty"`
+	LogLine        string       `bson:"log_line"`
+	Timestamp      time.Time    `bson:"timestamp"`
+	Client         StoredClient `bson:"client"`
+	SequenceNumber int          `bson:"sequence_number"`
 }
 
 type StoredClient struct {

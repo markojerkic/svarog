@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"log/slog"
@@ -48,7 +49,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 	assert.NoError(t, err)
 
 	// Find logline page
-	logLineId := randomLogLine.ID.Hex()
+	logLineId := strconv.FormatInt(randomLogLine.ID, 10)
 	logPage, err := suite.logService.GetLogs(logServerContext, db.LogPageRequest{
 		ProjectId: "test-project",
 		ClientId:  randomLogLine.Client.ClientId,
@@ -66,7 +67,7 @@ func (suite *LogsCollectionRepositorySuite) TestFindLoglinePage() {
 
 func findLogLine(logs []types.StoredLog, logLineId string) int {
 	for i, log := range logs {
-		if log.ID.Hex() == logLineId {
+		if strconv.FormatInt(log.ID, 10) == logLineId {
 			return i
 		}
 	}

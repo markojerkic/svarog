@@ -24,7 +24,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
+func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
@@ -60,7 +60,7 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	if mongoContainer != nil {
 		testcontainers.CleanupContainer(t, mongoContainer)
 	}
-	require.NoError(t, err, "start MongoDB for unmigrated log storage")
+	require.NoError(t, err, "start MongoDB for unmigrated log reads")
 	mongoURL, err := mongoContainer.ConnectionString(ctx)
 	require.NoError(t, err, "get MongoDB connection string")
 	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURL))
@@ -70,7 +70,7 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	})
 
 	// Run ingestion and log aggregation together; wait for both before cleaning up storage.
-	logService := db.NewLogService(mongoClient.Database("svarog_test"),
+	logService := db.NewLogService(mongoClient.Database("svarog_test"), pool,
 		websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn)))
 	logServer := db.NewLogServer(logService)
 	channel := make(chan db.LogLineWithHost, 100)
@@ -111,36 +111,21 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 		_, err = conn.JetStream.Publish(ctx, fmt.Sprintf("logs.%s.%s", projectID, clientID), payload)
 		require.NoError(t, err, "publish log for UUID project %s and client %s", projectID, clientID)
 	}
-	waitForMessage := func(projectID, clientID, message string) {
+	waitForMessage := func(clientID uuid.UUID, message string) {
 		t.Helper()
 		require.Eventually(t, func() bool {
-			page, err := logService.GetLogs(ctx, db.LogPageRequest{
-				ProjectId: projectID,
-				ClientId:  clientID,
-				PageSize:  100,
-			})
-			if err != nil {
-				return false
-			}
-			for _, line := range page.Logs {
-				if line.LogLine == message {
-					return true
-				}
-			}
-			return false
-		}, 15*time.Second, 50*time.Millisecond, "accepted log %q must reach Mongo under UUID references", message)
+			var found bool
+			err := pool.QueryRow(ctx, "SELECT true FROM logs WHERE client_id = $1 AND message = $2", clientID, message).Scan(&found)
+			return err == nil && found
+		}, 15*time.Second, 50*time.Millisecond, "accepted log %q must reach PostgreSQL for client %s", message, clientID)
 	}
 
-	// Valid project/client UUID pairs reach Mongo and remain queryable by those UUIDs.
+	// Valid project/client UUID pairs are stored in PostgreSQL. Reads remain on MongoDB.
 	publish(first.ID.String(), first.Clients[0].ID.String(), "first accepted")
 	publish(second.ID.String(), second.Clients[0].ID.String(), "second accepted")
 
-	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "first accepted")
-	waitForMessage(second.ID.String(), second.Clients[0].ID.String(), "second accepted")
-	instances, err := logService.GetInstances(ctx, first.ID.String(), first.Clients[0].ID.String())
-
-	require.NoError(t, err, "query instances using UUID references")
-	require.Equal(t, []string{"instance"}, instances, "UUID-filtered logs retain instance identity")
+	waitForMessage(first.Clients[0].ID, "first accepted")
+	waitForMessage(second.Clients[0].ID, "second accepted")
 
 	// A temporary DB validation failure retries the message until the lock is released.
 	tx, err := pool.Begin(ctx)
@@ -159,11 +144,11 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	}, 15*time.Second, 50*time.Millisecond, "database validation timeout must retry the message rather than acknowledge or discard it")
 
 	require.NoError(t, tx.Commit(ctx), "restore database validation before retry is processed")
-	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "retry accepted")
+	waitForMessage(first.Clients[0].ID, "retry accepted")
 
 	// Inactive, foreign, unknown, legacy, and malformed messages must not be persisted.
 	_, err = projectService.UpdateProject(ctx, first.ID, first.Name, nil)
-	require.NoError(t, err, "deactivate first client while preserving Mongo history")
+	require.NoError(t, err, "deactivate first client while preserving its UUID")
 
 	publish(first.ID.String(), first.Clients[0].ID.String(), "inactive rejected")
 	publish(second.ID.String(), first.Clients[0].ID.String(), "foreign client rejected")
@@ -199,16 +184,16 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 	// Wait for the valid barrier and all acknowledgements before checking rejection counts.
 	publish(second.ID.String(), second.Clients[0].ID.String(), "validation barrier")
 
-	waitForMessage(second.ID.String(), second.Clients[0].ID.String(), "validation barrier")
+	waitForMessage(second.Clients[0].ID, "validation barrier")
 	require.Eventually(t, func() bool {
 		info, err := consumer.Info(ctx)
 		return err == nil && info.NumPending == 0 && info.NumAckPending == 0
 	}, 10*time.Second, 50*time.Millisecond, "permanently invalid messages must be terminated, not retried forever")
 
 	var total int64
-	total, err = mongoClient.Database("svarog_test").Collection("log_lines").CountDocuments(ctx, struct{}{})
-	require.NoError(t, err, "count persisted logs after validation barrier")
-	require.EqualValues(t, 4, total, "inactive, foreign, missing and malformed client logs must not reach Mongo; retried valid log is stored exactly once")
+	err = pool.QueryRow(ctx, "SELECT count(*) FROM logs").Scan(&total)
+	require.NoError(t, err, "count persisted PostgreSQL logs after validation barrier")
+	require.EqualValues(t, 4, total, "inactive, foreign, missing and malformed client logs must not reach PostgreSQL; retried valid log is stored exactly once")
 
 	// Deactivation preserves historical ownership but disallows new credentials.
 	belongs, err := projectService.ClientBelongsToProject(ctx, first.ID.String(), first.Clients[0].ID.String())
@@ -223,13 +208,10 @@ func TestPostgresClientsIngestIntoMongoLogs(t *testing.T) {
 
 	publish(first.ID.String(), first.Clients[0].ID.String(), "reactivated accepted")
 
-	waitForMessage(first.ID.String(), first.Clients[0].ID.String(), "reactivated accepted")
-	page, err := logService.GetLogs(ctx, db.LogPageRequest{
-		ProjectId: first.ID.String(),
-		ClientId:  first.Clients[0].ID.String(),
-		PageSize:  100,
-	})
+	waitForMessage(first.Clients[0].ID, "reactivated accepted")
+	var history int64
+	err = pool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id = $1", first.Clients[0].ID).Scan(&history)
 
-	require.NoError(t, err, "read old and new Mongo logs after UUID-preserving reactivation")
-	require.Len(t, page.Logs, 3, "reactivated client retains original and retried history and adds only the new accepted log")
+	require.NoError(t, err, "count PostgreSQL logs after UUID-preserving reactivation")
+	require.EqualValues(t, 3, history, "reactivated client retains original and retried history and adds only the new accepted log")
 }

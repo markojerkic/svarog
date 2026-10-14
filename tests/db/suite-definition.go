@@ -34,7 +34,7 @@ func (suite *LogsCollectionRepositorySuite) SetupSuite() {
 	suite.logServerContext = context.Background()
 
 	suite.wsLogRenderer = suite.WsLogRenderer
-	suite.logService = db.NewLogService(suite.Database, suite.wsLogRenderer)
+	suite.logService = db.NewLogService(suite.Database, nil, suite.wsLogRenderer)
 	suite.logServer = db.NewLogServer(suite.logService)
 	suite.logsCollection = suite.Collection("log_lines")
 }

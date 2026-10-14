@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"log/slog"
@@ -143,7 +144,7 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 	mappedLogs := make([]LogLine, logsLen)
 	for i, log := range logs {
 		mappedLogs[logsLen-i-1] = LogLine{
-			log.ID.Hex(),
+			strconv.FormatInt(log.ID, 10),
 			log.Timestamp.UnixMilli(),
 			log.LogLine,
 			log.SequenceNumber,
