@@ -42,7 +42,7 @@ func (a *ArchiveSuite) TestUpdateSettings() {
 	err = a.archiveSettingCollection.FindOne(context.Background(), bson.M{"client_id": clientID, "project_id": projectId}).Decode(&setting)
 	assert.NoError(t, err)
 
-	err = a.archiveService.UpdateSetting(context.Background(), setting.ID.Hex(), 20)
+	err = a.archiveService.UpdateSetting(context.Background(), setting.ClientID, 20)
 	assert.NoError(t, err)
 
 	// assert only one setting exists

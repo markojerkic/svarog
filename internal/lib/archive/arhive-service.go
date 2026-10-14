@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,8 +12,11 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/files"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	logs "github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,12 +35,18 @@ type ArhiveService interface {
 	DeleteSetting(ctx context.Context, id string) error
 }
 
+var (
+	ErrArchivePolicyNotFound = errors.New("archive policy not found")
+	ErrArchivePolicyExists   = errors.New("archive policy already exists")
+)
+
 type ArchiveServiceImpl struct {
 	mongoClient              *mongo.Client
 	archiveCollection        *mongo.Collection
 	archiveSettingCollection *mongo.Collection
 	filesService             files.FileService
 	logsService              logs.LogService
+	pool                     *pgxpool.Pool
 }
 
 // CreateArhiveForClient implements ArhiveService.
@@ -125,126 +135,80 @@ func (a *ArchiveServiceImpl) GetArhiveFileID(ctx context.Context, projectID stri
 
 // CreateSetting implements ArhiveService.
 func (a *ArchiveServiceImpl) CreateSetting(ctx context.Context, projectID string, clientID string, arhiveAfterWeeks int) error {
-	projectUUID, err := uuid.Parse(projectID)
+	projectUUID, clientUUID, err := parseArchiveScope(projectID, clientID)
 	if err != nil {
 		return err
 	}
-
-	archiveSetting := types.ArchiveSetting{
-		ProjectID:        projectUUID.String(),
-		ClientID:         clientID,
-		ArhiveAfterWeeks: arhiveAfterWeeks,
+	weeks, err := archiveWeeks(arhiveAfterWeeks)
+	if err != nil {
+		return err
 	}
-
-	_, err = a.archiveSettingCollection.InsertOne(ctx, archiveSetting)
+	rows, err := persistence.CreateArchivePolicy(ctx, a.pool, projectUUID, clientUUID, weeks)
+	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "archive_policies_pkey") {
+		return ErrArchivePolicyExists
+	}
 	if err != nil {
 		slog.Error("Error inserting archive setting", "error", err)
 		return err
 	}
-
+	if rows == 0 {
+		return ErrArchivePolicyNotFound
+	}
 	return nil
 }
 
 func (a *ArchiveServiceImpl) GetSettings(ctx context.Context, projectID string, clientID string) (types.ArchiveSetting, error) {
-	var archiveSetting types.ArchiveSetting
-	projectUUID, err := uuid.Parse(projectID)
+	projectUUID, clientUUID, err := parseArchiveScope(projectID, clientID)
 	if err != nil {
-		return archiveSetting, err
+		return types.ArchiveSetting{}, err
 	}
-
-	err = a.archiveSettingCollection.FindOne(ctx, bson.M{"project_id": projectUUID.String(), "client_id": clientID}).Decode(&archiveSetting)
+	policy, err := persistence.GetArchivePolicy(ctx, a.pool, projectUUID, clientUUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return types.ArchiveSetting{}, ErrArchivePolicyNotFound
+	}
 	if err != nil {
 		slog.Error("Error finding archive setting", "error", err)
-		return archiveSetting, err
+		return types.ArchiveSetting{}, err
 	}
-
-	return archiveSetting, nil
+	return archiveSetting(policy), nil
 }
 
-// DeleteSetting implements ArhiveService.
-// Delete all arhives, files and the setting
+// DeleteSetting deletes only the policy. Archive files stay until that segment moves.
 func (a *ArchiveServiceImpl) DeleteSetting(ctx context.Context, id string) error {
-	_, err := util.StartTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		var archiveSetting types.ArchiveSetting
-		archiveSettingID, err := primitive.ObjectIDFromHex(id)
-		if err != nil {
-			slog.Error("Error converting id to ObjectID", "error", err)
-			return struct{}{}, err
-		}
-
-		err = a.archiveSettingCollection.FindOne(ctx, bson.M{"_id": archiveSettingID}).Decode(&archiveSetting)
-		if err != nil {
-			slog.Error("Error finding archive setting", "error", err)
-			return struct{}{}, err
-		}
-
-		_, err = a.archiveSettingCollection.DeleteOne(ctx, bson.M{"_id": archiveSettingID})
-
-		if err != nil {
-			slog.Error("Error deleting archive setting", "error", err)
-			return struct{}{}, err
-		}
-
-		var arhivedFileIDs []primitive.ObjectID
-		cursor, err := a.archiveCollection.Find(ctx, bson.M{"projectID": archiveSetting.ProjectID, "clientID": archiveSetting.ClientID})
-		if err != nil {
-			slog.Error("Error finding archives", "error", err)
-			return struct{}{}, err
-		}
-		for cursor.Next(ctx) {
-			var archive types.ArchiveEntry
-			err = cursor.Decode(&archive)
-			if err != nil {
-				slog.Error("Error decoding archive", "error", err)
-				return struct{}{}, err
-			}
-			arhivedFileIDs = append(arhivedFileIDs, archive.FileID)
-		}
-
-		for _, id := range arhivedFileIDs {
-			err = a.filesService.DeleteFile(ctx, id)
-			if err != nil {
-				slog.Error("Error deleting file", "error", err)
-				return struct{}{}, err
-			}
-		}
-
-		_, err = a.archiveCollection.DeleteMany(ctx, bson.M{"projectID": archiveSetting.ProjectID, "clientID": archiveSetting.ClientID})
-		if err != nil {
-			slog.Error("Error deleting archives", "error", err)
-			return struct{}{}, err
-		}
-
-		return struct{}{}, nil
-
-	}, a.mongoClient)
-
-	if err == nil {
-		slog.Debug("Successfully deleted archive setting and all related archives and files")
+	clientID, err := parseClientID(id)
+	if err != nil {
+		return err
 	}
-
-	return err
+	rows, err := persistence.DeleteArchivePolicy(ctx, a.pool, clientID)
+	if err != nil {
+		slog.Error("Error deleting archive setting", "error", err)
+		return err
+	}
+	if rows == 0 {
+		return ErrArchivePolicyNotFound
+	}
+	return nil
 }
 
 // UpdateSetting implements ArhiveService.
 func (a *ArchiveServiceImpl) UpdateSetting(ctx context.Context, id string, arhiveAfterWeeks int) error {
-	oid, err := primitive.ObjectIDFromHex(id)
+	clientID, err := parseClientID(id)
 	if err != nil {
-		slog.Error("Error converting id to ObjectID", "error", err)
 		return err
 	}
-
-	_, err = a.archiveSettingCollection.UpdateByID(ctx, oid,
-		bson.M{
-			"$set": bson.M{
-				"arhive_after_weeks": arhiveAfterWeeks,
-			},
-		})
-
+	weeks, err := archiveWeeks(arhiveAfterWeeks)
+	if err != nil {
+		return err
+	}
+	rows, err := persistence.UpdateArchivePolicy(ctx, a.pool, clientID, weeks)
 	if err != nil {
 		slog.Error("Error updating archive setting", "error", err)
+		return err
 	}
-	return err
+	if rows == 0 {
+		return ErrArchivePolicyNotFound
+	}
+	return nil
 }
 
 func (a *ArchiveServiceImpl) createIndexes(ctx context.Context) error {
@@ -267,15 +231,57 @@ func (a *ArchiveServiceImpl) createIndexes(ctx context.Context) error {
 	return nil
 }
 
+func parseArchiveScope(projectID, clientID string) (uuid.UUID, uuid.UUID, error) {
+	project, err := uuid.Parse(projectID)
+	if err != nil || project == uuid.Nil {
+		return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("invalid project id %q", projectID)
+	}
+	client, err := parseClientID(clientID)
+	if err != nil {
+		return uuid.UUID{}, uuid.UUID{}, err
+	}
+	return project, client, nil
+}
+
+func parseClientID(clientID string) (uuid.UUID, error) {
+	client, err := uuid.Parse(clientID)
+	if err != nil || client == uuid.Nil {
+		return uuid.UUID{}, fmt.Errorf("invalid client id %q", clientID)
+	}
+	return client, nil
+}
+
+func archiveWeeks(weeks int) (int32, error) {
+	if weeks <= 0 || weeks > math.MaxInt32 {
+		return 0, fmt.Errorf("archive after weeks must be positive")
+	}
+	return int32(weeks), nil
+}
+
+func archiveSetting(policy persistence.ArchivePolicy) types.ArchiveSetting {
+	return types.ArchiveSetting{
+		ClientID:         policy.ClientID.String(),
+		ProjectID:        policy.ProjectID.String(),
+		ArhiveAfterWeeks: int(policy.ArchiveAfterWeeks),
+		UpdatedAt:        policy.UpdatedAt,
+	}
+}
+
 var _ ArhiveService = &ArchiveServiceImpl{}
 
 func NewArchiveService(mongoClient *mongo.Client,
 	archiveCollection *mongo.Collection,
 	archiveSettingCollection *mongo.Collection,
 	logService logs.LogService,
-	filesService files.FileService) *ArchiveServiceImpl {
+	filesService files.FileService,
+	pool *pgxpool.Pool) *ArchiveServiceImpl {
+	service := &ArchiveServiceImpl{
+		filesService: filesService,
+		logsService:  logService,
+		pool:         pool,
+	}
 	if mongoClient == nil {
-		panic("mongoClient is nil")
+		return service
 	}
 	if archiveCollection == nil {
 		panic("archiveCollection is nil")
@@ -283,16 +289,9 @@ func NewArchiveService(mongoClient *mongo.Client,
 	if archiveSettingCollection == nil {
 		panic("archiveSettingCollection is nil")
 	}
-
-	service := &ArchiveServiceImpl{
-		mongoClient:              mongoClient,
-		archiveCollection:        archiveCollection,
-		archiveSettingCollection: archiveSettingCollection,
-		filesService:             filesService,
-		logsService:              logService,
-	}
-
+	service.mongoClient = mongoClient
+	service.archiveCollection = archiveCollection
+	service.archiveSettingCollection = archiveSettingCollection
 	service.createIndexes(context.Background())
-
 	return service
 }

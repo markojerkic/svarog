@@ -40,7 +40,8 @@ func (s *ArchiveSuite) SetupSuite() {
 		s.archiveCollection,
 		s.archiveSettingCollection,
 		s.logService,
-		s.filesService)
+		s.filesService,
+		nil)
 }
 
 // After each

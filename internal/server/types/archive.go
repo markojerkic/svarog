@@ -1,6 +1,10 @@
 package types
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type ArchiveEntry struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -12,8 +16,8 @@ type ArchiveEntry struct {
 }
 
 type ArchiveSetting struct {
-	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ProjectID        string             `bson:"project_id" json:"projectId"`
-	ClientID         string             `bson:"client_id" json:"clientId"`
-	ArhiveAfterWeeks int                `bson:"arhive_after_weeks" json:"arhiveAfterWeeks"`
+	ClientID         string
+	ProjectID        string
+	ArhiveAfterWeeks int
+	UpdatedAt        time.Time
 }
