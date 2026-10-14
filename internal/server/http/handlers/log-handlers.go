@@ -135,6 +135,9 @@ func (self *LogsRouter) searchLogs(c echo.Context) error {
 			SequenceNumber: *params.CursorSequenceNumber,
 			IsBackward:     *params.Direction == "backward",
 		}
+		if params.CursorID != nil {
+			nextCursor.ID = *params.CursorID
+		}
 	}
 
 	slog.Debug("next", "cursor", nextCursor)

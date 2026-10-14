@@ -43,3 +43,8 @@ type LogReadQuery struct {
 	CursorSequence  int64
 	CursorID        *int64
 }
+
+type LogSearchQuery struct {
+	LogReadQuery
+	Search string
+}

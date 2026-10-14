@@ -78,6 +78,57 @@ WHERE c.project_id = sqlc.arg(project_id)
 ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: SearchLogs :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = sqlc.arg(project_id)
+  AND l.client_id = sqlc.arg(client_id)
+  AND to_tsvector('simple', l.message) @@ plainto_tsquery('simple', sqlc.arg(search))
+  AND (
+    NOT sqlc.arg(filter_instances)::bool
+    OR l.instance_name = ANY(sqlc.arg(instances)::text[])
+  )
+  AND (
+    NOT sqlc.arg(has_cursor)::bool
+    OR (
+      sqlc.arg(backward)::bool
+      AND sqlc.arg(inclusive)::bool
+      AND sqlc.arg(has_cursor_id)::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          <= (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
+    )
+    OR (
+      sqlc.arg(backward)::bool
+      AND NOT sqlc.arg(inclusive)::bool
+      AND NOT sqlc.arg(has_cursor_id)::bool
+      AND (l.occurred_at, l.sequence_number)
+          < (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint)
+    )
+    OR (
+      sqlc.arg(backward)::bool
+      AND NOT sqlc.arg(inclusive)::bool
+      AND sqlc.arg(has_cursor_id)::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          < (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
+    )
+    OR (
+      NOT sqlc.arg(backward)::bool
+      AND NOT sqlc.arg(has_cursor_id)::bool
+      AND (l.occurred_at, l.sequence_number)
+          > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint)
+    )
+    OR (
+      NOT sqlc.arg(backward)::bool
+      AND sqlc.arg(has_cursor_id)::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
+    )
+  )
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT sqlc.arg(page_size);
+
 -- name: GetLogAnchor :one
 SELECT l.occurred_at, l.sequence_number, l.id
 FROM logs l

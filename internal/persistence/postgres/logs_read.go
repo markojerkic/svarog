@@ -53,6 +53,49 @@ func ListLogs(ctx context.Context, pool *pgxpool.Pool, query LogReadQuery) ([]Lo
 	return logs, nil
 }
 
+func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) ([]LogRow, error) {
+	instances := query.Instances
+	if instances == nil {
+		instances = []string{}
+	}
+	var cursorID int64
+	hasCursorID := query.CursorID != nil
+	if hasCursorID {
+		cursorID = *query.CursorID
+	}
+	rows, err := sqlc.New(pool).SearchLogs(ctx, sqlc.SearchLogsParams{
+		ProjectID:       query.ProjectID,
+		ClientID:        query.ClientID,
+		Search:          query.Search,
+		FilterInstances: query.FilterInstances,
+		Instances:       instances,
+		HasCursor:       query.HasCursor,
+		Backward:        query.Backward,
+		Inclusive:       query.Inclusive,
+		HasCursorID:     hasCursorID,
+		CursorAt:        query.CursorAt,
+		CursorSequence:  query.CursorSequence,
+		CursorID:        cursorID,
+		PageSize:        query.PageSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("search logs: %w", err)
+	}
+	logs := make([]LogRow, len(rows))
+	for i, row := range rows {
+		logs[i] = LogRow{
+			ID:             row.ID,
+			ClientID:       row.ClientID,
+			ProjectID:      row.ProjectID,
+			InstanceName:   row.InstanceName,
+			OccurredAt:     row.OccurredAt,
+			SequenceNumber: row.SequenceNumber,
+			Message:        row.Message,
+		}
+	}
+	return logs, nil
+}
+
 func GetLogAnchor(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID, id int64) (LogAnchor, error) {
 	row, err := sqlc.New(pool).GetLogAnchor(ctx, sqlc.GetLogAnchorParams{
 		ID:        id,

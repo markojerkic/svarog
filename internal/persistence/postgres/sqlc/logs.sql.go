@@ -255,3 +255,123 @@ func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsR
 	}
 	return items, nil
 }
+
+const searchLogs = `-- name: SearchLogs :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND to_tsvector('simple', l.message) @@ plainto_tsquery('simple', $3)
+  AND (
+    NOT $4::bool
+    OR l.instance_name = ANY($5::text[])
+  )
+  AND (
+    NOT $6::bool
+    OR (
+      $7::bool
+      AND $8::bool
+      AND $9::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          <= ($10, $11::bigint, $12::bigint)
+    )
+    OR (
+      $7::bool
+      AND NOT $8::bool
+      AND NOT $9::bool
+      AND (l.occurred_at, l.sequence_number)
+          < ($10, $11::bigint)
+    )
+    OR (
+      $7::bool
+      AND NOT $8::bool
+      AND $9::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          < ($10, $11::bigint, $12::bigint)
+    )
+    OR (
+      NOT $7::bool
+      AND NOT $9::bool
+      AND (l.occurred_at, l.sequence_number)
+          > ($10, $11::bigint)
+    )
+    OR (
+      NOT $7::bool
+      AND $9::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          > ($10, $11::bigint, $12::bigint)
+    )
+  )
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT $13
+`
+
+type SearchLogsParams struct {
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
+	Search          string
+	FilterInstances bool
+	Instances       []string
+	HasCursor       bool
+	Backward        bool
+	Inclusive       bool
+	HasCursorID     bool
+	CursorAt        time.Time
+	CursorSequence  int64
+	CursorID        int64
+	PageSize        int32
+}
+
+type SearchLogsRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) SearchLogs(ctx context.Context, arg SearchLogsParams) ([]SearchLogsRow, error) {
+	rows, err := q.db.Query(ctx, searchLogs,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.Search,
+		arg.FilterInstances,
+		arg.Instances,
+		arg.HasCursor,
+		arg.Backward,
+		arg.Inclusive,
+		arg.HasCursorID,
+		arg.CursorAt,
+		arg.CursorSequence,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchLogsRow
+	for rows.Next() {
+		var i SearchLogsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

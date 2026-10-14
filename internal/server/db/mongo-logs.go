@@ -20,7 +20,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type LastCursor struct {
@@ -164,20 +163,41 @@ func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (L
 }
 
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
-	slog.Debug("Getting logs for client", "projectId", projectId, "clientId", clientId)
-
-	filter, projection := createFilter(LogPageRequest{
-		ProjectId: projectId,
-		ClientId:  clientId,
-		Instances: instances,
-		PageSize:  pageSize,
-		LogLineId: nil,
-		Cursor:    lastCursor,
-	})
-
-	filter = append(filter, bson.E{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}})
-
-	return self.getAndMapLogs(ctx, filter, projection)
+	projectID, clientID, ok := parseLogScope(projectId, clientId)
+	if !ok {
+		return []types.StoredLog{}, nil
+	}
+	if pageSize <= 0 || pageSize > math.MaxInt32 {
+		return nil, fmt.Errorf("invalid log page size %d", pageSize)
+	}
+	search := persistence.LogSearchQuery{
+		LogReadQuery: persistence.LogReadQuery{
+			ProjectID:       projectID,
+			ClientID:        clientID,
+			FilterInstances: instances != nil,
+			PageSize:        int32(pageSize),
+		},
+		Search: query,
+	}
+	if instances != nil {
+		search.Instances = *instances
+	}
+	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
+		search.HasCursor = true
+		search.Backward = lastCursor.IsBackward
+		search.CursorAt = lastCursor.Timestamp
+		search.CursorSequence = int64(lastCursor.SequenceNumber)
+		if lastCursor.ID > 0 {
+			id := lastCursor.ID
+			search.CursorID = &id
+		}
+	}
+	rows, err := persistence.SearchLogs(ctx, self.pool, search)
+	if err != nil {
+		slog.Error("Error searching logs", "error", err)
+		return nil, err
+	}
+	return mapLogRows(rows), nil
 }
 
 func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
@@ -221,76 +241,6 @@ func NewLogService(db *mongo.Database, pool *pgxpool.Pool, wsLogRenderer *websoc
 	repo.logCollection = db.Collection("log_lines")
 	repo.createIndexes()
 	return repo
-}
-
-func createFilter(req LogPageRequest) (bson.D, *options.FindOptions) {
-	sortDirection := -1
-
-	projection := options.Find().SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
-
-	clientIdFilter := bson.D{
-		{Key: "client.project_id", Value: req.ProjectId},
-		{Key: "client.client_id", Value: req.ClientId},
-	}
-	var filter bson.D
-
-	if req.Cursor != nil && req.Cursor.Timestamp.UnixMilli() > 0 {
-		slog.Debug("Adding timestamp cursor", "cursor", *req.Cursor)
-
-		timestamp := primitive.NewDateTimeFromTime(req.Cursor.Timestamp)
-
-		var direction string
-
-		if req.Cursor.IsBackward {
-			direction = "$lt"
-		} else {
-			direction = "$gt"
-		}
-
-		filter = bson.D{
-			{Key: "client.project_id", Value: req.ProjectId},
-			{Key: "client.client_id", Value: req.ClientId},
-			{Key: "$or", Value: bson.A{
-				bson.D{
-					{Key: "timestamp", Value: bson.D{{Key: direction, Value: timestamp}}},
-				},
-				bson.D{
-					{Key: "timestamp", Value: timestamp},
-					{Key: "sequence_number", Value: bson.D{{Key: direction, Value: req.Cursor.SequenceNumber}}},
-				},
-			}},
-		}
-
-	} else {
-		filter = clientIdFilter
-	}
-
-	if req.Instances != nil {
-		filter = append(filter, bson.E{
-			Key: "client.instance_id",
-			Value: bson.D{
-				{Key: "$in", Value: req.Instances},
-			},
-		})
-	}
-
-	return filter, projection
-}
-
-func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, projection *options.FindOptions) ([]types.StoredLog, error) {
-	cursor, err := self.logCollection.Find(ctx, filter, projection)
-	if err != nil {
-		slog.Error("Error getting logs", "error", err)
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var logs []types.StoredLog
-	if err = cursor.All(ctx, &logs); err != nil {
-		return nil, err
-	}
-
-	return logs, nil
 }
 
 func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
