@@ -2,13 +2,17 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/url"
+	"strconv"
 	"time"
 
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -22,6 +26,7 @@ import (
 type LastCursor struct {
 	Timestamp      time.Time
 	SequenceNumber int
+	ID             int64
 	IsBackward     bool
 }
 
@@ -41,6 +46,9 @@ func (l *LogPage) ToPath(projectId, clientId string, instanceId *string, cursor 
 		query.Set("cursorTime", fmt.Sprintf("%d", cursor.Timestamp.UnixMilli()))
 		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
 		query.Set("direction", direction)
+		if cursor.ID > 0 {
+			query.Set("cursorId", strconv.FormatInt(cursor.ID, 10))
+		}
 	}
 	if instanceId != nil {
 		query.Set("instance", *instanceId)
@@ -76,19 +84,14 @@ var _ LogService = &MongoLogService{}
 
 // GetInstances implements LogRepository.
 func (self *MongoLogService) GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error) {
-	rawInstances, err := self.logCollection.Distinct(ctx, "client.instance_id", bson.D{
-		{Key: "client.project_id", Value: projectId},
-		{Key: "client.client_id", Value: clientId},
-	})
+	projectID, clientID, ok := parseLogScope(projectId, clientId)
+	if !ok {
+		return []string{}, nil
+	}
+	instances, err := persistence.ListInstances(ctx, self.pool, projectID, clientID)
 	if err != nil {
 		return []string{}, err
 	}
-
-	instances := make([]string, len(rawInstances))
-	for i, instance := range rawInstances {
-		instances[i] = instance.(string)
-	}
-
 	return instances, nil
 }
 
@@ -109,59 +112,61 @@ func (self *MongoLogService) DeleteLogBeforeTimestamp(ctx context.Context, times
 
 // GetLogs implements LogRepository.
 func (self *MongoLogService) GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error) {
-	filter, projection := createFilter(self.logCollection, req)
+	projectID, clientID, ok := parseLogScope(req.ProjectId, req.ClientId)
+	if !ok {
+		return emptyLogPage(req), nil
+	}
+	if req.PageSize <= 0 || req.PageSize > math.MaxInt32 {
+		return LogPage{}, fmt.Errorf("invalid log page size %d", req.PageSize)
+	}
 
-	logs, err := self.getAndMapLogs(ctx, filter, projection)
+	query := persistence.LogReadQuery{
+		ProjectID:       projectID,
+		ClientID:        clientID,
+		FilterInstances: req.Instances != nil,
+		PageSize:        int32(req.PageSize),
+	}
+	if req.Instances != nil {
+		query.Instances = *req.Instances
+	}
+	if req.Cursor != nil && req.Cursor.Timestamp.UnixMilli() > 0 {
+		query.HasCursor = true
+		query.Backward = req.Cursor.IsBackward
+		query.CursorAt = req.Cursor.Timestamp
+		query.CursorSequence = int64(req.Cursor.SequenceNumber)
+		if req.Cursor.ID > 0 {
+			id := req.Cursor.ID
+			query.CursorID = &id
+		}
+	} else if req.LogLineId != nil {
+		anchor, found, err := self.logAnchor(ctx, projectID, clientID, *req.LogLineId)
+		if err != nil {
+			return LogPage{}, err
+		}
+		if found {
+			query.HasCursor = true
+			query.Backward = true
+			query.Inclusive = true
+			query.CursorAt = anchor.OccurredAt
+			query.CursorSequence = anchor.SequenceNumber
+			query.CursorID = &anchor.ID
+		} else {
+			slog.Error("Failed to create filter for logLineId", "logLineId", *req.LogLineId)
+		}
+	}
+
+	rows, err := persistence.ListLogs(ctx, self.pool, query)
 	if err != nil {
+		slog.Error("Error getting logs", "error", err)
 		return LogPage{}, err
 	}
-
-	if len(logs) == 0 {
-		return LogPage{
-			Logs:           logs,
-			ForwardCursor:  nil,
-			BackwardCursor: nil,
-			IsLastPage:     req.Cursor == nil,
-		}, nil
-	}
-
-	// BackwardCursor: for scrolling up (older logs)
-	// Always provide it when we're at the top (no cursor) or scrolling backward
-	var backwardCursor *LastCursor
-	shouldHaveBackwardCursor := req.Cursor == nil || req.Cursor.IsBackward
-	if shouldHaveBackwardCursor {
-		backwardCursor = &LastCursor{
-			Timestamp:      logs[len(logs)-1].Timestamp,
-			SequenceNumber: logs[len(logs)-1].SequenceNumber,
-			IsBackward:     true,
-		}
-	}
-
-	var forwardCursor *LastCursor
-	shouldHaveForwardCursor := req.Cursor != nil && !req.Cursor.IsBackward
-	if shouldHaveForwardCursor {
-		forwardCursor = &LastCursor{
-			Timestamp:      logs[0].Timestamp,
-			SequenceNumber: logs[0].SequenceNumber,
-			IsBackward:     false,
-		}
-	}
-
-	// IsLastPage = true only when showing the most recent logs (initial query)
-	isLastPage := req.Cursor == nil
-
-	return LogPage{
-		Logs:           logs,
-		ForwardCursor:  forwardCursor,
-		BackwardCursor: backwardCursor,
-		IsLastPage:     isLastPage,
-	}, nil
+	return pageFromLogs(mapLogRows(rows), req), nil
 }
 
 func (self *MongoLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
 	slog.Debug("Getting logs for client", "projectId", projectId, "clientId", clientId)
 
-	filter, projection := createFilter(self.logCollection, LogPageRequest{
+	filter, projection := createFilter(LogPageRequest{
 		ProjectId: projectId,
 		ClientId:  clientId,
 		Instances: instances,
@@ -206,20 +211,19 @@ func (self *MongoLogService) SaveLogs(ctx context.Context, logs []types.StoredLo
 }
 
 func NewLogService(db *mongo.Database, pool *pgxpool.Pool, wsLogRenderer *websocket.WsLogLineRenderer) *MongoLogService {
-	collection := db.Collection("log_lines")
-
 	repo := &MongoLogService{
-		logCollection: collection,
 		pool:          pool,
 		wsLogRenderer: wsLogRenderer,
 	}
-
+	if db == nil {
+		return repo
+	}
+	repo.logCollection = db.Collection("log_lines")
 	repo.createIndexes()
-
 	return repo
 }
 
-func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *options.FindOptions) {
+func createFilter(req LogPageRequest) (bson.D, *options.FindOptions) {
 	sortDirection := -1
 
 	projection := options.Find().SetLimit(req.PageSize).SetSort(bson.D{{Key: "timestamp", Value: sortDirection}, {Key: "sequence_number", Value: sortDirection}})
@@ -257,18 +261,6 @@ func createFilter(collection *mongo.Collection, req LogPageRequest) (bson.D, *op
 			}},
 		}
 
-	} else if req.LogLineId != nil {
-		// Find page of data where logLineId is in the middle of the page
-		slog.Debug("Adding log line id cursor", "logLineId", *req.LogLineId)
-		newFilter, newProjection, err := createFilterForLogLine(collection, req.ProjectId, req.ClientId, *req.LogLineId, req.PageSize)
-		if err != nil {
-			slog.Error("Failed to create filter for logLineId", "error", err)
-			filter = clientIdFilter
-		} else {
-			filter = newFilter
-			projection = newProjection
-		}
-
 	} else {
 		filter = clientIdFilter
 	}
@@ -301,55 +293,82 @@ func (self *MongoLogService) getAndMapLogs(ctx context.Context, filter bson.D, p
 	return logs, nil
 }
 
-func createFilterForLogLine(collection *mongo.Collection, projectId string, clientId string, logLineId string, pageSize int64) (bson.D, *options.FindOptions, error) {
-	sortDirection := -1
-	projection := options.Find().SetSort(bson.D{
-		{Key: "timestamp", Value: sortDirection},
-		{Key: "sequence_number", Value: sortDirection},
-	})
+func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
+	project, projectErr := uuid.Parse(projectID)
+	client, clientErr := uuid.Parse(clientID)
+	if projectErr != nil || clientErr != nil || project == uuid.Nil || client == uuid.Nil {
+		return uuid.UUID{}, uuid.UUID{}, false
+	}
+	return project, client, true
+}
 
-	// Convert logLineId to ObjectID
-	logId, err := primitive.ObjectIDFromHex(logLineId)
+func emptyLogPage(req LogPageRequest) LogPage {
+	return LogPage{IsLastPage: req.Cursor == nil}
+}
+
+func (self *MongoLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogAnchor, bool, error) {
+	id, err := strconv.ParseInt(logLineID, 10, 64)
+	if err != nil || id <= 0 {
+		return persistence.LogAnchor{}, false, nil
+	}
+	anchor, err := persistence.GetLogAnchor(ctx, self.pool, projectID, clientID, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return persistence.LogAnchor{}, false, nil
+	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid logLineId format: %w", err)
+		return persistence.LogAnchor{}, false, err
 	}
+	return anchor, true, nil
+}
 
-	// Find the target log to get its timestamp and sequence_number
-	var targetLog struct {
-		Timestamp      primitive.DateTime `bson:"timestamp"`
-		SequenceNumber int64              `bson:"sequence_number"`
-	}
-	err = collection.FindOne(context.Background(), bson.D{
-		{Key: "_id", Value: logId},
-		{Key: "client.project_id", Value: projectId},
-		{Key: "client.client_id", Value: clientId},
-	}).Decode(&targetLog)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find target log: %w", err)
-	}
-
-	// Calculate half page size (for logs before and after the target)
-	halfPageSize := pageSize - 1
-
-	// Set limit to half page size + 1 (including the target log)
-	projection.SetLimit(halfPageSize + 1)
-
-	// Create a filter that will find logs around the target log
-	filter := bson.D{
-		{Key: "client.project_id", Value: projectId},
-		{Key: "client.client_id", Value: clientId},
-		{Key: "$or", Value: bson.A{
-			bson.D{
-				{Key: "timestamp", Value: bson.D{{Key: "$lt", Value: targetLog.Timestamp}}},
+func mapLogRows(rows []persistence.LogRow) []types.StoredLog {
+	logs := make([]types.StoredLog, len(rows))
+	for i, row := range rows {
+		logs[i] = types.StoredLog{
+			ID:             row.ID,
+			LogLine:        row.Message,
+			Timestamp:      row.OccurredAt,
+			SequenceNumber: int(row.SequenceNumber),
+			Client: types.StoredClient{
+				ProjectId:  row.ProjectID.String(),
+				ClientId:   row.ClientID.String(),
+				InstanceId: row.InstanceName,
 			},
-			bson.D{
-				{Key: "timestamp", Value: targetLog.Timestamp},
-				{Key: "sequence_number", Value: bson.D{{Key: "$lte", Value: targetLog.SequenceNumber}}},
-			},
-		}},
+		}
 	}
+	return logs
+}
 
-	return filter, projection, nil
+func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
+	if len(logs) == 0 {
+		return emptyLogPage(req)
+	}
+	var backwardCursor *LastCursor
+	if req.Cursor == nil || req.Cursor.IsBackward {
+		last := logs[len(logs)-1]
+		backwardCursor = &LastCursor{
+			Timestamp:      last.Timestamp,
+			SequenceNumber: last.SequenceNumber,
+			ID:             last.ID,
+			IsBackward:     true,
+		}
+	}
+	var forwardCursor *LastCursor
+	if req.Cursor != nil && !req.Cursor.IsBackward {
+		first := logs[0]
+		forwardCursor = &LastCursor{
+			Timestamp:      first.Timestamp,
+			SequenceNumber: first.SequenceNumber,
+			ID:             first.ID,
+			IsBackward:     false,
+		}
+	}
+	return LogPage{
+		Logs:           logs,
+		ForwardCursor:  forwardCursor,
+		BackwardCursor: backwardCursor,
+		IsLastPage:     req.Cursor == nil,
+	}
 }
 
 func (self *MongoLogService) createIndexes() {

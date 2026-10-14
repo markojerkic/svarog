@@ -13,3 +13,33 @@ type LogInsert struct {
 	SequenceNumber int64
 	Message        string
 }
+
+type LogRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+type LogAnchor struct {
+	OccurredAt     time.Time
+	SequenceNumber int64
+	ID             int64
+}
+
+type LogReadQuery struct {
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
+	Instances       []string
+	FilterInstances bool
+	PageSize        int32
+	HasCursor       bool
+	Backward        bool
+	Inclusive       bool
+	CursorAt        time.Time
+	CursorSequence  int64
+	CursorID        *int64
+}

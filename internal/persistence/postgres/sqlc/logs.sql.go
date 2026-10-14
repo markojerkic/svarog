@@ -12,6 +12,34 @@ import (
 	"github.com/google/uuid"
 )
 
+const getLogAnchor = `-- name: GetLogAnchor :one
+SELECT l.occurred_at, l.sequence_number, l.id
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE l.id = $1
+  AND l.client_id = $2
+  AND c.project_id = $3
+`
+
+type GetLogAnchorParams struct {
+	ID        int64
+	ClientID  uuid.UUID
+	ProjectID uuid.UUID
+}
+
+type GetLogAnchorRow struct {
+	OccurredAt     time.Time
+	SequenceNumber int64
+	ID             int64
+}
+
+func (q *Queries) GetLogAnchor(ctx context.Context, arg GetLogAnchorParams) (GetLogAnchorRow, error) {
+	row := q.db.QueryRow(ctx, getLogAnchor, arg.ID, arg.ClientID, arg.ProjectID)
+	var i GetLogAnchorRow
+	err := row.Scan(&i.OccurredAt, &i.SequenceNumber, &i.ID)
+	return i, err
+}
+
 const insertLogs = `-- name: InsertLogs :many
 WITH input AS (
     SELECT
@@ -70,6 +98,157 @@ func (q *Queries) InsertLogs(ctx context.Context, arg InsertLogsParams) ([]int64
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInstances = `-- name: ListInstances :many
+SELECT DISTINCT l.instance_name
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+ORDER BY l.instance_name
+`
+
+type ListInstancesParams struct {
+	ProjectID uuid.UUID
+	ClientID  uuid.UUID
+}
+
+func (q *Queries) ListInstances(ctx context.Context, arg ListInstancesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listInstances, arg.ProjectID, arg.ClientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var instance_name string
+		if err := rows.Scan(&instance_name); err != nil {
+			return nil, err
+		}
+		items = append(items, instance_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLogs = `-- name: ListLogs :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND (
+    NOT $3::bool
+    OR l.instance_name = ANY($4::text[])
+  )
+  AND (
+    NOT $5::bool
+    OR (
+      $6::bool
+      AND $7::bool
+      AND $8::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          <= ($9, $10::bigint, $11::bigint)
+    )
+    OR (
+      $6::bool
+      AND NOT $7::bool
+      AND NOT $8::bool
+      AND (l.occurred_at, l.sequence_number)
+          < ($9, $10::bigint)
+    )
+    OR (
+      $6::bool
+      AND NOT $7::bool
+      AND $8::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          < ($9, $10::bigint, $11::bigint)
+    )
+    OR (
+      NOT $6::bool
+      AND NOT $8::bool
+      AND (l.occurred_at, l.sequence_number)
+          > ($9, $10::bigint)
+    )
+    OR (
+      NOT $6::bool
+      AND $8::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          > ($9, $10::bigint, $11::bigint)
+    )
+  )
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT $12
+`
+
+type ListLogsParams struct {
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
+	FilterInstances bool
+	Instances       []string
+	HasCursor       bool
+	Backward        bool
+	Inclusive       bool
+	HasCursorID     bool
+	CursorAt        time.Time
+	CursorSequence  int64
+	CursorID        int64
+	PageSize        int32
+}
+
+type ListLogsRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsRow, error) {
+	rows, err := q.db.Query(ctx, listLogs,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.FilterInstances,
+		arg.Instances,
+		arg.HasCursor,
+		arg.Backward,
+		arg.Inclusive,
+		arg.HasCursorID,
+		arg.CursorAt,
+		arg.CursorSequence,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLogsRow
+	for rows.Next() {
+		var i ListLogsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

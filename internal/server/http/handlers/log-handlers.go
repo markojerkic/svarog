@@ -38,6 +38,7 @@ type LogsByClientBinding struct {
 	ClientId             string    `param:"clientId"`
 	CursorTime           *int64    `query:"cursorTime"`
 	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
+	CursorID             *int64    `query:"cursorId"`
 	Direction            *string   `query:"direction"`
 	Instances            *[]string `query:"instance"`
 	LogLineId            *string   `query:"logLine"`
@@ -76,6 +77,9 @@ func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
 			Timestamp:      time.UnixMilli(*params.CursorTime),
 			SequenceNumber: *params.CursorSequenceNumber,
 			IsBackward:     *params.Direction == "backward",
+		}
+		if params.CursorID != nil {
+			nextCursor.ID = *params.CursorID
 		}
 	}
 
