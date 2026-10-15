@@ -6,8 +6,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,11 +149,21 @@ func zipMessages(t *testing.T, path string) []string {
 	reader, err := zip.OpenReader(path)
 	require.NoError(t, err, "open the archive zip")
 	defer reader.Close()
-	var messages []string
+	files := make(map[int]*zip.File)
 	for _, file := range reader.File {
 		if file.FileInfo().IsDir() {
 			continue
 		}
+		name := filepath.Base(file.Name)
+		index, err := strconv.Atoi(strings.TrimSuffix(name[strings.LastIndex(name, "_")+1:], ".log"))
+		require.NoError(t, err, "archive log filename ends with a numeric page index")
+		require.NotContains(t, files, index, "each archive page index occurs only once")
+		files[index] = file
+	}
+	var messages []string
+	// ZIP entry order is lexical (_10 before _2); log pages have numeric order.
+	for _, index := range slices.Sorted(maps.Keys(files)) {
+		file := files[index]
 		body, err := file.Open()
 		require.NoError(t, err, "open a zipped log file")
 		scanner := bufio.NewScanner(body)

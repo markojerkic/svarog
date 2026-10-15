@@ -205,7 +205,9 @@ func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.Store
 	}
 	for i := range logs {
 		logs[i].ID = ids[i]
-		self.wsLogRenderer.Render(ctx, logs[i])
+		if self.wsLogRenderer != nil {
+			self.wsLogRenderer.Render(ctx, logs[i])
+		}
 	}
 	return nil
 }
