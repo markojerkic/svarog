@@ -4,27 +4,23 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 
 templ EditUserDialog() {
-	@dialog.Dialog(dialog.Props{
-		Class: "max-w-md",
-		ID:    "edit-user-dialog",
-	}) {
+	@dialog.Dialog(dialog.Props{ID: "edit-user-dialog"}) {
 		{ children... }
-		@dialog.Content() {
+		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
 			@dialog.Header() {
 				@dialog.Title() {
 					Edit user
 				}
 			}
 			<div id="edit-user-form-container">
-				@NewUserForm()
+				@NewUserForm(NewUserFormProps{FormID: "edit-user-form"})
 			</div>
 			@dialog.Footer() {
-				@dialog.Close() {
-					@button.Button(button.Props{
-						Variant: button.VariantOutline,
-					}) {
-						Cancel
-					}
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					Cancel
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,

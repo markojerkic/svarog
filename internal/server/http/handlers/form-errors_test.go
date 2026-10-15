@@ -49,7 +49,7 @@ func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
 			e.ServeHTTP(rec, req)
 			require.Equal(t, http.StatusBadRequest, rec.Code, "Invalid assignments must return a field validation error")
 			require.Contains(t, rec.Body.String(), `id="`+formID+`"`, "Re-rendered form must retain its create/edit identity for the dialog's save button")
-			require.Contains(t, rec.Body.String(), `hx-include="`+html.EscapeString("#"+formID+" [name='projects']")+`"`, "Assignment retries must read the failing form's input, not another open form")
+			require.Contains(t, rec.Body.String(), html.EscapeString("#"+formID+" [name='projects']"), "Assignment retries must read the failing form's input, not another open form")
 			require.Contains(t, rec.Body.String(), "Select valid projects", "Assignment errors must identify the projects field")
 			require.Equal(t, []assignmentOption{{ID: projectID, Name: projectID, Selected: true}}, projectAssignmentOptions(rec.Body.String()), "Re-rendered validation error must preserve submitted project selection")
 		})

@@ -2,7 +2,7 @@ package projectcomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/form"
+import "github.com/markojerkic/svarog/internal/server/ui/components/field"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/types"
@@ -39,31 +39,33 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 	>
 		<input type="hidden" name="id" value={ p.Value.ID }/>
 		<div class="space-y-2">
-			@form.Item(form.ItemProps{
+			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@form.Label(form.LabelProps{For: "name"}) {
+				@field.Label(field.LabelProps{For: "name"}) {
 					Project name
 				}
 				@input.Input(input.Props{
 					Name:        "name",
 					Placeholder: "Enter project name",
 					Value:       p.Value.Name,
-					HasError:    p.ApiError.Fields["name"] != "",
-					Attributes:  templ.Attributes{"required": ""},
+					Attributes: templ.Attributes{
+						"required":     "",
+						"aria-invalid": p.ApiError.Fields["name"] != "",
+					},
 				})
 				if p.ApiError.Fields["name"] != "" {
-					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+					@field.Error() {
 						{ p.ApiError.Fields["name"] }
 					}
 				}
 			}
 		</div>
 		<div class="space-y-2">
-			@form.Item(form.ItemProps{
+			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@form.Label(form.LabelProps{For: "clients"}) {
+				@field.Label(field.LabelProps{For: "clients"}) {
 					Clients
 				}
 				@tagsinput.TagsInput(tagsinput.Props{
@@ -73,7 +75,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					HasError:    p.ApiError.Fields["clients"] != "",
 				})
 				if p.ApiError.Fields["clients"] != "" {
-					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+					@field.Error() {
 						{ p.ApiError.Fields["clients"] }
 					}
 				}
@@ -87,15 +89,14 @@ templ NewProject() {
 	@dialog.Dialog(dialog.Props{
 		ID: "new-project-dialog",
 	}) {
-		@dialog.Trigger() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-			}) {
-				<span class="flex items-center">
-					@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
-					Create a new project
-				</span>
-			}
+		@button.Button(button.Props{
+			Variant:    button.VariantOutline,
+			Attributes: dialog.Trigger(ctx),
+		}) {
+			<span class="flex items-center">
+				@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
+				Create a new project
+			</span>
 		}
 		@dialog.Content(dialog.ContentProps{
 			Class: "max-w-md",
@@ -110,12 +111,11 @@ templ NewProject() {
 			}
 			@NewProjectForm()
 			@dialog.Footer() {
-				@dialog.Close() {
-					@button.Button(button.Props{
-						Variant: button.VariantOutline,
-					}) {
-						Cancel
-					}
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					Cancel
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,

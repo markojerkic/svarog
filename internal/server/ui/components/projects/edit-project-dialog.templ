@@ -4,12 +4,9 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 
 templ EditProjectDialog() {
-	@dialog.Dialog(dialog.Props{
-		Class: "max-w-md",
-		ID:    "edit-project-dialog",
-	}) {
+	@dialog.Dialog(dialog.Props{ID: "edit-project-dialog"}) {
 		{ children... }
-		@dialog.Content() {
+		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
 			@dialog.Header() {
 				@dialog.Title() {
 					Edit project
@@ -19,12 +16,11 @@ templ EditProjectDialog() {
 				@NewProjectForm()
 			</div>
 			@dialog.Footer() {
-				@dialog.Close() {
-					@button.Button(button.Props{
-						Variant: button.VariantOutline,
-					}) {
-						Cancel
-					}
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					Cancel
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,

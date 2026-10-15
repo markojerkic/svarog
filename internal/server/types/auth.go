@@ -26,7 +26,7 @@ type CreateUserForm struct {
 	LastName   string                `json:"lastName" form:"lastName" validate:"required,gte=3"`
 	Role       string                `json:"role" form:"role" validate:"required,oneof=user admin"`
 	ProjectIDs CommaSeparatedStrings `json:"projects" form:"projects"`
-	Projects   []combobox.Item       `json:"-" form:"-"`
+	Projects   []combobox.Option     `json:"-" form:"-"`
 }
 
 type ResetPasswordForm struct {

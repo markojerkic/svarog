@@ -1,11 +1,9 @@
-// templui component pagination - version: v1.0.0 installed by templui v1.0.0
-// 📚 Documentation: https://templui.io/docs/components/pagination
 package pagination
 
 import (
 	"github.com/markojerkic/svarog/internal/server/ui/components/button"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
-	"github.com/markojerkic/svarog/internal/server/ui/utils"
+	"github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 )
 
 type Props struct {
@@ -28,7 +26,6 @@ type ItemProps struct {
 
 type LinkProps struct {
 	ID         string
-	Type       button.Type
 	Class      string
 	Attributes templ.Attributes
 	Href       string
@@ -37,24 +34,21 @@ type LinkProps struct {
 }
 
 type PreviousProps struct {
-	button.Props
 	ID         string
 	Class      string
-	Type       button.Type
 	Attributes templ.Attributes
 	Href       string
 	Disabled   bool
-	Label      string
+	Text      string
 }
 
 type NextProps struct {
 	ID         string
-	Type       button.Type
 	Class      string
 	Attributes templ.Attributes
 	Href       string
 	Disabled   bool
-	Label      string
+	Text      string
 }
 
 templ Pagination(props ...Props) {
@@ -68,7 +62,8 @@ templ Pagination(props ...Props) {
 		}
 		role="navigation"
 		aria-label="pagination"
-		class={ utils.TwMerge("flex flex-wrap justify-center", p.Class) }
+		data-slot="pagination"
+		class={ utils.CN("mx-auto flex w-full justify-center", p.Class) }
 		{ p.Attributes... }
 	>
 		{ children... }
@@ -84,7 +79,8 @@ templ Content(props ...ContentProps) {
 		if p.ID != "" {
 			id={ p.ID }
 		}
-		class="flex flex-row items-center gap-1"
+		data-slot="pagination-content"
+		class={ utils.CN("gap-0.5 flex items-center", p.Class) }
 		{ p.Attributes... }
 	>
 		{ children... }
@@ -99,6 +95,10 @@ templ Item(props ...ItemProps) {
 	<li
 		if p.ID != "" {
 			id={ p.ID }
+		}
+		data-slot="pagination-item"
+		if p.Class != "" {
+			class={ p.Class }
 		}
 		{ p.Attributes... }
 	>
@@ -117,20 +117,29 @@ templ Link(props ...LinkProps) {
 			Disabled:   true,
 			Size:       button.SizeIcon,
 			Variant:    button.VariantGhost,
-			Class:      p.Class,
+			Class:      utils.CN("", p.Class),
 			Attributes: p.Attributes,
 		}) {
 			{ children... }
 		}
 	} else {
+		{{
+			attrs := templ.Attributes{"data-slot": "pagination-link"}
+			if p.IsActive {
+				attrs["aria-current"] = "page"
+				attrs["data-active"] = "true"
+			}
+			for k, v := range p.Attributes {
+				attrs[k] = v
+			}
+		}}
 		@button.Button(button.Props{
 			ID:         p.ID,
-			Type:       p.Type,
 			Href:       p.Href,
 			Size:       button.SizeIcon,
 			Variant:    button.Variant(buttonVariant(p.IsActive)),
-			Class:      p.Class,
-			Attributes: p.Attributes,
+			Class:      utils.CN("", p.Class),
+			Attributes: attrs,
 		}) {
 			{ children... }
 		}
@@ -142,19 +151,25 @@ templ Previous(props ...PreviousProps) {
 	if len(props) > 0 {
 		{{ p = props[0] }}
 	}
+	if p.Text == "" {
+		{{ p.Text = "Previous" }}
+	}
+	{{
+		attrs := templ.Attributes{"aria-label": "Go to previous page", "data-slot": "pagination-link"}
+		for k, v := range p.Attributes {
+			attrs[k] = v
+		}
+	}}
 	@button.Button(button.Props{
 		ID:         p.ID,
 		Href:       p.Href,
-		Type:       p.Type,
 		Disabled:   p.Disabled,
 		Variant:    button.VariantGhost,
-		Class:      utils.TwMerge("gap-1", p.Class),
-		Attributes: p.Attributes,
+		Class:      utils.CN("pl-1.5!", p.Class),
+		Attributes: attrs,
 	}) {
-		@icon.ChevronLeft(icon.Props{Size: 16})
-		if p.Label != "" {
-			<span>{ p.Label }</span>
-		}
+		@icon.ChevronLeft(icon.Props{Class: "", Attributes: templ.Attributes{"data-icon": "inline-start"}})
+		<span class="hidden sm:block">{ p.Text }</span>
 	}
 }
 
@@ -163,90 +178,33 @@ templ Next(props ...NextProps) {
 	if len(props) > 0 {
 		{{ p = props[0] }}
 	}
+	if p.Text == "" {
+		{{ p.Text = "Next" }}
+	}
+	{{
+		attrs := templ.Attributes{"aria-label": "Go to next page", "data-slot": "pagination-link"}
+		for k, v := range p.Attributes {
+			attrs[k] = v
+		}
+	}}
 	@button.Button(button.Props{
 		ID:         p.ID,
 		Href:       p.Href,
-		Type:       p.Type,
 		Disabled:   p.Disabled,
 		Variant:    button.VariantGhost,
-		Class:      utils.TwMerge("gap-1", p.Class),
-		Attributes: p.Attributes,
+		Class:      utils.CN("pr-1.5!", p.Class),
+		Attributes: attrs,
 	}) {
-		if p.Label != "" {
-			<span>{ p.Label }</span>
-		}
-		@icon.ChevronRight(icon.Props{Size: 16})
+		<span class="hidden sm:block">{ p.Text }</span>
+		@icon.ChevronRight(icon.Props{Class: "", Attributes: templ.Attributes{"data-icon": "inline-end"}})
 	}
 }
 
 templ Ellipsis() {
-	@icon.Ellipsis(icon.Props{Size: 16})
-}
-
-func CreatePagination(currentPage, totalPages, maxVisible int) struct {
-	CurrentPage int
-	TotalPages  int
-	Pages       []int
-	HasPrevious bool
-	HasNext     bool
-} {
-	if currentPage < 1 {
-		currentPage = 1
-	}
-	if totalPages < 1 {
-		totalPages = 1
-	}
-	if currentPage > totalPages {
-		currentPage = totalPages
-	}
-	if maxVisible < 1 {
-		maxVisible = 5
-	}
-
-	start, end := calculateVisibleRange(currentPage, totalPages, maxVisible)
-	pages := make([]int, 0, end-start+1)
-	for i := start; i <= end; i++ {
-		pages = append(pages, i)
-	}
-
-	return struct {
-		CurrentPage int
-		TotalPages  int
-		Pages       []int
-		HasPrevious bool
-		HasNext     bool
-	}{
-		CurrentPage: currentPage,
-		TotalPages:  totalPages,
-		Pages:       pages,
-		HasPrevious: currentPage > 1,
-		HasNext:     currentPage < totalPages,
-	}
-}
-
-func calculateVisibleRange(currentPage, totalPages, maxVisible int) (int, int) {
-	if totalPages <= maxVisible {
-		return 1, totalPages
-	}
-
-	half := maxVisible / 2
-	start := currentPage - half
-	end := currentPage + half
-
-	if start < 1 {
-		end += (1 - start)
-		start = 1
-	}
-
-	if end > totalPages {
-		start -= (end - totalPages)
-		if start < 1 {
-			start = 1
-		}
-		end = totalPages
-	}
-
-	return start, end
+	<span aria-hidden="true" data-slot="pagination-ellipsis" class="size-8 [&_svg:not([class*='size-'])]:size-4 flex items-center justify-center">
+		@icon.Ellipsis()
+		<span class="sr-only">More pages</span>
+	</span>
 }
 
 func buttonVariant(isActive bool) button.Variant {

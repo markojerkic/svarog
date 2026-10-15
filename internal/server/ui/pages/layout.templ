@@ -2,18 +2,12 @@ package pages
 
 import "strings"
 
+import "github.com/markojerkic/svarog/internal/server/ui/components"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/input"
-import "github.com/markojerkic/svarog/internal/server/ui/components/label"
 import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
-import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
-import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
-import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
-import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
@@ -43,16 +37,10 @@ templ BaseLayout(props BaseProps) {
 			<script defer src="/assets/js/copy-result-string.js"></script>
 			<script defer src="/assets/js/close-dialog.js"></script>
 			<script defer src="/assets/js/confirm.js"></script>
-			@input.Script()
-			@label.Script()
-			@dialog.Script()
-			@dropdown.Script()
-			@sidebar.Script()
-			@popover.Script()
+			<script defer src="/assets/js/datepicker.js"></script>
+			<script defer src="/assets/js/project-search.js"></script>
+			@components.Scripts()
 			@tagsinput.Script()
-			@selectbox.Script()
-			@datepicker.Script()
-			@calendar.Script()
 			<script defer src="/assets/js/toast-handler.js"></script>
 		</head>
 		<body
@@ -86,13 +74,9 @@ func isActivePath(currentPath, menuPath string) bool {
 	return strings.HasPrefix(currentPath, menuPath)
 }
 
-func activeMenuClass() string {
-	return "data-[tui-sidebar-active=true]:bg-accent data-[tui-sidebar-active=true]:text-accent-foreground data-[tui-sidebar-active=true]:border-l-2 data-[tui-sidebar-active=true]:border-foreground data-[tui-sidebar-active=true]:font-semibold"
-}
-
 templ AdminLayout(props AdminLayoutProps) {
 	@BaseLayout(BaseProps{Title: props.Title}) {
-		@sidebar.Layout() {
+		@sidebar.Provider() {
 			@sidebar.Sidebar(sidebar.Props{
 				Collapsible: sidebar.CollapsibleIcon,
 				Variant:     sidebar.VariantFloating,
@@ -121,7 +105,6 @@ templ AdminLayout(props AdminLayoutProps) {
 										Href:     "/admin/dashboard",
 										Tooltip:  "Dashboard",
 										IsActive: isActivePath(props.CurrentPath, "/admin/dashboard"),
-										Class:    activeMenuClass(),
 									}) {
 										@icon.Gauge(icon.Props{Class: "size-4"})
 										<span>Dashboard</span>
@@ -131,7 +114,6 @@ templ AdminLayout(props AdminLayoutProps) {
 											Href:     "/admin/projects",
 											Tooltip:  "Projects",
 											IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
-											Class:    activeMenuClass(),
 										}) {
 											@icon.FolderKanban(icon.Props{Class: "size-4"})
 											<span>Projects</span>
@@ -142,7 +124,6 @@ templ AdminLayout(props AdminLayoutProps) {
 											Href:     "/admin/users",
 											Tooltip:  "Users",
 											IsActive: isActivePath(props.CurrentPath, "/admin/users"),
-											Class:    activeMenuClass(),
 										}) {
 											@icon.Users(icon.Props{Class: "size-4"})
 											<span>Users</span>
@@ -199,10 +180,11 @@ templ ConfirmDialog() {
 				}
 			}
 			@dialog.Footer() {
-				@dialog.Close() {
-					@button.Button(button.Props{Variant: button.VariantOutline}) {
-						Cancel
-					}
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					Cancel
 				}
 				@button.Button(button.Props{
 					Variant: button.VariantDefault,

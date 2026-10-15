@@ -1,0 +1,137 @@
+package combobox
+
+import "fmt"
+import "strings"
+
+type Option struct {
+	Name  string
+	Value string
+}
+
+type SearchProps struct {
+	ID          string
+	Name        string
+	Form        string
+	SearchURL   string
+	Values      []Option
+	Placeholder string
+	HasError    bool
+	Multiple    bool
+}
+
+templ ComboBox(props ...SearchProps) {
+	{{ var p SearchProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.ID == "" {
+		{{ p.ID = "projects" }}
+	}
+	if p.Placeholder == "" {
+		{{ p.Placeholder = "Select..." }}
+	}
+	{{
+		values := make([]string, len(p.Values))
+		items := make([]ItemData, len(p.Values))
+		for i, item := range p.Values {
+			values[i] = item.Value
+			items[i] = ItemData{Value: item.Value, Label: item.Name}
+		}
+		include := fmt.Sprintf("#%s [name='%s']", p.Form, p.Name)
+		changed := fmt.Sprintf("change from:(#%s [name='%s'])", p.Form, p.Name)
+	}}
+	@Combobox(Props{
+		ID:            p.ID,
+		Name:          p.Name,
+		Form:          p.Form,
+		Multiple:      p.Multiple,
+		DefaultValues: values,
+		Items:         items,
+	}) {
+		@Input(InputProps{
+			ID:          p.ID + "-search",
+			Placeholder: p.Placeholder,
+			Class:       utilsIf(p.HasError, "border-destructive"),
+			Attributes: templ.Attributes{
+				"aria-invalid":       utilsIf(p.HasError, "true"),
+				"name":               "search",
+				"data-project-search": p.ID + "-results",
+			},
+		})
+		@Content() {
+			@List(ListProps{
+				ID: p.ID + "-results",
+				Attributes: templ.Attributes{
+					"hx-get":     p.SearchURL,
+					"hx-trigger": "search, " + changed,
+					"hx-target":  "this",
+					"hx-include": "#" + p.ID + "-search, " + include,
+					"hx-sync":    "this:replace",
+					"hx-swap":    "innerHTML",
+				},
+			}) {
+				@ComboboxItems(ComboboxItemsProps{
+					SelectedItems: p.Values,
+					Include:       include,
+				})
+			}
+		}
+	}
+}
+
+type ComboboxItemsProps struct {
+	SelectedItems []Option
+	Items         []Option
+	NextURL       string
+	Query         string
+	Include       string
+}
+
+templ ComboboxItems(props ComboboxItemsProps) {
+	for _, item := range props.SelectedItems {
+		@searchOption(item, true, props.Query)
+	}
+	for _, item := range props.Items {
+		@searchOption(item, false, "")
+	}
+	if props.NextURL != "" {
+		<div
+			hx-get={ props.NextURL }
+			hx-swap="outerHTML"
+			hx-trigger="intersect once"
+			hx-include={ props.Include }
+		></div>
+	}
+}
+
+templ searchOption(item Option, selected bool, query string) {
+	<div
+		role="option"
+		data-slot="combobox-item"
+		data-templ-value={ item.Value }
+		data-templ-label={ strings.TrimSpace(item.Name + " " + query) }
+		if selected {
+			data-selected="true"
+			aria-selected="true"
+		} else {
+			aria-selected="false"
+		}
+		class="data-highlighted:bg-accent data-highlighted:text-accent-foreground gap-2 rounded-md py-1 pr-8 pl-1.5 text-sm relative flex w-full cursor-default items-center outline-hidden select-none"
+	>
+		<span>{ item.Name }</span>
+		<span class="pointer-events-none absolute right-2 flex size-4 items-center justify-center" aria-hidden="true" hidden?={ !selected }>
+			@iconCheck()
+		</span>
+	</div>
+}
+
+func utilsIf(ok bool, value string) string {
+	if ok {
+		return value
+	}
+	return ""
+}
+
+templ iconCheck() {
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 pointer-events-none"><path d="M20 6 9 17l-5-5"></path></svg>
+}

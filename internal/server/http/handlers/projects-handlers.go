@@ -42,7 +42,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 	}
 
 	var selectedIDs types.CommaSeparatedStrings
-	if err := selectedIDs.UnmarshalParam(c.QueryParam("projects")); err != nil {
+	if err := selectedIDs.UnmarshalParams(c.QueryParams()["projects"]); err != nil {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid selected projects"})
 	}
 	selected := make(map[string]bool, len(selectedIDs))
@@ -57,7 +57,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 			uniqueIDs = append(uniqueIDs, id)
 		}
 	}
-	var selectedItems []combobox.Item
+	var selectedItems []combobox.Option
 	// First-page searches replace the list, so keep every selection in the DOM.
 	// Later pages append only results that are not already selected.
 	if request.Page == 0 && len(uniqueIDs) > 0 {
@@ -67,7 +67,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting selected projects"})
 		}
 		for _, project := range selectedProjects {
-			selectedItems = append(selectedItems, combobox.Item{Value: project.ID.String(), Name: project.Name})
+			selectedItems = append(selectedItems, combobox.Option{Value: project.ID.String(), Name: project.Name})
 		}
 	}
 
@@ -76,12 +76,12 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 		slog.Error("Error fetching projects", "error", err)
 		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting projects"})
 	}
-	items := make([]combobox.Item, 0, len(results))
+	items := make([]combobox.Option, 0, len(results))
 	for _, project := range results {
 		if selected[project.ID.String()] {
 			continue
 		}
-		items = append(items, combobox.Item{
+		items = append(items, combobox.Option{
 			Value: project.ID.String(),
 			Name:  project.Name,
 		})
@@ -103,6 +103,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 		SelectedItems: selectedItems,
 		Items:         items,
 		NextURL:       nextUrl,
+		Query:         request.Search,
 	}))
 }
 

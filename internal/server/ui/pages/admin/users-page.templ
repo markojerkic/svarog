@@ -2,7 +2,7 @@ package admin
 
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/table"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdownmenu"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
@@ -34,7 +34,7 @@ templ UsersListPage(props UsersListPageProps) {
 					hx-trigger="input changed delay:300ms"
 				>
 					@input.Input(input.Props{
-						Type:        input.TypeSearch,
+						Type:        "search",
 						Value:       props.Search,
 						Name:        "search",
 						Class:       "max-w-2xs md:max-w-xs",
@@ -101,39 +101,39 @@ templ UsersTableBody(props UsersListPageProps) {
 }
 
 templ userActions(user auth.User) {
-	@dropdown.Dropdown() {
-		@dropdown.Trigger() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-				Attributes: templ.Attributes{
-					"data-user-actions-id": user.ID.String(),
-				},
-			}) {
-				<span
-					class="svarog-indicator"
-					data-indicator-user-id={ user.ID.String() }
-					data-fallback
-				>
-					@icon.EllipsisVertical()
-				</span>
-				<span
-					class="svarog-indicator animate-spin"
-					data-indicator-user-id={ user.ID.String() }
-				>
-					@icon.LoaderCircle(icon.Props{Size: 16})
-				</span>
-			}
+	@dropdownmenu.DropdownMenu() {
+		{{
+			trigger := dropdownmenu.Trigger(ctx)
+			trigger["data-user-actions-id"] = user.ID.String()
+		}}
+		@button.Button(button.Props{
+			Variant:    button.VariantOutline,
+			Attributes: trigger,
+		}) {
+			<span
+				class="svarog-indicator"
+				data-indicator-user-id={ user.ID.String() }
+				data-fallback
+			>
+				@icon.EllipsisVertical()
+			</span>
+			<span
+				class="svarog-indicator animate-spin"
+				data-indicator-user-id={ user.ID.String() }
+			>
+				@icon.LoaderCircle(icon.Props{Size: 16})
+			</span>
 		}
-		@dropdown.Content(dropdown.ContentProps{
+		@dropdownmenu.Content(dropdownmenu.ContentProps{
 			Class: "w-56",
 		}) {
-			@dropdown.Group() {
-				@dropdown.Item(dropdown.ItemProps{
+			@dropdownmenu.Group() {
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-get":          "/admin/users/" + user.ID.String() + "/edit",
 						"hx-target":       "#edit-user-form-container",
 						"hx-swap":         "innerHTML",
-						"onclick":         "window.tui.dialog.open('edit-user-dialog')",
+						"onclick":         "window.templ.dialog.open('edit-user-dialog')",
 						"hx-disabled-elt": "#edit-user-dialog button[type=submit], #edit-user-dialog input",
 					},
 				}) {
@@ -142,7 +142,7 @@ templ userActions(user auth.User) {
 						Edit
 					</span>
 				}
-				@dropdown.Item(dropdown.ItemProps{
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-delete":       "/admin/users/" + user.ID.String(),
 						"hx-confirm":      "Are you sure you want to delete this user?",
@@ -155,7 +155,7 @@ templ userActions(user auth.User) {
 						Delete user
 					</span>
 				}
-				@dropdown.Item(dropdown.ItemProps{
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-post": "/admin/users/generate-login-token",
 						"hx-swap": "none",

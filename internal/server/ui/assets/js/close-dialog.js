@@ -4,6 +4,6 @@ htmx.on("htmx:afterRequest", function (evt) {
   if (!isCloseDialog) {
     return;
   }
-  const dialog = evt.detail.elt.closest("[data-tui-dialog]");
-  window.tui.dialog.close(dialog.id);
+  const dialog = evt.detail.elt.closest('[role="dialog"]');
+  if (dialog) window.templ.dialog.close(dialog.id);
 });

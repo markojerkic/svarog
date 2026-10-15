@@ -7,22 +7,20 @@ document.addEventListener("htmx:confirm", function (e) {
   document.getElementById("confirm-message").textContent = message;
 
   const confirmButton = document.getElementById("confirm-button");
-  const dialogElement = document.querySelector(
-    '[data-tui-dialog][id="confirm-dialog"]',
-  );
+  const dialogElement = document.getElementById("confirm-dialog");
 
-  window.tui.dialog.open("confirm-dialog");
+  window.templ.dialog.open("confirm-dialog");
 
   const handleConfirm = function () {
     e.detail.issueRequest(true);
-    window.tui.dialog.close("confirm-dialog");
+    window.templ.dialog.close("confirm-dialog");
     confirmButton.removeEventListener("click", handleConfirm);
     dialogElement.removeEventListener("click", handleCancel);
   };
 
   const handleCancel = function (event) {
-    if (event.target.hasAttribute("data-tui-dialog-close")) {
-      window.tui.dialog.close("confirm-dialog");
+    if (event.target.closest("[data-templ-dialog-close]")) {
+      window.templ.dialog.close("confirm-dialog");
       confirmButton.removeEventListener("click", handleConfirm);
       dialogElement.removeEventListener("click", handleCancel);
     }

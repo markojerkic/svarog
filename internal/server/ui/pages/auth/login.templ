@@ -2,7 +2,7 @@ package auth
 
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/card"
-import "github.com/markojerkic/svarog/internal/server/ui/components/form"
+import "github.com/markojerkic/svarog/internal/server/ui/components/field"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 
@@ -36,54 +36,53 @@ templ LoginPage(props ...LoginPageProps) {
 						hx-disabled-elt="input, button"
 						class="space-y-4"
 					>
-						@form.Item() {
-							@form.Label(form.LabelProps{For: "username"}) {
+						@field.Field() {
+							@field.Label(field.LabelProps{For: "username"}) {
 								Username
 							}
 							@input.Input(input.Props{
 								ID:          "username",
 								Name:        "username",
-								Type:        input.TypeText,
+								Type:        "text",
 								Value:       p.Username,
 								Placeholder: "Enter your username",
-								HasError:    p.Error != "",
 								Attributes: templ.Attributes{
 									"required":     true,
 									"autocomplete": "username",
+									"aria-invalid": p.Error != "",
 								},
 							})
 							if p.Error != "" {
-								@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+								@field.Error() {
 									{ p.Error }
 								}
 							}
 						}
-						@form.Item() {
-							@form.Label(form.LabelProps{For: "password"}) {
+						@field.Field() {
+							@field.Label(field.LabelProps{For: "password"}) {
 								Password
 							}
 							@input.Input(input.Props{
 								ID:          "password",
 								Name:        "password",
-								Type:        input.TypePassword,
+								Type:        "password",
 								Value:       p.Password,
 								Placeholder: "Enter your password",
-								HasError:    p.Error != "",
 								Attributes: templ.Attributes{
 									"required":     true,
 									"autocomplete": "current-password",
+									"aria-invalid": p.Error != "",
 								},
 							})
 							if p.Error != "" {
-								@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+								@field.Error() {
 									{ p.Error }
 								}
 							}
 						}
 						@button.Button(button.Props{
-							Type:      button.TypeSubmit,
-							FullWidth: true,
-							Class:     "mt-6",
+							Type:  button.TypeSubmit,
+							Class: "mt-6 w-full",
 						}) {
 							Sign in
 						}

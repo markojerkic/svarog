@@ -1,15 +1,12 @@
-// templui component label - version: v1.0.0 installed by templui v1.0.0
-// 📚 Documentation: https://templui.io/docs/components/label
 package label
 
-import "github.com/markojerkic/svarog/internal/server/ui/utils"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 type Props struct {
 	ID         string
 	Class      string
 	Attributes templ.Attributes
 	For        string
-	Error      string
 }
 
 templ Label(props ...Props) {
@@ -24,20 +21,17 @@ templ Label(props ...Props) {
 		if p.For != "" {
 			for={ p.For }
 		}
+		data-slot="label"
 		class={
-			utils.TwMerge(
-				"text-sm font-medium leading-none inline-block",
-				utils.If(len(p.Error) > 0, "text-destructive"),
+			utils.CN(
+				// 1:1 base/ui/label.tsx: structure lives here, the look comes from
+				// the active style-*.css via.
+				"gap-2 text-sm leading-none font-medium group-data-[disabled=true]:opacity-50 peer-disabled:opacity-50 flex items-center select-none group-data-[disabled=true]:pointer-events-none peer-disabled:cursor-not-allowed",
 				p.Class,
 			),
 		}
-		data-tui-label-disabled-style="opacity-50 cursor-not-allowed"
 		{ p.Attributes... }
 	>
 		{ children... }
 	</label>
-}
-
-templ Script() {
-	<script defer nonce={ templ.GetNonce(ctx) } src={ "/assets/js/label.min.js?v=" + utils.ScriptVersion }></script>
 }

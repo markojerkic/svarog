@@ -2,8 +2,8 @@ package projectcomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/form"
-import "github.com/markojerkic/svarog/internal/server/ui/components/selectbox"
+import "github.com/markojerkic/svarog/internal/server/ui/components/field"
+import selectcomp "github.com/markojerkic/svarog/internal/server/ui/components/select"
 import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
@@ -29,49 +29,52 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 	>
 		<input type="hidden" name="projectId" value={ p.ProjectID }/>
 		<div class="space-y-2">
-			@form.Item(form.ItemProps{
-				Class: "space-y-2",
-			}) {
-				@form.Label(form.LabelProps{For: "clientId"}) {
+			@field.Field(field.Props{Class: "space-y-2"}) {
+				@field.Label(field.LabelProps{For: "clientId"}) {
 					Client
 				}
-				@selectbox.SelectBox() {
-					@selectbox.Trigger(selectbox.TriggerProps{
-						ID:         "clientId",
-						Name:       "clientId",
-						HasError:   p.ApiError.Fields["clientId"] != "",
-						Attributes: templ.Attributes{"required": ""},
-					}) {
-						@selectbox.Value(selectbox.ValueProps{
-							Placeholder: "Select a client",
-						})
+				{{
+					clientItems := make([]selectcomp.ItemData, len(p.Clients))
+					for i, client := range p.Clients {
+						clientItems[i] = selectcomp.ItemData{Value: client.ID.String(), Label: client.Name}
 					}
-					@selectbox.Content(selectbox.ContentProps{NoSearch: len(p.Clients) <= 5}) {
+				}}
+				@selectcomp.Select(selectcomp.Props{
+					Name:  "clientId",
+					Items: clientItems,
+				}) {
+					@selectcomp.Trigger(selectcomp.TriggerProps{
+						ID:    "clientId",
+						Class: "w-full",
+						Attributes: templ.Attributes{
+							"required":     "",
+							"aria-invalid": p.ApiError.Fields["clientId"] != "",
+						},
+					}) {
+						@selectcomp.Value(selectcomp.ValueProps{Placeholder: "Select a client"})
+					}
+					@selectcomp.Content() {
 						for _, client := range p.Clients {
-							@selectbox.Item(selectbox.ItemProps{
-								Value: client.ID.String(),
-							}) {
+							@selectcomp.Item(selectcomp.ItemProps{Value: client.ID.String()}) {
 								{ client.Name }
 							}
 						}
 					}
 				}
 				if p.ApiError.Fields["clientId"] != "" {
-					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+					@field.Error() {
 						{ p.ApiError.Fields["clientId"] }
 					}
 				} else {
-					@form.Description() {
+					@field.Description() {
 						Select the client for which to generate credentials
 					}
 				}
 			}
 		</div>
 		<div class="space-y-2">
-			@form.Item(form.ItemProps{
-				Class: "space-y-2",
-			}) {
-				@form.Label(form.LabelProps{For: "expiry"}) {
+			@field.Field(field.Props{Class: "space-y-2"}) {
+				@field.Label(field.LabelProps{For: "expiry"}) {
 					Expiry Date (Optional)
 				}
 				@datepicker.DatePicker(datepicker.Props{
@@ -79,14 +82,13 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 					Name:        "expiry",
 					Placeholder: "Select expiry date",
 					HasError:    p.ApiError.Fields["expiry"] != "",
-					Attributes:  templ.Attributes{"required": ""},
 				})
 				if p.ApiError.Fields["expiry"] != "" {
-					@form.Message(form.MessageProps{Variant: form.MessageVariantError}) {
+					@field.Error() {
 						{ p.ApiError.Fields["expiry"] }
 					}
 				} else {
-					@form.Description() {
+					@field.Description() {
 						Leave empty for credentials that never expire
 					}
 				}
@@ -97,12 +99,9 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 }
 
 templ ConnectionStringDialog() {
-	@dialog.Dialog(dialog.Props{
-		Class: "max-w-md",
-		ID:    "connection-string-dialog",
-	}) {
+	@dialog.Dialog(dialog.Props{ID: "connection-string-dialog"}) {
 		{ children... }
-		@dialog.Content() {
+		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
 			@dialog.Header() {
 				@dialog.Title() {
 					Generate Connection String
@@ -115,12 +114,11 @@ templ ConnectionStringDialog() {
 				@ConnectionStringForm()
 			</div>
 			@dialog.Footer() {
-				@dialog.Close() {
-					@button.Button(button.Props{
-						Variant: button.VariantOutline,
-					}) {
-						Cancel
-					}
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					Cancel
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,

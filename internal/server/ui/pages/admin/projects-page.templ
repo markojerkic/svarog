@@ -5,7 +5,7 @@ import "strings"
 
 import "github.com/markojerkic/svarog/internal/lib/projects"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
-import "github.com/markojerkic/svarog/internal/server/ui/components/dropdown"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdownmenu"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/pagination"
 import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
@@ -35,7 +35,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					hx-trigger="input changed delay:300ms"
 				>
 					@input.Input(input.Props{
-						Type:        input.TypeSearch,
+						Type:        "search",
 						Value:       props.Search,
 						Name:        "search",
 						Class:       "max-w-2xs md:max-w-xs",
@@ -103,24 +103,23 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 }
 
 templ projectActions(project projects.Project) {
-	@dropdown.Dropdown() {
-		@dropdown.Trigger() {
-			@button.Button(button.Props{
-				Variant: button.VariantOutline,
-			}) {
-				@icon.EllipsisVertical()
-			}
+	@dropdownmenu.DropdownMenu() {
+		@button.Button(button.Props{
+			Variant:    button.VariantOutline,
+			Attributes: dropdownmenu.Trigger(ctx),
+		}) {
+			@icon.EllipsisVertical()
 		}
-		@dropdown.Content(dropdown.ContentProps{
+		@dropdownmenu.Content(dropdownmenu.ContentProps{
 			Class: "w-56",
 		}) {
-			@dropdown.Group() {
-				@dropdown.Item(dropdown.ItemProps{
+			@dropdownmenu.Group() {
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-get":    "/admin/projects/" + project.ID.String() + "/edit",
 						"hx-target": "#edit-project-form-container",
 						"hx-swap":   "innerHTML",
-						"onclick":   "window.tui.dialog.open('edit-project-dialog')",
+						"onclick":   "window.templ.dialog.open('edit-project-dialog')",
 					},
 				}) {
 					<span class="flex items-center">
@@ -128,7 +127,7 @@ templ projectActions(project projects.Project) {
 						Edit
 					</span>
 				}
-				@dropdown.Item(dropdown.ItemProps{
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-delete":       "/admin/projects/" + project.ID.String(),
 						"hx-confirm":      "Are you sure you want to delete this project?",
@@ -141,12 +140,12 @@ templ projectActions(project projects.Project) {
 						Delete project
 					</span>
 				}
-				@dropdown.Item(dropdown.ItemProps{
+				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-get":    "/admin/projects/" + project.ID.String() + "/connection-string-form",
 						"hx-target": "#connection-string-form-container",
 						"hx-swap":   "innerHTML",
-						"onclick":   "window.tui.dialog.open('connection-string-dialog')",
+						"onclick":   "window.templ.dialog.open('connection-string-dialog')",
 					},
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">

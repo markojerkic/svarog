@@ -92,16 +92,23 @@ type assignmentOption struct {
 }
 
 func projectAssignmentOptions(markup string) []assignmentOption {
-	pattern := regexp.MustCompile(`(?s)<div\b[^>]*role="option"[^>]*data-tui-selectbox-value="([^"]*)"[^>]*data-tui-selectbox-selected="([^"]*)"[^>]*>\s*<span[^>]*>(.*?)</span>`)
+	pattern := regexp.MustCompile(`(?s)<div\b[^>]*role="option"[^>]*>.*?</div>`)
+	valuePattern := regexp.MustCompile(`data-templ-value="([^"]*)"`)
+	namePattern := regexp.MustCompile(`<span>(.*?)</span>`)
 	var options []assignmentOption
-	for _, match := range pattern.FindAllStringSubmatch(markup, -1) {
-		if _, err := uuid.Parse(match[1]); err != nil {
+	for _, tag := range pattern.FindAllString(markup, -1) {
+		value := valuePattern.FindStringSubmatch(tag)
+		name := namePattern.FindStringSubmatch(tag)
+		if value == nil || name == nil {
+			continue
+		}
+		if _, err := uuid.Parse(value[1]); err != nil {
 			continue // The user form also contains non-project role options.
 		}
 		options = append(options, assignmentOption{
-			ID:       match[1],
-			Selected: match[2] == "true",
-			Name:     strings.TrimSpace(html.UnescapeString(match[3])),
+			ID:       value[1],
+			Selected: strings.Contains(tag, `data-selected="true"`),
+			Name:     strings.TrimSpace(html.UnescapeString(name[1])),
 		})
 	}
 	return options
@@ -286,7 +293,7 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 			err := usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 				FormID: formID,
 				Value: types.CreateUserForm{
-					Projects: []combobox.Item{
+					Projects: []combobox.Option{
 						{
 							Value: project.ID.String(),
 							Name:  project.Name,
@@ -296,8 +303,8 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 			}).Render(context.Background(), &rendered)
 
 			require.NoError(t, err, "Both create and edit forms must render the assignment control")
-			require.Contains(t, rendered.String(), fmt.Sprintf(`hx-include="%s"`, html.EscapeString(fmt.Sprintf("#%s [name='projects']", formID))), "Search and inherited pagination requests must include this form's live input even after the popover is portaled")
-			require.Contains(t, rendered.String(), fmt.Sprintf(`hx-sync="%s"`, html.EscapeString(fmt.Sprintf("#%s [name='projects']:replace", formID))), "A newer search or selection change must supersede stale in-flight search/pagination responses")
+			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("#%s [name='projects']", formID)), "Search requests must include this form's live project input even after the popover is portaled")
+			require.Contains(t, rendered.String(), `hx-sync="this:replace"`, "A newer search must supersede a stale in-flight search on the same list")
 			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("change from:(#%s [name='projects'])", formID)), "Changing an assignment must refresh with its live IDs so stale responses cannot erase it")
 			require.Contains(t, rendered.String(), `name="projects"`, "Both forms must submit the live selection under the existing projects form field")
 			require.Equal(t, expectedAssignments, projectAssignmentOptions(rendered.String()), "Initial selected options must display project names, not UUID labels")

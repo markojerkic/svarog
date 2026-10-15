@@ -167,7 +167,7 @@ func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 		}
 		return c.JSON(500, types.ApiError{Message: "Error getting user"})
 	}
-	var projectItems []combobox.Item
+	var projectItems []combobox.Option
 	if len(user.ProjectIDs) > 0 {
 		assignedProjects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
 		if err != nil {
@@ -175,7 +175,7 @@ func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error fetching assigned projects"})
 		}
 		for _, project := range assignedProjects {
-			projectItems = append(projectItems, combobox.Item{Value: project.ID.String(), Name: project.Name})
+			projectItems = append(projectItems, combobox.Option{Value: project.ID.String(), Name: project.Name})
 		}
 	}
 
@@ -200,7 +200,7 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	}
 	// Keep submitted assignments selected when the form is rendered with an error.
 	for _, id := range createUserForm.ProjectIDs {
-		createUserForm.Projects = append(createUserForm.Projects, combobox.Item{Value: id, Name: id})
+		createUserForm.Projects = append(createUserForm.Projects, combobox.Option{Value: id, Name: id})
 	}
 	if err := c.Validate(&createUserForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {

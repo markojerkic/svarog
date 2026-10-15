@@ -16,6 +16,21 @@ var _ echo.BindUnmarshaler = (*CommaSeparatedStrings)(nil)
 
 // UnmarshalParam implements echo's BindUnmarshaler interface for custom form binding.
 // It splits comma-separated values into a string slice.
+// UnmarshalParams accepts repeated fields and comma-separated values.
+// shadcn-templ's multiple combobox submits one input per value; the v1 selectbox submitted one comma-separated field.
+func (css *CommaSeparatedStrings) UnmarshalParams(params []string) error {
+	result := make([]string, 0, len(params))
+	for _, param := range params {
+		var part CommaSeparatedStrings
+		if err := part.UnmarshalParam(param); err != nil {
+			return err
+		}
+		result = append(result, part...)
+	}
+	*css = result
+	return nil
+}
+
 func (css *CommaSeparatedStrings) UnmarshalParam(param string) error {
 	if param == "" {
 		*css = []string{}
