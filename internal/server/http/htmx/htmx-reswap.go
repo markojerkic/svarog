@@ -1,7 +1,7 @@
 package htmx
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type ReswapProps struct {
@@ -10,7 +10,7 @@ type ReswapProps struct {
 	Select string
 }
 
-func Reswap(c echo.Context, props ...ReswapProps) {
+func Reswap(c *echo.Context, props ...ReswapProps) {
 	var p ReswapProps
 	if len(props) == 0 {
 		p = ReswapProps{

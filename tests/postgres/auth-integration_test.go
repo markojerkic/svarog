@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -29,14 +29,14 @@ func TestActivePostgresAuth(t *testing.T) {
 	service := auth.NewPostgresAuthService(pool, store)
 	e := echo.New()
 	e.Use(session.Middleware(store))
-	e.GET("/me", func(c echo.Context) error {
+	e.GET("/me", func(c *echo.Context) error {
 		user, err := service.GetCurrentUser(c)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusUnauthorized)
+			return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 		}
 		return c.JSON(http.StatusOK, user)
 	})
-	e.POST("/logout", func(c echo.Context) error {
+	e.POST("/logout", func(c *echo.Context) error {
 		if err := service.Logout(c); err != nil {
 			return err
 		}

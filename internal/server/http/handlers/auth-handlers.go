@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
@@ -24,7 +24,7 @@ type AuthRouter struct {
 	projectsService projects.ProjectsService
 }
 
-func (a *AuthRouter) login(c echo.Context) error {
+func (a *AuthRouter) login(c *echo.Context) error {
 	var loginForm types.LoginForm
 	if err := c.Bind(&loginForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(authpages.LoginPageProps{
@@ -61,7 +61,7 @@ func (a *AuthRouter) login(c echo.Context) error {
 	return utils.HxRedirect(c, "/")
 }
 
-func (a *AuthRouter) loginWithToken(c echo.Context) error {
+func (a *AuthRouter) loginWithToken(c *echo.Context) error {
 	var loginForm types.LoginFormWithToken
 	if err := c.Bind(&loginForm); err != nil {
 		return c.JSON(400, err)
@@ -80,18 +80,18 @@ func (a *AuthRouter) loginWithToken(c echo.Context) error {
 	return htmx.Redirect(c, "/reset-password")
 }
 
-func (a *AuthRouter) loginPage(c echo.Context) error {
+func (a *AuthRouter) loginPage(c *echo.Context) error {
 	return utils.Render(c, http.StatusOK, authpages.LoginPage())
 }
 
-func (a *AuthRouter) resetPasswordPage(c echo.Context) error {
+func (a *AuthRouter) resetPasswordPage(c *echo.Context) error {
 	redirect := c.QueryParam("redirect")
 	return utils.Render(c, http.StatusOK, authpages.ResetPasswordPage(authpages.ResetPasswordPageProps{
 		Redirect: redirect,
 	}))
 }
 
-func (a *AuthRouter) resetPassword(c echo.Context) error {
+func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	var resetPasswordForm types.ResetPasswordForm
 	if err := c.Bind(&resetPasswordForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Invalid form data"))
@@ -122,7 +122,7 @@ func (a *AuthRouter) resetPassword(c echo.Context) error {
 	return utils.HxRedirect(c, "/")
 }
 
-func (a *AuthRouter) logout(c echo.Context) error {
+func (a *AuthRouter) logout(c *echo.Context) error {
 	err := a.authService.Logout(c)
 	if err != nil {
 		return c.JSON(500, types.ApiError{Message: "Error logging out"})
@@ -130,7 +130,7 @@ func (a *AuthRouter) logout(c echo.Context) error {
 	return utils.HxRedirect(c, "/")
 }
 
-func (a *AuthRouter) getUsersPage(c echo.Context) error {
+func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 	var query types.GetUserPageInput
 	if err := c.Bind(&query); err != nil {
 		return c.JSON(400, err)
@@ -153,7 +153,7 @@ func (a *AuthRouter) getUsersPage(c echo.Context) error {
 	}))
 }
 
-func (a *AuthRouter) getEditUserForm(c echo.Context) error {
+func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "User ID is required"})
@@ -193,7 +193,7 @@ func (a *AuthRouter) getEditUserForm(c echo.Context) error {
 	}))
 }
 
-func (a *AuthRouter) createOrUpdateUser(c echo.Context) error {
+func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	var createUserForm types.CreateUserForm
 	if err := c.Bind(&createUserForm); err != nil {
 		return c.JSON(400, err)
@@ -268,7 +268,7 @@ func (a *AuthRouter) createOrUpdateUser(c echo.Context) error {
 	}))
 }
 
-func (a *AuthRouter) deleteUser(c echo.Context) error {
+func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "User ID is required", Fields: map[string]string{"id": "User ID is required"}})
@@ -286,7 +286,7 @@ func (a *AuthRouter) deleteUser(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
-func (a *AuthRouter) generateLoginToken(c echo.Context) error {
+func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 	userId := c.FormValue("userId")
 	if userId == "" {
 		return c.JSON(400, types.ApiError{Message: "User ID is required"})
@@ -324,7 +324,7 @@ func NewAuthRouter(authService auth.AuthService,
 	privateGroup.GET("/reset-password", router.resetPasswordPage)
 	privateGroup.POST("/reset-password", router.resetPassword)
 
-	publicGroup.GET("/login", func(c echo.Context) error {
+	publicGroup.GET("/login", func(c *echo.Context) error {
 		if c.QueryParams().Has("token") {
 			return router.loginWithToken(c)
 		}

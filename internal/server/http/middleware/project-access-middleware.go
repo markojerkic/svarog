@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -14,7 +14,7 @@ import (
 
 func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsService projects.ProjectsService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 			if !ok || user == nil {
 				htmx.AddErrorToast(c, "You are not logged in")

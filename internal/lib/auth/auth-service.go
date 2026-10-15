@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -22,13 +22,13 @@ import (
 )
 
 type AuthService interface {
-	Login(ctx echo.Context, username string, password string) error
-	LoginWithToken(ctx echo.Context, token string) error
-	Logout(ctx echo.Context) error
+	Login(ctx *echo.Context, username string, password string) error
+	LoginWithToken(ctx *echo.Context, token string) error
+	Logout(ctx *echo.Context) error
 	ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error
 	GenerateLoginToken(ctx context.Context, userId string) (string, error)
-	DeleteUser(ctx echo.Context, id string) error
-	GetCurrentUser(ctx echo.Context) (LoggedInUser, error)
+	DeleteUser(ctx *echo.Context, id string) error
+	GetCurrentUser(ctx *echo.Context) (LoggedInUser, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error)
@@ -58,7 +58,7 @@ func NewPostgresAuthService(pool *pgxpool.Pool, sessionStore *PostgresSessionSto
 	return &PostgresAuthService{pool: pool, queries: sqlc.New(pool), sessionStore: sessionStore}
 }
 
-func (a *PostgresAuthService) Login(ctx echo.Context, username, password string) error {
+func (a *PostgresAuthService) Login(ctx *echo.Context, username, password string) error {
 	user, err := a.queries.GetUserByUsername(ctx.Request().Context(), username)
 	if err != nil {
 		return authError(err)
@@ -74,7 +74,7 @@ func (a *PostgresAuthService) Login(ctx echo.Context, username, password string)
 	return a.sessionStore.Save(ctx.Request(), ctx.Response(), sess)
 }
 
-func (a *PostgresAuthService) LoginWithToken(ctx echo.Context, token string) error {
+func (a *PostgresAuthService) LoginWithToken(ctx *echo.Context, token string) error {
 	c := ctx.Request().Context()
 	sess, err := a.sessionStore.New(ctx.Request(), SVAROG_SESSION)
 	if err != nil {
@@ -106,7 +106,7 @@ func (a *PostgresAuthService) LoginWithToken(ctx echo.Context, token string) err
 	return a.sessionStore.setSessionCookie(ctx.Response(), sess)
 }
 
-func (a *PostgresAuthService) Logout(ctx echo.Context) error {
+func (a *PostgresAuthService) Logout(ctx *echo.Context) error {
 	sess, err := session.Get(SVAROG_SESSION, ctx)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (a *PostgresAuthService) Logout(ctx echo.Context) error {
 	return a.sessionStore.Save(ctx.Request(), ctx.Response(), sess)
 }
 
-func (a *PostgresAuthService) GetCurrentUser(ctx echo.Context) (LoggedInUser, error) {
+func (a *PostgresAuthService) GetCurrentUser(ctx *echo.Context) (LoggedInUser, error) {
 	sess, err := session.Get(SVAROG_SESSION, ctx)
 	if err != nil {
 		return LoggedInUser{}, err
@@ -269,7 +269,7 @@ func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, 
 	return authError(err)
 }
 
-func (a *PostgresAuthService) DeleteUser(ctx echo.Context, id string) error {
+func (a *PostgresAuthService) DeleteUser(ctx *echo.Context, id string) error {
 	userID, err := uuid.Parse(id)
 	if err != nil {
 		return errors.New(ErrUserNotFound)

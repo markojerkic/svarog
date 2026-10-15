@@ -2,10 +2,10 @@ package utils
 
 import (
 	"github.com/a-h/templ"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func Render(ctx echo.Context, statusCode int, t templ.Component) error {
+func Render(ctx *echo.Context, statusCode int, t templ.Component) error {
 	buf := templ.GetBuffer()
 	defer templ.ReleaseBuffer(buf)
 
@@ -16,7 +16,7 @@ func Render(ctx echo.Context, statusCode int, t templ.Component) error {
 	return ctx.HTML(statusCode, buf.String())
 }
 
-func HxRedirect(ctx echo.Context, url string) error {
+func HxRedirect(ctx *echo.Context, url string) error {
 	if ctx.Request().Header.Get("HX-Request") == "true" {
 		ctx.Response().Header().Set("HX-Location", url)
 		return ctx.NoContent(200)

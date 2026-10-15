@@ -7,14 +7,14 @@ import (
 	"log/slog"
 
 	"github.com/a-h/templ"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func IsHXRequest(c echo.Context) bool {
+func IsHXRequest(c *echo.Context) bool {
 	return c.Request().Header.Get("HX-Request") == "true"
 }
 
-func Redirect(c echo.Context, url string) error {
+func Redirect(c *echo.Context, url string) error {
 	if c.Request().Header.Get("HX-Request") == "true" {
 		c.Response().Header().Set("HX-Redirect", url)
 		return c.NoContent(200)
@@ -22,7 +22,7 @@ func Redirect(c echo.Context, url string) error {
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
-func Render(c echo.Context, statusCode int, t templ.Component) error {
+func Render(c *echo.Context, statusCode int, t templ.Component) error {
 	buf := templ.GetBuffer()
 	defer templ.ReleaseBuffer(buf)
 
@@ -42,7 +42,7 @@ const (
 	LevelError   ToastLevel = "error"
 )
 
-func AddToast(c echo.Context, message string, level ToastLevel) {
+func AddToast(c *echo.Context, message string, level ToastLevel) {
 	var triggers map[string]any
 	currentTrigger := c.Response().Header().Get("HX-Trigger")
 
@@ -69,19 +69,19 @@ func AddToast(c echo.Context, message string, level ToastLevel) {
 	c.Response().Header().Set("HX-Trigger", string(jsonData))
 }
 
-func AddSuccessToast(c echo.Context, message string) {
+func AddSuccessToast(c *echo.Context, message string) {
 	AddToast(c, message, LevelSuccess)
 }
 
-func AddErrorToast(c echo.Context, message string) {
+func AddErrorToast(c *echo.Context, message string) {
 	AddToast(c, message, LevelError)
 }
 
-func AddInfoToast(c echo.Context, message string) {
+func AddInfoToast(c *echo.Context, message string) {
 	AddToast(c, message, LevelInfo)
 }
 
-func AddWarningToast(c echo.Context, message string) {
+func AddWarningToast(c *echo.Context, message string) {
 	AddToast(c, message, LevelWarning)
 }
 

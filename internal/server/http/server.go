@@ -3,11 +3,12 @@ package http
 import (
 	"context"
 	"fmt"
+	stdhttp "net/http"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -26,7 +27,7 @@ type HttpServer struct {
 	watchHub              *websocket.WatchHub
 
 	serverPort int
-	echo       *echo.Echo
+	server     *stdhttp.Server
 }
 
 type HttpServerOptions struct {
@@ -41,8 +42,8 @@ type HttpServerOptions struct {
 }
 
 func (self *HttpServer) Start() error {
-	e := echo.New()
-	self.echo = e
+	// v5 catch-all 404 routes would let the two "" groups overwrite each other.
+	e := echo.NewWithConfig(echo.Config{NoGroupAutoRegister404Routes: true})
 	e.Validator = &Validator{validator: validator.New()}
 	e.HTTPErrorHandler = customMiddleware.CustomHTTPErrorHandler
 
@@ -65,13 +66,16 @@ func (self *HttpServer) Start() error {
 
 	e.Static("/assets", "internal/server/ui/assets")
 
-	serverAddr := fmt.Sprintf(":%d", self.serverPort)
-	return e.Start(serverAddr)
+	self.server = &stdhttp.Server{
+		Addr:    fmt.Sprintf(":%d", self.serverPort),
+		Handler: e,
+	}
+	return self.server.ListenAndServe()
 }
 
 func (self *HttpServer) Shutdown(ctx context.Context) error {
-	if self.echo != nil {
-		return self.echo.Shutdown(ctx)
+	if self.server != nil {
+		return self.server.Shutdown(ctx)
 	}
 	return nil
 }

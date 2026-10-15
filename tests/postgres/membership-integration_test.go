@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
@@ -42,7 +42,7 @@ func TestActivePostgresMembership(t *testing.T) {
 
 	e := echo.New()
 	e.Use(session.Middleware(sessionStore))
-	e.GET("/me", func(c echo.Context) error {
+	e.GET("/me", func(c *echo.Context) error {
 		current, err := service.GetCurrentUser(c)
 		if err != nil {
 			return err

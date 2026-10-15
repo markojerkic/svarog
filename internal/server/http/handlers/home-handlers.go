@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
@@ -21,7 +21,7 @@ func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService)
 	return handler
 }
 
-func (h *HomeHandler) homeHandler(c echo.Context) error {
+func (h *HomeHandler) homeHandler(c *echo.Context) error {
 	user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 	if !ok || user == nil {
 		return utils.HxRedirect(c, "/login")

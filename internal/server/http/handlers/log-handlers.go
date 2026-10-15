@@ -7,7 +7,7 @@ import (
 
 	"log/slog"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -44,7 +44,7 @@ type LogsByClientBinding struct {
 	LogLineId            *string   `query:"logLine"`
 }
 
-func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
+func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
 	projectId := c.Param("projectId")
 	clientId := c.Param("clientId")
 	if projectId == "" || clientId == "" {
@@ -60,7 +60,7 @@ func (self *LogsRouter) instancesByClientHandler(c echo.Context) error {
 	return c.JSON(200, instances)
 }
 
-func (self *LogsRouter) logsByClientHandler(c echo.Context) error {
+func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	var params LogsByClientBinding
 
 	err := c.Bind(&params)
@@ -119,7 +119,7 @@ type SearchLogsByClientBinding struct {
 	Search string `query:"search"`
 }
 
-func (self *LogsRouter) searchLogs(c echo.Context) error {
+func (self *LogsRouter) searchLogs(c *echo.Context) error {
 	var params SearchLogsByClientBinding
 
 	err := c.Bind(&params)

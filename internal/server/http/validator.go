@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 

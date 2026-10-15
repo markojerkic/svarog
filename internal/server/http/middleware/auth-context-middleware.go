@@ -6,14 +6,14 @@ import (
 
 	"log/slog"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 )
 
 func AuthContextMiddleware(authService auth.AuthService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			user, err := authService.GetCurrentUser(c)
 			if err != nil {
 				slog.Debug("No user in context")

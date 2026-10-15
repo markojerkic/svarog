@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	gorillaWs "github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -80,7 +80,7 @@ var wsUpgrader = gorillaWs.Upgrader{
 	},
 }
 
-func (self *WsRouter) connectionHandler(c echo.Context) error {
+func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	clientId := c.Param("clientId")
 	projectId := c.Param("projectId")
 

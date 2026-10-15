@@ -8,7 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -24,7 +24,7 @@ type ProjectsRouter struct {
 	natsCredsService serverauth.NatsCredentialService
 }
 
-func (p *ProjectsRouter) searchProjects(c echo.Context) error {
+func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 	var request projects.SearchProjectsRequest
 	if err := c.Bind(&request); err != nil {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid request parameters"})
@@ -106,7 +106,7 @@ func (p *ProjectsRouter) searchProjects(c echo.Context) error {
 	}))
 }
 
-func (p *ProjectsRouter) getProjects(c echo.Context) error {
+func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 	var query types.GetProjectPageInput
 	if err := c.Bind(&query); err != nil {
 		return c.JSON(400, err)
@@ -138,7 +138,7 @@ func (p *ProjectsRouter) getProjects(c echo.Context) error {
 	}))
 }
 
-func (p *ProjectsRouter) getProject(c echo.Context) error {
+func (p *ProjectsRouter) getProject(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
@@ -155,7 +155,7 @@ func (p *ProjectsRouter) getProject(c echo.Context) error {
 	return c.JSON(200, project)
 }
 
-func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
+func (p *ProjectsRouter) getEditProjectForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "Project ID is required"})
@@ -180,7 +180,7 @@ func (p *ProjectsRouter) getEditProjectForm(c echo.Context) error {
 	}))
 }
 
-func (p *ProjectsRouter) getConnectionStringForm(c echo.Context) error {
+func (p *ProjectsRouter) getConnectionStringForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "Project ID is required"})
@@ -201,7 +201,7 @@ func (p *ProjectsRouter) getConnectionStringForm(c echo.Context) error {
 	}))
 }
 
-func (p *ProjectsRouter) createProject(c echo.Context) error {
+func (p *ProjectsRouter) createProject(c *echo.Context) error {
 	var createProjectForm types.CreateProjectForm
 	if err := c.Bind(&createProjectForm); err != nil {
 		return c.JSON(400, err)
@@ -271,7 +271,7 @@ func (p *ProjectsRouter) createProject(c echo.Context) error {
 	}))
 }
 
-func (p *ProjectsRouter) deleteProject(c echo.Context) error {
+func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
@@ -295,7 +295,7 @@ func (p *ProjectsRouter) deleteProject(c echo.Context) error {
 	return c.HTML(200, "")
 }
 
-func (p *ProjectsRouter) createProjectConnString(c echo.Context) error {
+func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	var request serverauth.CredentialGenerationRequest
 	if err := c.Bind(&request); err != nil {
 		htmx.AddErrorToast(c, "Failed to generate credentials")

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -87,7 +87,7 @@ func (s *projectAccessLogsStub) GetInstances(context.Context, string, string) ([
 
 func loggedInGroup(e *echo.Echo, user *auth.LoggedInUser) *echo.Group {
 	return e.Group("", func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set(auth.UserKey.String(), user)
 			ctx := context.WithValue(c.Request().Context(), auth.UserKey, user)
 			ctx = context.WithValue(ctx, auth.IsAdminKey, user != nil && user.Role == auth.ADMIN)
@@ -134,7 +134,7 @@ func TestProjectAccessMiddleware(t *testing.T) {
 				a := &projectAccessAuthStub{allowed: tc.allowed, err: tc.authErr}
 				p := &projectAccessProjectsStub{belongs: tc.belongs, err: tc.projectErr}
 				called := false
-				loggedInGroup(e, tc.user).GET(prefix+"/:projectId/:clientId", func(c echo.Context) error {
+				loggedInGroup(e, tc.user).GET(prefix+"/:projectId/:clientId", func(c *echo.Context) error {
 					called = true
 					return c.NoContent(http.StatusNoContent)
 				}, middleware.RequiresProjectAccessMiddleware(a, p))
@@ -230,9 +230,11 @@ func TestMissingProjectOrClientIDIsRejectedBeforeQueries(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
 			c.Set(auth.UserKey.String(), &auth.LoggedInUser{Role: auth.ADMIN})
-			c.SetParamNames("projectId", "clientId")
-			c.SetParamValues(ids[0], ids[1])
-			err := middleware.RequiresProjectAccessMiddleware(nil, nil)(func(echo.Context) error {
+			c.SetPathValues(echo.PathValues{
+				{Name: "projectId", Value: ids[0]},
+				{Name: "clientId", Value: ids[1]},
+			})
+			err := middleware.RequiresProjectAccessMiddleware(nil, nil)(func(*echo.Context) error {
 				t.Fatal("Missing IDs must not reach the downstream handler")
 				return nil
 			})(c)

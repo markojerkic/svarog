@@ -1,10 +1,10 @@
 package htmx
 
 import (
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func CloseDialog(c echo.Context) {
+func CloseDialog(c *echo.Context) {
 	if c.Request().Header.Get("HX-Request") != "true" {
 		return
 	}
