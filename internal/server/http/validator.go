@@ -45,11 +45,42 @@ func (v *Validator) Validate(i interface{}) error {
 			jsonName := strings.Split(jsonTag, ",")[0]
 
 			// Use the json tag name instead of the struct field name
-			apiError.Fields[jsonName] = e.Tag()
+			apiError.Fields[jsonName] = validationMessage(e)
 		}
 		return apiError
 	}
 	return nil
+}
+
+func validationMessage(e validator.FieldError) string {
+	limit := e.Param()
+	switch e.Tag() {
+	case "required":
+		return "This field is required"
+	case "gte":
+		if isLengthCheck(e) {
+			return "Must be at least " + limit + " characters"
+		}
+		return "Must be at least " + limit
+	case "lte":
+		if isLengthCheck(e) {
+			return "Must be at most " + limit + " characters"
+		}
+		return "Must be at most " + limit
+	case "oneof":
+		return "Must be one of: " + strings.ReplaceAll(limit, " ", ", ")
+	default:
+		return "Invalid value"
+	}
+}
+
+func isLengthCheck(e validator.FieldError) bool {
+	switch e.Kind() {
+	case reflect.String, reflect.Slice, reflect.Array, reflect.Map:
+		return true
+	default:
+		return false
+	}
 }
 
 var _ echo.Validator = &Validator{}
