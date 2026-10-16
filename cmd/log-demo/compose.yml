@@ -1,0 +1,46 @@
+x-generator: &generator
+  image: svarog-log-demo:local
+  build:
+    context: .
+    dockerfile: cmd/log-demo/Dockerfile
+  init: true
+  network_mode: ${DEMO_NETWORK_MODE:-host}
+  volumes:
+    - ./cmd/log-demo/messages.txt:/app/messages.txt:ro
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "2"
+
+x-environment: &environment
+  DEMO_INTERVAL: ${DEMO_INTERVAL:-1s}
+  TINI_KILL_PROCESS_GROUP: "1"
+
+services:
+  demo-api:
+    <<: *generator
+    environment:
+      <<: *environment
+      SVAROG_CONN_STRING: ${API_CONN_STRING:?Popuni API_CONN_STRING u .env.log-demo}
+      DEMO_APP_NAME: demo-api
+    deploy:
+      replicas: ${API_REPLICAS:-3}
+
+  demo-worker:
+    <<: *generator
+    environment:
+      <<: *environment
+      SVAROG_CONN_STRING: ${WORKER_CONN_STRING:?Popuni WORKER_CONN_STRING u .env.log-demo}
+      DEMO_APP_NAME: demo-worker
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+
+  demo-payments:
+    <<: *generator
+    environment:
+      <<: *environment
+      SVAROG_CONN_STRING: ${PAYMENTS_CONN_STRING:?Popuni PAYMENTS_CONN_STRING u .env.log-demo}
+      DEMO_APP_NAME: demo-payments
+    deploy:
+      replicas: ${PAYMENTS_REPLICAS:-2}
