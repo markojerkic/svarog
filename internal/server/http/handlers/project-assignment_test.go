@@ -308,6 +308,8 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("change from:(#%s [name='projects'])", formID)), "Changing an assignment must refresh with its live IDs so stale responses cannot erase it")
 			require.Contains(t, rendered.String(), `name="projects"`, "Both forms must submit the live selection under the existing projects form field")
 			require.Equal(t, expectedAssignments, projectAssignmentOptions(rendered.String()), "Initial selected options must display project names, not UUID labels")
+			require.Contains(t, rendered.String(), `data-slot="combobox-chip"`, "The closed picker must show a chip for each assigned project")
+			require.Regexp(t, regexp.MustCompile(`data-slot="combobox-chip"[^>]*>\s*`+regexp.QuoteMeta(html.EscapeString(project.Name))), rendered.String(), "The closed chip must show the project name, not only the open-list checkmark")
 		})
 	}
 

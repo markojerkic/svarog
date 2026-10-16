@@ -48,16 +48,31 @@ templ ComboBox(props ...SearchProps) {
 		DefaultValues: values,
 		Items:         items,
 	}) {
-		@Input(InputProps{
-			ID:          p.ID + "-search",
-			Placeholder: p.Placeholder,
-			Class:       utilsIf(p.HasError, "border-destructive"),
-			Attributes: templ.Attributes{
-				"aria-invalid":       utilsIf(p.HasError, "true"),
-				"name":               "search",
-				"data-project-search": p.ID + "-results",
-			},
-		})
+		if p.Multiple {
+			@Chips(ChipsProps{Class: utilsIf(p.HasError, "border-destructive")}) {
+				@Value()
+				@ChipsInput(ChipsInputProps{
+					ID:          p.ID + "-search",
+					Placeholder: p.Placeholder,
+					Attributes: templ.Attributes{
+						"aria-invalid":        utilsIf(p.HasError, "true"),
+						"name":                "search",
+						"data-project-search": p.ID + "-results",
+					},
+				})
+			}
+		} else {
+			@Input(InputProps{
+				ID:          p.ID + "-search",
+				Placeholder: p.Placeholder,
+				Class:       utilsIf(p.HasError, "border-destructive"),
+				Attributes: templ.Attributes{
+					"aria-invalid":        utilsIf(p.HasError, "true"),
+					"name":                "search",
+					"data-project-search": p.ID + "-results",
+				},
+			})
+		}
 		@Content() {
 			@List(ListProps{
 				ID: p.ID + "-results",
