@@ -47,6 +47,12 @@ templ BaseLayout(props BaseProps) {
 			class="bg-background text-foreground min-h-svh"
 			hx-indicator="#htmx-global-indicator"
 		>
+			<span
+				class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 fixed z-10 pointer-events-none animate-spin"
+				id="htmx-global-indicator"
+			>
+				@icon.LoaderCircle(icon.Props{Size: 16})
+			</span>
 			{ children... }
 			@ConfirmDialog()
 			@toast.Toaster(toast.ToasterProps{Timeout: 4000})
@@ -161,12 +167,6 @@ templ AdminLayout(props AdminLayoutProps) {
 				}
 			}
 			@sidebar.Inset(sidebar.InsetProps{Class: "min-w-0 h-svh overflow-hidden md:h-[calc(100svh-1rem)]"}) {
-				<span
-					class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 absolute z-10 pointer-events-none animate-spin"
-					id="htmx-global-indicator"
-				>
-					@icon.LoaderCircle(icon.Props{Size: 16})
-				</span>
 				<div class="flex h-full min-h-0 flex-col">
 					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
 						@sidebar.Trigger()
