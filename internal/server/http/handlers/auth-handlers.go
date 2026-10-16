@@ -149,6 +149,7 @@ func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 		Users:      users,
 		Page:       query.Page,
 		Size:       query.Size,
+		Search:     query.Search,
 		TotalCount: totalCount,
 	}))
 }
