@@ -300,7 +300,7 @@ func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 	}
 
 	htmx.AddSuccessToast(c, "Token copied to clipboard, password is reset")
-	c.Response().Header().Set("HX-Trigger-After-Swap", fmt.Sprintf(`{"copyLoginToken":"%s"}`, loginToken))
+	htmx.AddTrigger(c, "copyLoginToken", loginToken)
 	return c.String(200, loginToken)
 }
 

@@ -148,10 +148,10 @@ templ projectActions(project projects.Project) {
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-delete":       "/admin/projects/" + project.ID.String(),
-						"hx-confirm":      "Are you sure you want to delete this project?",
-						"hx-target":       fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
-						"hx-disabled-elt": "input, button, #new-project-dialog &> button[type=submit]",
+						"hx-delete":  "/admin/projects/" + project.ID.String(),
+						"hx-confirm": "Are you sure you want to delete this project?",
+						"hx-target":  fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
+						"hx-disable": "input, button, #new-project-dialog > button[type=submit]",
 					},
 				}) {
 					<span class="flex items-center">

@@ -338,7 +338,7 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	htmx.CloseDialog(c)
 	htmx.AddSuccessToast(c, "Connection string generated and copied to clipboard")
 
-	c.Response().Header().Set("HX-Trigger-After-Swap", fmt.Sprintf(`{"copyToClipboard":"%s"}`, connString))
+	htmx.AddTrigger(c, "copyToClipboard", connString)
 
 	return c.String(200, connString)
 }

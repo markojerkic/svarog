@@ -1,18 +1,16 @@
-document.body.addEventListener("htmx:oobBeforeSwap", function (evt) {
-  if (evt.detail.target.id === "log-scroll-container") {
-    evt.preventDefault();
+document.addEventListener("htmx:before:settle", function (evt) {
+  const { task, newContent } = evt.detail;
+  if (task.type !== "oob" || task.target.id !== "log-scroll-container") return;
 
-    swapLogLine(evt);
+  for (const logLine of newContent) {
+    if (logLine.nodeType === Node.ELEMENT_NODE) {
+      swapLogLine(logLine, task.target);
+    }
   }
 });
 
-function swapLogLine(evt) {
-  var newLogEl = evt.detail.fragment.firstElementChild;
-  if (!newLogEl) return;
-
-  newLogEl.removeAttribute("hx-swap-oob");
-
-  var container = document.getElementById("log-scroll-container");
+function swapLogLine(newLogEl, container) {
+  newLogEl.remove();
   var children = container.children;
   var newTs = parseInt(newLogEl.getAttribute("data-timestamp"));
   var inserted = false;

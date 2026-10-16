@@ -18,7 +18,7 @@ type BaseProps struct {
 
 templ BaseLayout(props BaseProps) {
 	<!DOCTYPE html>
-	<html lang="en" hx-boost="true">
+	<html lang="en" hx-boost:inherited="true">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -31,12 +31,13 @@ templ BaseLayout(props BaseProps) {
 			</title>
 			<link href={ "/assets/css/output.css?v=" + utils.ScriptVersion } rel="stylesheet"/>
 			<link rel="icon" href="/assets/logo.png" type="image/png"/>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-			<script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.4" integrity="sha384-1RwI/nvUSrMRuNj7hX1+27J8XDdCoSLf0EjEyF69nacuWyiJYoQ/j39RT1mSnd2G" crossorigin="anonymous"></script>
-			<script defer src="/assets/js/htmx-error-swap.js"></script>
+			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/htmx.min.js" integrity="sha384-BvJpBiO8Kh31EqtJe5DRIeWrHWnCGkwytKs9NKFi86Hhw96dEqdEMzZDeK9iEGTc" crossorigin="anonymous"></script>
+			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/ext/hx-ws.min.js" integrity="sha384-8iDMDuKIquXLgObstxvwGlWD1bY/ALMH7k9rbC070qmZrRvJ0BGO+8xG+Ul+J0bP" crossorigin="anonymous"></script>
+			<script defer src={ utils.ScriptURL("/assets/js/htmx-error-swap.js") }></script>
 			<script defer src="/assets/js/copy-result-string.js"></script>
-			<script defer src="/assets/js/close-dialog.js"></script>
-			<script defer src="/assets/js/confirm.js"></script>
+			<script defer src={ utils.ScriptURL("/assets/js/close-dialog.js") }></script>
+			<script defer src={ utils.ScriptURL("/assets/js/confirm.js") }></script>
+			<script defer src={ utils.ScriptURL("/assets/js/log-line-swapping.js") }></script>
 			<script defer src="/assets/js/datepicker.js"></script>
 			<script defer src="/assets/js/project-search.js"></script>
 			@components.Scripts()
@@ -45,7 +46,7 @@ templ BaseLayout(props BaseProps) {
 		</head>
 		<body
 			class="bg-background text-foreground min-h-svh"
-			hx-indicator="#htmx-global-indicator"
+			hx-indicator:inherited="#htmx-global-indicator"
 		>
 			<span
 				class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 fixed z-10 pointer-events-none animate-spin"

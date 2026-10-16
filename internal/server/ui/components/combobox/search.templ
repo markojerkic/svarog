@@ -38,7 +38,7 @@ templ ComboBox(props ...SearchProps) {
 			items[i] = ItemData{Value: item.Value, Label: item.Name}
 		}
 		include := fmt.Sprintf("#%s [name='%s']", p.Form, p.Name)
-		changed := fmt.Sprintf("change from:(#%s [name='%s'])", p.Form, p.Name)
+		changed := fmt.Sprintf("change from:\"#%s [name='%s']\"", p.Form, p.Name)
 	}}
 	@Combobox(Props{
 		ID:            p.ID,
@@ -77,12 +77,12 @@ templ ComboBox(props ...SearchProps) {
 			@List(ListProps{
 				ID: p.ID + "-results",
 				Attributes: templ.Attributes{
-					"hx-get":     p.SearchURL,
-					"hx-trigger": "search, " + changed,
-					"hx-target":  "this",
-					"hx-include": "#" + p.ID + "-search, " + include,
-					"hx-sync":    "this:replace",
-					"hx-swap":    "innerHTML",
+					"hx-get":               p.SearchURL,
+					"hx-trigger":           "search, " + changed,
+					"hx-target":            "this",
+					"hx-include:inherited": "#" + p.ID + "-search, " + include,
+					"hx-sync:inherited":    "this:replace",
+					"hx-swap":              "innerHTML",
 				},
 			}) {
 				@ComboboxItems(ComboboxItemsProps{
@@ -114,7 +114,9 @@ templ ComboboxItems(props ComboboxItemsProps) {
 			hx-get={ props.NextURL }
 			hx-swap="outerHTML"
 			hx-trigger="intersect once"
-			hx-include={ props.Include }
+			if props.Include != "" {
+				hx-include={ props.Include }
+			}
 		></div>
 	}
 }

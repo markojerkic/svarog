@@ -25,7 +25,7 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 		id="connection-string-form"
 		hx-post="/admin/projects/conn-string"
 		hx-swap="none"
-		hx-disabled-elt="input, button"
+		hx-disable="input, button"
 	>
 		<input type="hidden" name="projectId" value={ p.ProjectID }/>
 		<div class="space-y-2">

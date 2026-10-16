@@ -304,8 +304,8 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 
 			require.NoError(t, err, "Both create and edit forms must render the assignment control")
 			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("#%s [name='projects']", formID)), "Search requests must include this form's live project input even after the popover is portaled")
-			require.Contains(t, rendered.String(), `hx-sync="this:replace"`, "A newer search must supersede a stale in-flight search on the same list")
-			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("change from:(#%s [name='projects'])", formID)), "Changing an assignment must refresh with its live IDs so stale responses cannot erase it")
+			require.Contains(t, rendered.String(), `hx-sync:inherited="this:replace"`, "Search and pagination must share a queue so newer searches supersede stale requests")
+			require.Contains(t, rendered.String(), html.EscapeString(fmt.Sprintf("change from:\"#%s [name='projects']\"", formID)), "Changing an assignment must refresh with its live IDs using an HTMX 4 quoted selector")
 			require.Contains(t, rendered.String(), `name="projects"`, "Both forms must submit the live selection under the existing projects form field")
 			require.Equal(t, expectedAssignments, projectAssignmentOptions(rendered.String()), "Initial selected options must display project names, not UUID labels")
 			require.Contains(t, rendered.String(), `data-slot="combobox-chip"`, "The closed picker must show a chip for each assigned project")

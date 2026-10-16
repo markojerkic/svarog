@@ -43,6 +43,13 @@ const (
 )
 
 func AddToast(c *echo.Context, message string, level ToastLevel) {
+	AddTrigger(c, "toast", map[string]any{
+		"message": message,
+		"level":   string(level),
+	})
+}
+
+func AddTrigger(c *echo.Context, event string, detail any) {
 	var triggers map[string]any
 	currentTrigger := c.Response().Header().Get("HX-Trigger")
 
@@ -55,10 +62,7 @@ func AddToast(c *echo.Context, message string, level ToastLevel) {
 		triggers = make(map[string]any)
 	}
 
-	triggers["toast"] = map[string]any{
-		"message": message,
-		"level":   string(level),
-	}
+	triggers[event] = detail
 
 	jsonData, err := json.Marshal(triggers)
 	if err != nil {

@@ -1,56 +1,23 @@
 import { test, expect, type Page } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
-
-const scriptPath = path.join(
-  process.cwd(),
-  "internal/server/ui/assets/js/log-line-swapping.js",
-);
-const clientScript = fs.readFileSync(scriptPath, "utf8");
+import type { Htmx } from "htmx.org";
 
 test.describe("Log Sorting Logic", () => {
   test.beforeEach(async ({ page }) => {
-    await page.setContent(`
-      <div id="log-scroll-container"></div>
-      <script>${clientScript}</script>
-    `);
+    await page.setContent(
+      '<div id="log-scroll-container"></div><div id="other-container"></div>',
+    );
+    await page.addScriptTag({ path: "node_modules/htmx.org/dist/htmx.js" });
+    await page.addScriptTag({ path: "internal/server/ui/assets/js/log-line-swapping.js" });
   });
 
-  const simulateHtmxSwap = async (
-    page: Page,
-    timestamp: number,
-    sequence?: number,
-  ) => {
+  const simulateHtmxSwap = async (page: Page, timestamp: number, sequence?: number) => {
     await page.evaluate(
-      ({ ts, seq }) => {
-        const frag = document.createDocumentFragment();
-        const el = document.createElement("pre");
-        el.setAttribute("data-timestamp", String(ts));
-        if (seq !== undefined) {
-          el.setAttribute("data-sequence", String(seq));
-        }
-        el.innerText = `Log at ${ts}${seq !== undefined ? ` seq ${seq}` : ""}`;
-        frag.appendChild(el);
-
-        const evt = new CustomEvent("htmx:oobBeforeSwap", {
-          bubbles: true,
-          cancelable: true,
-          detail: {
-            target: { id: "log-scroll-container" },
-            fragment: frag,
-          },
-        });
-        document.body.dispatchEvent(evt);
-        const fakeEvt = new CustomEvent("htmx:oobBeforeSwap", {
-          bubbles: true,
-          cancelable: true,
-          detail: {
-            target: { id: "some-other-container" },
-            fragment: frag,
-          },
-        });
-        document.body.dispatchEvent(fakeEvt);
-      },
+      ({ ts, seq }) =>
+        (window as typeof window & { htmx: Htmx }).htmx.swap({
+          text: `<div hx-swap-oob="afterbegin:#log-scroll-container"><pre data-timestamp="${ts}" data-sequence="${seq || 0}">Log at ${ts}</pre></div>
+          <div id="other-container" hx-swap-oob="true">Other update ${ts}</div>`,
+          sourceElement: document.body,
+        }),
       { ts: timestamp, seq: sequence },
     );
   };
@@ -72,17 +39,14 @@ test.describe("Log Sorting Logic", () => {
     // We expect Descending: 300 -> 200 -> 100 -> 50
     const timestamps = await page
       .locator("#log-scroll-container > pre")
-      .evaluateAll((list) =>
-        list.map((el) => parseInt(el.getAttribute("data-timestamp")!)),
-      );
+      .evaluateAll((list) => list.map((el) => parseInt(el.getAttribute("data-timestamp")!)));
 
     console.log("Final DOM Order:", timestamps);
     expect(timestamps).toEqual([300, 200, 100, 50]);
+    await expect(page.locator("#other-container")).toHaveText("Other update 200");
   });
 
-  test("sorts by sequence number when timestamps are equal", async ({
-    page,
-  }) => {
+  test("sorts by sequence number when timestamps are equal", async ({ page }) => {
     // All logs have same timestamp (100), but different sequence numbers
     await simulateHtmxSwap(page, 100, 2);
     await simulateHtmxSwap(page, 100, 5);
@@ -93,9 +57,7 @@ test.describe("Log Sorting Logic", () => {
     // ASSERT: Should be sorted by sequence number descending: 5 -> 4 -> 3 -> 2 -> 1
     const sequences = await page
       .locator("#log-scroll-container > pre")
-      .evaluateAll((list) =>
-        list.map((el) => parseInt(el.getAttribute("data-sequence")!)),
-      );
+      .evaluateAll((list) => list.map((el) => parseInt(el.getAttribute("data-sequence")!)));
 
     console.log("Final DOM Order (by sequence):", sequences);
     expect(sequences).toEqual([5, 4, 3, 2, 1]);

@@ -15,6 +15,7 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@types/bun": "latest",
+    "htmx.org": "4.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "oxfmt": "^0.21.0"
