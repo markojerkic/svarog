@@ -35,9 +35,9 @@ templ LoginPage(props ...LoginPageProps) {
 				@card.Content() {
 					<form
 						hx-post="/login"
-						hx-swap="body"
+						hx-swap="innerHTML"
 						hx-target="body"
-						hx-disabled-elt="input, button"
+						hx-disable="input, button"
 						class="space-y-4"
 					>
 						@field.Field() {

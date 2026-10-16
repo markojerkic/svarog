@@ -1,10 +1,10 @@
-// Allow HTMX to swap content on 4xx error responses (e.g., validation errors)
-document.body.addEventListener("htmx:beforeSwap", function (evt) {
-  const status = evt.detail.xhr.status;
-  const contentType = evt.detail.xhr.getResponseHeader("content-type");
-  const isHTML = contentType && contentType.includes("text/html");
-  if (status >= 400 && status < 500 && isHTML) {
-    evt.detail.shouldSwap = true;
-    evt.detail.isError = false;
+// HTMX 4 swaps errors by default. Keep HTML validation errors, not JSON or 5xx.
+document.addEventListener("htmx:before:response", function (evt) {
+  const response = evt.detail.ctx.response;
+  if (!response || response.status < 400) return;
+
+  const isHTML = response.headers.get("content-type")?.includes("text/html");
+  if (response.status >= 500 || !isHTML) {
+    evt.preventDefault();
   }
 });

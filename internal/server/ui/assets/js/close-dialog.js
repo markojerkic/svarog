@@ -1,9 +1,8 @@
-htmx.on("htmx:afterRequest", function (evt) {
-  const headers = evt.detail.xhr.getAllResponseHeaders();
-  const isCloseDialog = headers.includes("close-dialog");
-  if (!isCloseDialog) {
+document.addEventListener("htmx:after:request", function (evt) {
+  const { response, sourceElement } = evt.detail.ctx;
+  if (response.headers.get("close-dialog") !== "true") {
     return;
   }
-  const dialog = evt.detail.elt.closest('[role="dialog"]');
+  const dialog = sourceElement.closest('[role="dialog"]');
   if (dialog) window.templ.dialog.close(dialog.id);
 });

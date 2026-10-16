@@ -25,6 +25,11 @@ func Reswap(c *echo.Context, props ...ReswapProps) {
 		return
 	}
 
+	// HTMX 4 resolves "this" through hx-target, which may point elsewhere.
+	if p.Target == "this" {
+		p.Target = "closest *"
+	}
+
 	c.Response().Header().Set("HX-Reswap", p.Swap)
 	c.Response().Header().Set("HX-Retarget", p.Target)
 	if p.Select != "" {

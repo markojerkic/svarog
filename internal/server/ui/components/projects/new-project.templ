@@ -35,7 +35,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 		hx-swap="beforeend"
 		hx-select="tr"
 		hx-target="#projects-list-table-body"
-		hx-disabled-elt="input, button, #new-project-dialog &> button[type=submit]"
+		hx-disable="input, button, #new-project-dialog > button[type=submit]"
 	>
 		<input type="hidden" name="id" value={ p.Value.ID }/>
 		<div class="space-y-2">

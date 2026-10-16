@@ -37,7 +37,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 		hx-swap="beforeend"
 		hx-select="tr"
 		hx-target="#users-list-table-body"
-		hx-disabled-elt="input, button, #new-user-dialog &> button[type=submit]"
+		hx-disable="input, button, #new-user-dialog > button[type=submit]"
 	>
 		<input type="hidden" name="id" value={ p.Value.ID }/>
 		<div class="space-y-2">
