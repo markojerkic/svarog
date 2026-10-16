@@ -14,7 +14,7 @@ type LogLineProps struct {
 templ LogLine(props LogLineProps) {
 	{{ borderColor := utils.StringToColor(props.LogLine.Client.InstanceId) }}
 	<pre
-		class="group border-l-4 pl-2 text-black hover:bg-accent flex items-center"
+		class="group flex min-w-full w-max items-center border-l-2 pl-3 text-foreground hover:bg-muted/50"
 		style={ fmt.Sprintf("border-left-color: %s;", borderColor) }
 		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
 		data-sequence={ props.LogLine.SequenceNumber }
@@ -22,8 +22,11 @@ templ LogLine(props LogLineProps) {
 	>
 		<span class="flex-1">{ props.LogLine.LogLine }</span>
 		@button.Button(button.Props{
-			Class: "sticky right-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 !h-6 !w-6 !m-0 !p-0",
+			Variant: button.VariantGhost,
+			Size:    button.SizeIconXs,
+			Class:   "sticky right-0 ml-3 bg-card opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
 			Attributes: templ.Attributes{
+				"aria-label":            "Log line actions",
 				"data-log-menu-trigger": "true",
 				"data-log-id":           strconv.FormatInt(props.LogLine.ID, 10),
 				"data-log-content":      props.LogLine.LogLine,

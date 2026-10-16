@@ -5,7 +5,7 @@ package tagsinput
 import (
 	"github.com/markojerkic/svarog/internal/server/ui/components/badge"
 	"github.com/markojerkic/svarog/internal/server/ui/components/input"
-	"github.com/markojerkic/svarog/internal/server/ui/utils"
+	"github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 )
 
 type Props struct {
@@ -29,19 +29,19 @@ templ TagsInput(props ...Props) {
 	<div
 		id={ p.ID + "-container" }
 		class={
-			utils.TwMerge(
+			utils.CN(
 				// Base styles
-				"flex items-center flex-wrap gap-2 p-2 rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] outline-none",
+				"flex items-center flex-wrap gap-2 p-2 rounded-lg border border-input bg-transparent text-sm transition-[color,box-shadow] outline-none",
 				// Dark mode background
 				"dark:bg-input/30",
 				// Focus styles
 				"focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
 				// Disabled styles
-				utils.If(p.Disabled, "opacity-50 cursor-not-allowed"),
+				utils.IfElse(p.Disabled, "opacity-50 cursor-not-allowed", ""),
 				// Width
 				"w-full",
 				// Error/Invalid styles
-				utils.If(p.HasError, "border-destructive ring-destructive/20 dark:ring-destructive/40"),
+				utils.IfElse(p.HasError, "border-destructive ring-destructive/20 dark:ring-destructive/40", ""),
 				p.Class,
 			),
 		}

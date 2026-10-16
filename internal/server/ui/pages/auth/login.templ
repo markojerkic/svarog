@@ -18,11 +18,15 @@ templ LoginPage(props ...LoginPageProps) {
 		{{ p = props[0] }}
 	}
 	@pages.BaseLayout(pages.BaseProps{Title: "Login"}) {
-		<div class="min-h-screen flex items-center justify-center p-4">
-			@card.Card(card.Props{Class: "w-full max-w-md"}) {
+		<div class="flex min-h-svh flex-col items-center justify-center gap-6 overflow-auto bg-muted/40 p-6">
+			<a href="/" class="flex items-center gap-2 text-sm font-semibold">
+				<img src="/assets/logo.png" alt="" class="size-7"/>
+				Svarog
+			</a>
+			@card.Card(card.Props{Class: "w-full max-w-sm [--card-spacing:--spacing(6)]"}) {
 				@card.Header() {
 					@card.Title() {
-						Welcome back
+						<h1 class="text-xl font-semibold tracking-tight">Welcome back</h1>
 					}
 					@card.Description() {
 						Sign in to your account
@@ -82,7 +86,7 @@ templ LoginPage(props ...LoginPageProps) {
 						}
 						@button.Button(button.Props{
 							Type:  button.TypeSubmit,
-							Class: "mt-6 w-full",
+							Class: "w-full",
 						}) {
 							Sign in
 						}

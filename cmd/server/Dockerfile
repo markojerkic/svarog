@@ -46,6 +46,7 @@ RUN go mod download
 COPY . .
 
 # Build the server
+RUN go tool shadcn-templ bundle
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go tool templ generate ./...
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/server ./cmd/server
 
@@ -63,6 +64,7 @@ WORKDIR /app
 # Copy the server binary and web assets from the previous stages
 COPY --from=builder /app/build/server /app/build/server
 COPY ./internal/server/ui/assets/ /app/internal/server/ui/assets/
+COPY --from=builder /app/internal/server/ui/assets/js/ /app/internal/server/ui/assets/js/
 COPY --from=web-build /usr/src/app/internal/server/ui/assets/css/output.css /app/internal/server/ui/assets/css/output.css
 COPY --from=client /svarog/client /svarog/client
 

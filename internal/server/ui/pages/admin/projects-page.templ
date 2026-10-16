@@ -12,6 +12,7 @@ import projectcomponents "github.com/markojerkic/svarog/internal/server/ui/compo
 import "github.com/markojerkic/svarog/internal/server/ui/components/table"
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 type ProjectsListPageProps struct {
 	Projects   []projects.Project
@@ -23,8 +24,18 @@ type ProjectsListPageProps struct {
 
 templ ProjectsListPage(props ProjectsListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects", CurrentPath: "/admin/projects"}) {
-		<div class="grid grid-cols-1 p-4 space-y-4">
-			<span class="flex justify-between gap-2">
+		<div class="mx-auto w-full max-w-6xl space-y-6">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-1">
+					<h1 class="text-2xl font-semibold tracking-tight">Projects</h1>
+					<p class="text-sm text-muted-foreground">Manage projects and the clients that send their logs.</p>
+				</div>
+				@projectcomponents.NewProject()
+			</div>
+			<div class="relative w-full sm:max-w-xs">
+				<span class="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+					@icon.Search(icon.Props{Class: "size-4"})
+				</span>
 				<form
 					id="search-form"
 					hx-get="/admin/projects"
@@ -32,38 +43,43 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					hx-push-url="true"
 					hx-target=".table-wrapper"
 					hx-select=".table-wrapper"
+					hx-swap="outerHTML"
 					hx-trigger="input changed delay:300ms"
 				>
 					@input.Input(input.Props{
 						Type:        "search",
 						Value:       props.Search,
 						Name:        "search",
-						Class:       "max-w-2xs md:max-w-xs",
-						Placeholder: "Search...",
+						Class:       "pl-9",
+						Placeholder: "Search projects...",
+						Attributes:  templ.Attributes{"aria-label": "Search projects"},
 					})
 				</form>
-				@projectcomponents.NewProject()
-			</span>
-			<div class="table-wrapper">
-				@table.Table() {
-					@table.Caption() {
-						A list of your projects.
+			</div>
+			<div class="table-wrapper space-y-4">
+				<div class="overflow-hidden rounded-xl border">
+					@table.Table(table.Props{Class: "[&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
+						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
+							A list of your projects.
+						}
+						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
+							@table.Row() {
+								@table.Head() {
+									Project name
+								}
+								@table.Head() {
+									Clients
+								}
+								@table.Head(table.HeadProps{Class: "w-12"}) {
+									<span class="sr-only">Actions</span>
+								}
+							}
+						}
+						@ProjectsTableBody(props)
 					}
-					@ProjectsTableBody(props)
-					@table.Header() {
-						@table.Head() {
-							Project name
-						}
-						@table.Head() {
-							Clients
-						}
-						@table.Head() {
-							Storage
-						}
-						@table.Head() {
-						}
-					}
-				}
+				</div>
+				@projectcomponents.EditProjectDialog()
+				@projectcomponents.ConnectionStringDialog()
 				@pagination.PaginationWrapper(pagination.WrapperProps{
 					Page:       props.Page,
 					Size:       props.Size,
@@ -83,30 +99,33 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 			@table.Row(table.RowProps{
 				Attributes: templ.Attributes{"data-project-id": project.ID.String()},
 			}) {
-				@table.Cell() {
-					{ 	project.Name }
+				@table.Cell(table.CellProps{Class: "font-medium"}) {
+					{ project.Name }
 				}
-				@table.Cell() {
+				@table.Cell(table.CellProps{Class: "text-muted-foreground"}) {
 					{ strings.Join(project.ClientNames(), ", ") }
-				}
-				@table.Cell() {
-					—
 				}
 				@table.Cell() {
 					@projectActions(project)
 				}
 			}
 		}
+		if len(props.Projects) == 0 {
+			@table.Row(table.RowProps{Class: "hidden only:table-row"}) {
+				@table.Cell(table.CellProps{Class: "h-32 text-center text-muted-foreground", Attributes: templ.Attributes{"colspan": "3"}}) {
+					No projects found. Try another search or create a project.
+				}
+			}
+		}
 	}
-	@projectcomponents.EditProjectDialog()
-	@projectcomponents.ConnectionStringDialog()
 }
 
 templ projectActions(project projects.Project) {
 	@dropdownmenu.DropdownMenu() {
 		@button.Button(button.Props{
-			Variant:    button.VariantOutline,
-			Attributes: dropdownmenu.Trigger(ctx),
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIcon,
+			Attributes: utils.MergeAttributes(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions for " + project.Name}),
 		}) {
 			@icon.EllipsisVertical()
 		}

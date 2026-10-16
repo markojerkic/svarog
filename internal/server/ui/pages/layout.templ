@@ -8,6 +8,8 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
+import "github.com/markojerkic/svarog/internal/server/ui/components/toast"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
@@ -27,12 +29,10 @@ templ BaseLayout(props BaseProps) {
 					Svarog
 				}
 			</title>
-			<link href="/assets/css/output.css" rel="stylesheet"/>
+			<link href={ "/assets/css/output.css?v=" + utils.ScriptVersion } rel="stylesheet"/>
 			<link rel="icon" href="/assets/logo.png" type="image/png"/>
-			<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"/>
 			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 			<script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.4" integrity="sha384-1RwI/nvUSrMRuNj7hX1+27J8XDdCoSLf0EjEyF69nacuWyiJYoQ/j39RT1mSnd2G" crossorigin="anonymous"></script>
-			<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 			<script defer src="/assets/js/htmx-error-swap.js"></script>
 			<script defer src="/assets/js/copy-result-string.js"></script>
 			<script defer src="/assets/js/close-dialog.js"></script>
@@ -41,14 +41,15 @@ templ BaseLayout(props BaseProps) {
 			<script defer src="/assets/js/project-search.js"></script>
 			@components.Scripts()
 			@tagsinput.Script()
-			<script defer src="/assets/js/toast-handler.js"></script>
+			<script defer src={ utils.ScriptURL("/assets/js/toast-handler.js") }></script>
 		</head>
 		<body
-			class="bg-background text-foreground h-screen overflow-hidden"
+			class="bg-background text-foreground min-h-svh"
 			hx-indicator="#htmx-global-indicator"
 		>
 			{ children... }
 			@ConfirmDialog()
+			@toast.Toaster(toast.ToasterProps{Timeout: 4000})
 		</body>
 	</html>
 }
@@ -79,87 +80,102 @@ templ AdminLayout(props AdminLayoutProps) {
 		@sidebar.Provider() {
 			@sidebar.Sidebar(sidebar.Props{
 				Collapsible: sidebar.CollapsibleIcon,
-				Variant:     sidebar.VariantFloating,
+				Variant:     sidebar.VariantInset,
 			}) {
 				@sidebar.Header() {
 					@sidebar.Menu() {
 						@sidebar.MenuItem() {
 							@sidebar.MenuButton(sidebar.MenuButtonProps{
 								Href: "/",
+								Size: sidebar.MenuButtonSizeLg,
 							}) {
-								<img src="/assets/logo.png" class="h-6 w-6"/>
-								<span class="font-semibold">Svarog</span>
+								<img src="/assets/logo.png" alt="" class="size-8 shrink-0"/>
+								<span class="grid text-left leading-tight">
+									<span class="font-semibold">Svarog</span>
+									<span class="text-xs text-muted-foreground">Log explorer</span>
+								</span>
 							}
 						}
 					}
 				}
 				@sidebar.Content() {
-					if auth.IsAdmin(ctx) {
-						@sidebar.MenuItem() {
-							@sidebar.Group() {
-								@sidebar.GroupLabel() {
-									Admin
-								}
-								@sidebar.Menu() {
-									@sidebar.MenuButton(sidebar.MenuButtonProps{
-										Href:     "/admin/dashboard",
-										Tooltip:  "Dashboard",
-										IsActive: isActivePath(props.CurrentPath, "/admin/dashboard"),
-									}) {
-										@icon.Gauge(icon.Props{Class: "size-4"})
-										<span>Dashboard</span>
-									}
-									@sidebar.MenuItem() {
-										@sidebar.MenuButton(sidebar.MenuButtonProps{
-											Href:     "/admin/projects",
-											Tooltip:  "Projects",
-											IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
-										}) {
-											@icon.FolderKanban(icon.Props{Class: "size-4"})
-											<span>Projects</span>
-										}
-									}
-									@sidebar.MenuItem() {
-										@sidebar.MenuButton(sidebar.MenuButtonProps{
-											Href:     "/admin/users",
-											Tooltip:  "Users",
-											IsActive: isActivePath(props.CurrentPath, "/admin/users"),
-										}) {
-											@icon.Users(icon.Props{Class: "size-4"})
-											<span>Users</span>
-										}
-									}
+					@sidebar.Group() {
+						@sidebar.GroupLabel() {
+							Workspace
+						}
+						@sidebar.Menu() {
+							@sidebar.MenuItem() {
+								@sidebar.MenuButton(sidebar.MenuButtonProps{
+									Href:     "/",
+									Tooltip:  "Logs",
+									IsActive: props.CurrentPath == "/" || strings.HasPrefix(props.CurrentPath, "/logs/"),
+								}) {
+									@icon.Logs(icon.Props{Class: "size-4"})
+									<span>Logs</span>
 								}
 							}
 						}
 					}
-					@sidebar.Footer() {
-						@sidebar.Menu() {
-							@sidebar.MenuItem() {
-								@sidebar.MenuButton(sidebar.MenuButtonProps{
-									Href:    "/logout",
-									Tooltip: "Settings",
-								}) {
-									@icon.UserMinus(icon.Props{Class: "size-4"})
-									<span>Logout</span>
+					if auth.IsAdmin(ctx) {
+						@sidebar.Group() {
+							@sidebar.GroupLabel() {
+								Administration
+							}
+							@sidebar.Menu() {
+								@sidebar.MenuItem() {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/projects",
+										Tooltip:  "Projects",
+										IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
+									}) {
+										@icon.FolderKanban(icon.Props{Class: "size-4"})
+										<span>Projects</span>
+									}
+								}
+								@sidebar.MenuItem() {
+									@sidebar.MenuButton(sidebar.MenuButtonProps{
+										Href:     "/admin/users",
+										Tooltip:  "Users",
+										IsActive: isActivePath(props.CurrentPath, "/admin/users"),
+									}) {
+										@icon.Users(icon.Props{Class: "size-4"})
+										<span>Users</span>
+									}
 								}
 							}
 						}
 					}
 				}
+				@sidebar.Footer() {
+					@sidebar.Menu() {
+						@sidebar.MenuItem() {
+							@sidebar.MenuButton(sidebar.MenuButtonProps{
+								Href:    "/logout",
+								Tooltip: "Log out",
+							}) {
+								@icon.LogOut(icon.Props{Class: "size-4"})
+								<span>Log out</span>
+							}
+						}
+					}
+				}
 			}
-			@sidebar.Inset(sidebar.InsetProps{Class: "h-screen overflow-hidden"}) {
+			@sidebar.Inset(sidebar.InsetProps{Class: "min-w-0 h-svh overflow-hidden md:h-[calc(100svh-1rem)]"}) {
 				<span
 					class="htmx-indicator top-0 right-0 -translate-x-1/2 translate-y-1/2 absolute z-10 pointer-events-none animate-spin"
 					id="htmx-global-indicator"
 				>
 					@icon.LoaderCircle(icon.Props{Size: 16})
 				</span>
-				<div class="flex h-full flex-col">
-					<div class="flex h-14 shrink-0 items-center gap-4 border-b px-6">
+				<div class="flex h-full min-h-0 flex-col">
+					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
 						@sidebar.Trigger()
-					</div>
-					<div class="flex-1 overflow-auto p-6 min-h-0">
+						<span class="h-4 w-px bg-border" aria-hidden="true"></span>
+						<a href="/" class="text-sm text-muted-foreground hover:text-foreground">Workspace</a>
+						@icon.ChevronRight(icon.Props{Class: "size-3.5 text-muted-foreground"})
+						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
+					</header>
+					<div class="flex-1 overflow-auto p-4 md:p-6 min-h-0 min-w-0">
 						{ children... }
 					</div>
 				</div>

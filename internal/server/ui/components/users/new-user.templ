@@ -44,10 +44,11 @@ templ NewUserForm(props ...NewUserFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "username"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-username"}) {
 					Username
 				}
 				@input.Input(input.Props{
+					ID:          p.FormID + "-username",
 					Name:        "username",
 					Placeholder: "Enter username",
 					ReadOnly:    p.Value.ID != "",
@@ -68,13 +69,14 @@ templ NewUserForm(props ...NewUserFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "firstName"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-firstName"}) {
 					First Name
 				}
 				@input.Input(input.Props{
 					Name:        "firstName",
+					ID:          p.FormID + "-firstName",
 					Placeholder: "Enter first name",
-					Value:      p.Value.FirstName,
+					Value:       p.Value.FirstName,
 					Attributes: templ.Attributes{
 						"required":     "",
 						"aria-invalid": p.ApiError.Fields["firstName"] != "",
@@ -91,13 +93,14 @@ templ NewUserForm(props ...NewUserFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "lastName"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-lastName"}) {
 					Last Name
 				}
 				@input.Input(input.Props{
 					Name:        "lastName",
+					ID:          p.FormID + "-lastName",
 					Placeholder: "Enter last name",
-					Value:      p.Value.LastName,
+					Value:       p.Value.LastName,
 					Attributes: templ.Attributes{
 						"required":     "",
 						"aria-invalid": p.ApiError.Fields["lastName"] != "",
@@ -114,7 +117,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "role"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-role"}) {
 					Role
 				}
 				@selectcomp.Select(selectcomp.Props{
@@ -125,7 +128,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 						{Value: string(auth.ADMIN), Label: "Admin"},
 					},
 				}) {
-					@selectcomp.Trigger(selectcomp.TriggerProps{ID: "role", Class: "w-full"}) {
+					@selectcomp.Trigger(selectcomp.TriggerProps{ID: p.FormID + "-role", Class: "w-full"}) {
 						@selectcomp.Value(selectcomp.ValueProps{Placeholder: "Select role"})
 					}
 					@selectcomp.Content() {
@@ -175,12 +178,12 @@ templ NewUser() {
 		ID: "new-user-dialog",
 	}) {
 		@button.Button(button.Props{
-			Variant:    button.VariantOutline,
+			Variant:    button.VariantDefault,
 			Attributes: dialog.Trigger(ctx),
 		}) {
 			<span class="flex items-center">
 				@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
-				Create a new user
+				New user
 			</span>
 		}
 		@dialog.Content(dialog.ContentProps{

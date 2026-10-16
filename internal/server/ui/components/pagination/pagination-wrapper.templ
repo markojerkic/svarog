@@ -30,6 +30,7 @@ templ PaginationWrapper(props WrapperProps) {
 							"hx-include": "[form=search-form]",
 							"hx-target":  ".table-wrapper",
 							"hx-select":  ".table-wrapper",
+							"hx-swap":    "outerHTML",
 						},
 					})
 				}
@@ -45,6 +46,7 @@ templ PaginationWrapper(props WrapperProps) {
 								"hx-include": "[form=search-form]",
 								"hx-target":  ".table-wrapper",
 								"hx-select":  ".table-wrapper",
+								"hx-swap":    "outerHTML",
 							},
 						}) {
 							1
@@ -69,6 +71,7 @@ templ PaginationWrapper(props WrapperProps) {
 								"hx-include": "[form=search-form]",
 								"hx-target":  ".table-wrapper",
 								"hx-select":  ".table-wrapper",
+								"hx-swap":    "outerHTML",
 							},
 						}) {
 							{ fmt.Sprint(page) }
@@ -92,6 +95,7 @@ templ PaginationWrapper(props WrapperProps) {
 								"hx-include": "[form=search-form]",
 								"hx-target":  ".table-wrapper",
 								"hx-select":  ".table-wrapper",
+								"hx-swap":    "outerHTML",
 							},
 						}) {
 							{ fmt.Sprint(p.TotalPages) }
@@ -110,6 +114,7 @@ templ PaginationWrapper(props WrapperProps) {
 							"hx-include": "[form=search-form]",
 							"hx-target":  ".table-wrapper",
 							"hx-select":  ".table-wrapper",
+							"hx-swap":    "outerHTML",
 						},
 					})
 				}

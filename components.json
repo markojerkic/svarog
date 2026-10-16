@@ -1,9 +1,13 @@
 {
+  "scripts": {
+    "dir": "internal/server/ui/assets/js",
+    "path": "/assets/js"
+  },
   "$schema": "https://shadcn-templ.com/schema/components.json",
   "style": "base-nova",
   "tailwind": {
     "css": "internal/server/ui/assets/css/input.css",
-    "baseColor": "zinc",
+    "baseColor": "neutral",
     "cssVariables": true
   },
   "rtl": false,
@@ -13,9 +17,5 @@
   "aliases": {
     "components": "github.com/markojerkic/svarog/internal/server/ui/components",
     "utils": "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
-  },
-  "scripts": {
-    "dir": "internal/server/ui/assets/js",
-    "path": "/assets/js"
   }
 }

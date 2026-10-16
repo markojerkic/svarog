@@ -42,10 +42,11 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "name"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-name"}) {
 					Project name
 				}
 				@input.Input(input.Props{
+					ID:          p.FormID + "-name",
 					Name:        "name",
 					Placeholder: "Enter project name",
 					Value:       p.Value.Name,
@@ -65,10 +66,11 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 			@field.Field(field.Props{
 				Class: "space-y-2",
 			}) {
-				@field.Label(field.LabelProps{For: "clients"}) {
+				@field.Label(field.LabelProps{For: p.FormID + "-clients"}) {
 					Clients
 				}
 				@tagsinput.TagsInput(tagsinput.Props{
+					ID:          p.FormID + "-clients",
 					Name:        "clients",
 					Placeholder: "Client name, e.g. client1, client2",
 					Value:       p.Value.Clients,
@@ -90,12 +92,12 @@ templ NewProject() {
 		ID: "new-project-dialog",
 	}) {
 		@button.Button(button.Props{
-			Variant:    button.VariantOutline,
+			Variant:    button.VariantDefault,
 			Attributes: dialog.Trigger(ctx),
 		}) {
 			<span class="flex items-center">
 				@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
-				Create a new project
+				New project
 			</span>
 		}
 		@dialog.Content(dialog.ContentProps{

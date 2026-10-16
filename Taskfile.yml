@@ -39,12 +39,18 @@ tasks:
     cmds:
       - go tool templ generate --watch --proxy="http://localhost:1323" --cmd="go run cmd/server/main.go" --open-browser=false
 
+  ui:scripts:
+    desc: Watch shadcn-templ component scripts and rebuild their bundle
+    cmds:
+      - go tool shadcn-templ bundle --watch
+
   dev:
     desc: Start development server with hot reload
     deps:
       - db
     cmds:
-      - task --parallel templ tailwind
+      - go tool shadcn-templ bundle
+      - task --parallel templ tailwind ui:scripts
 
   clean-tmp:
     desc: Clean Go temporary build files from /tmp

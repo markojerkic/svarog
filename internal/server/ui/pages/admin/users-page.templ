@@ -11,6 +11,7 @@ import "github.com/markojerkic/svarog/internal/lib/auth"
 import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
 
 type UsersListPageProps struct {
 	Users      []auth.User
@@ -22,8 +23,18 @@ type UsersListPageProps struct {
 
 templ UsersListPage(props UsersListPageProps) {
 	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users", CurrentPath: "/admin/users"}) {
-		<div class="grid grid-cols-1 p-4 space-y-4">
-			<span class="flex justify-between gap-2">
+		<div class="mx-auto w-full max-w-6xl space-y-6">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-1">
+					<h1 class="text-2xl font-semibold tracking-tight">Users</h1>
+					<p class="text-sm text-muted-foreground">Manage accounts, roles and access to projects.</p>
+				</div>
+				@usercomponents.NewUser()
+			</div>
+			<div class="relative w-full sm:max-w-xs">
+				<span class="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+					@icon.Search(icon.Props{Class: "size-4"})
+				</span>
 				<form
 					id="search-form"
 					hx-get="/admin/users"
@@ -31,38 +42,45 @@ templ UsersListPage(props UsersListPageProps) {
 					hx-push-url="true"
 					hx-target=".table-wrapper"
 					hx-select=".table-wrapper"
+					hx-swap="outerHTML"
 					hx-trigger="input changed delay:300ms"
 				>
 					@input.Input(input.Props{
 						Type:        "search",
 						Value:       props.Search,
 						Name:        "search",
-						Class:       "max-w-2xs md:max-w-xs",
-						Placeholder: "Search...",
+						Class:       "pl-9",
+						Placeholder: "Search users...",
+						Attributes:  templ.Attributes{"aria-label": "Search users"},
 					})
 				</form>
-				@usercomponents.NewUser()
-			</span>
-			<div class="table-wrapper">
-				@table.Table() {
-					@table.Caption() {
-						User administration
+			</div>
+			<div class="table-wrapper space-y-4">
+				<div class="overflow-hidden rounded-xl border">
+					@table.Table(table.Props{Class: "[&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
+						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
+							User administration
+						}
+						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
+							@table.Row() {
+								@table.Head() {
+									Username
+								}
+								@table.Head() {
+									Name
+								}
+								@table.Head() {
+									Role
+								}
+								@table.Head(table.HeadProps{Class: "w-12"}) {
+									<span class="sr-only">Actions</span>
+								}
+							}
+						}
+						@UsersTableBody(props)
 					}
-					@UsersTableBody(props)
-					@table.Header() {
-						@table.Head() {
-							Username
-						}
-						@table.Head() {
-							Name
-						}
-						@table.Head() {
-							Role
-						}
-						@table.Head() {
-						}
-					}
-				}
+				</div>
+				@usercomponents.EditUserDialog()
 				@pagination.PaginationWrapper(pagination.WrapperProps{
 					Page:       props.Page,
 					Size:       props.Size,
@@ -82,22 +100,30 @@ templ UsersTableBody(props UsersListPageProps) {
 			@table.Row(table.RowProps{
 				Attributes: templ.Attributes{"data-user-id": user.ID.String()},
 			}) {
-				@table.Cell() {
+				@table.Cell(table.CellProps{Class: "font-medium"}) {
 					{ user.Username }
 				}
-				@table.Cell() {
-					{ 	user.FirstName + " " + user.LastName }
+				@table.Cell(table.CellProps{Class: "text-muted-foreground"}) {
+					{ user.FirstName + " " + user.LastName }
 				}
 				@table.Cell() {
-					{ user.Role }
+					@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+						{ user.Role }
+					}
 				}
-				@table.Cell(table.CellProps{Class: "flex justify-end"}) {
+				@table.Cell() {
 					@userActions(user)
 				}
 			}
 		}
+		if len(props.Users) == 0 {
+			@table.Row(table.RowProps{Class: "hidden only:table-row"}) {
+				@table.Cell(table.CellProps{Class: "h-32 text-center text-muted-foreground", Attributes: templ.Attributes{"colspan": "4"}}) {
+					No users found. Try another search or create a user.
+				}
+			}
+		}
 	}
-	@usercomponents.EditUserDialog()
 }
 
 templ userActions(user auth.User) {
@@ -105,9 +131,11 @@ templ userActions(user auth.User) {
 		{{
 			trigger := dropdownmenu.Trigger(ctx)
 			trigger["data-user-actions-id"] = user.ID.String()
+			trigger["aria-label"] = "Actions for " + user.Username
 		}}
 		@button.Button(button.Props{
-			Variant:    button.VariantOutline,
+			Variant:    button.VariantGhost,
+			Size:       button.SizeIcon,
 			Attributes: trigger,
 		}) {
 			<span

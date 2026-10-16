@@ -3,27 +3,38 @@ package homepage
 import (
 	"fmt"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 )
 
 templ ProjectGroup(project projects.Project) {
 	<section>
-		<div class="flex items-center gap-3 mb-4">
-			<h2 class="text-sm font-medium text-muted-foreground">{ project.Name }</h2>
-			<div class="flex-1 h-px bg-border"></div>
+		<div class="mb-3 flex items-center gap-2">
+			@icon.Folder(icon.Props{Class: "size-4 text-muted-foreground"})
+			<h2 class="text-sm font-medium">{ project.Name }</h2>
 		</div>
-		<div class="flex flex-wrap gap-3">
+		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 			for _, client := range project.Clients {
 				@ClientCard(project.ID.String(), client)
 			}
 		</div>
+		if len(project.Clients) == 0 {
+			<p class="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No clients configured for this project.</p>
+		}
 	</section>
 }
 
 templ ClientCard(projectID string, client projects.Client) {
 	<a
 		href={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", projectID, client.ID.String())) }
-		class="inline-block rounded-lg border bg-card p-3 hover:bg-accent transition-colors cursor-pointer"
+		class="group flex min-w-0 items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 	>
-		<span class="font-medium text-sm">{ client.Name }</span>
+		<span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+			@icon.Terminal(icon.Props{Class: "size-4"})
+		</span>
+		<span class="min-w-0 flex-1">
+			<span class="block truncate text-sm font-medium">{ client.Name }</span>
+			<span class="block text-xs text-muted-foreground">Explore logs</span>
+		</span>
+		@icon.ChevronRight(icon.Props{Class: "size-4 shrink-0 text-muted-foreground group-hover:text-foreground"})
 	</a>
 }

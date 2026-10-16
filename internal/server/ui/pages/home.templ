@@ -8,19 +8,24 @@ type HomepageProps struct {
 }
 
 templ Homepage(props HomepageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Svarog", CurrentPath: "/"}) {
-		<main class="container mx-auto p-6">
+	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: "/"}) {
+		<div class="mx-auto w-full max-w-6xl space-y-8">
+			<div class="space-y-1">
+				<h1 class="text-2xl font-semibold tracking-tight">Logs</h1>
+				<p class="text-sm text-muted-foreground">Choose a client to explore its logs.</p>
+			</div>
 			if len(props.Projects) == 0 {
-				<p class="text-muted-foreground">No projects found.</p>
+				<div class="rounded-xl border border-dashed p-10 text-center">
+					<h2 class="font-medium">No projects available</h2>
+					<p class="mt-1 text-sm text-muted-foreground">Projects assigned to your account will appear here.</p>
+				</div>
 			} else {
 				<div class="flex flex-col gap-y-8">
 					for _, project := range props.Projects {
-						if len(project.Clients) > 0 {
-							@homepage.ProjectGroup(project)
-						}
+						@homepage.ProjectGroup(project)
 					}
 				</div>
 			}
-		</main>
+		</div>
 	}
 }
