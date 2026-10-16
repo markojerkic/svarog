@@ -38,6 +38,9 @@ task dev                   # Start server with templ hot reload
 
 ## Client Usage
 
+For a multi-application demo using `log-demo | svarog-client` with Docker Compose
+replicas, see [the log demo instructions](cmd/log-demo/README.md).
+
 The Svarog client reads logs from stdin and publishes them to NATS. Integrate it into your application by piping logs:
 
 ### Docker Integration
