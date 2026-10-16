@@ -1,0 +1,64 @@
+package logs
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
+
+templ SearchTrigger() {
+	@button.Button(button.Props{
+		ID:      "log-search-trigger",
+		Variant: button.VariantSecondary,
+		Size:    button.SizeSm,
+		Class:   "gap-2",
+		Attributes: utils.MergeAttributes(dialog.TriggerFor("log-search-dialog"), templ.Attributes{
+			"aria-label":        "Search logs",
+			"aria-keyshortcuts": "Control+k Meta+k",
+		}),
+	}) {
+		@icon.Search(icon.Props{Class: "size-3.5"})
+		<span>Search</span>
+		<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
+	}
+}
+
+templ SearchDialog() {
+	@dialog.Dialog(dialog.Props{ID: "log-search-dialog"}) {
+		@dialog.Content(dialog.ContentProps{
+			Class:           "top-[18svh] -translate-y-0 gap-0 p-0 shadow-xl sm:max-w-[650px]",
+			HideCloseButton: true,
+		}) {
+			@dialog.Title(dialog.TitleProps{Class: "sr-only"}) {
+				Search logs
+			}
+			<div class="flex items-center gap-4 px-4 sm:px-5">
+				@icon.Search(icon.Props{Class: "size-5 shrink-0 text-muted-foreground"})
+				@input.Input(input.Props{
+					ID:          "log-search-input",
+					Name:        "search",
+					Type:        "search",
+					Placeholder: "Search logs…",
+					Class:       "h-16 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent",
+					Attributes: templ.Attributes{
+						"aria-label":   "Search logs",
+						"autocomplete": "off",
+						"spellcheck":   "false",
+						"enterkeyhint": "search",
+					},
+				})
+				@button.Button(button.Props{
+					Variant:  button.VariantSecondary,
+					Size:     button.SizeIconSm,
+					Disabled: true,
+					Attributes: templ.Attributes{
+						"aria-label": "Run search (not connected yet)",
+						"title":      "Search is not connected yet",
+					},
+				}) {
+					@icon.CornerDownLeft(icon.Props{Class: "size-3.5"})
+				}
+			</div>
+		}
+	}
+}

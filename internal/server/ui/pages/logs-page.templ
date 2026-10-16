@@ -15,7 +15,7 @@ type LogsPageProps struct {
 }
 
 templ LogsPage(props LogsPageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)}) {
+	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: logs.SearchTrigger()}) {
 		<script defer src="/assets/js/log-menu.js"></script>
 		<div id="logs-container" class="flex h-full min-h-0 flex-col gap-3">
 			if props.InstanceId != nil {
@@ -29,6 +29,7 @@ templ LogsPage(props LogsPageProps) {
 			</div>
 		</div>
 		@logs.SharedLogMenu()
+		@logs.SearchDialog()
 	}
 	<script type="text/javascript">
 		{

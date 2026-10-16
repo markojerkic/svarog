@@ -43,6 +43,7 @@ templ BaseLayout(props BaseProps) {
 			@components.Scripts()
 			@tagsinput.Script()
 			<script defer src={ utils.ScriptURL("/assets/js/toast-handler.js") }></script>
+			<script defer src={ utils.ScriptURL("/assets/js/log-search.js") }></script>
 		</head>
 		<body
 			class="bg-background text-foreground min-h-svh"
@@ -74,8 +75,9 @@ type NavItem struct {
 }
 
 type AdminLayoutProps struct {
-	Title       string
-	CurrentPath string
+	Title         string
+	CurrentPath   string
+	HeaderActions templ.Component
 }
 
 func isActivePath(currentPath, menuPath string) bool {
@@ -175,6 +177,11 @@ templ AdminLayout(props AdminLayoutProps) {
 						<a href="/" class="text-sm text-muted-foreground hover:text-foreground">Workspace</a>
 						@icon.ChevronRight(icon.Props{Class: "size-3.5 text-muted-foreground"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
+						if props.HeaderActions != nil {
+							<div class="ml-auto flex shrink-0 items-center gap-2">
+								@props.HeaderActions
+							</div>
+						}
 					</header>
 					<div class="flex-1 overflow-auto p-4 md:p-6 min-h-0 min-w-0">
 						{ children... }
