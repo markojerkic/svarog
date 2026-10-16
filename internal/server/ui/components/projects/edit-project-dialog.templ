@@ -13,7 +13,7 @@ templ EditProjectDialog() {
 				}
 			}
 			<div id="edit-project-form-container">
-				@NewProjectForm()
+				@NewProjectForm(NewProjectFormProps{FormID: "edit-project-form"})
 			</div>
 			@dialog.Footer() {
 				@button.Button(button.Props{
