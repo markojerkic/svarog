@@ -1,0 +1,25 @@
+<!-- Toaster's DOM contract from components/toast/toast.templ; behavior uses the production scripts. -->
+<div data-base-ui-portal data-slot="toast-portal">
+  <div
+    data-slot="toast-viewport"
+    tabindex="-1"
+    role="region"
+    aria-live="polite"
+    aria-label="Notifications"
+    data-templ-timeout="5000"
+    data-templ-limit="3"
+  ></div>
+  <template data-templ-toast-list>
+    <div data-slot="toast">
+      <div data-slot="toast-content">
+        <div>
+          <h2 data-slot="toast-title"></h2>
+          <p data-slot="toast-description"></p>
+        </div>
+        <button data-slot="toast-action" type="button"></button>
+        <button data-slot="toast-close" type="button" aria-label="Close toast">Close</button>
+      </div>
+    </div>
+  </template>
+  <template data-templ-toast-icon="success"><span data-slot="toast-icon">Success</span></template>
+</div>

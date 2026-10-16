@@ -537,6 +537,7 @@
 
     // recalculateHeight
     r.recalculateHeight = () => {
+      if (provider.destroyed || !el.isConnected) return;
       const previousHeight = el.style.height;
       el.style.height = "auto";
       const height = el.offsetHeight;
@@ -882,7 +883,7 @@
 
   function createProvider(viewport) {
     const portal = viewport.parentElement;
-    const provider = { portal, viewport, toasts: new Map() };
+    const provider = { portal, viewport, toasts: new Map(), destroyed: false };
     const store = new ToastStore(
       {
         timeout: parseInt(viewport.getAttribute("data-templ-timeout"), 10) || 5000,
@@ -990,7 +991,7 @@
     viewport.addEventListener("pointercancel", handlePointerEnd);
 
     // Listen globally for F6 so we can force-focus the viewport.
-    window.addEventListener("keydown", (event) => {
+    function handleWindowKeyDown(event) {
       if (selectors.isEmpty(store.state)) return;
       if (event.key === "F6" && event.target !== viewport) {
         event.preventDefault();
@@ -999,7 +1000,8 @@
         store.pauseTimers();
         store.setFocused(true);
       }
-    });
+    }
+    window.addEventListener("keydown", handleWindowKeyDown);
 
     // The window and document listeners live while there are toasts.
     function handleWindowBlur(event) {
@@ -1143,10 +1145,11 @@
     // renders after an event handler and runs the layout effects then.
     let scheduled = false;
     provider.render = () => {
-      if (scheduled) return;
+      if (provider.destroyed || !viewport.isConnected || scheduled) return;
       scheduled = true;
       queueMicrotask(() => {
         scheduled = false;
+        if (provider.destroyed || !viewport.isConnected) return;
         renderOnce();
       });
     };
@@ -1159,6 +1162,24 @@
       else if (action === "close") store.closeToast(id);
       else store.addToast(options);
     });
+    provider.destroy = () => {
+      if (provider.destroyed) return;
+      provider.destroyed = true;
+      provider.unsubscribe();
+      setListening(false);
+      window.removeEventListener("keydown", handleWindowKeyDown);
+      windowFocusTimeout.clear();
+      store.clearTimers();
+      provider.toasts.forEach((r) => {
+        r.observers.forEach((observer) => observer.disconnect());
+        r.dragAbortController?.abort();
+        r.el.remove();
+      });
+      provider.toasts.clear();
+      store.setToasts([]);
+      Object.values(guards).forEach((guard) => guard?.remove());
+      alerts?.remove();
+    };
     return provider;
   }
 
@@ -1171,8 +1192,8 @@
     destroy(viewport) {
       const provider = viewport._templToastProvider;
       if (!provider) return;
-      provider.unsubscribe();
-      provider.store.clearTimers();
+      provider.destroy();
+      delete viewport._templToastProvider;
     },
   });
 
