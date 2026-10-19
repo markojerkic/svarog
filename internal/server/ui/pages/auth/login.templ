@@ -10,6 +10,7 @@ type LoginPageProps struct {
 	Error    string
 	Username string
 	Password string
+	Redirect string
 }
 
 templ LoginPage(props ...LoginPageProps) {
@@ -40,6 +41,9 @@ templ LoginPage(props ...LoginPageProps) {
 						hx-disable="input, button"
 						class="space-y-4"
 					>
+						if p.Redirect != "" {
+							<input type="hidden" name="redirect" value={ p.Redirect }/>
+						}
 						@field.Field() {
 							@field.Label(field.LabelProps{For: "username"}) {
 								Username

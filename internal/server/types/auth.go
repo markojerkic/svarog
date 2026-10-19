@@ -13,6 +13,7 @@ type GetUserPageInput struct {
 type LoginForm struct {
 	Username string `json:"username" form:"username" validate:"required,gte=3"`
 	Password string `json:"password" form:"password" validate:"required,gte=8"`
+	Redirect string `json:"redirect" form:"redirect"`
 }
 
 type LoginFormWithToken struct {

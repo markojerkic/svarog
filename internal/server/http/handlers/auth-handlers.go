@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 
@@ -24,13 +26,31 @@ type AuthRouter struct {
 	projectsService projects.ProjectsService
 }
 
+func loginRedirect(target string) string {
+	u, err := url.Parse(target)
+	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil {
+		return "/"
+	}
+	if !strings.HasPrefix(target, "/") || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") || strings.Contains(u.Path, "\\") {
+		return "/"
+	}
+	return target
+}
+
 func (a *AuthRouter) login(c *echo.Context) error {
 	var loginForm types.LoginForm
-	if err := c.Bind(&loginForm); err != nil {
+	bindErr := c.Bind(&loginForm)
+	redirect := loginForm.Redirect
+	if redirect == "" {
+		redirect = c.QueryParam("redirect")
+	}
+	redirect = loginRedirect(redirect)
+	if bindErr != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(authpages.LoginPageProps{
 			Error:    "Invalid form data",
 			Username: loginForm.Username,
 			Password: loginForm.Password,
+			Redirect: redirect,
 		}))
 	}
 	if err := c.Validate(&loginForm); err != nil {
@@ -39,6 +59,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 				Error:    "Username and password are required",
 				Username: loginForm.Username,
 				Password: loginForm.Password,
+				Redirect: redirect,
 			},
 		))
 	}
@@ -50,15 +71,12 @@ func (a *AuthRouter) login(c *echo.Context) error {
 				Error:    "Invalid credentials",
 				Username: loginForm.Username,
 				Password: loginForm.Password,
+				Redirect: redirect,
 			},
 		))
 	}
 
-	if c.QueryParams().Has("redirect") {
-		return utils.HxRedirect(c, c.QueryParams().Get("redirect"))
-	}
-
-	return utils.HxRedirect(c, "/")
+	return utils.HxRedirect(c, redirect)
 }
 
 func (a *AuthRouter) loginWithToken(c *echo.Context) error {
@@ -81,7 +99,9 @@ func (a *AuthRouter) loginWithToken(c *echo.Context) error {
 }
 
 func (a *AuthRouter) loginPage(c *echo.Context) error {
-	return utils.Render(c, http.StatusOK, authpages.LoginPage())
+	return utils.Render(c, http.StatusOK, authpages.LoginPage(authpages.LoginPageProps{
+		Redirect: loginRedirect(c.QueryParam("redirect")),
+	}))
 }
 
 func (a *AuthRouter) resetPasswordPage(c *echo.Context) error {
