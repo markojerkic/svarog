@@ -2,6 +2,8 @@ package postgres_test
 
 import (
 	"context"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -51,6 +53,12 @@ func TestSearchLogs(t *testing.T) {
 		require.NoError(t, err, "search through GetLogs must succeed without using the log anchor")
 		require.Equal(t, []string{"connection timeout"}, messages(page.Logs), "the first search page must contain only the newest matching log within the page limit")
 		require.NotNil(t, page.BackwardCursor, "search must reuse the existing page model")
+		lastPage, err := logs.GetLogs(ctx, db.LogPageRequest{
+			ProjectId: api, ClientId: client, Search: "connection", Instances: &instance, PageSize: 3,
+		})
+		require.NoError(t, err, "a partial search page must load successfully")
+		require.Len(t, lastPage.Logs, 2, "the partial page must contain both matching logs")
+		require.Nil(t, lastPage.BackwardCursor, "a partial page must not offer another older page")
 	})
 
 	t.Run("both words are required and other clients stay hidden", func(t *testing.T) {
@@ -96,6 +104,47 @@ func TestSearchLogs(t *testing.T) {
 			IsBackward:     true,
 		})
 		require.Empty(t, withoutID, "a cursor without id skips the tied row")
+	})
+
+	t.Run("pagination links preserve microseconds and tied rows", func(t *testing.T) {
+		at := base.Add(time.Minute)
+		ids, err := store.InsertLogs(ctx, pool, []store.LogInsert{
+			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(100 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken oldest"},
+			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 2, Message: "pagingtoken tie low"},
+			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 2, Message: "pagingtoken tie high"},
+			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 3, Message: "pagingtoken higher sequence"},
+			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(700 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken newer"},
+			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(900 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken newest"},
+			{ClientID: apiID, InstanceName: "ignored", OccurredAt: at.Add(time.Millisecond), SequenceNumber: 9, Message: "pagingtoken excluded instance"},
+			{ClientID: workerID, InstanceName: "web", OccurredAt: at.Add(time.Millisecond), SequenceNumber: 9, Message: "pagingtoken excluded client"},
+		})
+		require.NoError(t, err, "insert log rows with sub-millisecond timestamps and tied sequence numbers")
+		instances := []string{"web", "api"}
+		req := db.LogPageRequest{ProjectId: api, ClientId: client, Search: "pagingtoken", Instances: &instances, PageSize: 1}
+		var found []int64
+		for i := 0; i < 10; i++ {
+			page, err := logs.GetLogs(ctx, req)
+			require.NoError(t, err, "every search page must load successfully")
+			if len(page.Logs) == 0 {
+				require.Nil(t, page.BackwardCursor, "the last empty page must stop pagination")
+				break
+			}
+			found = append(found, page.Logs[0].ID)
+			u, err := url.Parse(page.ToPath(api, client, &instances, page.BackwardCursor, "backward", req.Search))
+			require.NoError(t, err, "pagination must generate a valid URL")
+			query := u.Query()
+			require.Equal(t, req.Search, query.Get("search"), "every page link must preserve the executed query")
+			require.Equal(t, instances, query["instance"], "every page link must preserve all instance filters")
+			require.False(t, query.Has("cursorTime"), "new page links must not use lossy millisecond timestamps")
+			micros, err := strconv.ParseInt(query.Get("cursorTimeUs"), 10, 64)
+			require.NoError(t, err, "page links must contain a microsecond timestamp")
+			sequence, err := strconv.Atoi(query.Get("cursorSequenceNumber"))
+			require.NoError(t, err, "page links must contain the sequence number")
+			id, err := strconv.ParseInt(query.Get("cursorId"), 10, 64)
+			require.NoError(t, err, "page links must contain the unique row id")
+			req.Cursor = &db.LastCursor{Timestamp: time.UnixMicro(micros), SequenceNumber: sequence, ID: id, IsBackward: query.Get("direction") == "backward"}
+		}
+		require.Equal(t, []int64{ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]}, found, "URL round trips must return every matching row exactly once in timestamp, sequence and id order")
 	})
 
 	t.Run("inactive client stays searchable", func(t *testing.T) {

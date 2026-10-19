@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,12 +40,49 @@ type LogsByClientBinding struct {
 	ProjectId            string    `param:"projectId"`
 	ClientId             string    `param:"clientId"`
 	CursorTime           *int64    `query:"cursorTime"`
+	CursorTimeUs         *int64    `query:"cursorTimeUs"`
 	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
 	CursorID             *int64    `query:"cursorId"`
 	Direction            *string   `query:"direction"`
 	Instances            *[]string `query:"instance"`
 	LogLineId            *string   `query:"logLine"`
 	Search               string    `query:"search"`
+}
+
+func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
+	if params.CursorTime == nil && params.CursorTimeUs == nil && params.CursorSequenceNumber == nil && params.CursorID == nil && params.Direction == nil {
+		return nil, nil
+	}
+	if params.CursorTime == nil && params.CursorTimeUs == nil || params.CursorTime != nil && params.CursorTimeUs != nil {
+		return nil, fmt.Errorf("cursor requires exactly one timestamp")
+	}
+	if params.CursorSequenceNumber == nil || params.Direction == nil || (*params.Direction != "backward" && *params.Direction != "forward") {
+		return nil, fmt.Errorf("cursor requires a sequence number and a valid direction")
+	}
+	var timestamp time.Time
+	if params.CursorTimeUs != nil {
+		if *params.CursorTimeUs <= 0 {
+			return nil, fmt.Errorf("cursor timestamp must be positive")
+		}
+		timestamp = time.UnixMicro(*params.CursorTimeUs)
+	} else {
+		if *params.CursorTime <= 0 || *params.CursorTime > math.MaxInt64/1000 {
+			return nil, fmt.Errorf("invalid cursor timestamp")
+		}
+		timestamp = time.UnixMilli(*params.CursorTime)
+	}
+	cursor := &db.LastCursor{
+		Timestamp:      timestamp,
+		SequenceNumber: *params.CursorSequenceNumber,
+		IsBackward:     *params.Direction == "backward",
+	}
+	if params.CursorID != nil {
+		if *params.CursorID <= 0 {
+			return nil, fmt.Errorf("cursor id must be positive")
+		}
+		cursor.ID = *params.CursorID
+	}
+	return cursor, nil
 }
 
 func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
@@ -77,16 +116,9 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		params.LogLineId = nil
 	}
 
-	var nextCursor *db.LastCursor
-	if params.Search == "" && params.CursorTime != nil && params.CursorSequenceNumber != nil {
-		nextCursor = &db.LastCursor{
-			Timestamp:      time.UnixMilli(*params.CursorTime),
-			SequenceNumber: *params.CursorSequenceNumber,
-			IsBackward:     params.Direction != nil && *params.Direction == "backward",
-		}
-		if params.CursorID != nil {
-			nextCursor.ID = *params.CursorID
-		}
+	nextCursor, err := params.cursor()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Invalid log cursor")
 	}
 
 	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
@@ -112,7 +144,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	}
 
 	isHx := c.Request().Header.Get("HX-Request") == "true"
-	if isHx && nextCursor != nil {
+	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
 	if props.Search != "" {
@@ -134,20 +166,13 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 		return c.JSON(400, "Bad request")
 	}
 
-	var nextCursor db.LastCursor
-	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
-		nextCursor = db.LastCursor{
-			Timestamp:      time.UnixMilli(*params.CursorTime),
-			SequenceNumber: *params.CursorSequenceNumber,
-			IsBackward:     *params.Direction == "backward",
-		}
-		if params.CursorID != nil {
-			nextCursor.ID = *params.CursorID
-		}
+	nextCursor, err := params.cursor()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Invalid log cursor")
 	}
 
 	slog.Debug("next", "cursor", nextCursor)
-	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ProjectId, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, &nextCursor)
+	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ProjectId, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, nextCursor)
 
 	if err != nil {
 		return err

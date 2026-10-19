@@ -33,13 +33,13 @@ type LogPage struct {
 	IsLastPage     bool
 }
 
-func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor *LastCursor, direction string) string {
+func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor *LastCursor, direction, search string) string {
 	u := url.URL{
 		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
 	}
 	query := u.Query()
 	if cursor != nil {
-		query.Set("cursorTime", fmt.Sprintf("%d", cursor.Timestamp.UnixMilli()))
+		query.Set("cursorTimeUs", strconv.FormatInt(cursor.Timestamp.UnixMicro(), 10))
 		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
 		query.Set("direction", direction)
 		if cursor.ID > 0 {
@@ -50,6 +50,9 @@ func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor
 		for _, instance := range *instances {
 			query.Add("instance", instance)
 		}
+	}
+	if search != "" {
+		query.Set("search", search)
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
@@ -118,7 +121,7 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 	if req.Instances != nil {
 		query.Instances = *req.Instances
 	}
-	if req.Cursor != nil && req.Cursor.Timestamp.UnixMilli() > 0 {
+	if req.Cursor != nil && req.Cursor.Timestamp.UnixMicro() > 0 {
 		query.HasCursor = true
 		query.Backward = req.Cursor.IsBackward
 		query.CursorAt = req.Cursor.Timestamp
@@ -172,7 +175,7 @@ func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, pr
 	if instances != nil {
 		search.Instances = *instances
 	}
-	if lastCursor != nil && lastCursor.Timestamp.UnixMilli() > 0 {
+	if lastCursor != nil && lastCursor.Timestamp.UnixMicro() > 0 {
 		search.HasCursor = true
 		search.Backward = lastCursor.IsBackward
 		search.CursorAt = lastCursor.Timestamp
@@ -280,7 +283,7 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 		return emptyLogPage(req)
 	}
 	var backwardCursor *LastCursor
-	if req.Cursor == nil || req.Cursor.IsBackward {
+	if int64(len(logs)) == req.PageSize && (req.Cursor == nil || req.Cursor.IsBackward) {
 		last := logs[len(logs)-1]
 		backwardCursor = &LastCursor{
 			Timestamp:      last.Timestamp,

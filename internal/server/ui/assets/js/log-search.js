@@ -66,8 +66,12 @@ document.addEventListener("dialog-open-change", (event) => {
 
 document.addEventListener("htmx:before:response", (event) => {
   const { sourceElement, response } = event.detail.ctx;
+  if (sourceElement.matches("[data-log-page]") && !sourceElement.isConnected) {
+    event.preventDefault();
+    return;
+  }
   if (
-    sourceElement.matches("#log-search-form, [data-log-instance-filter]") &&
+    sourceElement.matches("#log-search-form, [data-log-instance-filter], [data-log-page]") &&
     response.status >= 400
   ) {
     event.preventDefault();
@@ -78,7 +82,7 @@ document.addEventListener("htmx:before:response", (event) => {
 document.addEventListener("htmx:error", (event) => {
   const { ctx, error } = event.detail;
   if (
-    ctx.sourceElement.matches("#log-search-form, [data-log-instance-filter]") &&
+    ctx.sourceElement.matches("#log-search-form, [data-log-instance-filter], [data-log-page]") &&
     error.name !== "AbortError"
   ) {
     showToast("Could not search logs. Try again.", "error");

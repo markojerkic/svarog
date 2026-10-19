@@ -47,7 +47,7 @@ func TestReadLogs(t *testing.T) {
 		require.Nil(t, page.ForwardCursor)
 		require.NotNil(t, page.BackwardCursor)
 		require.Equal(t, page.Logs[1].ID, page.BackwardCursor.ID)
-		require.Contains(t, page.ToPath(api, client, nil, page.BackwardCursor, "backward"), "cursorId="+strconv.FormatInt(page.Logs[1].ID, 10))
+		require.Contains(t, page.ToPath(api, client, nil, page.BackwardCursor, "backward", ""), "cursorId="+strconv.FormatInt(page.Logs[1].ID, 10), "pagination links must include the row id as a tie breaker")
 	})
 
 	t.Run("backward page does not overlap", func(t *testing.T) {

@@ -44,6 +44,7 @@ templ SearchDialog(action, search string, instances *[]string) {
 				hx-target="body"
 				hx-swap="innerHTML"
 				hx-push-url="true"
+				hx-sync="body:replace"
 				hx-disable="find button[type='submit']"
 				class="flex items-center gap-4 px-4 sm:px-5"
 			>

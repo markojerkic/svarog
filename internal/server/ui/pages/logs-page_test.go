@@ -64,7 +64,7 @@ func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
 	}
 }
 
-func TestSearchResultsNeverMountLiveOrPagination(t *testing.T) {
+func TestSearchResultsPaginateWithoutLiveUpdates(t *testing.T) {
 	for _, search := range []string{"", "connection refused"} {
 		t.Run("search="+search, func(t *testing.T) {
 			var output bytes.Buffer
@@ -76,9 +76,12 @@ func TestSearchResultsNeverMountLiveOrPagination(t *testing.T) {
 				t.Fatalf("Logs page must render successfully: %v", err)
 			}
 			html := output.String()
-			for _, fragment := range []string{`hx-ws:connect=`, `hx-trigger="intersect once"`} {
-				if strings.Contains(html, fragment) != (search == "") {
-					t.Errorf("Only ordinary logs may render %s in this first-page search implementation", fragment)
+			if strings.Contains(html, `hx-ws:connect=`) != (search == "") {
+				t.Error("Only ordinary logs may mount a live connection")
+			}
+			for _, fragment := range []string{`data-log-page`, `root:#log-scroll-container`, `hx-sync="body:abort"`, `hx-push-url="false"`, `Load older logs`} {
+				if !strings.Contains(html, fragment) {
+					t.Errorf("Both log modes must render pagination with %s", fragment)
 				}
 			}
 			for _, fragment := range []string{`No logs found.`, `aria-label="Back to live"`, `Not live`, `data-templ-controls="log-instance-filters"`} {

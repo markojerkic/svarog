@@ -67,7 +67,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant:    button.VariantGhost,
 			Size:       button.SizeSm,
-			Attributes: templ.Attributes{"aria-label": "Back to live", "title": "Back to live"},
+			Attributes: templ.Attributes{"aria-label": "Back to live", "title": "Back to live", "hx-sync": "body:replace"},
 		}) {
 			@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
 			<span class="hidden sm:inline">Back to live</span>
@@ -119,7 +119,7 @@ templ LogInstanceFilters(props LogsPageProps) {
 			Attributes: templ.Attributes{
 				"hx-target:inherited": "body",
 				"hx-swap:inherited":   "innerHTML",
-				"hx-sync:inherited":   "#log-instance-filters:replace",
+				"hx-sync:inherited":   "body:replace",
 			},
 		}) {
 			@popover.Title(popover.TitleProps{Class: "px-2 py-1 text-xs text-muted-foreground"}) {
@@ -193,13 +193,21 @@ templ LogPageLines(props LogsPageProps) {
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{LogLine: log})
 	}
-	if props.Search == "" && props.LogPage.BackwardCursor != nil {
+	if props.LogPage.BackwardCursor != nil {
 		<div
-			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, props.LogPage.BackwardCursor, "backward") }
+			data-log-page
+			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, props.LogPage.BackwardCursor, "backward", props.Search) }
 			hx-swap="outerHTML"
-			hx-trigger="intersect once"
-			class="-m-40"
-		></div>
+			hx-trigger="intersect once root:#log-scroll-container rootMargin:160px, click"
+			hx-sync="body:abort"
+			hx-disable="find button"
+			hx-push-url="false"
+			class="flex shrink-0 justify-center py-1"
+		>
+			@button.Button(button.Props{Variant: button.VariantGhost, Size: button.SizeSm}) {
+				Load older logs
+			}
+		</div>
 	}
 	if props.Search == "" && props.LogPage.IsLastPage {
 		<div
