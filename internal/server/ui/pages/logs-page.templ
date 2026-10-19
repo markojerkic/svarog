@@ -8,20 +8,25 @@ import "fmt"
 import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "strings"
+import "net/url"
+import "slices"
+import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 type LogsPageProps struct {
-	LogPage   db.LogPage
-	ClientId  string
-	ProjectId string
-	Instances *[]string
-	Search    string
+	LogPage            db.LogPage
+	ClientId           string
+	ProjectId          string
+	Instances          *[]string
+	Search             string
+	AvailableInstances []string
 }
 
 templ LogsPage(props LogsPageProps) {
 	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: LogsHeaderActions(props)}) {
 		<script defer src="/assets/js/log-menu.js"></script>
 		<div id="logs-container" class="flex h-full min-h-0 flex-col gap-3">
-			if props.Instances != nil && len(*props.Instances) > 0 {
+			if props.Search == "" && props.Instances != nil && len(*props.Instances) > 0 {
 				@InstanceFilter(props)
 			}
 			<div
@@ -57,6 +62,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 	}
 	@logs.SearchTrigger(props.Search)
 	if props.Search != "" {
+		@LogInstanceFilters(props)
 		@button.Button(button.Props{
 			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant:    button.VariantGhost,
@@ -69,29 +75,116 @@ templ LogsHeaderActions(props LogsPageProps) {
 	}
 }
 
+func logInstanceFilterPath(props LogsPageProps, instance *string) string {
+	query := url.Values{"search": {props.Search}}
+	if instance != nil {
+		query.Set("instance", *instance)
+	}
+	u := url.URL{
+		Path:     fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+		RawQuery: query.Encode(),
+	}
+	return u.String()
+}
+
+templ LogInstanceFilters(props LogsPageProps) {
+	{{
+		active := props.Instances != nil && len(*props.Instances) > 0
+		label, title := "Filters", "All instances"
+		if active {
+			label = "Filters (1 active)"
+			title = "Instance: " + strings.Join(*props.Instances, ", ")
+		}
+		optionClass := "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent focus-visible:bg-accent aria-[current=true]:bg-accent"
+	}}
+	@popover.Popover(popover.Props{ID: "log-instance-filters"}) {
+		@button.Button(button.Props{
+			Variant: button.VariantGhost,
+			Size:    button.SizeSm,
+			Class:   "gap-1.5",
+			Attributes: utils.MergeAttributes(popover.Trigger(ctx), templ.Attributes{
+				"aria-label": label,
+				"title":      title,
+			}),
+		}) {
+			@icon.Funnel(icon.Props{Class: "size-3.5"})
+			<span class="hidden sm:inline">Filters</span>
+			if active {
+				<span class="flex size-4 items-center justify-center rounded bg-secondary text-[10px] font-medium">1</span>
+			}
+		}
+		@popover.Content(popover.ContentProps{
+			Align: popover.AlignEnd,
+			Class: "max-w-[calc(100vw-2rem)] gap-1 p-1",
+			Attributes: templ.Attributes{
+				"hx-target:inherited": "body",
+				"hx-swap:inherited":   "innerHTML",
+				"hx-sync:inherited":   "#log-instance-filters:replace",
+			},
+		}) {
+			@popover.Title(popover.TitleProps{Class: "px-2 py-1 text-xs text-muted-foreground"}) {
+				Instance
+			}
+			<div class="max-h-64 overflow-auto">
+				<a
+					href={ templ.SafeURL(logInstanceFilterPath(props, nil)) }
+					class={ optionClass }
+					data-log-instance-filter
+					if !active {
+						aria-current="true"
+					}
+				>
+					<span class="flex-1">All instances</span>
+					if !active {
+						@icon.Check(icon.Props{Class: "size-3.5 shrink-0"})
+					}
+				</a>
+				for _, instance := range props.AvailableInstances {
+					{{ selected := active && slices.Contains(*props.Instances, instance) }}
+					<a
+						href={ templ.SafeURL(logInstanceFilterPath(props, &instance)) }
+						class={ optionClass }
+						title={ instance }
+						data-log-instance-filter
+						if selected {
+							aria-current="true"
+						}
+					>
+						<span class="min-w-0 flex-1 truncate">{ instance }</span>
+						if selected {
+							@icon.Check(icon.Props{Class: "size-3.5 shrink-0"})
+						}
+					</a>
+				}
+			</div>
+			if active {
+				<div class="mt-1 border-t pt-1">
+					<a href={ templ.SafeURL(logInstanceFilterPath(props, nil)) } class={ optionClass + " text-muted-foreground" } data-log-instance-filter>
+						Clear filters
+					</a>
+				</div>
+			}
+		}
+	}
+}
+
 templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
 		<span class="text-sm text-muted-foreground">Filtered by instance:</span>
-		if props.Search != "" {
-			@badge.Badge(badge.Props{Variant: badge.VariantDefault}) {
-				{ strings.Join(*props.Instances, ", ") }
-			}
-		} else {
-			@badge.Badge(badge.Props{
-				Variant: badge.VariantDefault,
-				Class:   "cursor-pointer gap-1.5",
-				Attributes: templ.Attributes{
-					"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
-					"hx-vals":     htmx.HxVals(map[string]string{}),
-					"hx-push-url": "true",
-					"hx-target":   "#logs-container",
-					"hx-select":   "#logs-container",
-					"hx-swap":     "innerHTML",
-				},
-			}) {
-				<span>{ strings.Join(*props.Instances, ", ") }</span>
-				@icon.X(icon.Props{Size: 12})
-			}
+		@badge.Badge(badge.Props{
+			Variant: badge.VariantDefault,
+			Class:   "cursor-pointer gap-1.5",
+			Attributes: templ.Attributes{
+				"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+				"hx-vals":     htmx.HxVals(map[string]string{}),
+				"hx-push-url": "true",
+				"hx-target":   "#logs-container",
+				"hx-select":   "#logs-container",
+				"hx-swap":     "innerHTML",
+			},
+		}) {
+			<span>{ strings.Join(*props.Instances, ", ") }</span>
+			@icon.X(icon.Props{Size: 12})
 		}
 	</div>
 }

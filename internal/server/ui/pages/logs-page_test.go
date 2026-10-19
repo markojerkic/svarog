@@ -3,6 +3,8 @@ package pages
 import (
 	"bytes"
 	"context"
+	"html"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -79,11 +81,54 @@ func TestSearchResultsNeverMountLiveOrPagination(t *testing.T) {
 					t.Errorf("Only ordinary logs may render %s in this first-page search implementation", fragment)
 				}
 			}
-			for _, fragment := range []string{`No logs found.`, `aria-label="Back to live"`, `Not live`} {
+			for _, fragment := range []string{`No logs found.`, `aria-label="Back to live"`, `Not live`, `data-templ-controls="log-instance-filters"`} {
 				if strings.Contains(html, fragment) != (search != "") {
 					t.Errorf("Only search results must render %s", fragment)
 				}
 			}
 		})
+	}
+}
+
+func TestLogInstanceFilters(t *testing.T) {
+	instance := "api 01 & backup"
+	props := LogsPageProps{
+		ProjectId: "project", ClientId: "client", Search: "error & timeout",
+		Instances: &[]string{instance}, AvailableInstances: []string{instance, "api-02"},
+	}
+	for _, selection := range []*string{nil, &instance} {
+		path := logInstanceFilterPath(props, selection)
+		u, err := url.Parse(path)
+		if err != nil {
+			t.Fatalf("Instance filter links must be valid URLs: %v", err)
+		}
+		query := u.Query()
+		if u.Path != "/logs/project/client" || query.Get("search") != props.Search {
+			t.Fatal("Instance changes must preserve the client and the executed query")
+		}
+		if selection == nil {
+			if query.Has("instance") || len(query) != 1 {
+				t.Fatal("All instances must omit the instance parameter and any cursor or anchor")
+			}
+		} else if query.Get("instance") != instance || len(query) != 2 {
+			t.Fatal("Selecting an instance must replace the selection without retaining a cursor or anchor")
+		}
+	}
+	var output bytes.Buffer
+	if err := LogInstanceFilters(props).Render(context.Background(), &output); err != nil {
+		t.Fatalf("Instance filters must render successfully: %v", err)
+	}
+	for _, fragment := range []string{
+		`aria-label="Filters (1 active)"`, `data-slot="popover-content"`,
+		`All instances`, `Clear filters`, `api-02`, `hidden`,
+		`hx-target:inherited="body"`, `hx-swap:inherited="innerHTML"`,
+		`href="` + html.EscapeString(logInstanceFilterPath(props, &instance)) + `"`,
+	} {
+		if !strings.Contains(output.String(), fragment) {
+			t.Errorf("Instance filter popover must contain %s", fragment)
+		}
+	}
+	if strings.Count(output.String(), `aria-current="true"`) != 1 {
+		t.Fatal("Only the selected instance must be marked as current")
 	}
 }

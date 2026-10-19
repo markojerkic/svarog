@@ -174,8 +174,8 @@ templ AdminLayout(props AdminLayoutProps) {
 					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
 						@sidebar.Trigger()
 						<span class="h-4 w-px bg-border" aria-hidden="true"></span>
-						<a href="/" class="text-sm text-muted-foreground hover:text-foreground">Workspace</a>
-						@icon.ChevronRight(icon.Props{Class: "size-3.5 text-muted-foreground"})
+						<a href="/" class="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">Workspace</a>
+						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 text-muted-foreground sm:block"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
 						if props.HeaderActions != nil {
 							<div class="ml-auto flex shrink-0 items-center gap-2">

@@ -18,7 +18,16 @@ import (
 
 type logSearchStub struct {
 	db.LogService
-	request db.LogPageRequest
+	request       db.LogPageRequest
+	instanceCalls int
+}
+
+func (s *logSearchStub) GetInstances(_ context.Context, project, client string) ([]string, error) {
+	s.instanceCalls++
+	if project != s.request.ProjectId || client != s.request.ClientId {
+		return nil, fmt.Errorf("instances must use the same scope as the logs")
+	}
+	return []string{"api-1", "api-2", "api-3"}, nil
 }
 
 func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.LogPage, error) {
@@ -63,10 +72,14 @@ func TestLogsPageSearch(t *testing.T) {
 				require.Contains(t, rec.Body.String(), "matching connection refused", "the fetched log must be rendered")
 				require.Contains(t, rec.Body.String(), `id="log-search-form"`, "HTMX and direct navigation must both return the complete view")
 				if strings.Contains(search, "connection") {
+					require.Equal(t, 1, logs.instanceCalls, "search must load the client's instance choices")
+					require.Contains(t, rec.Body.String(), "api-3", "filter choices must include instances outside the current selection")
+					require.NotContains(t, rec.Body.String(), "Filtered by instance:", "search must keep instance controls inside the popover, not in a permanent row")
 					require.Equal(t, "connection refused", logs.request.Search, "the query must be trimmed before calling the service")
 					require.Nil(t, logs.request.LogLineId, "a search must not inherit a log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search results must not mount a live connection")
 				} else {
+					require.Zero(t, logs.instanceCalls, "ordinary logs must not load search-only filter choices")
 					require.Empty(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
 					require.Contains(t, rec.Body.String(), "hx-ws:connect=", "ordinary logs must retain their live connection")
 				}
