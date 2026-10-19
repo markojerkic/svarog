@@ -5,7 +5,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/db"
 import "fmt"
-import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "strings"
 import "net/url"
@@ -19,7 +18,12 @@ type LogsPageProps struct {
 	ProjectId          string
 	Instances          *[]string
 	Search             string
+	LogLineId          *string
 	AvailableInstances []string
+}
+
+func (p LogsPageProps) IsLive() bool {
+	return p.Search == "" && p.Instances == nil && p.LogLineId == nil && p.LogPage.IsLastPage
 }
 
 templ LogsPage(props LogsPageProps) {
@@ -56,12 +60,14 @@ templ LogsPage(props LogsPageProps) {
 }
 
 templ LogsHeaderActions(props LogsPageProps) {
-	if props.Search != "" {
+	if !props.IsLive() {
 		<span class="hidden text-xs text-muted-foreground lg:inline">Not live</span>
 	}
 	@logs.SearchTrigger(props.Search)
 	if props.Search != "" {
 		@LogInstanceFilters(props)
+	}
+	if !props.IsLive() {
 		@button.Button(button.Props{
 			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant:    button.VariantGhost,
@@ -171,15 +177,14 @@ templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
 		<span class="text-sm text-muted-foreground">Filtered by instance:</span>
 		@badge.Badge(badge.Props{
+			Href:    fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant: badge.VariantDefault,
 			Class:   "cursor-pointer gap-1.5",
 			Attributes: templ.Attributes{
-				"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
-				"hx-vals":     htmx.HxVals(map[string]string{}),
-				"hx-push-url": "true",
-				"hx-target":   "#logs-container",
-				"hx-select":   "#logs-container",
-				"hx-swap":     "innerHTML",
+				"aria-label": "Clear instance filter",
+				"hx-target":  "body",
+				"hx-swap":    "innerHTML",
+				"hx-sync":    "body:replace",
 			},
 		}) {
 			<span>{ strings.Join(*props.Instances, ", ") }</span>
@@ -208,7 +213,7 @@ templ LogPageLines(props LogsPageProps) {
 			}
 		</div>
 	}
-	if props.Search == "" && props.LogPage.IsLastPage {
+	if props.IsLive() {
 		<div
 			hx-ws:connect={ fmt.Sprintf("/ws/%s/%s", props.ProjectId, props.ClientId) }
 			hx-config="ws: {pauseOnBackground: false}"

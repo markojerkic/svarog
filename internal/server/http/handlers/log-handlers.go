@@ -141,6 +141,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		ProjectId: params.ProjectId,
 		Search:    params.Search,
 		Instances: params.Instances,
+		LogLineId: params.LogLineId,
 	}
 
 	isHx := c.Request().Header.Get("HX-Request") == "true"

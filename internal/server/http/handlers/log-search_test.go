@@ -88,7 +88,51 @@ func TestLogsPageSearch(t *testing.T) {
 				} else {
 					require.Zero(t, logs.instanceCalls, "ordinary logs must not load search-only filter choices")
 					require.Empty(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
-					require.Contains(t, rec.Body.String(), "hx-ws:connect=", "ordinary logs must retain their live connection")
+					require.NotNil(t, logs.request.LogLineId, "whitespace-only queries must retain the log anchor")
+					require.Equal(t, "123", *logs.request.LogLineId, "whitespace-only queries must preserve the log anchor")
+					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "instance-filtered and anchored views must not mount a live connection")
+				}
+			})
+		}
+	}
+}
+
+func TestLogsPageLiveModes(t *testing.T) {
+	for _, requestType := range []string{"", "full", "partial"} {
+		for _, tc := range []struct {
+			name, query string
+			live        bool
+		}{
+			{"live", "", true},
+			{"blank search", "?search=+++", true},
+			{"search", "?search=error", false},
+			{"instance", "?instance=api-1", false},
+			{"anchor", "?logLine=42", false},
+			{"cursor", "?cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", false},
+		} {
+			t.Run(tc.name+"/request="+requestType, func(t *testing.T) {
+				e := echo.New()
+				logs := &logSearchStub{}
+				handlers.NewLogsRouter(logs,
+					&projectAccessAuthStub{allowed: true},
+					&projectAccessProjectsStub{belongs: true},
+					loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}),
+				)
+				path := "/logs/" + projectID + "/" + clientID
+				req := httptest.NewRequest(http.MethodGet, path+tc.query, nil)
+				if requestType != "" {
+					req.Header.Set("HX-Request", "true")
+					req.Header.Set("HX-Request-Type", requestType)
+				}
+				rec := httptest.NewRecorder()
+				e.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, rec.Code, "every log mode must render successfully")
+				require.Equal(t, tc.live, strings.Contains(rec.Body.String(), "hx-ws:connect="), "only the latest unfiltered, unanchored view may mount a live connection")
+				if requestType == "partial" && logs.request.Cursor != nil {
+					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")
+				} else {
+					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), `aria-label="Back to live"`), "every non-live page must offer a return to the live view")
+					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), "Not live"), "the header must reflect the same live state as the connection")
 				}
 			})
 		}

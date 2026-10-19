@@ -75,32 +75,69 @@ func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
 	}
 }
 
-func TestSearchResultsPaginateWithoutLiveUpdates(t *testing.T) {
-	for _, search := range []string{"", "connection refused"} {
-		t.Run("search="+search, func(t *testing.T) {
+func TestLogsPageLiveState(t *testing.T) {
+	anchor := "42"
+	for _, tc := range []struct {
+		name       string
+		search     string
+		instances  *[]string
+		logLineId  *string
+		isLastPage bool
+		live       bool
+	}{
+		{name: "live", isLastPage: true, live: true},
+		{name: "search", search: "connection refused", isLastPage: true},
+		{name: "instance", instances: &[]string{"api-1"}, isLastPage: true},
+		{name: "empty instance selection", instances: &[]string{}, isLastPage: true},
+		{name: "anchor", logLineId: &anchor, isLastPage: true},
+		{name: "pagination"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer
 			props := LogsPageProps{
-				ProjectId: "project", ClientId: "client", Search: search,
-				LogPage: db.LogPage{IsLastPage: true, BackwardCursor: &db.LastCursor{}},
+				ProjectId: "project", ClientId: "client", Search: tc.search,
+				Instances: tc.instances, LogLineId: tc.logLineId,
+				LogPage: db.LogPage{IsLastPage: tc.isLastPage, BackwardCursor: &db.LastCursor{}},
 			}
 			if err := LogsPage(props).Render(context.Background(), &output); err != nil {
 				t.Fatalf("Logs page must render successfully: %v", err)
 			}
 			html := output.String()
-			if strings.Contains(html, `hx-ws:connect=`) != (search == "") {
-				t.Error("Only ordinary logs may mount a live connection")
+			if strings.Contains(html, `hx-ws:connect=`) != tc.live {
+				t.Error("Only the latest unfiltered, unanchored log view may mount a live connection")
 			}
 			for _, fragment := range []string{`data-log-page`, `root:#log-scroll-container`, `hx-sync="body:abort"`, `hx-push-url="false"`, `Load older logs`} {
 				if !strings.Contains(html, fragment) {
-					t.Errorf("Both log modes must render pagination with %s", fragment)
+					t.Errorf("Every log mode must render pagination with %s", fragment)
 				}
 			}
-			for _, fragment := range []string{`No logs found.`, `aria-label="Back to live"`, `Not live`, `data-templ-controls="log-instance-filters"`} {
-				if strings.Contains(html, fragment) != (search != "") {
+			for _, fragment := range []string{`No logs found.`, `data-templ-controls="log-instance-filters"`} {
+				if strings.Contains(html, fragment) != (tc.search != "") {
 					t.Errorf("Only search results must render %s", fragment)
 				}
 			}
+			for _, fragment := range []string{`aria-label="Back to live"`, `Not live`} {
+				if strings.Contains(html, fragment) != !tc.live {
+					t.Errorf("Every non-live view must render %s", fragment)
+				}
+			}
+			if !tc.live && !regexp.MustCompile(`<a[^>]*href="/logs/project/client"[^>]*aria-label="Back to live"`).MatchString(html) {
+				t.Error("Back to live must navigate to the client without search, filters, anchor or cursor parameters")
+			}
 		})
+	}
+}
+
+func TestClearInstanceFilterReplacesCompleteView(t *testing.T) {
+	var output bytes.Buffer
+	props := LogsPageProps{ProjectId: "project", ClientId: "client", Instances: &[]string{"api-1"}}
+	if err := InstanceFilter(props).Render(context.Background(), &output); err != nil {
+		t.Fatalf("Instance filter must render successfully: %v", err)
+	}
+	for _, fragment := range []string{`href="/logs/project/client"`, `aria-label="Clear instance filter"`, `hx-target="body"`, `hx-swap="innerHTML"`, `hx-sync="body:replace"`} {
+		if !strings.Contains(output.String(), fragment) {
+			t.Errorf("Clearing the instance filter must update both the header and logs using %s", fragment)
+		}
 	}
 }
 
