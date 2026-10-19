@@ -6,19 +6,22 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/db"
 import "fmt"
 import "github.com/markojerkic/svarog/internal/server/http/htmx"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "strings"
 
 type LogsPageProps struct {
-	LogPage    db.LogPage
-	ClientId   string
-	ProjectId  string
-	InstanceId *string
+	LogPage   db.LogPage
+	ClientId  string
+	ProjectId string
+	Instances *[]string
+	Search    string
 }
 
 templ LogsPage(props LogsPageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: logs.SearchTrigger()}) {
+	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: LogsHeaderActions(props)}) {
 		<script defer src="/assets/js/log-menu.js"></script>
 		<div id="logs-container" class="flex h-full min-h-0 flex-col gap-3">
-			if props.InstanceId != nil {
+			if props.Instances != nil && len(*props.Instances) > 0 {
 				@InstanceFilter(props)
 			}
 			<div
@@ -26,10 +29,15 @@ templ LogsPage(props LogsPageProps) {
 				id="log-scroll-container"
 			>
 				@LogPageLines(props)
+				if props.Search != "" && len(props.LogPage.Logs) == 0 {
+					<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
+						No logs found. Try a different search.
+					</div>
+				}
 			</div>
 		</div>
 		@logs.SharedLogMenu()
-		@logs.SearchDialog()
+		@logs.SearchDialog(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), props.Search, props.Instances)
 	}
 	<script type="text/javascript">
 		{
@@ -43,23 +51,47 @@ templ LogsPage(props LogsPageProps) {
 	</script>
 }
 
+templ LogsHeaderActions(props LogsPageProps) {
+	if props.Search != "" {
+		<span class="hidden text-xs text-muted-foreground lg:inline">Not live</span>
+	}
+	@logs.SearchTrigger(props.Search)
+	if props.Search != "" {
+		@button.Button(button.Props{
+			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+			Variant:    button.VariantGhost,
+			Size:       button.SizeSm,
+			Attributes: templ.Attributes{"aria-label": "Back to live", "title": "Back to live"},
+		}) {
+			@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
+			<span class="hidden sm:inline">Back to live</span>
+		}
+	}
+}
+
 templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
 		<span class="text-sm text-muted-foreground">Filtered by instance:</span>
-		@badge.Badge(badge.Props{
-			Variant: badge.VariantDefault,
-			Class:   "cursor-pointer gap-1.5",
-			Attributes: templ.Attributes{
-				"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
-				"hx-vals":     htmx.HxVals(map[string]string{}),
-				"hx-push-url": "true",
-				"hx-target":   "#logs-container",
-				"hx-select":   "#logs-container",
-				"hx-swap":     "innerHTML",
-			},
-		}) {
-			<span>{ *props.InstanceId }</span>
-			@icon.X(icon.Props{Size: 12})
+		if props.Search != "" {
+			@badge.Badge(badge.Props{Variant: badge.VariantDefault}) {
+				{ strings.Join(*props.Instances, ", ") }
+			}
+		} else {
+			@badge.Badge(badge.Props{
+				Variant: badge.VariantDefault,
+				Class:   "cursor-pointer gap-1.5",
+				Attributes: templ.Attributes{
+					"hx-get":      fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+					"hx-vals":     htmx.HxVals(map[string]string{}),
+					"hx-push-url": "true",
+					"hx-target":   "#logs-container",
+					"hx-select":   "#logs-container",
+					"hx-swap":     "innerHTML",
+				},
+			}) {
+				<span>{ strings.Join(*props.Instances, ", ") }</span>
+				@icon.X(icon.Props{Size: 12})
+			}
 		}
 	</div>
 }
@@ -68,15 +100,15 @@ templ LogPageLines(props LogsPageProps) {
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{LogLine: log})
 	}
-	if props.LogPage.BackwardCursor != nil {
+	if props.Search == "" && props.LogPage.BackwardCursor != nil {
 		<div
-			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.InstanceId, props.LogPage.BackwardCursor, "backward") }
+			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, props.LogPage.BackwardCursor, "backward") }
 			hx-swap="outerHTML"
 			hx-trigger="intersect once"
 			class="-m-40"
 		></div>
 	}
-	if props.LogPage.IsLastPage {
+	if props.Search == "" && props.LogPage.IsLastPage {
 		<div
 			hx-ws:connect={ fmt.Sprintf("/ws/%s/%s", props.ProjectId, props.ClientId) }
 			hx-config="ws: {pauseOnBackground: false}"

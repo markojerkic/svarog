@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -42,6 +43,7 @@ type LogsByClientBinding struct {
 	Direction            *string   `query:"direction"`
 	Instances            *[]string `query:"instance"`
 	LogLineId            *string   `query:"logLine"`
+	Search               string    `query:"search"`
 }
 
 func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
@@ -70,13 +72,17 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	}
 
 	slog.Debug("Get logs by client", "params", params)
+	params.Search = strings.TrimSpace(params.Search)
+	if params.Search != "" {
+		params.LogLineId = nil
+	}
 
 	var nextCursor *db.LastCursor
-	if params.CursorTime != nil && params.CursorSequenceNumber != nil {
+	if params.Search == "" && params.CursorTime != nil && params.CursorSequenceNumber != nil {
 		nextCursor = &db.LastCursor{
 			Timestamp:      time.UnixMilli(*params.CursorTime),
 			SequenceNumber: *params.CursorSequenceNumber,
-			IsBackward:     *params.Direction == "backward",
+			IsBackward:     params.Direction != nil && *params.Direction == "backward",
 		}
 		if params.CursorID != nil {
 			nextCursor.ID = *params.CursorID
@@ -90,6 +96,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		PageSize:  DEFAULT_PAGE_SIZE,
 		LogLineId: params.LogLineId,
 		Cursor:    nextCursor,
+		Search:    params.Search,
 	})
 
 	if err != nil {
@@ -100,10 +107,8 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		LogPage:   logPage,
 		ClientId:  params.ClientId,
 		ProjectId: params.ProjectId,
-	}
-	if params.Instances != nil && len(*params.Instances) > 0 {
-		instances := (*params.Instances)
-		props.InstanceId = &instances[0]
+		Search:    params.Search,
+		Instances: params.Instances,
 	}
 
 	isHx := c.Request().Header.Get("HX-Request") == "true"
@@ -114,13 +119,8 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
 }
 
-type SearchLogsByClientBinding struct {
-	LogsByClientBinding
-	Search string `query:"search"`
-}
-
 func (self *LogsRouter) searchLogs(c *echo.Context) error {
-	var params SearchLogsByClientBinding
+	var params LogsByClientBinding
 
 	err := c.Bind(&params)
 	if err != nil {

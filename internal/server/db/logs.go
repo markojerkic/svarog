@@ -33,7 +33,7 @@ type LogPage struct {
 	IsLastPage     bool
 }
 
-func (l *LogPage) ToPath(projectId, clientId string, instanceId *string, cursor *LastCursor, direction string) string {
+func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor *LastCursor, direction string) string {
 	u := url.URL{
 		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
 	}
@@ -46,8 +46,10 @@ func (l *LogPage) ToPath(projectId, clientId string, instanceId *string, cursor 
 			query.Set("cursorId", strconv.FormatInt(cursor.ID, 10))
 		}
 	}
-	if instanceId != nil {
-		query.Set("instance", *instanceId)
+	if instances != nil {
+		for _, instance := range *instances {
+			query.Add("instance", instance)
+		}
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
@@ -60,6 +62,7 @@ type LogPageRequest struct {
 	PageSize  int64
 	LogLineId *string
 	Cursor    *LastCursor
+	Search    string
 }
 
 type LogService interface {
@@ -97,6 +100,13 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 	}
 	if req.PageSize <= 0 || req.PageSize > math.MaxInt32 {
 		return LogPage{}, fmt.Errorf("invalid log page size %d", req.PageSize)
+	}
+	if req.Search != "" {
+		logs, err := self.SearchLogs(ctx, req.Search, req.ProjectId, req.ClientId, req.Instances, req.PageSize, req.Cursor)
+		if err != nil {
+			return LogPage{}, err
+		}
+		return pageFromLogs(logs, req), nil
 	}
 
 	query := persistence.LogReadQuery{

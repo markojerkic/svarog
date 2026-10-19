@@ -1,8 +1,10 @@
 // Loaded once by BaseLayout; delegated handlers also work after HTMX navigation.
 window.templ.lifecycle.register("#log-search-trigger", {
   init(trigger) {
+    const shortcut = trigger.querySelector("kbd");
+    if (!shortcut) return;
     const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-    trigger.querySelector("kbd").textContent = isMac ? "⌘ K" : "Ctrl K";
+    shortcut.textContent = isMac ? "⌘ K" : "Ctrl K";
   },
 });
 
@@ -38,5 +40,41 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("focusin", (event) => {
   if (event.target.id === "log-search-dialog") {
     event.target.querySelector("input").focus();
+  }
+});
+
+document.addEventListener("htmx:config:request", (event) => {
+  const { sourceElement, request } = event.detail.ctx;
+  if (sourceElement.id !== "log-search-form") return;
+  const search = request.body.get("search").trim();
+  if (!search) {
+    event.preventDefault();
+    return;
+  }
+  request.body.set("search", search);
+});
+
+document.addEventListener("dialog-open-change", (event) => {
+  if (event.target.id !== "log-search-dialog") return;
+  if (event.detail.open) {
+    const input = event.target.querySelector("input[name='search']");
+    input.value = input.defaultValue;
+  } else {
+    window.htmx.trigger(document.getElementById("log-search-form"), "htmx:abort");
+  }
+});
+
+document.addEventListener("htmx:before:response", (event) => {
+  const { sourceElement, response } = event.detail.ctx;
+  if (sourceElement.id === "log-search-form" && response.status >= 400) {
+    event.preventDefault();
+    showToast("Could not search logs. Try again.", "error");
+  }
+});
+
+document.addEventListener("htmx:error", (event) => {
+  const { ctx, error } = event.detail;
+  if (ctx.sourceElement.id === "log-search-form" && error.name !== "AbortError") {
+    showToast("Could not search logs. Try again.", "error");
   }
 });

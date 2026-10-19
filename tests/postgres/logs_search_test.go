@@ -41,6 +41,18 @@ func TestSearchLogs(t *testing.T) {
 	api := project.ID.String()
 	client := apiID.String()
 
+	t.Run("GetLogs renders the first search page", func(t *testing.T) {
+		instance := []string{"web", "api"}
+		anchor := "invalid-anchor"
+		page, err := logs.GetLogs(ctx, db.LogPageRequest{
+			ProjectId: api, ClientId: client, Search: "connection",
+			Instances: &instance, PageSize: 1, LogLineId: &anchor,
+		})
+		require.NoError(t, err, "search through GetLogs must succeed without using the log anchor")
+		require.Equal(t, []string{"connection timeout"}, messages(page.Logs), "the first search page must contain only the newest matching log within the page limit")
+		require.NotNil(t, page.BackwardCursor, "search must reuse the existing page model")
+	})
+
 	t.Run("both words are required and other clients stay hidden", func(t *testing.T) {
 		found := mustSearch(t, ctx, logs, "connection refused", api, client, nil, 10, nil)
 		require.Equal(t, []string{"older connection refused"}, messages(found), "search requires every word and ignores another client's match")
