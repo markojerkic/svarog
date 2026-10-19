@@ -54,6 +54,17 @@ func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
 				t.Fatal("Search trigger must only appear on the full logs page")
 			}
 			if tc.search {
+				if strings.Count(html, "/assets/js/log-menu.js") != 1 {
+					t.Fatal("The delegated log menu script must be loaded once by the base layout")
+				}
+				for _, fragment := range []string{`id="log-context-link"`, `Open context`, `id="filter-instance-link"`, `hx-target:inherited="body"`, `hx-swap:inherited="innerHTML"`} {
+					if !strings.Contains(html, fragment) {
+						t.Errorf("Log menu actions must render %s", fragment)
+					}
+				}
+				if strings.Contains(html, `id="filter-instance-button"`) {
+					t.Fatal("Instance filtering must use a navigation link rather than the old hidden button")
+				}
 				headerEnd := strings.Index(html, "</header>")
 				trigger := strings.Index(html, `id="log-search-trigger"`)
 				if headerEnd < 0 || trigger > headerEnd {

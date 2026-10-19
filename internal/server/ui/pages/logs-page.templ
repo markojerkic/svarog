@@ -24,7 +24,6 @@ type LogsPageProps struct {
 
 templ LogsPage(props LogsPageProps) {
 	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: LogsHeaderActions(props)}) {
-		<script defer src="/assets/js/log-menu.js"></script>
 		<div id="logs-container" class="flex h-full min-h-0 flex-col gap-3">
 			if props.Search == "" && props.Instances != nil && len(*props.Instances) > 0 {
 				@InstanceFilter(props)

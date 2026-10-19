@@ -48,6 +48,9 @@ templ SharedLogMenu() {
 	<div
 		id="shared-log-menu"
 		class="hidden fixed z-9999 w-48 p-1 bg-popover rounded-lg border text-popover-foreground text-sm shadow-lg"
+		hx-target:inherited="body"
+		hx-swap:inherited="innerHTML"
+		hx-sync:inherited="body:replace"
 	>
 		<button
 			type="button"
@@ -65,23 +68,23 @@ templ SharedLogMenu() {
 			@icon.Link(icon.Props{Size: 16, Class: "mr-2"})
 			Copy link
 		</button>
-		<button
-			type="button"
+		<a
+			id="log-context-link"
+			href=""
+			data-log-context
 			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
-			onclick="logMenu.filterByInstance()"
+		>
+			@icon.ArrowUpRight(icon.Props{Size: 16, Class: "mr-2"})
+			Open context
+		</a>
+		<a
+			id="filter-instance-link"
+			href=""
+			data-log-instance-filter
+			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
 		>
 			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
 			Show only logs of this instance
-		</button>
-		<!-- Hidden button for HTMX-boosted instance filtering -->
-		<button
-			id="filter-instance-button"
-			class="hidden"
-			hx-get=""
-			hx-push-url="true"
-			hx-target="#logs-container"
-			hx-select="#logs-container"
-			hx-swap="innerHTML"
-		></button>
+		</a>
 	</div>
 }

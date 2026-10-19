@@ -4,6 +4,12 @@
   let currentInstanceId = null;
   let menu = null;
 
+  function contextURL() {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set("logLine", currentLogId);
+    return url;
+  }
+
   function positionMenu(trigger) {
     if (!menu) return;
 
@@ -30,14 +36,19 @@
   }
 
   function showMenu(trigger) {
-    if (!menu) {
-      menu = document.getElementById("shared-log-menu");
-    }
+    menu = document.getElementById("shared-log-menu");
     if (!menu) return;
 
     currentLogId = trigger.getAttribute("data-log-id");
     currentLogContent = trigger.getAttribute("data-log-content");
     currentInstanceId = trigger.getAttribute("data-instance-id");
+
+    menu.querySelector("#log-context-link").href = contextURL().href;
+    const filterURL = new URL(window.location.pathname, window.location.origin);
+    const search = new URLSearchParams(window.location.search).get("search")?.trim();
+    if (search) filterURL.searchParams.set("search", search);
+    filterURL.searchParams.set("instance", currentInstanceId);
+    menu.querySelector("#filter-instance-link").href = filterURL.href;
 
     menu.style.display = "block";
     menu.classList.remove("hidden");
@@ -59,7 +70,7 @@
       e.preventDefault();
       e.stopPropagation();
 
-      const wasVisible = menu && menu.style.display === "block";
+      const wasVisible = menu && menu.isConnected && menu.style.display === "block";
       hideMenu();
 
       if (!wasVisible) {
@@ -68,7 +79,7 @@
       return;
     }
 
-    if (menu && !menu.contains(e.target)) {
+    if (menu && (!menu.contains(e.target) || e.target.closest("a"))) {
       hideMenu();
     }
   });
@@ -95,27 +106,15 @@
         hideMenu();
       }
     },
-    copyLogLink: function () {
+    copyLogLink: async function () {
       if (currentLogId) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("logLine", currentLogId);
-        navigator.clipboard.writeText(url.toString());
-        hideMenu();
-        showToast("Copied log line link to clipboard");
-      }
-    },
-    filterByInstance: function () {
-      if (currentInstanceId) {
-        const filterButton = document.getElementById("filter-instance-button");
-        if (filterButton) {
-          filterButton.setAttribute(
-            "hx-vals",
-            JSON.stringify({ instance: currentInstanceId }),
-          );
-          filterButton.click();
+        try {
+          await navigator.clipboard.writeText(contextURL().href);
+          hideMenu();
+          showToast("Copied log line link to clipboard");
+        } catch {
+          showToast("Could not copy log link. Try again.", "error");
         }
-
-        hideMenu();
       }
     },
   };

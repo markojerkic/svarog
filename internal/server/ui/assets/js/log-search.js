@@ -71,20 +71,24 @@ document.addEventListener("htmx:before:response", (event) => {
     return;
   }
   if (
-    sourceElement.matches("#log-search-form, [data-log-instance-filter], [data-log-page]") &&
+    sourceElement.matches(
+      "#log-search-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
+    ) &&
     response.status >= 400
   ) {
     event.preventDefault();
-    showToast("Could not search logs. Try again.", "error");
+    showToast("Could not load logs. Try again.", "error");
   }
 });
 
 document.addEventListener("htmx:error", (event) => {
   const { ctx, error } = event.detail;
   if (
-    ctx.sourceElement.matches("#log-search-form, [data-log-instance-filter], [data-log-page]") &&
+    ctx.sourceElement.matches(
+      "#log-search-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
+    ) &&
     error.name !== "AbortError"
   ) {
-    showToast("Could not search logs. Try again.", "error");
+    showToast("Could not load logs. Try again.", "error");
   }
 });
