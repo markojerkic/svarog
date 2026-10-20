@@ -209,7 +209,7 @@ templ InstanceFilter(props LogsPageProps) {
 
 templ LogPageLines(props LogsPageProps) {
 	for _, log := range props.LogPage.Logs {
-		@logs.LogLine(logs.LogLineProps{LogLine: log})
+		@logs.LogLine(logs.LogLineProps{LogLine: log, Search: props.Search})
 	}
 	if props.LogPage.BackwardCursor != nil {
 		<div

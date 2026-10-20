@@ -6,9 +6,33 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "fmt"
 import "github.com/markojerkic/svarog/internal/server/ui/utils"
+import "regexp"
+import "strings"
 
 type LogLineProps struct {
 	LogLine types.StoredLog
+	Search  string
+}
+
+var searchWords = regexp.MustCompile(`[\p{L}\p{N}]+`)
+
+templ LogLineText(text, search string) {
+	{{
+		terms := make(map[string]bool)
+		for _, word := range searchWords.FindAllString(search, -1) {
+			terms[strings.ToLower(word)] = true
+		}
+		cursor := 0
+	}}
+	if len(terms) > 0 {
+		for _, match := range searchWords.FindAllStringIndex(text, -1) {
+			if terms[strings.ToLower(text[match[0]:match[1]])] {
+				{ text[cursor:match[0]] }<mark class="rounded-xs bg-amber-200 text-amber-950 dark:bg-amber-400/30 dark:text-amber-100">{ text[match[0]:match[1]] }</mark>
+				{{ cursor = match[1] }}
+			}
+		}
+	}
+	{ text[cursor:] }
 }
 
 templ LogLine(props LogLineProps) {
@@ -20,7 +44,8 @@ templ LogLine(props LogLineProps) {
 		data-sequence={ props.LogLine.SequenceNumber }
 		data-instance-id={ props.LogLine.Client.InstanceId }
 	>
-		<span class="flex-1">{ props.LogLine.LogLine }</span>
+		<span class="flex-1">@LogLineText(props.LogLine.LogLine, props.Search)
+</span>
 		@button.Button(button.Props{
 			Variant: button.VariantGhost,
 			Size:    button.SizeIconXs,
