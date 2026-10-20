@@ -43,17 +43,6 @@ document.addEventListener("focusin", (event) => {
   }
 });
 
-document.addEventListener("htmx:config:request", (event) => {
-  const { sourceElement, request } = event.detail.ctx;
-  if (sourceElement.id !== "log-search-form") return;
-  const search = request.body.get("search").trim();
-  if (!search) {
-    event.preventDefault();
-    return;
-  }
-  request.body.set("search", search);
-});
-
 document.addEventListener("dialog-open-change", (event) => {
   if (event.target.id !== "log-search-dialog") return;
   if (event.detail.open) {
