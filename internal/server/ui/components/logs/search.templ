@@ -4,25 +4,43 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/tooltip"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 templ SearchTrigger(search string) {
-	@button.Button(button.Props{
-		ID:      "log-search-trigger",
-		Variant: button.VariantSecondary,
-		Size:    button.SizeSm,
-		Class:   "max-w-24 gap-2 sm:max-w-72",
-		Attributes: utils.MergeAttributes(dialog.TriggerFor("log-search-dialog"), templ.Attributes{
-			"aria-label":        "Search logs",
-			"aria-keyshortcuts": "Control+k Meta+k",
-		}),
-	}) {
-		@icon.Search(icon.Props{Class: "size-3.5"})
+	@tooltip.Tooltip(tooltip.Props{ID: "log-search-query-tooltip"}) {
+		{{
+			attributes := utils.MergeAttributes(dialog.TriggerFor("log-search-dialog"), templ.Attributes{
+				"aria-label":        "Search logs",
+				"aria-keyshortcuts": "Control+k Meta+k",
+			})
+		}}
 		if search != "" {
-			<span class="truncate">{ search }</span>
-		} else {
-			<span>Search</span>
-			<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
+			{{ attributes = utils.MergeAttributes(tooltip.Trigger(ctx), attributes, templ.Attributes{"aria-describedby": "log-search-query-tooltip"}) }}
+		}
+		@button.Button(button.Props{
+			ID:         "log-search-trigger",
+			Variant:    button.VariantSecondary,
+			Size:       button.SizeSm,
+			Class:      "max-w-24 gap-2 sm:max-w-72",
+			Attributes: attributes,
+		}) {
+			@icon.Search(icon.Props{Class: "size-3.5"})
+			if search != "" {
+				<span class="truncate">{ search }</span>
+			} else {
+				<span>Search</span>
+				<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
+			}
+		}
+		if search != "" {
+			@tooltip.Content(tooltip.ContentProps{
+				Side:       tooltip.SideBottom,
+				Class:      "whitespace-normal wrap-anywhere",
+				Attributes: templ.Attributes{"role": "tooltip"},
+			}) {
+				{ search }
+			}
 		}
 	}
 }
