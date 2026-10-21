@@ -2,6 +2,7 @@ package usercomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 templ EditUserDialog() {
 	@dialog.Dialog(dialog.Props{ID: "edit-user-dialog"}) {
@@ -9,7 +10,7 @@ templ EditUserDialog() {
 		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
 			@dialog.Header() {
 				@dialog.Title() {
-					Edit user
+					{ i18n.T(ctx, "users.edit") }
 				}
 			}
 			<div id="edit-user-form-container">
@@ -20,7 +21,7 @@ templ EditUserDialog() {
 					Variant:    button.VariantOutline,
 					Attributes: dialog.Close(ctx),
 				}) {
-					Cancel
+					{ i18n.T(ctx, "common.cancel") }
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,
@@ -28,7 +29,7 @@ templ EditUserDialog() {
 						"form": "edit-user-form",
 					},
 				}) {
-					Save
+					{ i18n.T(ctx, "common.save") }
 				}
 			}
 		}

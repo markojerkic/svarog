@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v5"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/sethvargo/go-password/password"
 	"golang.org/x/crypto/bcrypt"
@@ -61,7 +62,7 @@ func NewPostgresAuthService(pool *pgxpool.Pool, sessionStore *PostgresSessionSto
 func (a *PostgresAuthService) Login(ctx *echo.Context, username, password string) error {
 	user, err := a.queries.GetUserByUsername(ctx.Request().Context(), username)
 	if err != nil {
-		return authError(err)
+		return authError(ctx.Request().Context(), err)
 	}
 	if !checkPasswordHash(password, user.PasswordHash) {
 		return errors.New("Invalid password")
@@ -141,7 +142,7 @@ func (a *PostgresAuthService) GetUserByID(ctx context.Context, id string) (User,
 	}
 	user, err := a.queries.GetUserByID(ctx, userID)
 	if err != nil {
-		return User{}, authError(err)
+		return User{}, authError(ctx, err)
 	}
 	return a.userWithProjects(ctx, user)
 }
@@ -149,7 +150,7 @@ func (a *PostgresAuthService) GetUserByID(ctx context.Context, id string) (User,
 func (a *PostgresAuthService) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	user, err := a.queries.GetUserByUsername(ctx, username)
 	if err != nil {
-		return User{}, authError(err)
+		return User{}, authError(ctx, err)
 	}
 	return a.userWithProjects(ctx, user)
 }
@@ -187,8 +188,8 @@ func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types
 	for _, value := range form.ProjectIDs {
 		id, err := uuid.Parse(value)
 		if err != nil {
-			return User{}, types.NewApiError("Invalid project ID", map[string]string{
-				"projects": "Select valid projects",
+			return User{}, types.NewApiError(i18n.T(ctx, "projects.invalid_id"), map[string]string{
+				"projects": i18n.T(ctx, "projects.select_valid"),
 			})
 		}
 		projectIDs = append(projectIDs, id)
@@ -203,7 +204,7 @@ func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types
 			ProjectIDs: projectIDs,
 		})
 		if err != nil {
-			return User{}, authError(err)
+			return User{}, authError(ctx, err)
 		}
 		return a.userWithProjects(ctx, user)
 	}
@@ -219,7 +220,7 @@ func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types
 		ProjectIDs: projectIDs,
 	})
 	if err != nil {
-		return User{}, authError(err)
+		return User{}, authError(ctx, err)
 	}
 	return a.userWithProjects(ctx, user)
 }
@@ -239,7 +240,7 @@ func (a *PostgresAuthService) GenerateLoginToken(ctx context.Context, userID str
 		Token: persistence.LoginTokenInput{Hash: tokenHash(token), ExpiresAt: time.Now().Add(loginTokenDuration)},
 	})
 	if err != nil {
-		return "", authError(err)
+		return "", authError(ctx, err)
 	}
 	return token, nil
 }
@@ -266,7 +267,7 @@ func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, 
 		}
 		return q.DeleteLoginTokensForUser(ctx, id)
 	})
-	return authError(err)
+	return authError(ctx, err)
 }
 
 func (a *PostgresAuthService) DeleteUser(ctx *echo.Context, id string) error {
@@ -275,7 +276,7 @@ func (a *PostgresAuthService) DeleteUser(ctx *echo.Context, id string) error {
 		return errors.New(ErrUserNotFound)
 	}
 	_, err = a.queries.DeleteUser(ctx.Request().Context(), userID)
-	return authError(err)
+	return authError(ctx.Request().Context(), err)
 }
 
 func (a *PostgresAuthService) UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error) {
@@ -298,7 +299,7 @@ func (a *PostgresAuthService) GetProjectIDsForUser(ctx context.Context, userID s
 		return nil, errors.New(ErrUserNotFound)
 	}
 	if _, err := a.queries.GetUserByID(ctx, id); err != nil {
-		return nil, authError(err)
+		return nil, authError(ctx, err)
 	}
 	return a.projectIDsForUser(ctx, id)
 }
@@ -355,7 +356,7 @@ func toUser(user sqlc.User) User {
 	}
 }
 
-func authError(err error) error {
+func authError(ctx context.Context, err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errors.New(ErrUserNotFound)
 	}
@@ -363,8 +364,8 @@ func authError(err error) error {
 		return errors.New(UserAlreadyExists)
 	}
 	if persistence.IsConstraintViolation(err, persistence.SQLStateForeignKeyViolation, "user_projects_project_id_fkey") {
-		return types.NewApiError("Project not found", map[string]string{
-			"projects": "One or more selected projects do not exist",
+		return types.NewApiError(i18n.T(ctx, "projects.not_found"), map[string]string{
+			"projects": i18n.T(ctx, "projects.selection_missing"),
 		})
 	}
 	return err

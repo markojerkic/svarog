@@ -5,6 +5,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/utils"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type Props struct {
 	ID          string
@@ -20,7 +21,7 @@ templ DatePicker(props ...Props) {
 		{{ p = props[0] }}
 	}
 	if p.Placeholder == "" {
-		{{ p.Placeholder = "Select a date" }}
+		{{ p.Placeholder = i18n.T(ctx, "common.select_date") }}
 	}
 	{{ popoverID := p.ID + "-popover" }}
 	@popover.Popover(popover.Props{ID: popoverID}) {
@@ -46,7 +47,7 @@ templ DatePicker(props ...Props) {
 			@icon.Calendar(icon.Props{Class: "size-4"})
 		}
 		@popover.Content(popover.ContentProps{Class: "w-auto p-0", Align: popover.AlignStart}) {
-			@calendar.Calendar(calendar.Props{Mode: calendar.ModeSingle})
+			@calendar.Calendar(calendar.Props{Mode: calendar.ModeSingle, Locale: i18n.Locale(ctx)})
 		}
 	}
 	<input type="hidden" id={ p.ID + "-value" } name={ p.Name }/>

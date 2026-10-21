@@ -6,12 +6,13 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tooltip"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 templ SearchTrigger(search string) {
 	@tooltip.Tooltip(tooltip.Props{ID: "log-search-query-tooltip"}) {
 		{{
 			attributes := utils.MergeAttributes(dialog.TriggerFor("log-search-dialog"), templ.Attributes{
-				"aria-label":        "Search logs",
+				"aria-label":        i18n.T(ctx, "logs.search"),
 				"aria-keyshortcuts": "Control+k Meta+k",
 			})
 		}}
@@ -22,14 +23,14 @@ templ SearchTrigger(search string) {
 			ID:         "log-search-trigger",
 			Variant:    button.VariantSecondary,
 			Size:       button.SizeSm,
-			Class:      "max-w-24 gap-2 sm:max-w-72",
+			Class:      "max-w-24 gap-2 sm:max-w-40 xl:max-w-72",
 			Attributes: attributes,
 		}) {
 			@icon.Search(icon.Props{Class: "size-3.5"})
 			if search != "" {
 				<span class="truncate">{ search }</span>
 			} else {
-				<span>Search</span>
+				<span>{ i18n.T(ctx, "common.search") }</span>
 				<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
 			}
 		}
@@ -52,7 +53,7 @@ templ SearchDialog(action, search string, instances *[]string) {
 			HideCloseButton: true,
 		}) {
 			@dialog.Title(dialog.TitleProps{Class: "sr-only"}) {
-				Search logs
+				{ i18n.T(ctx, "logs.search") }
 			}
 			<form
 				id="log-search-form"
@@ -77,10 +78,10 @@ templ SearchDialog(action, search string, instances *[]string) {
 					Name:        "search",
 					Type:        "search",
 					Value:       search,
-					Placeholder: "Search logs…",
+					Placeholder: i18n.T(ctx, "logs.search_placeholder"),
 					Class:       "h-16 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent",
 					Attributes: templ.Attributes{
-						"aria-label":   "Search logs",
+						"aria-label":   i18n.T(ctx, "logs.search"),
 						"autocomplete": "off",
 						"spellcheck":   "false",
 						"enterkeyhint": "search",
@@ -91,7 +92,7 @@ templ SearchDialog(action, search string, instances *[]string) {
 					Size:    button.SizeIconSm,
 					Type:    button.TypeSubmit,
 					Attributes: templ.Attributes{
-						"aria-label": "Run search",
+						"aria-label": i18n.T(ctx, "logs.run_search"),
 					},
 				}) {
 					@icon.CornerDownLeft(icon.Props{Class: "size-3.5"})

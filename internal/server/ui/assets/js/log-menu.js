@@ -111,9 +111,16 @@
         try {
           await navigator.clipboard.writeText(contextURL().href);
           hideMenu();
-          showToast("Copied log line link to clipboard");
+          showToast(
+            window.svarogI18n?.("logs.link_copied", "Copied log line link to clipboard") ||
+              "Copied log line link to clipboard",
+          );
         } catch {
-          showToast("Could not copy log link. Try again.", "error");
+          showToast(
+            window.svarogI18n?.("logs.copy_failed", "Could not copy log link. Try again.") ||
+              "Could not copy log link. Try again.",
+            "error",
+          );
         }
       }
     },

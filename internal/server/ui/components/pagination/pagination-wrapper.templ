@@ -1,6 +1,7 @@
 package pagination
 
 import "fmt"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type WrapperProps struct {
 	Page       int64
@@ -21,7 +22,7 @@ templ PaginationWrapper(props WrapperProps) {
 				@Item() {
 					@Previous(PreviousProps{
 						Disabled: !p.HasPrevious,
-						Text:     "Previous",
+						Text:     i18n.T(ctx, "pagination.previous"),
 						Attributes: templ.Attributes{
 							"form":       "search-form",
 							"name":       "page",
@@ -105,7 +106,7 @@ templ PaginationWrapper(props WrapperProps) {
 				@Item() {
 					@Next(NextProps{
 						Disabled: !p.HasNext,
-						Text:     "Next",
+						Text:     i18n.T(ctx, "pagination.next"),
 						Attributes: templ.Attributes{
 							"form":       "search-form",
 							"name":       "page",

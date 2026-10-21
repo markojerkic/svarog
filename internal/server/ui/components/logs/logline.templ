@@ -8,6 +8,7 @@ import "fmt"
 import "github.com/markojerkic/svarog/internal/server/ui/utils"
 import "regexp"
 import "strings"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type LogLineProps struct {
 	LogLine types.StoredLog
@@ -44,14 +45,15 @@ templ LogLine(props LogLineProps) {
 		data-sequence={ props.LogLine.SequenceNumber }
 		data-instance-id={ props.LogLine.Client.InstanceId }
 	>
-		<span class="flex-1">@LogLineText(props.LogLine.LogLine, props.Search)
-</span>
+		<span class="flex-1">
+			@LogLineText(props.LogLine.LogLine, props.Search)
+		</span>
 		@button.Button(button.Props{
 			Variant: button.VariantGhost,
 			Size:    button.SizeIconXs,
 			Class:   "sticky right-0 ml-3 bg-card opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
 			Attributes: templ.Attributes{
-				"aria-label":            "Log line actions",
+				"aria-labelledby":       "log-line-actions-label",
 				"data-log-menu-trigger": "true",
 				"data-log-id":           strconv.FormatInt(props.LogLine.ID, 10),
 				"data-log-content":      props.LogLine.LogLine,
@@ -70,6 +72,8 @@ templ OobSwapLogLine(props LogLineProps) {
 }
 
 templ SharedLogMenu() {
+	// Live rows are shared across languages; their label belongs to this page.
+	<span id="log-line-actions-label" class="sr-only">{ i18n.T(ctx, "logs.line_actions") }</span>
 	<div
 		id="shared-log-menu"
 		class="hidden fixed z-9999 w-48 p-1 bg-popover rounded-lg border text-popover-foreground text-sm shadow-lg"
@@ -83,7 +87,7 @@ templ SharedLogMenu() {
 			onclick="logMenu.copyLogContent()"
 		>
 			@icon.Copy(icon.Props{Size: 16, Class: "mr-2"})
-			Copy log line
+			{ i18n.T(ctx, "logs.copy_line") }
 		</button>
 		<button
 			type="button"
@@ -91,7 +95,7 @@ templ SharedLogMenu() {
 			onclick="logMenu.copyLogLink()"
 		>
 			@icon.Link(icon.Props{Size: 16, Class: "mr-2"})
-			Copy link
+			{ i18n.T(ctx, "logs.copy_link") }
 		</button>
 		<a
 			id="log-context-link"
@@ -100,7 +104,7 @@ templ SharedLogMenu() {
 			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
 		>
 			@icon.ArrowUpRight(icon.Props{Size: 16, Class: "mr-2"})
-			Open context
+			{ i18n.T(ctx, "logs.open_context") }
 		</a>
 		<a
 			id="filter-instance-link"
@@ -109,7 +113,7 @@ templ SharedLogMenu() {
 			class="w-full text-left flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
 		>
 			@icon.Funnel(icon.Props{Size: 16, Class: "mr-2"})
-			Show only logs of this instance
+			{ i18n.T(ctx, "logs.only_this_instance") }
 		</a>
 	</div>
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 )
 
 func RestPasswordMiddleware() echo.MiddlewareFunc {
@@ -19,7 +20,7 @@ func RestPasswordMiddleware() echo.MiddlewareFunc {
 
 			if user.NeedsPasswordReset && c.Path() != "/reset-password" {
 				slog.Debug("User needs password reset, redirecting to reset password page")
-				htmx.AddWarningToast(c, "You need to reset your password to continue")
+				htmx.AddWarningToast(c, i18n.T(c.Request().Context(), "auth.reset_required"))
 				return htmx.Redirect(c, "/reset-password")
 			}
 			return next(c)

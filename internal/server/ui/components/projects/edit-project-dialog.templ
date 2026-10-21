@@ -2,6 +2,7 @@ package projectcomponents
 
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 templ EditProjectDialog() {
 	@dialog.Dialog(dialog.Props{ID: "edit-project-dialog"}) {
@@ -9,7 +10,7 @@ templ EditProjectDialog() {
 		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
 			@dialog.Header() {
 				@dialog.Title() {
-					Edit project
+					{ i18n.T(ctx, "projects.edit") }
 				}
 			}
 			<div id="edit-project-form-container">
@@ -20,7 +21,7 @@ templ EditProjectDialog() {
 					Variant:    button.VariantOutline,
 					Attributes: dialog.Close(ctx),
 				}) {
-					Cancel
+					{ i18n.T(ctx, "common.cancel") }
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,
@@ -28,7 +29,7 @@ templ EditProjectDialog() {
 						"form": "edit-project-form",
 					},
 				}) {
-					Save
+					{ i18n.T(ctx, "common.save") }
 				}
 			}
 		}

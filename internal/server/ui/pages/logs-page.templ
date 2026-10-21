@@ -11,6 +11,7 @@ import "net/url"
 import "slices"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type LogsPageProps struct {
 	LogPage            db.LogPage
@@ -27,7 +28,7 @@ func (p LogsPageProps) IsLive() bool {
 }
 
 templ LogsPage(props LogsPageProps) {
-	@AdminLayout(AdminLayoutProps{Title: "Logs", CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: LogsHeaderActions(props)}) {
+	@AdminLayout(AdminLayoutProps{Title: i18n.T(ctx, "nav.logs"), CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), HeaderActions: LogsHeaderActions(props)}) {
 		<div id="logs-container" class="flex h-full min-h-0 flex-col gap-3">
 			if props.Search == "" && props.Instances != nil && len(*props.Instances) > 0 {
 				@InstanceFilter(props)
@@ -39,7 +40,7 @@ templ LogsPage(props LogsPageProps) {
 				@LogPageLines(props)
 				if props.Search != "" && len(props.LogPage.Logs) == 0 {
 					<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
-						No logs found. Try a different search.
+						{ i18n.T(ctx, "logs.no_results") }
 					</div>
 				}
 			</div>
@@ -61,7 +62,7 @@ templ LogsPage(props LogsPageProps) {
 
 templ LogsHeaderActions(props LogsPageProps) {
 	if !props.IsLive() {
-		<span class="hidden text-xs text-muted-foreground lg:inline">Not live</span>
+		<span class="hidden text-xs text-muted-foreground 2xl:inline">{ i18n.T(ctx, "logs.not_live") }</span>
 	}
 	@logs.SearchTrigger(props.Search)
 	if props.Search != "" {
@@ -70,8 +71,8 @@ templ LogsHeaderActions(props LogsPageProps) {
 			Variant: button.VariantGhost,
 			Size:    button.SizeIconSm,
 			Attributes: templ.Attributes{
-				"aria-label": "Clear search",
-				"title":      "Clear search",
+				"aria-label": i18n.T(ctx, "logs.clear_search"),
+				"title":      i18n.T(ctx, "logs.clear_search"),
 				"hx-target":  "body",
 				"hx-swap":    "innerHTML",
 				"hx-sync":    "body:replace",
@@ -86,10 +87,10 @@ templ LogsHeaderActions(props LogsPageProps) {
 			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant:    button.VariantGhost,
 			Size:       button.SizeSm,
-			Attributes: templ.Attributes{"aria-label": "Back to live", "title": "Back to live", "hx-sync": "body:replace"},
+			Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "logs.back_to_live"), "title": i18n.T(ctx, "logs.back_to_live"), "hx-sync": "body:replace"},
 		}) {
 			@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
-			<span class="hidden sm:inline">Back to live</span>
+			<span class="hidden xl:inline">{ i18n.T(ctx, "logs.back_to_live") }</span>
 		}
 	}
 }
@@ -109,10 +110,10 @@ func logInstanceFilterPath(props LogsPageProps, instance *string) string {
 templ LogInstanceFilters(props LogsPageProps) {
 	{{
 		active := props.Instances != nil && len(*props.Instances) > 0
-		label, title := "Filters", "All instances"
+		label, title := i18n.T(ctx, "logs.filters"), i18n.T(ctx, "logs.all_instances")
 		if active {
-			label = "Filters (1 active)"
-			title = "Instance: " + strings.Join(*props.Instances, ", ")
+			label = i18n.T(ctx, "logs.active_filters")
+			title = i18n.Format(ctx, i18n.Message{ID: "logs.selected_instances", Data: map[string]any{"Names": strings.Join(*props.Instances, ", ")}})
 		}
 		optionClass := "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent focus-visible:bg-accent aria-[current=true]:bg-accent"
 	}}
@@ -127,7 +128,7 @@ templ LogInstanceFilters(props LogsPageProps) {
 			}),
 		}) {
 			@icon.Funnel(icon.Props{Class: "size-3.5"})
-			<span class="hidden sm:inline">Filters</span>
+			<span class="hidden lg:inline">{ i18n.T(ctx, "logs.filters") }</span>
 			if active {
 				<span class="flex size-4 items-center justify-center rounded bg-secondary text-[10px] font-medium">1</span>
 			}
@@ -142,7 +143,7 @@ templ LogInstanceFilters(props LogsPageProps) {
 			},
 		}) {
 			@popover.Title(popover.TitleProps{Class: "px-2 py-1 text-xs text-muted-foreground"}) {
-				Instance
+				{ i18n.T(ctx, "logs.instance") }
 			}
 			<div class="max-h-64 overflow-auto">
 				<a
@@ -153,7 +154,7 @@ templ LogInstanceFilters(props LogsPageProps) {
 						aria-current="true"
 					}
 				>
-					<span class="flex-1">All instances</span>
+					<span class="flex-1">{ i18n.T(ctx, "logs.all_instances") }</span>
 					if !active {
 						@icon.Check(icon.Props{Class: "size-3.5 shrink-0"})
 					}
@@ -179,7 +180,7 @@ templ LogInstanceFilters(props LogsPageProps) {
 			if active {
 				<div class="mt-1 border-t pt-1">
 					<a href={ templ.SafeURL(logInstanceFilterPath(props, nil)) } class={ optionClass + " text-muted-foreground" } data-log-instance-filter>
-						Clear filters
+						{ i18n.T(ctx, "logs.clear_filters") }
 					</a>
 				</div>
 			}
@@ -189,13 +190,13 @@ templ LogInstanceFilters(props LogsPageProps) {
 
 templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
-		<span class="text-sm text-muted-foreground">Filtered by instance:</span>
+		<span class="text-sm text-muted-foreground">{ i18n.T(ctx, "logs.filtered_by_instance") }</span>
 		@badge.Badge(badge.Props{
 			Href:    fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
 			Variant: badge.VariantDefault,
 			Class:   "cursor-pointer gap-1.5",
 			Attributes: templ.Attributes{
-				"aria-label": "Clear instance filter",
+				"aria-label": i18n.T(ctx, "logs.clear_instance_filter"),
 				"hx-target":  "body",
 				"hx-swap":    "innerHTML",
 				"hx-sync":    "body:replace",
@@ -223,7 +224,7 @@ templ LogPageLines(props LogsPageProps) {
 			class="flex shrink-0 justify-center py-1"
 		>
 			@button.Button(button.Props{Variant: button.VariantGhost, Size: button.SizeSm}) {
-				Load older logs
+				{ i18n.T(ctx, "logs.load_older") }
 			}
 		</div>
 	}

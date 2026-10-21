@@ -12,6 +12,7 @@ import "github.com/markojerkic/svarog/internal/server/http/htmx"
 import usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type UsersListPageProps struct {
 	Users      []auth.User
@@ -22,12 +23,12 @@ type UsersListPageProps struct {
 }
 
 templ UsersListPage(props UsersListPageProps) {
-	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Users", CurrentPath: "/admin/users"}) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: i18n.T(ctx, "nav.users"), CurrentPath: "/admin/users"}) {
 		<div class="mx-auto w-full max-w-6xl space-y-6">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-1">
-					<h1 class="text-2xl font-semibold tracking-tight">Users</h1>
-					<p class="text-sm text-muted-foreground">Manage accounts, roles and access to projects.</p>
+					<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "nav.users") }</h1>
+					<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "users.description") }</p>
 				</div>
 				@usercomponents.NewUser()
 			</div>
@@ -50,8 +51,8 @@ templ UsersListPage(props UsersListPageProps) {
 						Value:       props.Search,
 						Name:        "search",
 						Class:       "pl-9",
-						Placeholder: "Search users...",
-						Attributes:  templ.Attributes{"aria-label": "Search users"},
+						Placeholder: i18n.T(ctx, "users.search_placeholder"),
+						Attributes:  templ.Attributes{"aria-label": i18n.T(ctx, "users.search")},
 					})
 				</form>
 			</div>
@@ -59,21 +60,21 @@ templ UsersListPage(props UsersListPageProps) {
 				<div class="overflow-hidden rounded-xl border">
 					@table.Table(table.Props{Class: "[&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
 						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
-							User administration
+							{ i18n.T(ctx, "users.list_caption") }
 						}
 						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
 							@table.Row() {
 								@table.Head() {
-									Username
+									{ i18n.T(ctx, "auth.username") }
 								}
 								@table.Head() {
-									Name
+									{ i18n.T(ctx, "users.name") }
 								}
 								@table.Head() {
-									Role
+									{ i18n.T(ctx, "users.role") }
 								}
 								@table.Head(table.HeadProps{Class: "w-12"}) {
-									<span class="sr-only">Actions</span>
+									<span class="sr-only">{ i18n.T(ctx, "common.actions") }</span>
 								}
 							}
 						}
@@ -108,7 +109,11 @@ templ UsersTableBody(props UsersListPageProps) {
 				}
 				@table.Cell() {
 					@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
-						{ user.Role }
+						if user.Role == auth.ADMIN {
+							{ i18n.T(ctx, "users.role_admin") }
+						} else {
+							{ i18n.T(ctx, "users.role_user") }
+						}
 					}
 				}
 				@table.Cell() {
@@ -119,7 +124,7 @@ templ UsersTableBody(props UsersListPageProps) {
 		if len(props.Users) == 0 {
 			@table.Row(table.RowProps{Class: "hidden only:table-row"}) {
 				@table.Cell(table.CellProps{Class: "h-32 text-center text-muted-foreground", Attributes: templ.Attributes{"colspan": "4"}}) {
-					No users found. Try another search or create a user.
+					{ i18n.T(ctx, "users.no_results") }
 				}
 			}
 		}
@@ -131,7 +136,7 @@ templ userActions(user auth.User) {
 		{{
 			trigger := dropdownmenu.Trigger(ctx)
 			trigger["data-user-actions-id"] = user.ID.String()
-			trigger["aria-label"] = "Actions for " + user.Username
+			trigger["aria-label"] = i18n.Format(ctx, i18n.Message{ID: "users.actions_for", Data: map[string]any{"Username": user.Username}})
 		}}
 		@button.Button(button.Props{
 			Variant:    button.VariantGhost,
@@ -167,20 +172,20 @@ templ userActions(user auth.User) {
 				}) {
 					<span class="flex items-center">
 						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
-						Edit
+						{ i18n.T(ctx, "common.edit") }
 					</span>
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-delete":  "/admin/users/" + user.ID.String(),
-						"hx-confirm": "Are you sure you want to delete this user?",
+						"hx-confirm": i18n.T(ctx, "users.delete_confirm"),
 						"hx-target":  fmt.Sprintf("tr[data-user-id='%s']", user.ID.String()),
 						"hx-disable": "input, button, #new-user-dialog button[type=submit]",
 					},
 				}) {
 					<span class="flex items-center">
 						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
-						Delete user
+						{ i18n.T(ctx, "users.delete") }
 					</span>
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
@@ -196,7 +201,7 @@ templ userActions(user auth.User) {
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
 						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
-						Connection string
+						{ i18n.T(ctx, "users.login_link") }
 					</span>
 				}
 			}

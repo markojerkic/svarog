@@ -1,13 +1,16 @@
 package http
 
 import (
+	"context"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"log/slog"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -17,10 +20,14 @@ type Validator struct {
 
 // Validate implements echo.Validator.
 func (v *Validator) Validate(i interface{}) error {
+	return v.ValidateContext(context.Background(), i)
+}
+
+func (v *Validator) ValidateContext(ctx context.Context, i any) error {
 	if err := v.validator.Struct(i); err != nil {
 		errs := err.(validator.ValidationErrors)
 		slog.Error("Validation error", "error", errs)
-		apiError := types.NewApiError("Validation error")
+		apiError := types.NewApiError(i18n.T(ctx, "validation.failed"))
 
 		// Get the type of the struct, handling both pointer and non-pointer types
 		t := reflect.TypeOf(i)
@@ -45,32 +52,38 @@ func (v *Validator) Validate(i interface{}) error {
 			jsonName := strings.Split(jsonTag, ",")[0]
 
 			// Use the json tag name instead of the struct field name
-			apiError.Fields[jsonName] = validationMessage(e)
+			apiError.Fields[jsonName] = validationMessage(ctx, e)
 		}
 		return apiError
 	}
 	return nil
 }
 
-func validationMessage(e validator.FieldError) string {
+func validationMessage(ctx context.Context, e validator.FieldError) string {
 	limit := e.Param()
 	switch e.Tag() {
 	case "required":
-		return "This field is required"
+		return i18n.T(ctx, "validation.required")
 	case "gte":
 		if isLengthCheck(e) {
-			return "Must be at least " + limit + " characters"
+			count, _ := strconv.Atoi(limit)
+			return i18n.Format(ctx, i18n.Message{ID: "validation.min_length", Data: map[string]any{"Count": count}, Count: &count})
 		}
-		return "Must be at least " + limit
+		return i18n.Format(ctx, i18n.Message{ID: "validation.min_number", Data: map[string]any{"Limit": limit}})
 	case "lte":
 		if isLengthCheck(e) {
-			return "Must be at most " + limit + " characters"
+			count, _ := strconv.Atoi(limit)
+			return i18n.Format(ctx, i18n.Message{ID: "validation.max_length", Data: map[string]any{"Count": count}, Count: &count})
 		}
-		return "Must be at most " + limit
+		return i18n.Format(ctx, i18n.Message{ID: "validation.max_number", Data: map[string]any{"Limit": limit}})
 	case "oneof":
-		return "Must be one of: " + strings.ReplaceAll(limit, " ", ", ")
+		options := strings.ReplaceAll(limit, " ", ", ")
+		if e.Field() == "Role" && limit == "user admin" && i18n.LanguageFrom(ctx) == i18n.Croatian {
+			options = i18n.T(ctx, "users.role_user") + ", " + i18n.T(ctx, "users.role_admin")
+		}
+		return i18n.Format(ctx, i18n.Message{ID: "validation.one_of", Data: map[string]any{"Options": options}})
 	default:
-		return "Invalid value"
+		return i18n.T(ctx, "validation.invalid")
 	}
 }
 

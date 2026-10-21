@@ -13,6 +13,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/table"
 import "github.com/markojerkic/svarog/internal/server/ui/pages"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type ProjectsListPageProps struct {
 	Projects   []projects.Project
@@ -23,12 +24,12 @@ type ProjectsListPageProps struct {
 }
 
 templ ProjectsListPage(props ProjectsListPageProps) {
-	@pages.AdminLayout(pages.AdminLayoutProps{Title: "Projects", CurrentPath: "/admin/projects"}) {
+	@pages.AdminLayout(pages.AdminLayoutProps{Title: i18n.T(ctx, "nav.projects"), CurrentPath: "/admin/projects"}) {
 		<div class="mx-auto w-full max-w-6xl space-y-6">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-1">
-					<h1 class="text-2xl font-semibold tracking-tight">Projects</h1>
-					<p class="text-sm text-muted-foreground">Manage projects and the clients that send their logs.</p>
+					<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "nav.projects") }</h1>
+					<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "projects.description") }</p>
 				</div>
 				@projectcomponents.NewProject()
 			</div>
@@ -51,8 +52,8 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 						Value:       props.Search,
 						Name:        "search",
 						Class:       "pl-9",
-						Placeholder: "Search projects...",
-						Attributes:  templ.Attributes{"aria-label": "Search projects"},
+						Placeholder: i18n.T(ctx, "projects.search_placeholder"),
+						Attributes:  templ.Attributes{"aria-label": i18n.T(ctx, "projects.search")},
 					})
 				</form>
 			</div>
@@ -60,18 +61,18 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				<div class="overflow-hidden rounded-xl border">
 					@table.Table(table.Props{Class: "[&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
 						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
-							A list of your projects.
+							{ i18n.T(ctx, "projects.list_caption") }
 						}
 						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
 							@table.Row() {
 								@table.Head() {
-									Project name
+									{ i18n.T(ctx, "projects.name") }
 								}
 								@table.Head() {
-									Clients
+									{ i18n.T(ctx, "projects.clients") }
 								}
 								@table.Head(table.HeadProps{Class: "w-12"}) {
-									<span class="sr-only">Actions</span>
+									<span class="sr-only">{ i18n.T(ctx, "common.actions") }</span>
 								}
 							}
 						}
@@ -113,7 +114,7 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 		if len(props.Projects) == 0 {
 			@table.Row(table.RowProps{Class: "hidden only:table-row"}) {
 				@table.Cell(table.CellProps{Class: "h-32 text-center text-muted-foreground", Attributes: templ.Attributes{"colspan": "3"}}) {
-					No projects found. Try another search or create a project.
+					{ i18n.T(ctx, "projects.no_results") }
 				}
 			}
 		}
@@ -125,7 +126,7 @@ templ projectActions(project projects.Project) {
 		@button.Button(button.Props{
 			Variant:    button.VariantGhost,
 			Size:       button.SizeIcon,
-			Attributes: utils.MergeAttributes(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": "Actions for " + project.Name}),
+			Attributes: utils.MergeAttributes(dropdownmenu.Trigger(ctx), templ.Attributes{"aria-label": i18n.Format(ctx, i18n.Message{ID: "projects.actions_for", Data: map[string]any{"Name": project.Name}})}),
 		}) {
 			@icon.EllipsisVertical()
 		}
@@ -143,20 +144,20 @@ templ projectActions(project projects.Project) {
 				}) {
 					<span class="flex items-center">
 						@icon.Pencil(icon.Props{Size: 16, Class: "mr-2"})
-						Edit
+						{ i18n.T(ctx, "common.edit") }
 					</span>
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-delete":  "/admin/projects/" + project.ID.String(),
-						"hx-confirm": "Are you sure you want to delete this project?",
+						"hx-confirm": i18n.T(ctx, "projects.delete_confirm"),
 						"hx-target":  fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
 						"hx-disable": "input, button, #new-project-dialog > button[type=submit]",
 					},
 				}) {
 					<span class="flex items-center">
 						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})
-						Delete project
+						{ i18n.T(ctx, "projects.delete") }
 					</span>
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
@@ -169,7 +170,7 @@ templ projectActions(project projects.Project) {
 				}) {
 					<span class="inline-flex flex-wrap items-center whitespace-normal [&>span]:flex [&>span]:items-center">
 						@icon.Code(icon.Props{Size: 16, Class: "mr-2 shrink-0"})
-						Connection string
+						{ i18n.T(ctx, "connection.title") }
 					</span>
 				}
 			}

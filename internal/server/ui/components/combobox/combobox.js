@@ -213,7 +213,10 @@
   function createDismissButton(content) {
     const button = document.createElement("span");
     button.setAttribute("role", "button");
-    button.setAttribute("aria-label", "Dismiss");
+    button.setAttribute(
+      "aria-label",
+      window.svarogI18n?.("common.dismiss", "Dismiss") || "Dismiss",
+    );
     button.style.cssText =
       "clip-path:inset(50%);overflow:hidden;white-space:nowrap;border:0;padding:0;width:1px;height:1px;margin:-1px;position:absolute";
     button.addEventListener("click", () => requestOpenChange(content, false));

@@ -1,6 +1,7 @@
 package pagination
 
 import (
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/components/button"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 	"github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
@@ -39,7 +40,7 @@ type PreviousProps struct {
 	Attributes templ.Attributes
 	Href       string
 	Disabled   bool
-	Text      string
+	Text       string
 }
 
 type NextProps struct {
@@ -48,7 +49,7 @@ type NextProps struct {
 	Attributes templ.Attributes
 	Href       string
 	Disabled   bool
-	Text      string
+	Text       string
 }
 
 templ Pagination(props ...Props) {
@@ -61,7 +62,7 @@ templ Pagination(props ...Props) {
 			id={ p.ID }
 		}
 		role="navigation"
-		aria-label="pagination"
+		aria-label={ i18n.T(ctx, "pagination.label") }
 		data-slot="pagination"
 		class={ utils.CN("mx-auto flex w-full justify-center", p.Class) }
 		{ p.Attributes... }
@@ -152,10 +153,10 @@ templ Previous(props ...PreviousProps) {
 		{{ p = props[0] }}
 	}
 	if p.Text == "" {
-		{{ p.Text = "Previous" }}
+		{{ p.Text = i18n.T(ctx, "pagination.previous") }}
 	}
 	{{
-		attrs := templ.Attributes{"aria-label": "Go to previous page", "data-slot": "pagination-link"}
+		attrs := templ.Attributes{"aria-label": i18n.T(ctx, "pagination.previous_page"), "data-slot": "pagination-link"}
 		for k, v := range p.Attributes {
 			attrs[k] = v
 		}
@@ -179,10 +180,10 @@ templ Next(props ...NextProps) {
 		{{ p = props[0] }}
 	}
 	if p.Text == "" {
-		{{ p.Text = "Next" }}
+		{{ p.Text = i18n.T(ctx, "pagination.next") }}
 	}
 	{{
-		attrs := templ.Attributes{"aria-label": "Go to next page", "data-slot": "pagination-link"}
+		attrs := templ.Attributes{"aria-label": i18n.T(ctx, "pagination.next_page"), "data-slot": "pagination-link"}
 		for k, v := range p.Attributes {
 			attrs[k] = v
 		}
@@ -203,7 +204,7 @@ templ Next(props ...NextProps) {
 templ Ellipsis() {
 	<span aria-hidden="true" data-slot="pagination-ellipsis" class="size-8 [&_svg:not([class*='size-'])]:size-4 flex items-center justify-center">
 		@icon.Ellipsis()
-		<span class="sr-only">More pages</span>
+		<span class="sr-only">{ i18n.T(ctx, "pagination.more") }</span>
 	</span>
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -89,7 +90,7 @@ func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
 	projectId := c.Param("projectId")
 	clientId := c.Param("clientId")
 	if projectId == "" || clientId == "" {
-		return c.JSON(400, "No project id or client id")
+		return c.JSON(400, i18n.T(c.Request().Context(), "logs.ids_required"))
 	}
 	slog.Debug("Getting instances by client", "projectId", projectId, "clientId", clientId)
 
@@ -107,7 +108,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	err := c.Bind(&params)
 	if err != nil {
 		slog.Error("Bindings for logs by client not correct", "error", err)
-		return c.JSON(400, "Bad request")
+		return c.JSON(400, i18n.T(c.Request().Context(), "errors.400_title"))
 	}
 
 	slog.Debug("Get logs by client", "params", params)
@@ -118,7 +119,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 
 	nextCursor, err := params.cursor()
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid log cursor")
+		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_cursor"))
 	}
 
 	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
@@ -164,12 +165,12 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 	err := c.Bind(&params)
 	if err != nil {
 		slog.Error("Bindings for logs by client not correct", "error", err)
-		return c.JSON(400, "Bad request")
+		return c.JSON(400, i18n.T(c.Request().Context(), "errors.400_title"))
 	}
 
 	nextCursor, err := params.cursor()
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid log cursor")
+		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_cursor"))
 	}
 
 	slog.Debug("next", "cursor", nextCursor)

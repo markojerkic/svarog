@@ -3,6 +3,7 @@ package homepage
 import (
 	"fmt"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 )
 
@@ -18,7 +19,7 @@ templ ProjectGroup(project projects.Project) {
 			}
 		</div>
 		if len(project.Clients) == 0 {
-			<p class="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No clients configured for this project.</p>
+			<p class="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">{ i18n.T(ctx, "home.no_clients") }</p>
 		}
 	</section>
 }
@@ -33,7 +34,7 @@ templ ClientCard(projectID string, client projects.Client) {
 		</span>
 		<span class="min-w-0 flex-1">
 			<span class="block truncate text-sm font-medium">{ client.Name }</span>
-			<span class="block text-xs text-muted-foreground">Explore logs</span>
+			<span class="block text-xs text-muted-foreground">{ i18n.T(ctx, "home.explore_logs") }</span>
 		</span>
 		@icon.ChevronRight(icon.Props{Class: "size-4 shrink-0 text-muted-foreground group-hover:text-foreground"})
 	</a>

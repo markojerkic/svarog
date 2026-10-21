@@ -1,3 +1,6 @@
+const translations = JSON.parse(document.documentElement.dataset.i18n || "{}");
+window.svarogI18n = (key, fallback = key) => translations[key] || fallback;
+
 document.addEventListener("submit", (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement) || !form.matches("[data-language-switcher]")) return;

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -25,6 +26,9 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 	var he *echo.HTTPError
 	if errors.As(err, &he) {
 		message = he.Message
+		if message == http.StatusText(code) {
+			message = ""
+		}
 		slog.Debug("HTTP error", "code", code, "message", message)
 	}
 
@@ -37,6 +41,6 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 
 	if err := utils.Render(c, code, pages.ErrorPage(props)); err != nil {
 		slog.Error("Failed to render error page", "error", err)
-		c.String(code, "Internal Server Error")
+		c.String(code, i18n.T(c.Request().Context(), "errors.500_title"))
 	}
 }

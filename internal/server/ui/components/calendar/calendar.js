@@ -6,6 +6,7 @@
   "use strict";
 
   const ROOT = '[data-slot="calendar"]';
+  const t = (key, fallback) => window.svarogI18n?.(key, fallback) || fallback;
 
   // ----- DateLib: the date-fns functions DayPicker uses, local time -------
 
@@ -860,8 +861,8 @@
     nav.setAttribute("aria-label", "");
     const [prev, next] = nav.children;
     for (const [button, month, label] of [
-      [prev, previousMonth, "Go to the Previous Month"],
-      [next, nextMonth, "Go to the Next Month"],
+      [prev, previousMonth, t("calendar.previous_month", "Go to the Previous Month")],
+      [next, nextMonth, t("calendar.next_month", "Go to the Next Month")],
     ]) {
       button.setAttribute("aria-label", label);
       if (!month) {
@@ -906,7 +907,7 @@
           props.captionLayout === "dropdown" || props.captionLayout === "dropdown-months"
             ? dropdown(s, p, {
                 className: "rdp-months_dropdown",
-                ariaLabel: "Choose the Month",
+                ariaLabel: t("calendar.choose_month", "Choose the Month"),
                 options: monthOptions,
                 value: dateLib.getMonth(calendarMonth.date),
               })
@@ -914,7 +915,7 @@
           props.captionLayout === "dropdown" || props.captionLayout === "dropdown-years"
             ? dropdown(s, p, {
                 className: "rdp-years_dropdown",
-                ariaLabel: "Choose the Year",
+                ariaLabel: t("calendar.choose_year", "Choose the Year"),
                 options: yearOptions,
                 value: dateLib.getYear(calendarMonth.date),
               })
@@ -933,7 +934,11 @@
       // MonthGrid
       const headRow = el("tr", { class: CLASS.weekdays }, [
         props.showWeekNumber &&
-          el("th", { "aria-label": "Week Number", class: CLASS.weekNumberHeader, scope: "col" }),
+          el("th", {
+            "aria-label": t("calendar.week_number", "Week Number"),
+            class: CLASS.weekNumberHeader,
+            scope: "col",
+          }),
         ...weekdays.map((weekday) =>
           el(
             "th",
@@ -952,7 +957,7 @@
                 "td",
                 {
                   week: "[object Object]",
-                  "aria-label": `Week ${week.weekNumber}`,
+                  "aria-label": `${t("calendar.week", "Week")} ${week.weekNumber}`,
                   class: CLASS.weekNumber,
                   scope: "row",
                   role: "rowheader",
@@ -1012,8 +1017,8 @@
     }
     const label = (base) => {
       let l = dateLib.format(date, "PPPP");
-      if (modifiers.today) l = `Today, ${l}`;
-      if (base && modifiers.selected) l = `${l}, selected`;
+      if (modifiers.today) l = `${t("calendar.today", "Today")}, ${l}`;
+      if (base && modifiers.selected) l = `${l}, ${t("calendar.selected", "selected")}`;
       return l;
     };
     const td = el("td", {

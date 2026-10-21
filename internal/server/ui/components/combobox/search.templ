@@ -2,6 +2,7 @@ package combobox
 
 import "fmt"
 import "strings"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type Option struct {
 	Name  string
@@ -28,7 +29,7 @@ templ ComboBox(props ...SearchProps) {
 		{{ p.ID = "projects" }}
 	}
 	if p.Placeholder == "" {
-		{{ p.Placeholder = "Select..." }}
+		{{ p.Placeholder = i18n.T(ctx, "common.select") }}
 	}
 	{{
 		values := make([]string, len(p.Values))

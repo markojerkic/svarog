@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/components/button"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 	"github.com/markojerkic/svarog/internal/server/ui/components/input"
@@ -130,11 +131,11 @@ type InsetProps struct {
 }
 
 type InputProps struct {
-	ID         string
-	Class      string
-	Attributes templ.Attributes
-	Name       string
-	Value      string
+	ID          string
+	Class       string
+	Attributes  templ.Attributes
+	Name        string
+	Value       string
 	Placeholder string
 }
 
@@ -328,7 +329,7 @@ templ Sidebar(props ...Props) {
 			ID: p.ID + "-mobile",
 		}) {
 			@sheet.Content(sheet.ContentProps{
-				Side:            sheetSide,
+				Side:  sheetSide,
 				Class: "w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden md:hidden",
 				Attributes: templ.Attributes{
 					"data-sidebar": "sidebar",
@@ -338,10 +339,10 @@ templ Sidebar(props ...Props) {
 			}) {
 				@sheet.Header(sheet.HeaderProps{Class: "sr-only"}) {
 					@sheet.Title() {
-						Sidebar
+						{ i18n.T(ctx, "common.sidebar") }
 					}
 					@sheet.Description() {
-						Displays the mobile sidebar.
+						{ i18n.T(ctx, "common.mobile_sidebar") }
 					}
 				}
 				<div class="flex h-full w-full flex-col" data-templ-sidebar-mobile-portal={ p.ID }></div>
@@ -425,7 +426,7 @@ templ Trigger(props ...TriggerProps) {
 		),
 	}) {
 		@icon.PanelLeft(icon.Props{Class: ""})
-		<span class="sr-only">Toggle Sidebar</span>
+		<span class="sr-only">{ i18n.T(ctx, "common.toggle_sidebar") }</span>
 	}
 }
 
@@ -439,7 +440,7 @@ templ Rail(props ...RailProps) {
 		data-sidebar="rail"
 		data-slot="sidebar-rail"
 		data-templ-sidebar-trigger={ sidebarID(ctx) }
-		aria-label="Toggle Sidebar"
+		aria-label={ i18n.T(ctx, "common.toggle_sidebar") }
 		tabindex="-1"
 		title="Toggle Sidebar"
 		class={ utils.CN(

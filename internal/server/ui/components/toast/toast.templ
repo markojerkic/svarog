@@ -3,6 +3,7 @@ package toast
 import (
 	"strconv"
 
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/components/button"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 )
@@ -58,7 +59,7 @@ templ Toaster(props ...ToasterProps) {
 			aria-live="polite"
 			aria-atomic="false"
 			aria-relevant="additions text"
-			aria-label="Notifications"
+			aria-label={ i18n.T(ctx, "common.notifications") }
 			data-templ-timeout={ strconv.Itoa(p.Timeout) }
 			data-templ-limit={ strconv.Itoa(p.Limit) }
 			class="pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full"
@@ -110,7 +111,7 @@ templ toastListItem() {
 				Variant:    button.VariantGhost,
 				Size:       button.SizeIconSm,
 				Class:      "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
-				Attributes: templ.Attributes{"data-slot": "toast-close", "aria-label": "Close toast"},
+				Attributes: templ.Attributes{"data-slot": "toast-close", "aria-label": i18n.T(ctx, "common.close_notification")},
 			}) {
 				@icon.X(icon.Props{Attributes: templ.Attributes{"aria-hidden": "true"}})
 			}

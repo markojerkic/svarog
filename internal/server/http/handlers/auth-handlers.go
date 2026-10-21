@@ -54,7 +54,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 			Redirect: redirect,
 		}))
 	}
-	if err := c.Validate(&loginForm); err != nil {
+	if err := utils.Validate(c, &loginForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(
 			authpages.LoginPageProps{
 				Error:    i18n.T(c.Request().Context(), "auth.credentials_required"),
@@ -85,17 +85,17 @@ func (a *AuthRouter) loginWithToken(c *echo.Context) error {
 	if err := c.Bind(&loginForm); err != nil {
 		return c.JSON(400, err)
 	}
-	if err := c.Validate(&loginForm); err != nil {
+	if err := utils.Validate(c, &loginForm); err != nil {
 		return err
 	}
 
 	err := a.authService.LoginWithToken(c, loginForm.Token)
 	if err != nil {
-		htmx.AddErrorToast(c, "Token is invalid")
+		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.token_invalid"))
 		return htmx.Redirect(c, "/login")
 	}
 
-	htmx.AddSuccessToast(c, "Logged in")
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "auth.logged_in"))
 	return htmx.Redirect(c, "/reset-password")
 }
 
@@ -117,7 +117,7 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	if err := c.Bind(&resetPasswordForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.invalid_form")))
 	}
-	if err := c.Validate(&resetPasswordForm); err != nil {
+	if err := utils.Validate(c, &resetPasswordForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.password_too_short")))
 	}
 
@@ -146,7 +146,7 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 func (a *AuthRouter) logout(c *echo.Context) error {
 	err := a.authService.Logout(c)
 	if err != nil {
-		return c.JSON(500, types.ApiError{Message: "Error logging out"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "auth.logout_failed")})
 	}
 	return utils.HxRedirect(c, "/")
 }
@@ -178,23 +178,23 @@ func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "User ID is required"})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
 	}
 
 	user, err := a.authService.GetUserByID(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching user", "error", err)
 		if err.Error() == auth.ErrUserNotFound {
-			return c.JSON(404, types.ApiError{Message: "User not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error getting user"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.load_failed")})
 	}
 	var projectItems []combobox.Option
 	if len(user.ProjectIDs) > 0 {
 		assignedProjects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
 		if err != nil {
 			slog.Error("Error fetching assigned projects", "error", err)
-			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error fetching assigned projects"})
+			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.selected_load_failed")})
 		}
 		for _, project := range assignedProjects {
 			projectItems = append(projectItems, combobox.Option{Value: project.ID.String(), Name: project.Name})
@@ -224,7 +224,7 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	for _, id := range createUserForm.ProjectIDs {
 		createUserForm.Projects = append(createUserForm.Projects, combobox.Option{Value: id, Name: id})
 	}
-	if err := c.Validate(&createUserForm); err != nil {
+	if err := utils.Validate(c, &createUserForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
 			htmx.Reswap(c, htmx.ReswapProps{
 				Swap:   "outerHTML",
@@ -251,8 +251,8 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 		if err.Error() == auth.UserAlreadyExists {
 			return utils.Render(c, http.StatusConflict, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 				ApiError: types.ApiError{
-					Message: "User already exists",
-					Fields:  map[string]string{"username": "User with this username already exists"}},
+					Message: i18n.T(c.Request().Context(), "users.already_exists"),
+					Fields:  map[string]string{"username": i18n.T(c.Request().Context(), "users.username_exists")}},
 				Value: createUserForm,
 			}))
 		}
@@ -267,7 +267,7 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 		slog.Error("Error creating/updating user", "error", err)
 		return utils.Render(c, http.StatusInternalServerError, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 			ApiError: types.ApiError{
-				Message: "Error creating/updating user",
+				Message: i18n.T(c.Request().Context(), "users.save_failed"),
 			},
 			Value: createUserForm,
 		}))
@@ -275,14 +275,14 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 
 	htmx.CloseDialog(c)
 	if createUserForm.ID != "" {
-		htmx.AddSuccessToast(c, "User updated")
+		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.updated"))
 		htmx.Reswap(c, htmx.ReswapProps{
 			Swap:   "outerHTML",
 			Target: fmt.Sprintf("[data-user-id='%s']", createUserForm.ID),
 			Select: "tr",
 		})
 	} else {
-		htmx.AddSuccessToast(c, "User created")
+		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.created"))
 	}
 
 	return utils.Render(c, http.StatusOK, admin.UsersTableBody(admin.UsersListPageProps{
@@ -293,25 +293,25 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "User ID is required", Fields: map[string]string{"id": "User ID is required"}})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "users.id_required")}})
 	}
 	err := a.authService.DeleteUser(c, id)
 	if err != nil {
 		slog.Error("Error deleting user", "error", err)
 		if err.Error() == auth.ErrUserNotFound {
-			return c.JSON(404, types.ApiError{Message: "User not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error deleting user"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.delete_failed")})
 	}
 
-	htmx.AddSuccessToast(c, "User deleted")
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.deleted"))
 	return c.HTML(200, "")
 }
 
 func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 	userId := c.FormValue("userId")
 	if userId == "" {
-		return c.JSON(400, types.ApiError{Message: "User ID is required"})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
 	}
 
 	loginToken, err := a.authService.GenerateLoginToken(c.Request().Context(), userId)
@@ -320,7 +320,7 @@ func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 		return err
 	}
 
-	htmx.AddSuccessToast(c, "Token copied to clipboard, password is reset")
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.token_copied"))
 	htmx.AddTrigger(c, "copyLoginToken", loginToken)
 	return c.String(200, loginToken)
 }

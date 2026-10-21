@@ -10,11 +10,14 @@ document.addEventListener("calendar-select", (event) => {
   if (date instanceof Date && !Number.isNaN(date.getTime())) {
     const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     hidden.value = iso;
-    if (label) label.textContent = iso;
+    if (label)
+      label.textContent = new Intl.DateTimeFormat(document.documentElement.lang).format(date);
     trigger.removeAttribute("data-empty");
   } else {
     hidden.value = "";
-    if (label) label.textContent = trigger.getAttribute("data-placeholder") || "Select a date";
+    if (label)
+      label.textContent =
+        trigger.getAttribute("data-placeholder") || window.svarogI18n("common.select_date");
     trigger.setAttribute("data-empty", "true");
   }
   window.templ?.popover?.close(popup);

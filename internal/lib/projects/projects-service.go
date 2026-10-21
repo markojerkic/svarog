@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -63,20 +64,20 @@ func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, for
 	return p.UpdateProject(ctx, id, form.Name, form.Clients)
 }
 
-func validateProject(name string, clients []string) error {
+func validateProject(ctx context.Context, name string, clients []string) error {
 	if strings.TrimSpace(name) == "" {
-		return types.NewApiError("Project name is required", map[string]string{"name": "Project name is required"})
+		return types.NewApiError(i18n.T(ctx, "projects.name_required"), map[string]string{"name": i18n.T(ctx, "projects.name_required")})
 	}
 	for _, client := range clients {
 		if strings.TrimSpace(client) == "" {
-			return types.NewApiError("Client name is required", map[string]string{"clients": "Client names must not be blank"})
+			return types.NewApiError(i18n.T(ctx, "projects.client_required"), map[string]string{"clients": i18n.T(ctx, "projects.clients_blank")})
 		}
 	}
 	return nil
 }
 
 func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
-	if err := validateProject(name, clients); err != nil {
+	if err := validateProject(ctx, name, clients); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.CreateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
@@ -89,7 +90,7 @@ func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string
 }
 
 func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error) {
-	if err := validateProject(name, clients); err != nil {
+	if err := validateProject(ctx, name, clients); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.UpdateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{

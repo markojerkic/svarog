@@ -19,7 +19,7 @@ type BaseProps struct {
 
 templ BaseLayout(props BaseProps) {
 	<!DOCTYPE html>
-	<html lang={ string(i18n.LanguageFrom(ctx)) } hx-boost:inherited="true">
+	<html lang={ string(i18n.LanguageFrom(ctx)) } data-i18n={ i18n.ClientCatalog(ctx) } hx-boost:inherited="true">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -177,8 +177,8 @@ templ AdminLayout(props AdminLayoutProps) {
 					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
 						@sidebar.Trigger()
 						<span class="h-4 w-px bg-border" aria-hidden="true"></span>
-						<a href="/" class="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">{ i18n.T(ctx, "nav.workspace") }</a>
-						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 text-muted-foreground sm:block"})
+						<a href="/" class="hidden shrink-0 whitespace-nowrap text-sm text-muted-foreground hover:text-foreground xl:inline">{ i18n.T(ctx, "nav.workspace") }</a>
+						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 shrink-0 text-muted-foreground xl:block"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
 						<div class="ml-auto flex shrink-0 items-center gap-2">
 							if props.HeaderActions != nil {

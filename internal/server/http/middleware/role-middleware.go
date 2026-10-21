@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
@@ -12,12 +13,12 @@ func RequiresRoleMiddleware(role auth.Role) echo.MiddlewareFunc {
 		return func(c *echo.Context) error {
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 			if !ok || user == nil {
-				htmx.AddErrorToast(c, "You are not logged in")
+				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.login_required"))
 				return utils.HxRedirect(c, "/login")
 			}
 
 			if user.Role != role {
-				htmx.AddErrorToast(c, "You don't have permission to access this page")
+				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.page_forbidden"))
 				return utils.HxRedirect(c, "/")
 			}
 			return next(c)

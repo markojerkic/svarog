@@ -10,6 +10,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 import "github.com/markojerkic/svarog/internal/server/ui/components/combobox"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type NewUserFormProps struct {
 	FormID   string
@@ -45,12 +46,12 @@ templ NewUserForm(props ...NewUserFormProps) {
 				Class: "space-y-2",
 			}) {
 				@field.Label(field.LabelProps{For: p.FormID + "-username"}) {
-					Username
+					{ i18n.T(ctx, "auth.username") }
 				}
 				@input.Input(input.Props{
 					ID:          p.FormID + "-username",
 					Name:        "username",
-					Placeholder: "Enter username",
+					Placeholder: i18n.T(ctx, "auth.username_placeholder"),
 					ReadOnly:    p.Value.ID != "",
 					Value:       p.Value.Username,
 					Attributes: templ.Attributes{
@@ -70,12 +71,12 @@ templ NewUserForm(props ...NewUserFormProps) {
 				Class: "space-y-2",
 			}) {
 				@field.Label(field.LabelProps{For: p.FormID + "-firstName"}) {
-					First Name
+					{ i18n.T(ctx, "users.first_name") }
 				}
 				@input.Input(input.Props{
 					Name:        "firstName",
 					ID:          p.FormID + "-firstName",
-					Placeholder: "Enter first name",
+					Placeholder: i18n.T(ctx, "users.first_name_placeholder"),
 					Value:       p.Value.FirstName,
 					Attributes: templ.Attributes{
 						"required":     "",
@@ -94,12 +95,12 @@ templ NewUserForm(props ...NewUserFormProps) {
 				Class: "space-y-2",
 			}) {
 				@field.Label(field.LabelProps{For: p.FormID + "-lastName"}) {
-					Last Name
+					{ i18n.T(ctx, "users.last_name") }
 				}
 				@input.Input(input.Props{
 					Name:        "lastName",
 					ID:          p.FormID + "-lastName",
-					Placeholder: "Enter last name",
+					Placeholder: i18n.T(ctx, "users.last_name_placeholder"),
 					Value:       p.Value.LastName,
 					Attributes: templ.Attributes{
 						"required":     "",
@@ -118,25 +119,25 @@ templ NewUserForm(props ...NewUserFormProps) {
 				Class: "space-y-2",
 			}) {
 				@field.Label(field.LabelProps{For: p.FormID + "-role"}) {
-					Role
+					{ i18n.T(ctx, "users.role") }
 				}
 				@selectcomp.Select(selectcomp.Props{
 					Name:         "role",
 					DefaultValue: p.Value.Role,
 					Items: []selectcomp.ItemData{
-						{Value: string(auth.USER), Label: "User"},
-						{Value: string(auth.ADMIN), Label: "Admin"},
+						{Value: string(auth.USER), Label: i18n.T(ctx, "users.role_user")},
+						{Value: string(auth.ADMIN), Label: i18n.T(ctx, "users.role_admin")},
 					},
 				}) {
 					@selectcomp.Trigger(selectcomp.TriggerProps{ID: p.FormID + "-role", Class: "w-full"}) {
-						@selectcomp.Value(selectcomp.ValueProps{Placeholder: "Select role"})
+						@selectcomp.Value(selectcomp.ValueProps{Placeholder: i18n.T(ctx, "users.select_role")})
 					}
 					@selectcomp.Content() {
 						@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.USER)}) {
-							User
+							{ i18n.T(ctx, "users.role_user") }
 						}
 						@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.ADMIN)}) {
-							Admin
+							{ i18n.T(ctx, "users.role_admin") }
 						}
 					}
 				}
@@ -151,7 +152,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 			Class: "space-y-2",
 		}) {
 			@field.Label(field.LabelProps{For: p.FormID + "-projects-search"}) {
-				Projects
+				{ i18n.T(ctx, "nav.projects") }
 			}
 			@combobox.ComboBox(combobox.SearchProps{
 				ID:          p.FormID + "-projects",
@@ -159,7 +160,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 				Form:        p.FormID,
 				SearchURL:   "/admin/projects/search",
 				Values:      p.Value.Projects,
-				Placeholder: "Search projects",
+				Placeholder: i18n.T(ctx, "projects.search"),
 				HasError:    p.ApiError.Fields["projects"] != "",
 				Multiple:    true,
 			})
@@ -183,7 +184,7 @@ templ NewUser() {
 		}) {
 			<span class="flex items-center">
 				@icon.Plus(icon.Props{Size: 16, Class: "mr-2"})
-				New user
+				{ i18n.T(ctx, "users.new") }
 			</span>
 		}
 		@dialog.Content(dialog.ContentProps{
@@ -191,10 +192,10 @@ templ NewUser() {
 		}) {
 			@dialog.Header() {
 				@dialog.Title() {
-					Create a new user
+					{ i18n.T(ctx, "users.create_title") }
 				}
 				@dialog.Description() {
-					Enter the details for the new user
+					{ i18n.T(ctx, "users.create_description") }
 				}
 			}
 			@NewUserForm()
@@ -203,7 +204,7 @@ templ NewUser() {
 					Variant:    button.VariantOutline,
 					Attributes: dialog.Close(ctx),
 				}) {
-					Cancel
+					{ i18n.T(ctx, "common.cancel") }
 				}
 				@button.Button(button.Props{
 					Type: button.TypeSubmit,
@@ -211,7 +212,7 @@ templ NewUser() {
 						"form": "new-user-form",
 					},
 				}) {
-					Save
+					{ i18n.T(ctx, "common.save") }
 				}
 			}
 		}

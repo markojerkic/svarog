@@ -12,6 +12,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	projectcomponents "github.com/markojerkic/svarog/internal/server/ui/components/projects"
@@ -27,30 +28,30 @@ type ProjectsRouter struct {
 func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 	var request projects.SearchProjectsRequest
 	if err := c.Bind(&request); err != nil {
-		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid request parameters"})
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "request.invalid_parameters")})
 	}
 
 	if request.Size == 0 {
 		request.Size = 10
 	}
 
-	if err := c.Validate(&request); err != nil {
+	if err := utils.Validate(c, &request); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
 			return c.JSON(http.StatusBadRequest, apiErr)
 		}
-		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Validation failed"})
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "validation.failed")})
 	}
 
 	var selectedIDs types.CommaSeparatedStrings
 	if err := selectedIDs.UnmarshalParams(c.QueryParams()["projects"]); err != nil {
-		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid selected projects"})
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.invalid_selection")})
 	}
 	selected := make(map[string]bool, len(selectedIDs))
 	uniqueIDs := make([]string, 0, len(selectedIDs))
 	for _, id := range selectedIDs {
 		parsed, err := uuid.Parse(id)
 		if err != nil || parsed == uuid.Nil || parsed.String() != id {
-			return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid selected project ID"})
+			return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.invalid_id")})
 		}
 		if !selected[id] {
 			selected[id] = true
@@ -64,7 +65,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 		selectedProjects, err := p.projectsService.GetProjectsByIds(c.Request().Context(), uniqueIDs)
 		if err != nil {
 			slog.Error("Error fetching selected projects", "error", err)
-			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting selected projects"})
+			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.selected_load_failed")})
 		}
 		for _, project := range selectedProjects {
 			selectedItems = append(selectedItems, combobox.Option{Value: project.ID.String(), Name: project.Name})
@@ -74,7 +75,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 	results, err := p.projectsService.SearchProjects(c.Request().Context(), request)
 	if err != nil {
 		slog.Error("Error fetching projects", "error", err)
-		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: "Error getting projects"})
+		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_failed")})
 	}
 	items := make([]combobox.Option, 0, len(results))
 	for _, project := range results {
@@ -116,18 +117,18 @@ func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 	if query.Size == 0 {
 		query.Size = 10
 	}
-	if err := c.Validate(&query); err != nil {
+	if err := utils.Validate(c, &query); err != nil {
 		var apiErr types.ApiError
 		if errors.As(err, &apiErr) {
 			return c.JSON(http.StatusBadRequest, apiErr)
 		}
-		return c.JSON(http.StatusBadRequest, types.ApiError{Message: "Invalid project pagination"})
+		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.invalid_pagination")})
 	}
 
 	projects, totalCount, err := p.projectsService.GetProjectPage(c.Request().Context(), query)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
-		return c.JSON(500, types.ApiError{Message: "Error getting projects"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_failed")})
 	}
 
 	return utils.Render(c, http.StatusOK, admin.ProjectsListPage(admin.ProjectsListPageProps{
@@ -142,15 +143,15 @@ func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 func (p *ProjectsRouter) getProject(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "projects.id_required")}})
 	}
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error getting project"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
 	}
 
 	return c.JSON(200, project)
@@ -159,16 +160,16 @@ func (p *ProjectsRouter) getProject(c *echo.Context) error {
 func (p *ProjectsRouter) getEditProjectForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "Project ID is required"})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required")})
 	}
 
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error getting project"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
 	}
 
 	return utils.Render(c, http.StatusOK, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
@@ -184,16 +185,16 @@ func (p *ProjectsRouter) getEditProjectForm(c *echo.Context) error {
 func (p *ProjectsRouter) getConnectionStringForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "Project ID is required"})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required")})
 	}
 
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
 		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error getting project"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
 	}
 
 	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
@@ -207,7 +208,7 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 	if err := c.Bind(&createProjectForm); err != nil {
 		return c.JSON(400, err)
 	}
-	if err := c.Validate(&createProjectForm); err != nil {
+	if err := utils.Validate(c, &createProjectForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
 			htmx.Reswap(c, htmx.ReswapProps{
 				Swap:   "outerHTML",
@@ -233,8 +234,8 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 		if err.Error() == projects.ErrProjectExists {
 			return utils.Render(c, http.StatusConflict, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: types.ApiError{
-					Message: "Project already exists",
-					Fields:  map[string]string{"name": "Project with this name already exists"}},
+					Message: i18n.T(c.Request().Context(), "projects.already_exists"),
+					Fields:  map[string]string{"name": i18n.T(c.Request().Context(), "projects.name_exists")}},
 				Value: createProjectForm,
 			}))
 		}
@@ -249,7 +250,7 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 		slog.Error("Error creating project", "error", err)
 		return utils.Render(c, http.StatusInternalServerError, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 			ApiError: types.ApiError{
-				Message: "Error creating project",
+				Message: i18n.T(c.Request().Context(), "projects.save_failed"),
 			},
 			Value: createProjectForm,
 		}))
@@ -257,14 +258,14 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 
 	htmx.CloseDialog(c)
 	if createProjectForm.ID != "" {
-		htmx.AddSuccessToast(c, "Project updated")
+		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "projects.updated"))
 		htmx.Reswap(c, htmx.ReswapProps{
 			Swap:   "outerHTML",
 			Target: fmt.Sprintf("[data-project-id='%s']", createProjectForm.ID),
 			Select: "tr",
 		})
 	} else {
-		htmx.AddSuccessToast(c, "Project created")
+		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "projects.created"))
 	}
 
 	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
@@ -275,34 +276,34 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: "Project ID is required", Fields: map[string]string{"id": "Project ID is required"}})
+		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "projects.id_required")}})
 	}
 	err := p.projectsService.DeleteProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error deleting project", "error", err)
 		if err.Error() == projects.ErrProjectHasClients {
-			message := "Cannot delete a project with clients. Projects with historical clients must be retained."
+			message := i18n.T(c.Request().Context(), "projects.has_clients")
 			htmx.AddErrorToast(c, message)
 			c.Response().Header().Set("HX-Reswap", "none")
 			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
 		}
 		if err.Error() == projects.ErrProjectNotFound {
-			return c.JSON(404, types.ApiError{Message: "Project not found"})
+			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
-		return c.JSON(500, types.ApiError{Message: "Error deleting project"})
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.delete_failed")})
 	}
 
-	htmx.AddSuccessToast(c, "Project deleted")
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "projects.deleted"))
 	return c.HTML(200, "")
 }
 
 func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	var request serverauth.CredentialGenerationRequest
 	if err := c.Bind(&request); err != nil {
-		htmx.AddErrorToast(c, "Failed to generate credentials")
+		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
 		return c.JSON(400, err)
 	}
-	if err := c.Validate(&request); err != nil {
+	if err := utils.Validate(c, &request); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
 			htmx.Reswap(c, htmx.ReswapProps{
 				Swap:   "outerHTML",
@@ -312,8 +313,8 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 
 			project, projErr := p.projectsService.GetProject(c.Request().Context(), request.ProjectID)
 			if projErr != nil {
-				htmx.AddErrorToast(c, "Failed to generate credentials")
-				return c.JSON(500, types.ApiError{Message: "Error getting project"})
+				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
+				return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
 			}
 
 			return utils.Render(c, http.StatusBadRequest, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
@@ -322,21 +323,21 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 				ApiError:  apiErr,
 			}))
 		}
-		htmx.AddErrorToast(c, "Failed to generate credentials")
+		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
 		return c.JSON(400, err)
 	}
 
 	creds, err := p.natsCredsService.GenerateConnString(c.Request().Context(), request)
 	if err != nil {
-		htmx.AddErrorToast(c, "Failed to generate credentials")
-		return c.JSON(500, types.ApiError{Message: "Error generating credentials"})
+		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "connection.generate_failed")})
 	}
 
 	connString := creds.GetConnString()
 	slog.Debug("Generated connection string", "connString", connString)
 
 	htmx.CloseDialog(c)
-	htmx.AddSuccessToast(c, "Connection string generated and copied to clipboard")
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "connection.generated"))
 
 	htmx.AddTrigger(c, "copyToClipboard", connString)
 

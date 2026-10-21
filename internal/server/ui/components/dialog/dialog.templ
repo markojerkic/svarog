@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/components/button"
 	"github.com/markojerkic/svarog/internal/server/ui/components/icon"
 	"github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
@@ -221,12 +222,12 @@ templ Content(props ...ContentProps) {
 					Size:    button.SizeIconSm,
 					Class:   "absolute top-2 right-2",
 					Attributes: templ.Attributes{
-						"data-slot":             "dialog-close",
+						"data-slot":               "dialog-close",
 						"data-templ-dialog-close": "",
 					},
 				}) {
 					@icon.X()
-					<span class="sr-only">Close</span>
+					<span class="sr-only">{ i18n.T(ctx, "common.close") }</span>
 				}
 			}
 		</div>
