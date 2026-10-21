@@ -4,6 +4,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "strconv"
+import "github.com/markojerkic/svarog/internal/server/ui/components"
 
 type ErrorPageProps struct {
 	StatusCode int
@@ -91,6 +92,9 @@ templ ErrorPage(props ErrorPageProps) {
 						@icon.House(icon.Props{Class: "size-4"})
 						Home
 					}
+				</div>
+				<div class="flex justify-center">
+					@components.LanguageSwitcher()
 				</div>
 			</div>
 		</div>

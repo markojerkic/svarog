@@ -44,6 +44,7 @@ type HttpServerOptions struct {
 func (self *HttpServer) Start() error {
 	// v5 catch-all 404 routes would let the two "" groups overwrite each other.
 	e := echo.NewWithConfig(echo.Config{NoGroupAutoRegister404Routes: true})
+	e.Use(customMiddleware.LanguageMiddleware)
 	e.Validator = &Validator{validator: validator.New()}
 	e.HTTPErrorHandler = customMiddleware.CustomHTTPErrorHandler
 
@@ -58,6 +59,7 @@ func (self *HttpServer) Start() error {
 	publicApi := e.Group("", sessionMiddleware)
 	adminApi := privateApi.Group("/admin", customMiddleware.RequiresRoleMiddleware(auth.ADMIN))
 
+	handlers.NewLanguageRouter(publicApi)
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
 	handlers.NewLogsRouter(self.logService, self.authService, self.projectsService, privateApi)

@@ -1,6 +1,7 @@
 package pages
 
 import "strings"
+import "github.com/markojerkic/svarog/internal/server/i18n"
 
 import "github.com/markojerkic/svarog/internal/server/ui/components"
 import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
@@ -18,7 +19,7 @@ type BaseProps struct {
 
 templ BaseLayout(props BaseProps) {
 	<!DOCTYPE html>
-	<html lang="en" hx-boost:inherited="true">
+	<html lang={ string(i18n.LanguageFrom(ctx)) } hx-boost:inherited="true">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -33,6 +34,7 @@ templ BaseLayout(props BaseProps) {
 			<link rel="icon" href="/assets/logo.png" type="image/png"/>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/htmx.min.js" integrity="sha384-BvJpBiO8Kh31EqtJe5DRIeWrHWnCGkwytKs9NKFi86Hhw96dEqdEMzZDeK9iEGTc" crossorigin="anonymous"></script>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/ext/hx-ws.min.js" integrity="sha384-8iDMDuKIquXLgObstxvwGlWD1bY/ALMH7k9rbC070qmZrRvJ0BGO+8xG+Ul+J0bP" crossorigin="anonymous"></script>
+			<script defer src={ utils.ScriptURL("/assets/js/i18n.js") }></script>
 			<script defer src={ utils.ScriptURL("/assets/js/htmx-error-swap.js") }></script>
 			<script defer src="/assets/js/copy-result-string.js"></script>
 			<script defer src={ utils.ScriptURL("/assets/js/close-dialog.js") }></script>
@@ -102,7 +104,7 @@ templ AdminLayout(props AdminLayoutProps) {
 								<img src="/assets/logo.png" alt="" class="size-8 shrink-0"/>
 								<span class="grid text-left leading-tight">
 									<span class="font-semibold">Svarog</span>
-									<span class="text-xs text-muted-foreground">Log explorer</span>
+									<span class="text-xs text-muted-foreground">{ i18n.T(ctx, "nav.log_explorer") }</span>
 								</span>
 							}
 						}
@@ -111,17 +113,17 @@ templ AdminLayout(props AdminLayoutProps) {
 				@sidebar.Content() {
 					@sidebar.Group() {
 						@sidebar.GroupLabel() {
-							Workspace
+							{ i18n.T(ctx, "nav.workspace") }
 						}
 						@sidebar.Menu() {
 							@sidebar.MenuItem() {
 								@sidebar.MenuButton(sidebar.MenuButtonProps{
 									Href:     "/",
-									Tooltip:  "Logs",
+									Tooltip:  i18n.T(ctx, "nav.logs"),
 									IsActive: props.CurrentPath == "/" || strings.HasPrefix(props.CurrentPath, "/logs/"),
 								}) {
 									@icon.Logs(icon.Props{Class: "size-4"})
-									<span>Logs</span>
+									<span>{ i18n.T(ctx, "nav.logs") }</span>
 								}
 							}
 						}
@@ -129,27 +131,27 @@ templ AdminLayout(props AdminLayoutProps) {
 					if auth.IsAdmin(ctx) {
 						@sidebar.Group() {
 							@sidebar.GroupLabel() {
-								Administration
+								{ i18n.T(ctx, "nav.administration") }
 							}
 							@sidebar.Menu() {
 								@sidebar.MenuItem() {
 									@sidebar.MenuButton(sidebar.MenuButtonProps{
 										Href:     "/admin/projects",
-										Tooltip:  "Projects",
+										Tooltip:  i18n.T(ctx, "nav.projects"),
 										IsActive: isActivePath(props.CurrentPath, "/admin/projects"),
 									}) {
 										@icon.FolderKanban(icon.Props{Class: "size-4"})
-										<span>Projects</span>
+										<span>{ i18n.T(ctx, "nav.projects") }</span>
 									}
 								}
 								@sidebar.MenuItem() {
 									@sidebar.MenuButton(sidebar.MenuButtonProps{
 										Href:     "/admin/users",
-										Tooltip:  "Users",
+										Tooltip:  i18n.T(ctx, "nav.users"),
 										IsActive: isActivePath(props.CurrentPath, "/admin/users"),
 									}) {
 										@icon.Users(icon.Props{Class: "size-4"})
-										<span>Users</span>
+										<span>{ i18n.T(ctx, "nav.users") }</span>
 									}
 								}
 							}
@@ -157,14 +159,15 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 				@sidebar.Footer() {
+					@components.LanguageSwitcher()
 					@sidebar.Menu() {
 						@sidebar.MenuItem() {
 							@sidebar.MenuButton(sidebar.MenuButtonProps{
 								Href:    "/logout",
-								Tooltip: "Log out",
+								Tooltip: i18n.T(ctx, "nav.logout"),
 							}) {
 								@icon.LogOut(icon.Props{Class: "size-4"})
-								<span>Log out</span>
+								<span>{ i18n.T(ctx, "nav.logout") }</span>
 							}
 						}
 					}
@@ -175,7 +178,7 @@ templ AdminLayout(props AdminLayoutProps) {
 					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
 						@sidebar.Trigger()
 						<span class="h-4 w-px bg-border" aria-hidden="true"></span>
-						<a href="/" class="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">Workspace</a>
+						<a href="/" class="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">{ i18n.T(ctx, "nav.workspace") }</a>
 						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 text-muted-foreground sm:block"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
 						if props.HeaderActions != nil {
@@ -198,7 +201,7 @@ templ ConfirmDialog() {
 		@dialog.Content(dialog.ContentProps{}) {
 			@dialog.Header() {
 				@dialog.Title() {
-					Confirm Action
+					{ i18n.T(ctx, "common.confirm_action") }
 				}
 				@dialog.Description() {
 					<span id="confirm-message"></span>
@@ -209,7 +212,7 @@ templ ConfirmDialog() {
 					Variant:    button.VariantOutline,
 					Attributes: dialog.Close(ctx),
 				}) {
-					Cancel
+					{ i18n.T(ctx, "common.cancel") }
 				}
 				@button.Button(button.Props{
 					Variant: button.VariantDefault,
@@ -217,7 +220,7 @@ templ ConfirmDialog() {
 						"id": "confirm-button",
 					},
 				}) {
-					Confirm
+					{ i18n.T(ctx, "common.confirm") }
 				}
 			}
 		}

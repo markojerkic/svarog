@@ -1,0 +1,63 @@
+package components
+
+import "strconv"
+import "strings"
+
+import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dropdownmenu"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+
+templ LanguageSwitcher() {
+	@dropdownmenu.DropdownMenu() {
+		{{
+			current := strings.ToUpper(string(i18n.LanguageFrom(ctx)))
+			trigger := dropdownmenu.Trigger(ctx)
+			trigger["aria-label"] = i18n.T(ctx, "language.label") + ": " + current
+			trigger["title"] = i18n.T(ctx, "language.label")
+		}}
+		@button.Button(button.Props{
+			Size:       button.SizeSm,
+			Variant:    button.VariantGhost,
+			Class:      "justify-between gap-2 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+			Attributes: trigger,
+		}) {
+			{ current }
+			@icon.ChevronDown(icon.Props{Class: "size-3.5 group-data-[collapsible=icon]:hidden", Attributes: templ.Attributes{"aria-hidden": "true"}})
+		}
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Side: dropdownmenu.SideTop}) {
+			<form method="post" action="/language" hx-boost="false" data-language-switcher>
+				<input type="hidden" name="returnTo" value="/"/>
+				for _, lang := range []i18n.Language{i18n.Croatian, i18n.English} {
+					{{
+						selected := i18n.LanguageFrom(ctx) == lang
+						label := "English"
+						if lang == i18n.Croatian {
+							label = "Hrvatski"
+						}
+					}}
+					@button.Button(button.Props{
+						Type:    button.TypeSubmit,
+						Size:    button.SizeSm,
+						Variant: button.VariantGhost,
+						Class:   "w-full justify-start rounded-md px-2 focus:bg-accent focus:text-accent-foreground",
+						Attributes: templ.Attributes{
+							"name":         "language",
+							"value":        string(lang),
+							"role":         "menuitem",
+							"data-slot":    "dropdown-menu-item",
+							"tabindex":     "-1",
+							"aria-current": strconv.FormatBool(selected),
+							"lang":         string(lang),
+						},
+					}) {
+						{ label }
+						if selected {
+							@icon.Check(icon.Props{Class: "ml-auto size-4", Attributes: templ.Attributes{"aria-hidden": "true"}})
+						}
+					}
+				}
+			</form>
+		}
+	}
+}

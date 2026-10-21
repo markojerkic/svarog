@@ -13,6 +13,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
@@ -47,7 +48,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 	redirect = loginRedirect(redirect)
 	if bindErr != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(authpages.LoginPageProps{
-			Error:    "Invalid form data",
+			Error:    i18n.T(c.Request().Context(), "auth.invalid_form"),
 			Username: loginForm.Username,
 			Password: loginForm.Password,
 			Redirect: redirect,
@@ -56,7 +57,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 	if err := c.Validate(&loginForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(
 			authpages.LoginPageProps{
-				Error:    "Username and password are required",
+				Error:    i18n.T(c.Request().Context(), "auth.credentials_required"),
 				Username: loginForm.Username,
 				Password: loginForm.Password,
 				Redirect: redirect,
@@ -68,7 +69,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 	if err != nil {
 		return utils.Render(c, http.StatusUnauthorized, authpages.LoginPage(
 			authpages.LoginPageProps{
-				Error:    "Invalid credentials",
+				Error:    i18n.T(c.Request().Context(), "auth.invalid_credentials"),
 				Username: loginForm.Username,
 				Password: loginForm.Password,
 				Redirect: redirect,
@@ -114,14 +115,14 @@ func (a *AuthRouter) resetPasswordPage(c *echo.Context) error {
 func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	var resetPasswordForm types.ResetPasswordForm
 	if err := c.Bind(&resetPasswordForm); err != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Invalid form data"))
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.invalid_form")))
 	}
 	if err := c.Validate(&resetPasswordForm); err != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Password must be at least 8 characters"))
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.password_too_short")))
 	}
 
 	if resetPasswordForm.Password != resetPasswordForm.RepeatedPassword {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError("Passwords do not match"))
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.passwords_mismatch")))
 	}
 
 	user, err := a.authService.GetCurrentUser(c)
@@ -132,7 +133,7 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
 	if err != nil {
 		slog.Error("Error resetting password", "error", err)
-		return utils.Render(c, http.StatusInternalServerError, authpages.ResetPasswordError("Error resetting password, try again"))
+		return utils.Render(c, http.StatusInternalServerError, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.reset_failed")))
 	}
 
 	redirect := c.FormValue("redirect")
