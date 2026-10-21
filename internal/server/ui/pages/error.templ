@@ -62,6 +62,9 @@ func (p ErrorPageProps) GetMessage() string {
 
 templ ErrorPage(props ErrorPageProps) {
 	@BaseLayout(BaseProps{Title: props.GetTitle()}) {
+		<div class="fixed right-4 top-4 z-20">
+			@components.LanguageSwitcher()
+		</div>
 		<div class="min-h-screen flex items-center justify-center p-4">
 			<div class="max-w-md w-full space-y-6">
 				<div class="text-center">
@@ -92,9 +95,6 @@ templ ErrorPage(props ErrorPageProps) {
 						@icon.House(icon.Props{Class: "size-4"})
 						Home
 					}
-				</div>
-				<div class="flex justify-center">
-					@components.LanguageSwitcher()
 				</div>
 			</div>
 		</div>

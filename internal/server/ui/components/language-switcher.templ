@@ -11,36 +11,33 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 templ LanguageSwitcher() {
 	@dropdownmenu.DropdownMenu() {
 		{{
-			current := strings.ToUpper(string(i18n.LanguageFrom(ctx)))
+			selectedLanguage := i18n.LanguageFrom(ctx)
+			labels := map[i18n.Language]string{i18n.English: "English", i18n.Croatian: "Hrvatski"}
+			current := strings.ToUpper(string(selectedLanguage))
 			trigger := dropdownmenu.Trigger(ctx)
-			trigger["aria-label"] = i18n.T(ctx, "language.label") + ": " + current
+			trigger["aria-label"] = i18n.T(ctx, "language.label") + ": " + labels[selectedLanguage]
 			trigger["title"] = i18n.T(ctx, "language.label")
 		}}
 		@button.Button(button.Props{
-			Size:       button.SizeSm,
-			Variant:    button.VariantGhost,
-			Class:      "justify-between gap-2 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+			Size:       button.SizeDefault,
+			Variant:    button.VariantOutline,
+			Class:      "w-8 gap-2 px-0 sm:w-auto sm:px-2.5",
 			Attributes: trigger,
 		}) {
-			{ current }
-			@icon.ChevronDown(icon.Props{Class: "size-3.5 group-data-[collapsible=icon]:hidden", Attributes: templ.Attributes{"aria-hidden": "true"}})
+			@icon.Globe(icon.Props{Class: "size-4", Attributes: templ.Attributes{"aria-hidden": "true"}})
+			<span class="hidden sm:inline">{ current }</span>
+			@icon.ChevronDown(icon.Props{Class: "hidden size-3.5 text-muted-foreground sm:block", Attributes: templ.Attributes{"aria-hidden": "true"}})
 		}
-		@dropdownmenu.Content(dropdownmenu.ContentProps{Side: dropdownmenu.SideTop}) {
+		@dropdownmenu.Content(dropdownmenu.ContentProps{Align: dropdownmenu.AlignEnd, Class: "w-44"}) {
 			<form method="post" action="/language" hx-boost="false" data-language-switcher>
 				<input type="hidden" name="returnTo" value="/"/>
-				for _, lang := range []i18n.Language{i18n.Croatian, i18n.English} {
-					{{
-						selected := i18n.LanguageFrom(ctx) == lang
-						label := "English"
-						if lang == i18n.Croatian {
-							label = "Hrvatski"
-						}
-					}}
+				for _, lang := range []i18n.Language{i18n.English, i18n.Croatian} {
+					{{ selected := selectedLanguage == lang }}
 					@button.Button(button.Props{
 						Type:    button.TypeSubmit,
-						Size:    button.SizeSm,
+						Size:    button.SizeDefault,
 						Variant: button.VariantGhost,
-						Class:   "w-full justify-start rounded-md px-2 focus:bg-accent focus:text-accent-foreground",
+						Class:   "w-full justify-start rounded-md px-2.5 font-normal focus:bg-accent focus:text-accent-foreground",
 						Attributes: templ.Attributes{
 							"name":         "language",
 							"value":        string(lang),
@@ -51,7 +48,7 @@ templ LanguageSwitcher() {
 							"lang":         string(lang),
 						},
 					}) {
-						{ label }
+						{ labels[lang] }
 						if selected {
 							@icon.Check(icon.Props{Class: "ml-auto size-4", Attributes: templ.Attributes{"aria-hidden": "true"}})
 						}

@@ -159,7 +159,6 @@ templ AdminLayout(props AdminLayoutProps) {
 					}
 				}
 				@sidebar.Footer() {
-					@components.LanguageSwitcher()
 					@sidebar.Menu() {
 						@sidebar.MenuItem() {
 							@sidebar.MenuButton(sidebar.MenuButtonProps{
@@ -181,11 +180,12 @@ templ AdminLayout(props AdminLayoutProps) {
 						<a href="/" class="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">{ i18n.T(ctx, "nav.workspace") }</a>
 						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 text-muted-foreground sm:block"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
-						if props.HeaderActions != nil {
-							<div class="ml-auto flex shrink-0 items-center gap-2">
+						<div class="ml-auto flex shrink-0 items-center gap-2">
+							if props.HeaderActions != nil {
 								@props.HeaderActions
-							</div>
-						}
+							}
+							@components.LanguageSwitcher()
+						</div>
 					</header>
 					<div class="flex-1 overflow-auto p-4 md:p-6 min-h-0 min-w-0">
 						{ children... }

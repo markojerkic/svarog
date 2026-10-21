@@ -21,6 +21,9 @@ templ LoginPage(props ...LoginPageProps) {
 		{{ p = props[0] }}
 	}
 	@pages.BaseLayout(pages.BaseProps{Title: i18n.T(ctx, "auth.login_title")}) {
+		<div class="fixed right-4 top-4 z-20">
+			@components.LanguageSwitcher()
+		</div>
 		<div class="flex min-h-svh flex-col items-center justify-center gap-6 overflow-auto bg-muted/40 p-6">
 			<a href="/" class="flex items-center gap-2 text-sm font-semibold">
 				<img src="/assets/logo.png" alt="" class="size-7"/>
@@ -99,7 +102,6 @@ templ LoginPage(props ...LoginPageProps) {
 					</form>
 				}
 			}
-			@components.LanguageSwitcher()
 		</div>
 	}
 }
