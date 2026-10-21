@@ -1,0 +1,10 @@
+{
+  "common.cancel": { "other": "Cancel" },
+  "logs.load_failed": { "other": "Could not load logs. Try again." },
+  "users.actions_for": { "other": "Actions for {{.Username}}" },
+  "users.created": { "other": "User created" },
+  "validation.min_length": {
+    "one": "Must be at least {{.Count}} character",
+    "other": "Must be at least {{.Count}} characters"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "common.cancel": { "other": "Odustani" },
+  "logs.load_failed": { "other": "Zapise nije moguće učitati. Pokušajte ponovno." },
+  "users.actions_for": { "other": "Radnje za korisnika {{.Username}}" },
+  "users.created": { "other": "Korisnik je dodan." },
+  "validation.min_length": {
+    "one": "Unesite najmanje {{.Count}} znak.",
+    "few": "Unesite najmanje {{.Count}} znaka.",
+    "other": "Unesite najmanje {{.Count}} znakova."
+  }
+}
