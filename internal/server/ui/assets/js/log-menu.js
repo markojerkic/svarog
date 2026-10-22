@@ -10,32 +10,47 @@
     return url;
   }
 
-  function positionMenu(trigger) {
+  function positionMenu(trigger, point) {
     if (!menu) return;
 
-    const rect = trigger.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
+    let left;
+    let top;
 
-    let left = rect.left - menuRect.width - 4;
-    let top = rect.bottom - menuRect.height;
+    if (point) {
+      left = point.x;
+      top = point.y;
+      if (left + menuRect.width > window.innerWidth - 8) {
+        left = window.innerWidth - menuRect.width - 8;
+      }
+      if (top + menuRect.height > window.innerHeight - 8) {
+        top = window.innerHeight - menuRect.height - 8;
+      }
+      if (left < 8) left = 8;
+      if (top < 8) top = 8;
+    } else {
+      const rect = trigger.getBoundingClientRect();
+      left = rect.left - menuRect.width - 4;
+      top = rect.bottom - menuRect.height;
 
-    if (left < 8) {
-      left = rect.right + 4;
-    }
+      if (left < 8) {
+        left = rect.right + 4;
+      }
 
-    if (top < 8) {
-      top = rect.top;
-    }
+      if (top < 8) {
+        top = rect.top;
+      }
 
-    if (top + menuRect.height > window.innerHeight - 8) {
-      top = window.innerHeight - menuRect.height - 8;
+      if (top + menuRect.height > window.innerHeight - 8) {
+        top = window.innerHeight - menuRect.height - 8;
+      }
     }
 
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
   }
 
-  function showMenu(trigger) {
+  function showMenu(trigger, point) {
     menu = document.getElementById("shared-log-menu");
     if (!menu) return;
 
@@ -53,7 +68,7 @@
     menu.style.display = "block";
     menu.classList.remove("hidden");
 
-    requestAnimationFrame(() => positionMenu(trigger));
+    requestAnimationFrame(() => positionMenu(trigger, point));
   }
 
   function hideMenu() {
@@ -82,6 +97,23 @@
     if (menu && (!menu.contains(e.target) || e.target.closest("a"))) {
       hideMenu();
     }
+  });
+
+  document.addEventListener("contextmenu", function (e) {
+    const el = e.target instanceof Element ? e.target : e.target.parentElement;
+    if (!el) return;
+    if (menu && menu.contains(el)) return;
+
+    const trigger =
+      el.closest("[data-log-menu-trigger]") ||
+      el.closest("pre")?.querySelector("[data-log-menu-trigger]");
+    if (!trigger) {
+      hideMenu();
+      return;
+    }
+
+    e.preventDefault();
+    showMenu(trigger, { x: e.clientX, y: e.clientY });
   });
 
   document.addEventListener("keydown", function (e) {
