@@ -13,7 +13,8 @@ import (
 )
 
 const getLogAnchor = `-- name: GetLogAnchor :one
-SELECT l.occurred_at, l.sequence_number, l.id
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
 FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE l.id = $1
@@ -28,15 +29,27 @@ type GetLogAnchorParams struct {
 }
 
 type GetLogAnchorRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
 	OccurredAt     time.Time
 	SequenceNumber int64
-	ID             int64
+	Message        string
 }
 
 func (q *Queries) GetLogAnchor(ctx context.Context, arg GetLogAnchorParams) (GetLogAnchorRow, error) {
 	row := q.db.QueryRow(ctx, getLogAnchor, arg.ID, arg.ClientID, arg.ProjectID)
 	var i GetLogAnchorRow
-	err := row.Scan(&i.OccurredAt, &i.SequenceNumber, &i.ID)
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.ProjectID,
+		&i.InstanceName,
+		&i.OccurredAt,
+		&i.SequenceNumber,
+		&i.Message,
+	)
 	return i, err
 }
 
@@ -186,7 +199,11 @@ WHERE c.project_id = $1
           > ($9, $10::bigint, $11::bigint)
     )
   )
-ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+ORDER BY
+  CASE WHEN $5::bool AND NOT $6::bool THEN l.occurred_at END ASC,
+  CASE WHEN $5::bool AND NOT $6::bool THEN l.sequence_number END ASC,
+  CASE WHEN $5::bool AND NOT $6::bool THEN l.id END ASC,
+  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT $12
 `
 
@@ -304,7 +321,11 @@ WHERE c.project_id = $1
           > ($10, $11::bigint, $12::bigint)
     )
   )
-ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+ORDER BY
+  CASE WHEN $6::bool AND NOT $7::bool THEN l.occurred_at END ASC,
+  CASE WHEN $6::bool AND NOT $7::bool THEN l.sequence_number END ASC,
+  CASE WHEN $6::bool AND NOT $7::bool THEN l.id END ASC,
+  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT $13
 `
 

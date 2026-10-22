@@ -76,6 +76,12 @@ func TestSearchLogs(t *testing.T) {
 		require.Equal(t, []string{"foo-bar happened"}, messages(mustSearch(t, ctx, logs, "bar", api, client, nil, 10, nil)), "the word after a hyphen is not treated as excluded")
 	})
 
+	t.Run("forward search returns the nearest matching rows", func(t *testing.T) {
+		cursor := &db.LastCursor{Timestamp: base, SequenceNumber: 0}
+		page := mustSearch(t, ctx, logs, "foo", api, client, nil, 1, cursor)
+		require.Equal(t, []string{"foo only"}, messages(page), "forward search must not jump over a nearer match to the latest matching row")
+	})
+
 	t.Run("empty query and wrong scope return nothing", func(t *testing.T) {
 		require.Empty(t, mustSearch(t, ctx, logs, "", api, client, nil, 10, nil), "an empty search matches no logs")
 		require.Empty(t, mustSearch(t, ctx, logs, "   ", api, client, nil, 10, nil), "a blank search matches no logs")

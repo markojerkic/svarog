@@ -24,12 +24,6 @@ type LogRow struct {
 	Message        string
 }
 
-type LogAnchor struct {
-	OccurredAt     time.Time
-	SequenceNumber int64
-	ID             int64
-}
-
 type LogReadQuery struct {
 	ProjectID       uuid.UUID
 	ClientID        uuid.UUID

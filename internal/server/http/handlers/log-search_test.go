@@ -3,8 +3,10 @@ package handlers_test
 import (
 	"context"
 	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +24,7 @@ type logSearchStub struct {
 	request       db.LogPageRequest
 	instanceCalls int
 	logCalls      int
+	page          *db.LogPage
 }
 
 func (s *logSearchStub) GetInstances(_ context.Context, project, client string) ([]string, error) {
@@ -35,6 +38,9 @@ func (s *logSearchStub) GetInstances(_ context.Context, project, client string) 
 func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.LogPage, error) {
 	s.logCalls++
 	s.request = req
+	if s.page != nil {
+		return *s.page, nil
+	}
 	return db.LogPage{
 		Logs:       []types.StoredLog{{LogLine: "matching connection refused"}},
 		IsLastPage: req.Cursor == nil,
@@ -213,6 +219,36 @@ func TestSearchCursorFullPage(t *testing.T) {
 			require.Equal(t, &[]string{"api-1", "api-2"}, logs.request.Instances, "pagination must retain every selected instance")
 			require.Equal(t, 1, logs.instanceCalls, "full search pages must load filter choices")
 			require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search pages opened at a cursor must remain non-live")
+		})
+	}
+}
+
+func TestContextPaginationUsesResolvedInstance(t *testing.T) {
+	for _, query := range []string{"?logLine=42", "?logLine=42&instance=wrong"} {
+		t.Run(query, func(t *testing.T) {
+			e := echo.New()
+			logs := &logSearchStub{page: &db.LogPage{
+				Instances:      &[]string{"api-1"},
+				ForwardCursor:  &db.LastCursor{Timestamp: time.Unix(100, 0), SequenceNumber: 1, ID: 43},
+				BackwardCursor: &db.LastCursor{Timestamp: time.Unix(90, 0), SequenceNumber: 1, ID: 41, IsBackward: true},
+			}}
+			handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+query, nil))
+			require.Equal(t, http.StatusOK, rec.Code, "old and conflicting context URLs must render successfully")
+			links := regexp.MustCompile(`data-log-page="(forward|backward)"[^>]*hx-get="([^"]+)"`).FindAllStringSubmatch(rec.Body.String(), -1)
+			require.Len(t, links, 2, "context must offer both pagination directions")
+			for _, link := range links {
+				req := httptest.NewRequest(http.MethodGet, html.UnescapeString(link[2]), nil)
+				req.Header.Set("HX-Request", "true")
+				page := httptest.NewRecorder()
+				e.ServeHTTP(page, req)
+				require.Equal(t, http.StatusOK, page.Code, "each context continuation must load successfully")
+				require.Equal(t, &[]string{"api-1"}, logs.request.Instances, "following either link must use the server-resolved instance, not the original query")
+				require.NotNil(t, logs.request.Cursor, "context continuation must use a cursor rather than reload the initial context")
+				require.Equal(t, link[1] == "backward", logs.request.Cursor.IsBackward, "each link must load its intended direction")
+				require.NotContains(t, page.Body.String(), "hx-ws:connect=", "neither continuation may mount a live WebSocket")
+			}
 		})
 	}
 }

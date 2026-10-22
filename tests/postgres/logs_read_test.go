@@ -90,7 +90,7 @@ func TestReadLogs(t *testing.T) {
 		require.Equal(t, []string{"older"}, messages(withoutID.Logs))
 	})
 
-	t.Run("forward returns the newest newer rows", func(t *testing.T) {
+	t.Run("forward returns the nearest newer rows", func(t *testing.T) {
 		all := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10})
 		older := findMessage(t, all.Logs, "older")
 		page := mustPage(t, ctx, logs, db.LogPageRequest{
@@ -104,7 +104,7 @@ func TestReadLogs(t *testing.T) {
 				IsBackward:     false,
 			},
 		})
-		require.Equal(t, []string{"newest", "instance-api"}, messages(page.Logs))
+		require.Equal(t, []string{"tie-high", "tie-low"}, messages(page.Logs), "forward pagination must select adjacent newer rows and keep descending display order")
 		require.NotNil(t, page.ForwardCursor)
 		require.False(t, page.IsLastPage)
 	})
@@ -143,17 +143,22 @@ func TestReadLogs(t *testing.T) {
 		require.Empty(t, missing)
 	})
 
-	t.Run("log line is the newest row on the page", func(t *testing.T) {
+	t.Run("log context uses the anchor instance", func(t *testing.T) {
 		all := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10})
 		target := findMessage(t, all.Logs, "instance-api")
 		logLine := strconv.FormatInt(target.ID, 10)
 		page := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 3, LogLineId: &logLine})
-		require.Equal(t, []string{"instance-api", "tie-high", "tie-low"}, messages(page.Logs))
-		require.True(t, page.IsLastPage)
+		require.Equal(t, []string{"instance-api"}, messages(page.Logs), "an instance with one log must show only its anchor")
+		require.True(t, page.IsLastPage, "an anchor with no newer logs is at the end of its instance")
 
 		web := []string{"web"}
 		filtered := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, Instances: &web, PageSize: 3, LogLineId: &logLine})
-		require.Equal(t, []string{"tie-high", "tie-low", "older"}, messages(filtered.Logs))
+		require.Equal(t, []string{"instance-api"}, messages(filtered.Logs), "the anchor instance must override a conflicting instance filter")
+		tied := strconv.FormatInt(findMessage(t, all.Logs, "tie-low").ID, 10)
+		tiedPage := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 1, LogLineId: &tied})
+		require.Equal(t, []string{"tie-high", "tie-low", "older"}, messages(tiedPage.Logs), "context must include tied neighbors in unique row id order")
+		newer := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, Instances: tiedPage.Instances, PageSize: 1, Cursor: tiedPage.ForwardCursor})
+		require.Equal(t, []string{"newest"}, messages(newer.Logs), "continuing a tied context must neither repeat its newer neighbor nor include another instance")
 
 		workerPage := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: workerID.String(), PageSize: 10})
 		workerLine := strconv.FormatInt(findMessage(t, workerPage.Logs, "worker").ID, 10)

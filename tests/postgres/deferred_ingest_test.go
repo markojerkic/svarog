@@ -95,11 +95,11 @@ func TestFindLoglinePage(t *testing.T) {
 		LogLineId: &logLine,
 	})
 	require.NoError(t, err, "read the page anchored at the middle log")
-	require.Len(t, page.Logs, 300, "middle anchor fills a 300-line page")
-	require.Equal(t, ids[target], page.Logs[0].ID, "logLine anchor is the newest row on the page")
+	require.Len(t, page.Logs, 601, "middle context contains the anchor and 300 lines on each side")
+	require.Equal(t, ids[target], page.Logs[300].ID, "logLine anchor is the middle row of the context")
 	requireNewestFirst(t, page.Logs)
 	for i, log := range page.Logs {
-		require.Equal(t, fmt.Sprintf("Log line %d", target-i), log.LogLine, "page walks older from the anchor without gaps")
+		require.Equal(t, fmt.Sprintf("Log line %d", target+300-i), log.LogLine, "context walks through newer and older neighbors without gaps")
 	}
 }
 

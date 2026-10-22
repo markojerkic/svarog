@@ -75,7 +75,11 @@ WHERE c.project_id = sqlc.arg(project_id)
           > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
     )
   )
-ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+ORDER BY
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.occurred_at END ASC,
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.sequence_number END ASC,
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.id END ASC,
+  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT sqlc.arg(page_size);
 
 -- name: SearchLogs :many
@@ -126,11 +130,16 @@ WHERE c.project_id = sqlc.arg(project_id)
           > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
     )
   )
-ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+ORDER BY
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.occurred_at END ASC,
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.sequence_number END ASC,
+  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.id END ASC,
+  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT sqlc.arg(page_size);
 
 -- name: GetLogAnchor :one
-SELECT l.occurred_at, l.sequence_number, l.id
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
 FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE l.id = sqlc.arg(id)

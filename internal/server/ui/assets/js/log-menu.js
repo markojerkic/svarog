@@ -7,6 +7,7 @@
   function contextURL() {
     const url = new URL(window.location.pathname, window.location.origin);
     url.searchParams.set("logLine", currentLogId);
+    url.searchParams.set("instance", currentInstanceId);
     return url;
   }
 

@@ -28,6 +28,7 @@ type LastCursor struct {
 
 type LogPage struct {
 	Logs           []types.StoredLog
+	Instances      *[]string
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
 	IsLastPage     bool
@@ -111,6 +112,20 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 		}
 		return pageFromLogs(logs, req), nil
 	}
+	if req.LogLineId != nil {
+		anchor, found, err := self.logAnchor(ctx, projectID, clientID, *req.LogLineId)
+		if err != nil {
+			return LogPage{}, err
+		}
+		if found {
+			req.Instances = &[]string{anchor.InstanceName}
+			if req.Cursor == nil {
+				return self.logContext(ctx, req, anchor)
+			}
+		} else {
+			slog.Warn("Log context anchor not found", "logLineId", *req.LogLineId)
+		}
+	}
 
 	query := persistence.LogReadQuery{
 		ProjectID:       projectID,
@@ -130,21 +145,6 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 			id := req.Cursor.ID
 			query.CursorID = &id
 		}
-	} else if req.LogLineId != nil {
-		anchor, found, err := self.logAnchor(ctx, projectID, clientID, *req.LogLineId)
-		if err != nil {
-			return LogPage{}, err
-		}
-		if found {
-			query.HasCursor = true
-			query.Backward = true
-			query.Inclusive = true
-			query.CursorAt = anchor.OccurredAt
-			query.CursorSequence = anchor.SequenceNumber
-			query.CursorID = &anchor.ID
-		} else {
-			slog.Error("Failed to create filter for logLineId", "logLineId", *req.LogLineId)
-		}
 	}
 
 	rows, err := persistence.ListLogs(ctx, self.pool, query)
@@ -153,6 +153,42 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 		return LogPage{}, err
 	}
 	return pageFromLogs(mapLogRows(rows), req), nil
+}
+
+func (self *PostgresLogService) logContext(ctx context.Context, req LogPageRequest, anchor persistence.LogRow) (LogPage, error) {
+	query := persistence.LogReadQuery{
+		ProjectID:       anchor.ProjectID,
+		ClientID:        anchor.ClientID,
+		FilterInstances: true,
+		Instances:       *req.Instances,
+		PageSize:        int32(req.PageSize),
+		HasCursor:       true,
+		Backward:        true,
+		CursorAt:        anchor.OccurredAt,
+		CursorSequence:  anchor.SequenceNumber,
+		CursorID:        &anchor.ID,
+	}
+	older, err := persistence.ListLogs(ctx, self.pool, query)
+	if err != nil {
+		return LogPage{}, err
+	}
+	query.Backward = false
+	newer, err := persistence.ListLogs(ctx, self.pool, query)
+	if err != nil {
+		return LogPage{}, err
+	}
+	page := LogPage{
+		Logs:       mapLogRows(append(append(newer, anchor), older...)),
+		Instances:  req.Instances,
+		IsLastPage: len(newer) == 0,
+	}
+	if int64(len(older)) == req.PageSize {
+		page.BackwardCursor = logCursor(page.Logs[len(page.Logs)-1], true)
+	}
+	if int64(len(newer)) == req.PageSize {
+		page.ForwardCursor = logCursor(page.Logs[0], false)
+	}
+	return page, nil
 }
 
 func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
@@ -242,20 +278,20 @@ func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
 }
 
 func emptyLogPage(req LogPageRequest) LogPage {
-	return LogPage{IsLastPage: req.Cursor == nil}
+	return LogPage{Instances: req.Instances, IsLastPage: req.Cursor == nil}
 }
 
-func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogAnchor, bool, error) {
+func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogRow, bool, error) {
 	id, err := strconv.ParseInt(logLineID, 10, 64)
 	if err != nil || id <= 0 {
-		return persistence.LogAnchor{}, false, nil
+		return persistence.LogRow{}, false, nil
 	}
 	anchor, err := persistence.GetLogAnchor(ctx, self.pool, projectID, clientID, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return persistence.LogAnchor{}, false, nil
+		return persistence.LogRow{}, false, nil
 	}
 	if err != nil {
-		return persistence.LogAnchor{}, false, err
+		return persistence.LogRow{}, false, err
 	}
 	return anchor, true, nil
 }
@@ -284,28 +320,26 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 	}
 	var backwardCursor *LastCursor
 	if int64(len(logs)) == req.PageSize && (req.Cursor == nil || req.Cursor.IsBackward) {
-		last := logs[len(logs)-1]
-		backwardCursor = &LastCursor{
-			Timestamp:      last.Timestamp,
-			SequenceNumber: last.SequenceNumber,
-			ID:             last.ID,
-			IsBackward:     true,
-		}
+		backwardCursor = logCursor(logs[len(logs)-1], true)
 	}
 	var forwardCursor *LastCursor
-	if req.Cursor != nil && !req.Cursor.IsBackward {
-		first := logs[0]
-		forwardCursor = &LastCursor{
-			Timestamp:      first.Timestamp,
-			SequenceNumber: first.SequenceNumber,
-			ID:             first.ID,
-			IsBackward:     false,
-		}
+	if int64(len(logs)) == req.PageSize && req.Cursor != nil && !req.Cursor.IsBackward {
+		forwardCursor = logCursor(logs[0], false)
 	}
 	return LogPage{
 		Logs:           logs,
+		Instances:      req.Instances,
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,
 		IsLastPage:     req.Cursor == nil,
+	}
+}
+
+func logCursor(log types.StoredLog, backward bool) *LastCursor {
+	return &LastCursor{
+		Timestamp:      log.Timestamp,
+		SequenceNumber: log.SequenceNumber,
+		ID:             log.ID,
+		IsBackward:     backward,
 	}
 }

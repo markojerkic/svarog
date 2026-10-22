@@ -8,6 +8,7 @@ const menuHTML = `
     <a id="filter-instance-link" href="">Show only logs of this instance</a>
   </div>`;
 const baseURL = "http://svarog.test/logs/project/client";
+const contextURL = `${baseURL}?logLine=42&instance=api+01+%26+backup`;
 
 test.beforeEach(async ({ page }) => {
   await page.route("http://svarog.test/**", (route) =>
@@ -43,21 +44,21 @@ test("log menu navigation uses HTMX to replace the complete view", async ({ page
     await page.evaluate(() => typeof (window as typeof window & { logMenu: unknown }).logMenu),
   ).toBe("object");
   await page.getByRole("button", { name: "Log actions", exact: true }).click();
-  const contextRequestPromise = page.waitForRequest(`${baseURL}?logLine=42`);
+  await expect(page.getByRole("link", { name: "Open context", exact: true })).toHaveAttribute(
+    "href",
+    contextURL,
+  );
+  const contextRequestPromise = page.waitForRequest(contextURL);
   await page.getByRole("link", { name: "Open context", exact: true }).click();
   const contextRequest = await contextRequestPromise;
   expect(contextRequest.headers()["hx-request-type"]).toBe("full");
-  await expect(page).toHaveURL(`${baseURL}?logLine=42`);
+  await expect(page).toHaveURL(contextURL);
 });
 
-test("log menu preserves search for filtering and copies a clean context link", async ({
+test("log menu preserves search for filtering and copies context for the selected instance", async ({
   page,
 }) => {
   await page.getByRole("button", { name: "Log actions", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Open context", exact: true })).toHaveAttribute(
-    "href",
-    `${baseURL}?logLine=42`,
-  );
   await expect(page.getByRole("link", { name: "Show only logs of this instance" })).toHaveAttribute(
     "href",
     `${baseURL}?search=error+%26+timeout&instance=api+01+%26+backup`,
@@ -66,7 +67,7 @@ test("log menu preserves search for filtering and copies a clean context link", 
   await expect(page.locator("#shared-log-menu")).toBeHidden();
   expect(
     await page.evaluate(() => (window as typeof window & { copiedLinks: string[] }).copiedLinks),
-  ).toEqual([`${baseURL}?logLine=42`]);
+  ).toEqual([contextURL]);
 });
 
 test("log menu uses the current DOM after an HTMX-style body replacement", async ({ page }) => {
@@ -80,7 +81,7 @@ test("log menu uses the current DOM after an HTMX-style body replacement", async
   await expect(page.locator("#shared-log-menu")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open context", exact: true })).toHaveAttribute(
     "href",
-    `${baseURL}?logLine=84`,
+    `${baseURL}?logLine=84&instance=api+01+%26+backup`,
   );
   await expect(page.getByRole("link", { name: "Show only logs of this instance" })).toHaveAttribute(
     "href",

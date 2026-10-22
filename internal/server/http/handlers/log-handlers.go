@@ -136,6 +136,9 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		return err
 	}
 
+	if logPage.Instances != nil {
+		params.Instances = logPage.Instances
+	}
 	props := pages.LogsPageProps{
 		LogPage:   logPage,
 		ClientId:  params.ClientId,

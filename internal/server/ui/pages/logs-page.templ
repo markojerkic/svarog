@@ -213,6 +213,9 @@ templ InstanceFilter(props LogsPageProps) {
 }
 
 templ LogPageLines(props LogsPageProps) {
+	if props.LogPage.ForwardCursor != nil {
+		@LogPageLoader(props, props.LogPage.ForwardCursor, "forward", "logs.load_newer")
+	}
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{
 			LogLine:   log,
@@ -221,20 +224,7 @@ templ LogPageLines(props LogsPageProps) {
 		})
 	}
 	if props.LogPage.BackwardCursor != nil {
-		<div
-			data-log-page
-			hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, props.LogPage.BackwardCursor, "backward", props.Search) }
-			hx-swap="outerHTML"
-			hx-trigger="intersect once root:#log-scroll-container rootMargin:160px, click"
-			hx-sync="body:abort"
-			hx-disable="find button"
-			hx-push-url="false"
-			class="flex shrink-0 justify-center py-1"
-		>
-			@button.Button(button.Props{Variant: button.VariantGhost, Size: button.SizeSm}) {
-				{ i18n.T(ctx, "logs.load_older") }
-			}
-		</div>
+		@LogPageLoader(props, props.LogPage.BackwardCursor, "backward", "logs.load_older")
 	}
 	if props.IsLive() {
 		<div
@@ -242,4 +232,21 @@ templ LogPageLines(props LogsPageProps) {
 			hx-config="ws: {pauseOnBackground: false}"
 		></div>
 	}
+}
+
+templ LogPageLoader(props LogsPageProps, cursor *db.LastCursor, direction, label string) {
+	<div
+		data-log-page={ direction }
+		hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, cursor, direction, props.Search) }
+		hx-swap="outerHTML"
+		hx-trigger="intersect once root:#log-scroll-container rootMargin:160px, click"
+		hx-sync="body:abort"
+		hx-disable="find button"
+		hx-push-url="false"
+		class="flex shrink-0 justify-center py-1"
+	>
+		@button.Button(button.Props{Variant: button.VariantGhost, Size: button.SizeSm}) {
+			{ i18n.T(ctx, label) }
+		}
+	</div>
 }

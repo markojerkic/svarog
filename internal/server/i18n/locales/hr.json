@@ -86,6 +86,7 @@
   "logs.filtered_by_instance": { "other": "Filtrirano po instanci:" },
   "logs.clear_instance_filter": { "other": "Ukloni filtar instance" },
   "logs.load_older": { "other": "Učitaj starije logove" },
+  "logs.load_newer": { "other": "Učitaj novije logove" },
   "logs.line_actions": { "other": "Radnje nad retkom loga" },
   "logs.copy_line": { "other": "Kopiraj redak loga" },
   "logs.copy_link": { "other": "Kopiraj poveznicu" },

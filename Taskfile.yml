@@ -27,7 +27,7 @@ tasks:
   db:
     desc: Starts the database and nats
     cmds:
-      - docker compose --env-file .env -f docker-compose.dev.yml up -d
+      - docker compose --env-file .env -f docker-compose.dev.yml up -d --wait
 
   tailwind:
     desc: Watch Tailwind CSS changes
