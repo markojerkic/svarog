@@ -92,7 +92,7 @@ func TestLogsPageSearch(t *testing.T) {
 					require.Nil(t, logs.request.LogLineId, "a search must not inherit a log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search results must not mount a live connection")
 				} else {
-					require.Zero(t, logs.instanceCalls, "ordinary logs must not load search-only filter choices")
+					require.Equal(t, 1, logs.instanceCalls, "ordinary logs must load the complete client instance list for consistent colors")
 					require.Empty(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
 					require.NotNil(t, logs.request.LogLineId, "whitespace-only queries must retain the log anchor")
 					require.Equal(t, "123", *logs.request.LogLineId, "whitespace-only queries must preserve the log anchor")
@@ -135,8 +135,14 @@ func TestLogsPageLiveModes(t *testing.T) {
 				require.Equal(t, http.StatusOK, rec.Code, "every log mode must render successfully")
 				require.Equal(t, tc.live, strings.Contains(rec.Body.String(), "hx-ws:connect="), "only the latest unfiltered, unanchored view may mount a live connection")
 				if requestType == "partial" && logs.request.Cursor != nil {
+					require.Zero(t, logs.instanceCalls, "pagination must reuse the mounted view's instance colors without reloading the list")
 					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")
 				} else {
+					require.Equal(t, 1, logs.instanceCalls, "every complete log view must load the client's full instance list, regardless of filters")
+					seed := regexp.MustCompile(`data-log-instances="([^"]*)"`).FindStringSubmatch(rec.Body.String())
+					require.Len(t, seed, 2, "every complete view must provide its instance color seed")
+					require.JSONEq(t, `["api-1","api-2","api-3"]`, html.UnescapeString(seed[1]), "the color seed must include instances outside the visible page and selection")
+					require.Contains(t, rec.Body.String(), `data-log-client-id="`+clientID+`"`, "the palette seed must identify the authorized client in every log view")
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), `aria-label="Back to live"`), "every non-live page must offer a return to the live view")
 					status := "Not live"
 					if logs.request.LogLineId != nil {

@@ -3,8 +3,6 @@ package utils
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -12,15 +10,6 @@ import (
 
 	twmerge "github.com/Oudwins/tailwind-merge-go"
 )
-
-// StringToColor returns a stable HSL color for a string.
-// ponytail: hues can collide; persist per-client palette slots if guaranteed separation is needed.
-func StringToColor(str string) string {
-	// Mix the entire name so numeric suffixes do not systematically cluster.
-	hash := sha256.Sum256([]byte(str))
-	hue := binary.BigEndian.Uint32(hash[:4]) % 360
-	return fmt.Sprintf("hsl(%d, 70%%, 45%%)", hue)
-}
 
 // TwMerge combines Tailwind clas and resolves conflicts.
 // Example: "bg-red-500 hover:bg-blue-500", "bg-green-500" → "hover:bg-blue-500 bg-green-500"

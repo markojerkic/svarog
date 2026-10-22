@@ -152,11 +152,9 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
-	if props.Search != "" {
-		props.AvailableInstances, err = self.logService.GetInstances(c.Request().Context(), params.ProjectId, params.ClientId)
-		if err != nil {
-			return err
-		}
+	props.AvailableInstances, err = self.logService.GetInstances(c.Request().Context(), params.ProjectId, params.ClientId)
+	if err != nil {
+		return err
 	}
 
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))

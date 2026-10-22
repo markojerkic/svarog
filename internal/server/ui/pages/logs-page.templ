@@ -37,6 +37,8 @@ templ LogsPage(props LogsPageProps) {
 			<div
 				class="flex min-h-0 flex-1 flex-col-reverse overflow-auto rounded-xl border bg-card p-2 font-mono text-[13px] leading-6"
 				id="log-scroll-container"
+				data-log-instances={ templ.JSONString(props.AvailableInstances) }
+				data-log-client-id={ props.ClientId }
 			>
 				@LogPageLines(props)
 				if props.Search != "" && len(props.LogPage.Logs) == 0 {

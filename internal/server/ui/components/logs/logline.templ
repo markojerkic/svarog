@@ -4,8 +4,6 @@ import "strconv"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
-import "fmt"
-import "github.com/markojerkic/svarog/internal/server/ui/utils"
 import "regexp"
 import "strings"
 import "github.com/markojerkic/svarog/internal/server/i18n"
@@ -38,10 +36,8 @@ templ LogLineText(text, search string) {
 }
 
 templ LogLine(props LogLineProps) {
-	{{ borderColor := utils.StringToColor(props.LogLine.Client.InstanceId) }}
 	<pre
-		class="group flex min-w-full w-max items-center border-l-2 pl-3 text-foreground hover:bg-muted/50"
-		style={ fmt.Sprintf("border-left-color: %s;", borderColor) }
+		class="group flex min-w-full w-max items-center border-l-4 pl-3 text-foreground hover:bg-muted/50"
 		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
 		data-sequence={ props.LogLine.SequenceNumber }
 		data-instance-id={ props.LogLine.Client.InstanceId }

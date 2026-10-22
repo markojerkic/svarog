@@ -43,6 +43,7 @@ templ BaseLayout(props BaseProps) {
 			<script defer src="/assets/js/datepicker.js"></script>
 			<script defer src="/assets/js/project-search.js"></script>
 			@components.Scripts()
+			<script type="module" src={ utils.ScriptURL("/assets/js/log-instance-colors.js") }></script>
 			@tagsinput.Script()
 			<script defer src={ utils.ScriptURL("/assets/js/toast-handler.js") }></script>
 			<script defer src={ utils.ScriptURL("/assets/js/log-search.js") }></script>
