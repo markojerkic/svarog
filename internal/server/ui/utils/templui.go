@@ -2,28 +2,23 @@
 package utils
 
 import (
-	"fmt"
-	"hash/fnv"
-	"time"
-
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
+	"time"
 
 	"github.com/a-h/templ"
 
 	twmerge "github.com/Oudwins/tailwind-merge-go"
 )
 
-// Return string in format "hsl(360, 70%, 45%)".
+// StringToColor returns a stable HSL color for a string.
+// ponytail: hues can collide; persist per-client palette slots if guaranteed separation is needed.
 func StringToColor(str string) string {
-	// 1. Init FNV-1a hasher
-	h := fnv.New32a()
-	h.Write([]byte(str))
-	hashValue := h.Sum32()
-
-	// 2. Hue (0-360)
-	hue := hashValue % 360
-
-	// Saturation: 70%, Lightness: 45%
+	// Mix the entire name so numeric suffixes do not systematically cluster.
+	hash := sha256.Sum256([]byte(str))
+	hue := binary.BigEndian.Uint32(hash[:4]) % 360
 	return fmt.Sprintf("hsl(%d, 70%%, 45%%)", hue)
 }
 
