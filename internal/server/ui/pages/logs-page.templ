@@ -9,6 +9,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "strings"
 import "net/url"
 import "slices"
+import "strconv"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/server/i18n"
@@ -49,19 +50,22 @@ templ LogsPage(props LogsPageProps) {
 		@logs.SearchDialog(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), props.Search, props.Instances)
 	}
 	<script type="text/javascript">
-		{
-			`
-		(function scrollToBottom() {
+		(function positionLogs() {
 			const logsContainer = document.getElementById("log-scroll-container");
-			logsContainer.scrollTop = 0;
+			const anchor = logsContainer.querySelector("[data-log-anchor]");
+			if (anchor) {
+				anchor.scrollIntoView({ block: "center", inline: "nearest" });
+			} else {
+				logsContainer.scrollTop = 0;
+			}
 		})();
-		`;
-		}
 	</script>
 }
 
 templ LogsHeaderActions(props LogsPageProps) {
-	if !props.IsLive() {
+	if props.LogLineId != nil {
+		<span class="whitespace-nowrap text-xs text-muted-foreground">{ i18n.T(ctx, "logs.context") }</span>
+	} else if !props.IsLive() {
 		<span class="hidden text-xs text-muted-foreground 2xl:inline">{ i18n.T(ctx, "logs.not_live") }</span>
 	}
 	@logs.SearchTrigger(props.Search)
@@ -210,7 +214,11 @@ templ InstanceFilter(props LogsPageProps) {
 
 templ LogPageLines(props LogsPageProps) {
 	for _, log := range props.LogPage.Logs {
-		@logs.LogLine(logs.LogLineProps{LogLine: log, Search: props.Search})
+		@logs.LogLine(logs.LogLineProps{
+			LogLine:   log,
+			Search:    props.Search,
+			IsContext: props.LogLineId != nil && *props.LogLineId == strconv.FormatInt(log.ID, 10),
+		})
 	}
 	if props.LogPage.BackwardCursor != nil {
 		<div

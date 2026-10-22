@@ -71,6 +71,7 @@
   "home.explore_logs": { "other": "Pregledaj logove" },
   "logs.no_results": { "other": "Nema pronađenih logova. Pokušajte s drugom pretragom." },
   "logs.not_live": { "other": "Praćenje uživo nije aktivno" },
+  "logs.context": { "other": "Kontekst retka" },
   "logs.back_to_live": { "other": "Nastavi praćenje uživo" },
   "logs.search": { "other": "Pretraži logove" },
   "logs.search_placeholder": { "other": "Pretraži logove…" },

@@ -132,7 +132,11 @@ func TestLogsPageLiveModes(t *testing.T) {
 					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")
 				} else {
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), `aria-label="Back to live"`), "every non-live page must offer a return to the live view")
-					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), "Not live"), "the header must reflect the same live state as the connection")
+					status := "Not live"
+					if logs.request.LogLineId != nil {
+						status = "Line context"
+					}
+					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), status), "the header must reflect the same live state as the connection")
 				}
 			})
 		}

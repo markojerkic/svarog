@@ -116,7 +116,11 @@ func TestLogsPageLiveState(t *testing.T) {
 					t.Errorf("Only search results must render %s", fragment)
 				}
 			}
-			for _, fragment := range []string{`aria-label="Back to live"`, `Not live`} {
+			status := "Not live"
+			if tc.logLineId != nil {
+				status = "Line context"
+			}
+			for _, fragment := range []string{`aria-label="Back to live"`, status} {
 				if strings.Contains(html, fragment) != !tc.live {
 					t.Errorf("Every non-live view must render %s", fragment)
 				}

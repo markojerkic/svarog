@@ -11,8 +11,9 @@ import "strings"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type LogLineProps struct {
-	LogLine types.StoredLog
-	Search  string
+	LogLine   types.StoredLog
+	Search    string
+	IsContext bool
 }
 
 var searchWords = regexp.MustCompile(`[\p{L}\p{N}]+`)
@@ -44,6 +45,10 @@ templ LogLine(props LogLineProps) {
 		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
 		data-sequence={ props.LogLine.SequenceNumber }
 		data-instance-id={ props.LogLine.Client.InstanceId }
+		if props.IsContext {
+			data-log-anchor="true"
+			aria-current="true"
+		}
 	>
 		<span class="flex-1">
 			@LogLineText(props.LogLine.LogLine, props.Search)
