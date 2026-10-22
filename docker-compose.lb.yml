@@ -31,7 +31,7 @@ services:
           target: builder
           action: rebuild
   nginx:
-    image: nginx:alpine
+    image: nginx:1.31.8-alpine
     ports:
       - "80:80"
     volumes:

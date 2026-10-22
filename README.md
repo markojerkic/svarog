@@ -29,6 +29,13 @@ The server generates these connection URLs through the web interface, making it 
 
 ## Development
 
+Use Go 1.27.3 or newer and Bun 1.4.3. Git hooks using lint-staged require
+Node.js 22.22.1 or newer. Install JS dependencies with `bun install --frozen-lockfile`.
+
+The `@parcel/watcher` override updates Tailwind CLI's pinned watcher to 2.6.0,
+removing its vulnerable `braces` dependency. Remove the override when Tailwind
+ships a watcher version that no longer depends on `braces`.
+
 Start the development environment with hot reload:
 
 ```bash
@@ -48,7 +55,7 @@ The Svarog client reads logs from stdin and publishes them to NATS. Integrate it
 ```Dockerfile
 FROM markojerkic/svarog-client:latest AS svarog
 
-FROM alpine:3.12
+FROM alpine:3.24.3
 
 COPY ./your-app .
 COPY --from=markojerkic/svarog-client:latest /svarog/client /svarog/client
@@ -112,7 +119,7 @@ Deploy the complete Svarog stack with NATS, PostgreSQL, and the web server:
 version: "3"
 services:
   svarog-nats:
-    image: nats:latest
+    image: nats:2.15.1-alpine
     container_name: svarog-nats
     ports:
       - 4222:4222
@@ -134,7 +141,7 @@ services:
       - svarog-nats
 
   svarog-postgres:
-    image: postgres:18-alpine
+    image: postgres:18.6-alpine
     container_name: svarog-postgres
     environment:
       POSTGRES_DB: svarog

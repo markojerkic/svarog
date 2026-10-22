@@ -1,4 +1,4 @@
-FROM golang:1.25 AS builder
+FROM golang:1.27.3 AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,10 @@ RUN go mod download
 COPY ./cmd ./cmd
 COPY ./internal ./internal
 
-# Build the server
+# Generate UI types required by the client's transitive imports.
+RUN go tool templ generate ./...
+
+# Build the client
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/client ./cmd/client
 
 FROM scratch

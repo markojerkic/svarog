@@ -33,7 +33,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	second, err := projectService.CreateProject(ctx, "Second", []string{"api"})
 	require.NoError(t, err, "create second PG project with same client name and a distinct UUID")
 
-	natsContainer, err := natscontainer.Run(ctx, "nats:2.11-alpine",
+	natsContainer, err := natscontainer.Run(ctx, "nats:2.15.1-alpine",
 		natscontainer.WithConfigFile(strings.NewReader("jetstream { store_dir: /data }")),
 	)
 	if natsContainer != nil {

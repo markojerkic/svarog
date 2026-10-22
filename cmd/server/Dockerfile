@@ -4,7 +4,7 @@ ARG SVAROG_VERSION=latest
 # Stage 1: Build the web assets
 ####################################################################################
 
-FROM oven/bun:1 AS base-web
+FROM oven/bun:1.4.3 AS base-web
 WORKDIR /usr/src/app
 
 # install dependencies into temp directory
@@ -33,7 +33,7 @@ RUN bun run tw:build
 # Stage 2: Build the Go app
 ####################################################################################
 
-FROM golang:1.25 AS builder
+FROM golang:1.27.3 AS builder
 
 WORKDIR /app
 
@@ -56,7 +56,7 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/se
 
 FROM markojerkic/svarog-client:${SVAROG_VERSION} AS client
 
-FROM alpine:3.23.2
+FROM alpine:3.24.3
 
 # Set the working directory
 WORKDIR /app

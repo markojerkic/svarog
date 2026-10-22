@@ -14,7 +14,7 @@ import (
 func NewPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
 
-	container, err := postgres.Run(ctx, "postgres:18-alpine",
+	container, err := postgres.Run(ctx, "postgres:18.6-alpine",
 		postgres.WithDatabase("svarog_test"),
 		postgres.WithUsername("svarog"),
 		postgres.WithPassword("svarog"),

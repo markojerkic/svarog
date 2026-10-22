@@ -98,7 +98,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 
 	// Start NATS container
-	container, err := nats.Run(ctx, "nats:latest",
+	container, err := nats.Run(ctx, "nats:2.15.1-alpine",
 		nats.WithConfigFile(strings.NewReader(string(natsConfig))),
 	)
 	if err != nil {

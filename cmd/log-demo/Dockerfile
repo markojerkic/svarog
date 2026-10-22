@@ -1,4 +1,4 @@
-FROM golang:1.27.2-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/log-demo ./cmd/log-demo
 RUN go tool templ generate ./...
 RUN CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/svarog-client ./cmd/client
 
-FROM alpine:3.23.2
+FROM alpine:3.24.3
 WORKDIR /app
 COPY --from=builder /out/ /usr/local/bin/
 COPY cmd/log-demo/messages.txt ./messages.txt

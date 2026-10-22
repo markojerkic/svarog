@@ -18,7 +18,7 @@ func TestInitialMigrationCreatesTables(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := postgres.Run(ctx, "postgres:18-alpine",
+	container, err := postgres.Run(ctx, "postgres:18.6-alpine",
 		postgres.WithDatabase("svarog_test"),
 		postgres.WithUsername("svarog"),
 		postgres.WithPassword("svarog"),
