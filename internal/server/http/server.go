@@ -5,7 +5,6 @@ import (
 	"fmt"
 	stdhttp "net/http"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
@@ -45,7 +44,7 @@ func (self *HttpServer) Start() error {
 	// v5 catch-all 404 routes would let the two "" groups overwrite each other.
 	e := echo.NewWithConfig(echo.Config{NoGroupAutoRegister404Routes: true})
 	e.Use(customMiddleware.LanguageMiddleware)
-	e.Validator = &Validator{validator: validator.New()}
+	e.Validator = NewValidator()
 	e.HTTPErrorHandler = customMiddleware.CustomHTTPErrorHandler
 
 	sessionMiddleware := session.MiddlewareWithConfig(session.Config{

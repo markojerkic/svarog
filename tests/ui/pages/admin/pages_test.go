@@ -1,4 +1,4 @@
-package admin
+package admin_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
+	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
 )
 
 func TestAdminPagesPreserveFragmentTargets(t *testing.T) {
@@ -16,8 +17,8 @@ func TestAdminPagesPreserveFragmentTargets(t *testing.T) {
 		bodyID   string
 		dialogID string
 	}{
-		{"projects", ProjectsListPage(ProjectsListPageProps{Size: 20, Search: "missing"}), "projects-list-table-body", "edit-project-dialog"},
-		{"users", UsersListPage(UsersListPageProps{Size: 20, Search: "missing"}), "users-list-table-body", "edit-user-dialog"},
+		{"projects", admin.ProjectsListPage(admin.ProjectsListPageProps{Size: 20, Search: "missing"}), "projects-list-table-body", "edit-project-dialog"},
+		{"users", admin.UsersListPage(admin.UsersListPageProps{Size: 20, Search: "missing"}), "users-list-table-body", "edit-user-dialog"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var output bytes.Buffer

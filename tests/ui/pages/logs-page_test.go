@@ -1,4 +1,4 @@
-package pages
+package pages_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
+	"github.com/markojerkic/svarog/internal/server/ui/pages"
 )
 
 func TestLogSearchForm(t *testing.T) {
@@ -40,9 +41,9 @@ func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
 		page   templ.Component
 		search bool
 	}{
-		{"logs", LogsPage(LogsPageProps{ProjectId: "project", ClientId: "client"}), true},
-		{"other page", AdminLayout(AdminLayoutProps{Title: "Users"}), false},
-		{"pagination", LogPageLines(LogsPageProps{}), false},
+		{"logs", pages.LogsPage(pages.LogsPageProps{ProjectId: "project", ClientId: "client"}), true},
+		{"other page", pages.AdminLayout(pages.AdminLayoutProps{Title: "Users"}), false},
+		{"pagination", pages.LogPageLines(pages.LogsPageProps{}), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer
@@ -94,12 +95,12 @@ func TestLogsPageLiveState(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer
-			props := LogsPageProps{
+			props := pages.LogsPageProps{
 				ProjectId: "project", ClientId: "client", Search: tc.search,
 				Instances: tc.instances, LogLineId: tc.logLineId,
 				LogPage: db.LogPage{IsLastPage: tc.isLastPage, BackwardCursor: &db.LastCursor{}},
 			}
-			if err := LogsPage(props).Render(context.Background(), &output); err != nil {
+			if err := pages.LogsPage(props).Render(context.Background(), &output); err != nil {
 				t.Fatalf("Logs page must render successfully: %v", err)
 			}
 			html := output.String()
@@ -134,8 +135,8 @@ func TestLogsPageLiveState(t *testing.T) {
 
 func TestClearInstanceFilterReplacesCompleteView(t *testing.T) {
 	var output bytes.Buffer
-	props := LogsPageProps{ProjectId: "project", ClientId: "client", Instances: &[]string{"api-1"}}
-	if err := InstanceFilter(props).Render(context.Background(), &output); err != nil {
+	props := pages.LogsPageProps{ProjectId: "project", ClientId: "client", Instances: &[]string{"api-1"}}
+	if err := pages.InstanceFilter(props).Render(context.Background(), &output); err != nil {
 		t.Fatalf("Instance filter must render successfully: %v", err)
 	}
 	for _, fragment := range []string{`href="/logs/project/client"`, `aria-label="Clear instance filter"`, `hx-target="body"`, `hx-swap="innerHTML"`, `hx-sync="body:replace"`} {
@@ -147,13 +148,21 @@ func TestClearInstanceFilterReplacesCompleteView(t *testing.T) {
 
 func TestLogInstanceFilters(t *testing.T) {
 	instance := "api 01 & backup"
-	props := LogsPageProps{
+	props := pages.LogsPageProps{
 		ProjectId: "project", ClientId: "client", Search: "error & timeout",
 		Instances: &[]string{instance}, AvailableInstances: []string{instance, "api-02"},
 	}
-	for _, selection := range []*string{nil, &instance} {
-		path := logInstanceFilterPath(props, selection)
-		u, err := url.Parse(path)
+	var output bytes.Buffer
+	if err := pages.LogInstanceFilters(props).Render(context.Background(), &output); err != nil {
+		t.Fatalf("Instance filters must render successfully: %v", err)
+	}
+	links := regexp.MustCompile(`<a\b[^>]*href="([^"]*)"[^>]*\bdata-log-instance-filter\b`).FindAllStringSubmatch(output.String(), -1)
+	if len(links) != 4 {
+		t.Fatalf("Instance filters must render all instances, both available instances and clear filters: got %d links", len(links))
+	}
+	wantInstances := map[string]int{"": 2, instance: 1, "api-02": 1}
+	for _, link := range links {
+		u, err := url.Parse(html.UnescapeString(link[1]))
 		if err != nil {
 			t.Fatalf("Instance filter links must be valid URLs: %v", err)
 		}
@@ -161,23 +170,25 @@ func TestLogInstanceFilters(t *testing.T) {
 		if u.Path != "/logs/project/client" || query.Get("search") != props.Search {
 			t.Fatal("Instance changes must preserve the client and the executed query")
 		}
-		if selection == nil {
+		selection := query.Get("instance")
+		if selection == "" {
 			if query.Has("instance") || len(query) != 1 {
 				t.Fatal("All instances must omit the instance parameter and any cursor or anchor")
 			}
-		} else if query.Get("instance") != instance || len(query) != 2 {
+		} else if len(query["instance"]) != 1 || len(query) != 2 {
 			t.Fatal("Selecting an instance must replace the selection without retaining a cursor or anchor")
 		}
+		wantInstances[selection]--
 	}
-	var output bytes.Buffer
-	if err := LogInstanceFilters(props).Render(context.Background(), &output); err != nil {
-		t.Fatalf("Instance filters must render successfully: %v", err)
+	for selection, remaining := range wantInstances {
+		if remaining != 0 {
+			t.Errorf("Instance filter links must preserve each available instance and both clear actions: instance %q has count difference %d", selection, remaining)
+		}
 	}
 	for _, fragment := range []string{
 		`aria-label="Filters (1 active)"`, `data-slot="popover-content"`,
 		`All instances`, `Clear filters`, `api-02`, `hidden`,
 		`hx-target:inherited="body"`, `hx-swap:inherited="innerHTML"`,
-		`href="` + html.EscapeString(logInstanceFilterPath(props, &instance)) + `"`,
 	} {
 		if !strings.Contains(output.String(), fragment) {
 			t.Errorf("Instance filter popover must contain %s", fragment)

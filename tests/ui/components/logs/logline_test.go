@@ -1,4 +1,4 @@
-package logs
+package logs_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 )
 
 func TestLogLineTextHighlightsSearchWords(t *testing.T) {
@@ -30,7 +32,7 @@ func TestLogLineTextHighlightsSearchWords(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output bytes.Buffer
-			if err := LogLineText(tc.text, tc.search).Render(context.Background(), &output); err != nil {
+			if err := logs.LogLineText(tc.text, tc.search).Render(context.Background(), &output); err != nil {
 				t.Fatalf("Search highlighting must render successfully: %v", err)
 			}
 			rendered := output.String()

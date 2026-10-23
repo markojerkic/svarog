@@ -1,4 +1,4 @@
-package http
+package http_test
 
 import (
 	"encoding/json"
@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
+	serverhttp "github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -15,7 +15,7 @@ import (
 )
 
 func TestValidationMessagesDescribeTheRule(t *testing.T) {
-	v := &Validator{validator: validator.New()}
+	v := serverhttp.NewValidator()
 
 	err := v.Validate(types.CreateUserForm{
 		Username:  "qa-demo-check",
@@ -37,7 +37,7 @@ func TestValidationMessagesDescribeTheRule(t *testing.T) {
 }
 
 func TestValidationUsesRequestLanguage(t *testing.T) {
-	v := &Validator{validator: validator.New()}
+	v := serverhttp.NewValidator()
 	for _, test := range []struct {
 		language string
 		required string

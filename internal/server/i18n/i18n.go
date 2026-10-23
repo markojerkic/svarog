@@ -38,16 +38,16 @@ var catalogs embed.FS
 
 var (
 	textParser       = &template.TextParser{Option: "missingkey=error"}
-	bundle           = mustLoadBundle()
-	defaultLocalizer = goi18n.NewLocalizer(bundle, string(English))
+	defaultCatalog   = mustLoadCatalog(catalogs)
+	defaultLocalizer = goi18n.NewLocalizer(defaultCatalog.bundle, string(English))
 )
 
-func mustLoadBundle() *goi18n.Bundle {
-	b, err := loadBundle(catalogs)
+func mustLoadCatalog(source fs.FS) *Catalog {
+	catalog, err := NewCatalog(source)
 	if err != nil {
 		panic(err)
 	}
-	return b
+	return catalog
 }
 
 func loadBundle(source fs.FS) (*goi18n.Bundle, error) {
@@ -101,13 +101,7 @@ func Resolve(cookieValue, acceptLanguage string) Language {
 }
 
 func WithLanguage(ctx context.Context, lang Language) context.Context {
-	if lang != Croatian {
-		lang = English
-	}
-	return context.WithValue(ctx, contextKey{}, localization{
-		language:  lang,
-		localizer: goi18n.NewLocalizer(bundle, string(lang)),
-	})
+	return defaultCatalog.WithLanguage(ctx, lang)
 }
 
 func current(ctx context.Context) localization {
