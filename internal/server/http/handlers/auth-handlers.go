@@ -154,25 +154,20 @@ func (a *AuthRouter) logout(c *echo.Context) error {
 func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 	var query types.GetUserPageInput
 	if err := c.Bind(&query); err != nil {
-		return c.JSON(400, err)
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 
 	if query.Size == 0 {
 		query.Size = 10
 	}
 
-	users, totalCount, err := a.authService.GetUserPage(c.Request().Context(), query)
-	if err != nil {
-		slog.Error("Error fetching users", "error", err)
-		return err
+	if err := utils.Validate(c, &query); err != nil {
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-	return utils.Render(c, http.StatusOK, admin.UsersListPage(admin.UsersListPageProps{
-		Users:      users,
-		Page:       query.Page,
-		Size:       query.Size,
-		Search:     query.Search,
-		TotalCount: totalCount,
-	}))
+	if err := auth.ValidateUserPage(c.Request().Context(), query); err != nil {
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
+	return a.renderUsersPage(c, query, false)
 }
 
 func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
@@ -216,61 +211,47 @@ func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 }
 
 func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
+	query, err := userMutationQuery(c)
+	if err != nil {
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
 	var createUserForm types.CreateUserForm
 	if err := c.Bind(&createUserForm); err != nil {
-		return c.JSON(400, err)
-	}
-	// Keep submitted assignments selected when the form is rendered with an error.
-	for _, id := range createUserForm.ProjectIDs {
-		createUserForm.Projects = append(createUserForm.Projects, combobox.Option{Value: id, Name: id})
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 	if err := utils.Validate(c, &createUserForm); err != nil {
-		if apiErr, ok := err.(types.ApiError); ok {
-			htmx.Reswap(c, htmx.ReswapProps{
-				Swap:   "outerHTML",
-				Target: "this",
-				Select: "form",
-			})
-			return utils.Render(c, http.StatusBadRequest, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
-				ApiError: apiErr,
-				Value:    createUserForm,
-			}))
+		var apiErr types.ApiError
+		if !errors.As(err, &apiErr) {
+			apiErr = types.NewApiError(i18n.T(c.Request().Context(), "validation.failed"))
 		}
-
+		return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
+	}
+	if err := auth.ValidateUserForm(c.Request().Context(), createUserForm); err != nil {
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
+		}
 		return err
 	}
 
 	slog.Debug("Creating user", "user", createUserForm)
 	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
 	if err != nil {
-		htmx.Reswap(c, htmx.ReswapProps{
-			Swap:   "outerHTML",
-			Target: "this",
-			Select: "form",
-		})
 		if err.Error() == auth.UserAlreadyExists {
-			return utils.Render(c, http.StatusConflict, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
-				ApiError: types.ApiError{
-					Message: i18n.T(c.Request().Context(), "users.already_exists"),
-					Fields:  map[string]string{"username": i18n.T(c.Request().Context(), "users.username_exists")}},
-				Value: createUserForm,
-			}))
+			return a.renderUserFormError(c, http.StatusConflict, createUserForm, types.NewApiError(
+				i18n.T(c.Request().Context(), "users.already_exists"), map[string]string{"username": i18n.T(c.Request().Context(), "users.username_exists")},
+			))
+		}
+		if err.Error() == auth.ErrUserNotFound {
+			return a.renderUserFormError(c, http.StatusNotFound, createUserForm, types.NewApiError(i18n.T(c.Request().Context(), "users.not_found")))
 		}
 		var apiErr types.ApiError
 		if errors.As(err, &apiErr) {
-			return utils.Render(c, http.StatusBadRequest, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
-				ApiError: apiErr,
-				Value:    createUserForm,
-			}))
+			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
 		}
 
 		slog.Error("Error creating/updating user", "error", err)
-		return utils.Render(c, http.StatusInternalServerError, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
-			ApiError: types.ApiError{
-				Message: i18n.T(c.Request().Context(), "users.save_failed"),
-			},
-			Value: createUserForm,
-		}))
+		return userPageError(c, http.StatusInternalServerError, i18n.T(c.Request().Context(), "users.save_failed"))
 	}
 
 	htmx.CloseDialog(c)
@@ -284,6 +265,9 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	} else {
 		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.created"))
 	}
+	if htmx.IsHXRequest(c) {
+		return a.renderUsersPage(c, query, true)
+	}
 
 	return utils.Render(c, http.StatusOK, admin.UsersTableBody(admin.UsersListPageProps{
 		Users: []auth.User{user},
@@ -291,11 +275,15 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 }
 
 func (a *AuthRouter) deleteUser(c *echo.Context) error {
+	query, err := userMutationQuery(c)
+	if err != nil {
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "users.id_required")}})
 	}
-	err := a.authService.DeleteUser(c, id)
+	err = a.authService.DeleteUser(c, id)
 	if err != nil {
 		slog.Error("Error deleting user", "error", err)
 		if err.Error() == auth.ErrUserNotFound {
@@ -305,6 +293,9 @@ func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	}
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.deleted"))
+	if htmx.IsHXRequest(c) {
+		return a.renderUsersPage(c, query, true)
+	}
 	return c.HTML(200, "")
 }
 

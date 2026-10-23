@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,8 +155,8 @@ func (a *PostgresAuthService) GetUserByUsername(ctx context.Context, username st
 }
 
 func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
-	if query.Page < 0 || query.Size <= 0 || query.Size > 100 || query.Page > math.MaxInt32/query.Size {
-		return nil, 0, errors.New("Invalid user pagination")
+	if err := ValidateUserPage(ctx, query); err != nil {
+		return nil, 0, err
 	}
 	rows, err := a.queries.ListUsers(ctx, sqlc.ListUsersParams{
 		Search: query.Search, PageSize: int32(query.Size), PageOffset: int32(query.Page * query.Size),
@@ -184,6 +183,9 @@ func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUs
 }
 
 func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
+	if err := ValidateUserForm(ctx, form); err != nil {
+		return User{}, err
+	}
 	projectIDs := make([]uuid.UUID, 0, len(form.ProjectIDs))
 	for _, value := range form.ProjectIDs {
 		id, err := uuid.Parse(value)

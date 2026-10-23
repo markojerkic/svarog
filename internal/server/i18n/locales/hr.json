@@ -41,6 +41,7 @@
   "projects.invalid_pagination": { "other": "Neispravni parametri stranice projekata." },
   "projects.id_required": { "other": "ID projekta je obavezan." },
   "users.id_required": { "other": "ID korisnika je obavezan." },
+  "users.invalid_id": { "other": "Neispravan ID korisnika." },
   "logs.invalid_cursor": { "other": "Neispravna pozicija u logovima." },
   "logs.ids_required": { "other": "Nedostaje ID projekta ili klijenta." },
   "auth.invalid_ids": {

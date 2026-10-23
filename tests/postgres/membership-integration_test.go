@@ -120,7 +120,7 @@ func TestActivePostgresMembership(t *testing.T) {
 	t.Run("failed create leaves no user token or memberships", func(t *testing.T) {
 		for _, projectID := range []string{"not-a-uuid", uuid.NewString()} {
 			result, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-				Username: "rejected-member", FirstName: "Rejected", Role: "user",
+				Username: "rejected-member", FirstName: "Rejected", LastName: "User", Role: "user",
 				ProjectIDs: []string{first.ID.String(), projectID},
 			})
 			requireProjectError(t, err, "invalid or missing project rejects user creation")
@@ -166,7 +166,7 @@ func TestActivePostgresMembership(t *testing.T) {
 		var token []byte
 		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&token), "reload login token after rejected profile updates")
 		require.Equal(t, originalToken, token, "rejected profile updates preserve login token")
-		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{ID: uuid.NewString(), Username: "missing-user", Role: "user"})
+		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{ID: uuid.NewString(), Username: "missing-user", FirstName: "Missing", LastName: "User", Role: "user"})
 		require.EqualError(t, err, auth.ErrUserNotFound, "compound profile update preserves missing-user error mapping")
 	})
 

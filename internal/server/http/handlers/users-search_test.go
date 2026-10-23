@@ -31,6 +31,7 @@ func TestUsersSearchKeepsTheUsersTable(t *testing.T) {
 	}
 	stub := &usersSearchAuthStub{users: []auth.User{user}}
 	e := echo.New()
+	e.Validator = assignmentValidator{}
 	handlers.NewAuthRouter(stub, nil, e.Group("/admin"), e.Group(""), e.Group(""))
 
 	matched := httptest.NewRecorder()

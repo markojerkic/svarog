@@ -121,7 +121,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.Equal(t, "Changed", updated.FirstName, "profile update persists first name")
 		require.Equal(t, user.Password, updated.Password, "profile update preserves password")
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
+			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", LastName: "User", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
 		})
 		var apiError types.ApiError
 		require.ErrorAs(t, err, &apiError, "reject malformed project UUID before profile update")

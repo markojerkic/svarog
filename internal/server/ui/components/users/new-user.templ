@@ -35,10 +35,10 @@ templ NewUserForm(props ...NewUserFormProps) {
 		class="space-y-4"
 		id={ p.FormID }
 		hx-post="/admin/users"
-		hx-swap="beforeend"
-		hx-select="tr"
-		hx-target="#users-list-table-body"
-		hx-disable="input, button, #new-user-dialog > button[type=submit]"
+		hx-swap="outerHTML"
+		hx-select="body"
+		hx-target="body"
+		hx-disable="input, button, button[form='new-user-form'], button[form='edit-user-form']"
 	>
 		<input type="hidden" name="id" value={ p.Value.ID }/>
 		<div class="space-y-2">
@@ -56,6 +56,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 					Value:       p.Value.Username,
 					Attributes: templ.Attributes{
 						"required":     "",
+						"maxlength":    types.UsernameMaxLength,
 						"aria-invalid": p.ApiError.Fields["username"] != "",
 					},
 				})
@@ -80,6 +81,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 					Value:       p.Value.FirstName,
 					Attributes: templ.Attributes{
 						"required":     "",
+						"maxlength":    types.UserProfileNameMaxLength,
 						"aria-invalid": p.ApiError.Fields["firstName"] != "",
 					},
 				})
@@ -104,6 +106,7 @@ templ NewUserForm(props ...NewUserFormProps) {
 					Value:       p.Value.LastName,
 					Attributes: templ.Attributes{
 						"required":     "",
+						"maxlength":    types.UserProfileNameMaxLength,
 						"aria-invalid": p.ApiError.Fields["lastName"] != "",
 					},
 				})
@@ -188,7 +191,7 @@ templ NewUser() {
 			</span>
 		}
 		@dialog.Content(dialog.ContentProps{
-			Class: "max-w-md",
+			Class: "max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto",
 		}) {
 			@dialog.Header() {
 				@dialog.Title() {

@@ -41,6 +41,7 @@
   "projects.invalid_pagination": { "other": "Invalid project pagination" },
   "projects.id_required": { "other": "Project ID is required" },
   "users.id_required": { "other": "User ID is required" },
+  "users.invalid_id": { "other": "Invalid user ID." },
   "logs.invalid_cursor": { "other": "Invalid log cursor" },
   "logs.ids_required": { "other": "No project id or client id" },
   "auth.invalid_ids": { "other": "Project and client IDs must be canonical UUIDs" },
