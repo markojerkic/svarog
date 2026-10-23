@@ -47,6 +47,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					hx-swap="outerHTML"
 					hx-trigger="input changed delay:300ms"
 				>
+					<input type="hidden" name="size" value={ fmt.Sprint(props.Size) }/>
 					@input.Input(input.Props{
 						Type:        "search",
 						Value:       props.Search,
@@ -59,13 +60,13 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 			</div>
 			<div class="table-wrapper space-y-4">
 				<div class="overflow-hidden rounded-xl border">
-					@table.Table(table.Props{Class: "[&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
+					@table.Table(table.Props{Class: "table-fixed [&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
 						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
 							{ i18n.T(ctx, "projects.list_caption") }
 						}
 						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
 							@table.Row() {
-								@table.Head() {
+								@table.Head(table.HeadProps{Class: "w-2/5"}) {
 									{ i18n.T(ctx, "projects.name") }
 								}
 								@table.Head() {
@@ -81,12 +82,14 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				</div>
 				@projectcomponents.EditProjectDialog()
 				@projectcomponents.ConnectionStringDialog()
-				@pagination.PaginationWrapper(pagination.WrapperProps{
-					Page:       props.Page,
-					Size:       props.Size,
-					TotalCount: props.TotalCount,
-					BaseURL:    "/admin/projects",
-				})
+				<div hx-push-url:inherited="true">
+					@pagination.PaginationWrapper(pagination.WrapperProps{
+						Page:       props.Page,
+						Size:       props.Size,
+						TotalCount: props.TotalCount,
+						BaseURL:    "/admin/projects",
+					})
+				</div>
 			</div>
 		</div>
 	}
@@ -101,10 +104,10 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 				Attributes: templ.Attributes{"data-project-id": project.ID.String()},
 			}) {
 				@table.Cell(table.CellProps{Class: "font-medium"}) {
-					{ project.Name }
+					<span class="block truncate" title={ project.Name }>{ project.Name }</span>
 				}
 				@table.Cell(table.CellProps{Class: "text-muted-foreground"}) {
-					{ strings.Join(project.ClientNames(), ", ") }
+					<span class="block truncate" title={ strings.Join(project.ClientNames(), ", ") }>{ strings.Join(project.ClientNames(), ", ") }</span>
 				}
 				@table.Cell() {
 					@projectActions(project)

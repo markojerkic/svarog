@@ -42,6 +42,15 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "validation.failed")})
 	}
 
+	if err := projects.ValidateProjectPage(c.Request().Context(), types.GetProjectPageInput{
+		Search: request.Search, Page: request.Page, Size: request.Size,
+	}); err != nil {
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return c.JSON(http.StatusBadRequest, apiErr)
+		}
+		return err
+	}
 	var selectedIDs types.CommaSeparatedStrings
 	if err := selectedIDs.UnmarshalParams(c.QueryParams()["projects"]); err != nil {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.invalid_selection")})
@@ -74,6 +83,10 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 
 	results, err := p.projectsService.SearchProjects(c.Request().Context(), request)
 	if err != nil {
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return c.JSON(http.StatusBadRequest, apiErr)
+		}
 		slog.Error("Error fetching projects", "error", err)
 		return c.JSON(http.StatusInternalServerError, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_failed")})
 	}
@@ -111,7 +124,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 	var query types.GetProjectPageInput
 	if err := c.Bind(&query); err != nil {
-		return c.JSON(400, err)
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 
 	if query.Size == 0 {
@@ -120,24 +133,14 @@ func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 	if err := utils.Validate(c, &query); err != nil {
 		var apiErr types.ApiError
 		if errors.As(err, &apiErr) {
-			return c.JSON(http.StatusBadRequest, apiErr)
+			return projectPageError(c, http.StatusBadRequest, apiErr.Message)
 		}
-		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.invalid_pagination")})
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "projects.invalid_pagination"))
 	}
-
-	projects, totalCount, err := p.projectsService.GetProjectPage(c.Request().Context(), query)
-	if err != nil {
-		slog.Error("Error fetching project", "error", err)
-		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_failed")})
+	if err := projects.ValidateProjectPage(c.Request().Context(), query); err != nil {
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-
-	return utils.Render(c, http.StatusOK, admin.ProjectsListPage(admin.ProjectsListPageProps{
-		Projects:   projects,
-		Page:       query.Page,
-		Size:       query.Size,
-		Search:     query.Search,
-		TotalCount: totalCount,
-	}))
+	return p.renderProjectsPage(c, query, false)
 }
 
 func (p *ProjectsRouter) getProject(c *echo.Context) error {
@@ -204,9 +207,13 @@ func (p *ProjectsRouter) getConnectionStringForm(c *echo.Context) error {
 }
 
 func (p *ProjectsRouter) createProject(c *echo.Context) error {
+	query, err := projectMutationQuery(c)
+	if err != nil {
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
 	var createProjectForm types.CreateProjectForm
 	if err := c.Bind(&createProjectForm); err != nil {
-		return c.JSON(400, err)
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 	if err := utils.Validate(c, &createProjectForm); err != nil {
 		if apiErr, ok := err.(types.ApiError); ok {
@@ -223,6 +230,16 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 
 		return err
 	}
+	if err := projects.ValidateProjectForm(c.Request().Context(), createProjectForm); err != nil {
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			htmx.Reswap(c, htmx.ReswapProps{Swap: "outerHTML", Target: "this", Select: "form"})
+			return utils.Render(c, http.StatusBadRequest, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
+				ApiError: apiErr, Value: createProjectForm,
+			}))
+		}
+		return err
+	}
 
 	project, err := p.projectsService.CreateOrUpdateProject(c.Request().Context(), createProjectForm)
 	if err != nil {
@@ -237,6 +254,11 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 					Message: i18n.T(c.Request().Context(), "projects.already_exists"),
 					Fields:  map[string]string{"name": i18n.T(c.Request().Context(), "projects.name_exists")}},
 				Value: createProjectForm,
+			}))
+		}
+		if err.Error() == projects.ErrProjectNotFound {
+			return utils.Render(c, http.StatusNotFound, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
+				ApiError: types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")}, Value: createProjectForm,
 			}))
 		}
 		var apiErr types.ApiError
@@ -267,6 +289,9 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 	} else {
 		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "projects.created"))
 	}
+	if htmx.IsHXRequest(c) {
+		return p.renderProjectsPage(c, query, true)
+	}
 
 	return utils.Render(c, http.StatusOK, admin.ProjectsTableBody(admin.ProjectsListPageProps{
 		Projects: []projects.Project{project},
@@ -274,11 +299,15 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 }
 
 func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
+	query, err := projectMutationQuery(c)
+	if err != nil {
+		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
 	id := c.Param("id")
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "projects.id_required")}})
 	}
-	err := p.projectsService.DeleteProject(c.Request().Context(), id)
+	err = p.projectsService.DeleteProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error deleting project", "error", err)
 		if err.Error() == projects.ErrProjectHasClients {
@@ -294,6 +323,9 @@ func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 	}
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "projects.deleted"))
+	if htmx.IsHXRequest(c) {
+		return p.renderProjectsPage(c, query, true)
+	}
 	return c.HTML(200, "")
 }
 

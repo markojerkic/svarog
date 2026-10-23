@@ -33,10 +33,10 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 		class="space-y-4"
 		id={ p.FormID }
 		hx-post="/admin/projects"
-		hx-swap="beforeend"
-		hx-select="tr"
-		hx-target="#projects-list-table-body"
-		hx-disable="input, button, #new-project-dialog > button[type=submit]"
+		hx-swap="outerHTML"
+		hx-select="body"
+		hx-target="body"
+		hx-disable="input, button, button[form='new-project-form'], button[form='edit-project-form']"
 	>
 		<input type="hidden" name="id" value={ p.Value.ID }/>
 		<div class="space-y-2">
@@ -53,6 +53,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Value:       p.Value.Name,
 					Attributes: templ.Attributes{
 						"required":     "",
+						"maxlength":    types.ProjectNameMaxLength,
 						"aria-invalid": p.ApiError.Fields["name"] != "",
 					},
 				})
@@ -76,6 +77,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Placeholder: i18n.T(ctx, "projects.clients_placeholder"),
 					Value:       p.Value.Clients,
 					HasError:    p.ApiError.Fields["clients"] != "",
+					MaxLength:   types.ClientNameMaxLength,
 				})
 				if p.ApiError.Fields["clients"] != "" {
 					@field.Error() {

@@ -4,6 +4,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	ProjectNameMaxLength   = 255
+	ClientNameMaxLength    = 255
+	ProjectSearchMaxLength = 1024
+)
+
 type GetProjectPageInput struct {
 	Search string `json:"search" query:"search"`
 	Page   int64  `json:"page" query:"page" default:"0" validate:"gte=0"`

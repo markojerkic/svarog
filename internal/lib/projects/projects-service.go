@@ -3,15 +3,12 @@ package projects
 import (
 	"context"
 	"errors"
-	"math"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -54,6 +51,9 @@ func NewPostgresProjectsService(pool *pgxpool.Pool) *PostgresProjectsService {
 }
 
 func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (Project, error) {
+	if err := ValidateProjectForm(ctx, form); err != nil {
+		return Project{}, err
+	}
 	if form.ID == "" {
 		return p.CreateProject(ctx, form.Name, form.Clients)
 	}
@@ -62,18 +62,6 @@ func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, for
 		return Project{}, errors.New(ErrProjectNotFound)
 	}
 	return p.UpdateProject(ctx, id, form.Name, form.Clients)
-}
-
-func validateProject(ctx context.Context, name string, clients []string) error {
-	if strings.TrimSpace(name) == "" {
-		return types.NewApiError(i18n.T(ctx, "projects.name_required"), map[string]string{"name": i18n.T(ctx, "projects.name_required")})
-	}
-	for _, client := range clients {
-		if strings.TrimSpace(client) == "" {
-			return types.NewApiError(i18n.T(ctx, "projects.client_required"), map[string]string{"clients": i18n.T(ctx, "projects.clients_blank")})
-		}
-	}
-	return nil
 }
 
 func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
@@ -139,8 +127,8 @@ func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []st
 }
 
 func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	if query.Page < 0 || query.Size <= 0 || query.Size > 100 || query.Page > math.MaxInt64/query.Size {
-		return nil, 0, errors.New("Invalid project pagination")
+	if err := ValidateProjectPage(ctx, query); err != nil {
+		return nil, 0, err
 	}
 	rows, err := p.queries.ListProjects(ctx, sqlc.ListProjectsParams{
 		Search:     query.Search,

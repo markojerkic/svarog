@@ -2,7 +2,10 @@ package htmx
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
+	"unicode/utf16"
 
 	"log/slog"
 
@@ -70,7 +73,20 @@ func AddTrigger(c *echo.Context, event string, detail any) {
 		return
 	}
 
-	c.Response().Header().Set("HX-Trigger", string(jsonData))
+	// Fetch decodes header bytes as Latin-1. Keep JSON ASCII-only so Croatian
+	// text and supplementary Unicode characters survive the HTTP header intact.
+	var header strings.Builder
+	for _, r := range string(jsonData) {
+		if r < 128 {
+			header.WriteRune(r)
+		} else if r <= 0xffff {
+			fmt.Fprintf(&header, "\\u%04x", r)
+		} else {
+			high, low := utf16.EncodeRune(r)
+			fmt.Fprintf(&header, "\\u%04x\\u%04x", high, low)
+		}
+	}
+	c.Response().Header().Set("HX-Trigger", header.String())
 }
 
 func AddSuccessToast(c *echo.Context, message string) {
