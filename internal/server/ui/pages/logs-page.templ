@@ -13,6 +13,8 @@ import "strconv"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/lib/auth"
+import "github.com/markojerkic/svarog/internal/server/ui/components/archives"
 
 type LogsPageProps struct {
 	LogPage            db.LogPage
@@ -50,6 +52,9 @@ templ LogsPage(props LogsPageProps) {
 		</div>
 		@logs.SharedLogMenu()
 		@logs.SearchDialog(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), props.Search, props.Instances)
+		if auth.IsAdmin(ctx) {
+			@archives.SettingsSheet()
+		}
 	}
 	<script type="text/javascript">
 		(function positionLogs() {
@@ -98,6 +103,9 @@ templ LogsHeaderActions(props LogsPageProps) {
 			@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
 			<span class="hidden xl:inline">{ i18n.T(ctx, "logs.back_to_live") }</span>
 		}
+	}
+	if auth.IsAdmin(ctx) {
+		@archives.Trigger()
 	}
 }
 
