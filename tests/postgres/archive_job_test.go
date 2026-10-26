@@ -3,8 +3,10 @@ package postgres_test
 import (
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -20,7 +22,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -30,19 +31,17 @@ func TestCreateArchiveForClient(t *testing.T) {
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
 	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "ArchiveJob", []string{"api", "worker"})
+	project, err := projectService.CreateProject(ctx, "ArchiveJob", []string{"api", "worker", "write-failure"})
 	require.NoError(t, err, "create project and clients for the archive job")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
 	dir := t.TempDir()
-	logs := db.NewLogService(pool, nil)
-	service := archive.NewArchiveService(logs, pool, dir)
-	projectID := project.ID.String()
-	clientID := apiID.String()
+	var service archive.Archiver = archive.NewArchiveService(pool, dir)
+	scope := archive.Scope{ProjectID: project.ID, ClientID: apiID}
 	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
 	recent := time.Now().UTC().Truncate(time.Microsecond)
 
-	require.NoError(t, service.CreateSetting(ctx, projectID, clientID, 1), "create a one-week archive policy")
+	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
 	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{
 		{ClientID: apiID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "old-a"},
 		{ClientID: apiID, InstanceName: "web", OccurredAt: old.Add(time.Second), SequenceNumber: 2, Message: "old-b"},
@@ -51,63 +50,70 @@ func TestCreateArchiveForClient(t *testing.T) {
 	})
 	require.NoError(t, err, "insert logs around the archive cutoff")
 
-	record, err := service.CreateArhiveForClient(ctx, projectID, clientID)
+	result, err := service.Create(ctx, scope)
 	require.NoError(t, err, "archive logs older than the policy cutoff")
-	require.Equal(t, "ready", record.Status, "finished archive is ready")
-	require.Equal(t, "disk", record.StorageBackend, "archive is stored on disk")
+	require.Equal(t, archive.Created, result.Outcome, "successful creation returns a completed archive")
+	require.NotNil(t, result.Archive, "created results include archive metadata")
+	record := result.Archive
 	require.Equal(t, int64(2), record.LogCount, "archive counts only the client's old logs")
 	require.Equal(t, old, record.FromAt.UTC().Truncate(time.Microsecond), "from_at is the oldest archived log")
 	require.Equal(t, old.Add(time.Second), record.ToAt.UTC().Truncate(time.Microsecond), "to_at is the newest archived log")
 
-	zipPath := filepath.Join(dir, filepath.FromSlash(record.ObjectKey))
-	sum, size, err := hashArchive(zipPath)
-	require.NoError(t, err, "hash the zip on disk")
+	download, err := service.Open(ctx, scope, record.ID)
+	require.NoError(t, err, "open the completed archive")
+	defer download.Content.Close()
+	content, err := io.ReadAll(download.Content)
+	require.NoError(t, err, "read completed archive content")
+	sum, size := sha256.Sum256(content), int64(len(content))
 	require.Equal(t, sum, record.SHA256, "returned hash matches the zip")
 	require.Equal(t, size, record.SizeBytes, "returned size matches the zip")
-	require.Equal(t, []string{"old-b", "old-a"}, zipMessages(t, zipPath), "zip contains the archived lines newest first")
+	require.Equal(t, *record, download.Archive, "opening an archive returns the persisted creation metadata")
+	require.Equal(t, []string{"old-b", "old-a"}, zipMessages(t, content), "zip contains the archived lines newest first")
+	require.False(t, record.CreatedAt.IsZero(), "completed metadata includes its creation timestamp")
 
-	var status string
-	var storedSum []byte
-	require.NoError(t, pool.QueryRow(ctx, "SELECT status, sha256 FROM archives WHERE id = $1", record.ID).Scan(&status, &storedSum), "read the ready archive row")
-	require.Equal(t, "ready", status, "database row is ready")
-	require.Equal(t, sum[:], storedSum, "database stores the zip hash")
 	require.Equal(t, []string{"recent"}, remainingMessages(t, ctx, pool, apiID), "recent logs for the archived client remain")
 	require.Equal(t, []string{"other-client"}, remainingMessages(t, ctx, pool, workerID), "another client's old logs are not deleted")
 
 	t.Run("no old logs leaves no building row", func(t *testing.T) {
-		_, err := service.CreateArhiveForClient(ctx, projectID, clientID)
-		require.EqualError(t, err, "no logs found for period", "a client with only recent logs is not archived")
+		result, err := service.Create(ctx, scope)
+		require.NoError(t, err, "a client with only recent logs is an expected skip")
+		require.Equal(t, archive.SkippedNoLogs, result.Outcome, "empty builds return the no-logs outcome")
+		require.Nil(t, result.Archive, "empty builds return no archive metadata")
 		var building int
 		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE client_id = $1 AND status = 'building'", apiID).Scan(&building), "count building rows after an empty archive")
 		require.Zero(t, building, "an empty archive does not leave a building row")
 	})
 
 	t.Run("missing directory and missing policy", func(t *testing.T) {
-		unconfigured := archive.NewArchiveService(logs, pool, "")
-		_, err := unconfigured.CreateArhiveForClient(ctx, projectID, clientID)
-		require.EqualError(t, err, "archive directory is not configured", "the job refuses to write without ARCHIVE_DIR")
-		_, err = service.CreateArhiveForClient(ctx, projectID, workerID.String())
-		require.ErrorIs(t, err, archive.ErrArchivePolicyNotFound, "a client without a policy is not archived")
+		unconfigured := archive.NewArchiveService(pool, "")
+		_, err := unconfigured.Create(ctx, scope)
+		require.ErrorIs(t, err, archive.ErrNotConfigured, "the job refuses to write without ARCHIVE_DIR")
+		result, err := service.Create(ctx, archive.Scope{ProjectID: project.ID, ClientID: workerID})
+		require.NoError(t, err, "a client without a rule is an expected skip")
+		require.Equal(t, archive.SkippedDisabled, result.Outcome, "a client without a rule is disabled")
 	})
 
-	t.Run("second build is rejected", func(t *testing.T) {
+	t.Run("unfinished build is recovered", func(t *testing.T) {
 		buildingID := uuid.New()
 		_, err := pool.Exec(ctx, `
 			INSERT INTO archives (id, client_id, status, storage_backend, object_key, file_name, cutoff_at)
 			VALUES ($1, $2, 'building', 'disk', $3, 'busy.zip', now())`,
 			buildingID, apiID, apiID.String()+"/busy.zip")
 		require.NoError(t, err, "claim the one building slot")
-		_, err = service.CreateArhiveForClient(ctx, projectID, clientID)
-		require.ErrorIs(t, err, archive.ErrArchiveInProgress, "a client cannot have two building archives")
-		_, err = pool.Exec(ctx, "DELETE FROM archives WHERE id = $1", buildingID)
-		require.NoError(t, err, "remove the test building row")
+		result, err := service.Create(ctx, scope)
+		require.NoError(t, err, "an abandoned building row is recovered before the next build")
+		require.Equal(t, archive.SkippedNoLogs, result.Outcome, "recovery does not archive recent logs")
+		var count int
+		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE id = $1", buildingID).Scan(&count), "count the recovered archive")
+		require.Zero(t, count, "recovery removes an abandoned building row")
 	})
 
 	t.Run("page boundary tie is archived", func(t *testing.T) {
 		tieClient := workerID
 		_, err := pool.Exec(ctx, "DELETE FROM logs WHERE client_id = $1", tieClient)
 		require.NoError(t, err, "clear the tie client's earlier log")
-		require.NoError(t, service.CreateSetting(ctx, projectID, tieClient.String(), 1), "create a policy for the tie client")
+		tieScope := archive.Scope{ProjectID: project.ID, ClientID: tieClient}
+		require.NoError(t, service.SetPolicy(ctx, tieScope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a policy for the tie client")
 		batch := make([]store.LogInsert, 0, 5001)
 		for i := 1; i <= 4999; i++ {
 			batch = append(batch, store.LogInsert{
@@ -121,36 +127,184 @@ func TestCreateArchiveForClient(t *testing.T) {
 		)
 		_, err = store.InsertLogs(ctx, pool, batch)
 		require.NoError(t, err, "insert a page of logs with a tied oldest pair")
-		tied, err := service.CreateArhiveForClient(ctx, projectID, tieClient.String())
+		tied, err := service.Create(ctx, tieScope)
 		require.NoError(t, err, "archive across a page boundary")
-		require.Equal(t, int64(5001), tied.LogCount, "both tied rows are included")
+		require.Equal(t, archive.Created, tied.Outcome, "a tied page produces a completed archive")
+		require.NotNil(t, tied.Archive, "a tied page returns archive metadata")
+		require.Equal(t, int64(5001), tied.Archive.LogCount, "both tied rows are included")
+		require.Len(t, zipMessages(t, archiveBytes(t, ctx, service, tieScope, tied.Archive.ID)), 5001, "both tied rows are present in the ZIP")
 		require.Empty(t, remainingMessages(t, ctx, pool, tieClient), "every archived tie row is deleted")
+	})
+
+	t.Run("write failure preserves logs for retry", func(t *testing.T) {
+		failureScope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "write-failure")}
+		failureDir := t.TempDir()
+		failureService := archive.NewArchiveService(pool, failureDir)
+		require.NoError(t, failureService.SetPolicy(ctx, failureScope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the write-failure client's archive policy")
+		insertArchiveLog(t, ctx, pool, failureScope, "retained")
+		blocked := filepath.Join(failureDir, failureScope.ClientID.String())
+		require.NoError(t, os.WriteFile(blocked, []byte("not a directory"), 0o600), "block creation of the client archive directory")
+		_, err := failureService.Create(ctx, failureScope)
+		require.Error(t, err, "a storage write failure is returned to the caller")
+		require.Equal(t, []string{"retained"}, remainingMessages(t, ctx, pool, failureScope.ClientID), "failed writing never deletes source logs")
+		require.NoError(t, os.Remove(blocked), "remove the storage obstruction")
+		result, err := failureService.Create(ctx, failureScope)
+		require.NoError(t, err, "a build can retry after a storage failure")
+		require.NotNil(t, result.Archive, "retry creates a completed archive")
 	})
 }
 
-func hashArchive(path string) ([32]byte, int64, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return [32]byte{}, 0, err
+func TestArchiveConcurrentIngestion(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	pool, service, scope, _ := newArchiveFixture(t, ctx, "ConcurrentArchive")
+	insertArchiveLog(t, ctx, pool, scope, "original")
+	release := gateArchiveQuery(t, ctx, pool, "logs", "archive_id", "NEW.archive_id IS NOT NULL", 71001)
+	results := make(chan archive.CreateResult, 1)
+	errors := make(chan error, 1)
+	go func() {
+		result, err := service.Create(ctx, scope)
+		results <- result
+		errors <- err
+	}()
+	waitForArchiveQuery(t, ctx, pool, "ClaimArchiveLogs")
+	second, err := service.Create(ctx, scope)
+	require.NoError(t, err, "a parallel build is an expected skip")
+	require.Equal(t, archive.SkippedBusy, second.Outcome, "only one build may hold the client")
+	require.Nil(t, second.Archive, "busy builds return no archive")
+	insertArchiveLog(t, ctx, pool, scope, "late")
+	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{}), "changing the policy does not wait for the running build")
+	release()
+	select {
+	case result := <-results:
+		require.NoError(t, <-errors, "the original build completes after its gate opens")
+		require.Equal(t, archive.Created, result.Outcome, "disabling does not cancel the already started build")
+		require.NotNil(t, result.Archive, "the original build returns completed metadata")
+		require.Equal(t, []string{"original"}, zipMessages(t, archiveBytes(t, ctx, service, scope, result.Archive.ID)), "only the originally claimed row is archived")
+	case <-ctx.Done():
+		t.Fatal("the original archive must finish before the test deadline")
 	}
-	defer file.Close()
-	hash := sha256.New()
-	size, err := io.Copy(hash, file)
-	if err != nil {
-		return [32]byte{}, 0, err
-	}
-	var sum [32]byte
-	copy(sum[:], hash.Sum(nil))
-	return sum, size, nil
+	require.Equal(t, []string{"late"}, remainingMessages(t, ctx, pool, scope.ClientID), "a late old log outside the claim snapshot is never deleted")
+	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "re-enable archiving for the remaining late row")
+	late, err := service.Create(ctx, scope)
+	require.NoError(t, err, "the next build archives the retained late row")
+	require.NotNil(t, late.Archive, "the late row produces a completed archive")
+	require.Equal(t, []string{"late"}, zipMessages(t, archiveBytes(t, ctx, service, scope, late.Archive.ID)), "the late row is available in the next archive")
 }
 
-func zipMessages(t *testing.T, path string) []string {
+func TestArchiveInterruptedBuild(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	pool, service, scope, dir := newArchiveFixture(t, ctx, "InterruptedArchive")
+	insertArchiveLog(t, ctx, pool, scope, "retained")
+	release := gateArchiveQuery(t, ctx, pool, "archives", "status", "NEW.status = 'ready'", 71002)
+	buildCtx, cancelBuild := context.WithCancel(ctx)
+	defer cancelBuild()
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Create(buildCtx, scope)
+		done <- err
+	}()
+	waitForArchiveQuery(t, ctx, pool, "MarkArchiveReady")
+	cancelBuild()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled, "cancellation remains recognizable through cleanup errors")
+	case <-ctx.Done():
+		t.Fatal("canceling an archive must stop the worker before the test deadline")
+	}
+	release()
+	require.Equal(t, []string{"retained"}, remainingMessages(t, ctx, pool, scope.ClientID), "an interrupted final transaction never loses source logs")
+	result, err := service.Create(ctx, scope)
+	require.NoError(t, err, "the next build recovers any remaining claim and retries")
+	require.NotNil(t, result.Archive, "retrying an interrupted build returns a completed archive")
+	require.Equal(t, []string{"retained"}, zipMessages(t, archiveBytes(t, ctx, service, scope, result.Archive.ID)), "the retained row is recoverable after cancellation")
+	files, err := filepath.Glob(filepath.Join(dir, scope.ClientID.String(), "*"))
+	require.NoError(t, err, "list files left after recovery")
+	require.Len(t, files, 1, "recovery retains only the completed ZIP and removes unfinished files")
+}
+
+func newArchiveFixture(t *testing.T, ctx context.Context, name string) (*pgxpool.Pool, archive.Archiver, archive.Scope, string) {
 	t.Helper()
-	reader, err := zip.OpenReader(path)
+	pool := testutils.NewPostgresPool(t, ctx)
+	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, name, []string{"api"})
+	require.NoError(t, err, "create the archive fixture's project and client")
+	dir := t.TempDir()
+	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
+	service := archive.NewArchiveService(pool, dir)
+	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the fixture's archive policy")
+	return pool, service, scope, dir
+}
+
+func insertArchiveLog(t *testing.T, ctx context.Context, pool *pgxpool.Pool, scope archive.Scope, message string) {
+	t.Helper()
+	_, err := store.InsertLogs(ctx, pool, []store.LogInsert{{
+		ClientID: scope.ClientID, InstanceName: "web", OccurredAt: time.Now().UTC().Add(-14 * 24 * time.Hour), SequenceNumber: 1, Message: message,
+	}})
+	require.NoError(t, err, "insert the old log %q", message)
+}
+
+// PostgreSQL triggers provide a deterministic barrier without test-only hooks in
+// production code. The test holds the gate until concurrent work is arranged.
+func gateArchiveQuery(t *testing.T, ctx context.Context, pool *pgxpool.Pool, table, column, condition string, key int64) func() {
+	t.Helper()
+	gate, err := pool.Acquire(ctx)
+	require.NoError(t, err, "acquire a dedicated connection for the test barrier")
+	_, err = gate.Exec(ctx, "SELECT pg_advisory_lock($1)", key)
+	require.NoError(t, err, "hold the archive test barrier")
+	released := false
+	release := func() {
+		if released {
+			return
+		}
+		released = true
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := gate.Exec(cleanupCtx, "SELECT pg_advisory_unlock($1)", key)
+		if err != nil {
+			_ = gate.Conn().Close(cleanupCtx)
+		}
+		gate.Release()
+		require.NoError(t, err, "release the archive test barrier")
+	}
+	t.Cleanup(release)
+	_, err = pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION archive_test_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN PERFORM pg_advisory_xact_lock(%d); RETURN NEW; END $$;
+		CREATE TRIGGER archive_test_gate BEFORE UPDATE OF %s ON %s
+		FOR EACH ROW WHEN (%s) EXECUTE FUNCTION archive_test_gate();`, key, column, table, condition))
+	require.NoError(t, err, "install the deterministic archive barrier")
+	return release
+}
+
+func waitForArchiveQuery(t *testing.T, ctx context.Context, pool *pgxpool.Pool, query string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := pool.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity WHERE query LIKE $1 AND wait_event = 'advisory'
+		)`, "-- name: "+query+"%").Scan(&waiting)
+		return err == nil && waiting
+	}, 10*time.Second, 10*time.Millisecond, "the archive query %s must reach the deterministic barrier", query)
+}
+
+func archiveBytes(t *testing.T, ctx context.Context, service archive.Archiver, scope archive.Scope, id uuid.UUID) []byte {
+	t.Helper()
+	download, err := service.Open(ctx, scope, id)
+	require.NoError(t, err, "open the completed archive through the public interface")
+	defer download.Content.Close()
+	content, err := io.ReadAll(download.Content)
+	require.NoError(t, err, "read completed archive content")
+	return content
+}
+
+func zipMessages(t *testing.T, content []byte) []string {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
 	require.NoError(t, err, "open the archive zip")
-	defer reader.Close()
 	files := make(map[int]*zip.File)
 	for _, file := range reader.File {
+		require.True(t, filepath.IsLocal(file.Name), "ZIP entries use safe relative paths")
 		if file.FileInfo().IsDir() {
 			continue
 		}

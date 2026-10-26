@@ -12,64 +12,79 @@ import (
 	"github.com/google/uuid"
 )
 
-const createArchivePolicy = `-- name: CreateArchivePolicy :execrows
-INSERT INTO archive_policies (client_id, archive_after_weeks)
-SELECT c.id, $1
-FROM clients c
-WHERE c.id = $2
-  AND c.project_id = $3
+const claimArchiveLogs = `-- name: ClaimArchiveLogs :execrows
+UPDATE logs
+SET archive_id = $1
+WHERE client_id = $2
+  AND occurred_at < $3
+  AND archive_id IS NULL
 `
 
-type CreateArchivePolicyParams struct {
-	ArchiveAfterWeeks int32
-	ClientID          uuid.UUID
-	ProjectID         uuid.UUID
+type ClaimArchiveLogsParams struct {
+	ArchiveID *uuid.UUID
+	ClientID  uuid.UUID
+	CutoffAt  time.Time
 }
 
-func (q *Queries) CreateArchivePolicy(ctx context.Context, arg CreateArchivePolicyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, createArchivePolicy, arg.ArchiveAfterWeeks, arg.ClientID, arg.ProjectID)
+func (q *Queries) ClaimArchiveLogs(ctx context.Context, arg ClaimArchiveLogsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimArchiveLogs, arg.ArchiveID, arg.ClientID, arg.CutoffAt)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const deleteArchivePolicy = `-- name: DeleteArchivePolicy :execrows
-DELETE FROM archive_policies
-WHERE client_id = $1
+const deleteArchivePolicy = `-- name: DeleteArchivePolicy :exec
+DELETE FROM archive_policies p
+USING clients c
+WHERE p.client_id = c.id
+  AND c.id = $1
+  AND c.project_id = $2
 `
 
-func (q *Queries) DeleteArchivePolicy(ctx context.Context, clientID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteArchivePolicy, clientID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type DeleteArchivePolicyParams struct {
+	ClientID  uuid.UUID
+	ProjectID uuid.UUID
 }
 
-const deleteBuildingArchive = `-- name: DeleteBuildingArchive :exec
-DELETE FROM archives
-WHERE id = $1 AND status = 'building'
-`
-
-func (q *Queries) DeleteBuildingArchive(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteBuildingArchive, id)
+func (q *Queries) DeleteArchivePolicy(ctx context.Context, arg DeleteArchivePolicyParams) error {
+	_, err := q.db.Exec(ctx, deleteArchivePolicy, arg.ClientID, arg.ProjectID)
 	return err
 }
 
-const deleteClientLogsBefore = `-- name: DeleteClientLogsBefore :execrows
+const deleteArchivedLogs = `-- name: DeleteArchivedLogs :execrows
 DELETE FROM logs
 WHERE client_id = $1
-  AND occurred_at < $2
+  AND archive_id = $2
 `
 
-type DeleteClientLogsBeforeParams struct {
-	ClientID uuid.UUID
-	CutoffAt time.Time
+type DeleteArchivedLogsParams struct {
+	ClientID  uuid.UUID
+	ArchiveID *uuid.UUID
 }
 
-func (q *Queries) DeleteClientLogsBefore(ctx context.Context, arg DeleteClientLogsBeforeParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteClientLogsBefore, arg.ClientID, arg.CutoffAt)
+func (q *Queries) DeleteArchivedLogs(ctx context.Context, arg DeleteArchivedLogsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteArchivedLogs, arg.ClientID, arg.ArchiveID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteBuildingArchive = `-- name: DeleteBuildingArchive :execrows
+DELETE FROM archives
+WHERE id = $1
+  AND client_id = $2
+  AND status = 'building'
+`
+
+type DeleteBuildingArchiveParams struct {
+	ID       uuid.UUID
+	ClientID uuid.UUID
+}
+
+func (q *Queries) DeleteBuildingArchive(ctx context.Context, arg DeleteBuildingArchiveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBuildingArchive, arg.ID, arg.ClientID)
 	if err != nil {
 		return 0, err
 	}
@@ -77,10 +92,10 @@ func (q *Queries) DeleteClientLogsBefore(ctx context.Context, arg DeleteClientLo
 }
 
 const getArchivePolicy = `-- name: GetArchivePolicy :one
-SELECT c.project_id, p.client_id, p.archive_after_weeks, p.updated_at
-FROM archive_policies p
-JOIN clients c ON c.id = p.client_id
-WHERE p.client_id = $1
+SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks
+FROM clients c
+LEFT JOIN archive_policies p ON p.client_id = c.id
+WHERE c.id = $1
   AND c.project_id = $2
 `
 
@@ -89,32 +104,88 @@ type GetArchivePolicyParams struct {
 	ProjectID uuid.UUID
 }
 
-type GetArchivePolicyRow struct {
-	ProjectID         uuid.UUID
-	ClientID          uuid.UUID
-	ArchiveAfterWeeks int32
-	UpdatedAt         time.Time
+func (q *Queries) GetArchivePolicy(ctx context.Context, arg GetArchivePolicyParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getArchivePolicy, arg.ClientID, arg.ProjectID)
+	var archive_after_weeks int32
+	err := row.Scan(&archive_after_weeks)
+	return archive_after_weeks, err
 }
 
-func (q *Queries) GetArchivePolicy(ctx context.Context, arg GetArchivePolicyParams) (GetArchivePolicyRow, error) {
-	row := q.db.QueryRow(ctx, getArchivePolicy, arg.ClientID, arg.ProjectID)
-	var i GetArchivePolicyRow
+const getBuildingArchive = `-- name: GetBuildingArchive :one
+SELECT id, client_id, status, storage_backend, object_key, file_name, size_bytes, sha256, log_count, cutoff_at, claimed_at, from_at, to_at, created_at, updated_at FROM archives
+WHERE client_id = $1 AND status = 'building'
+`
+
+func (q *Queries) GetBuildingArchive(ctx context.Context, clientID uuid.UUID) (Archive, error) {
+	row := q.db.QueryRow(ctx, getBuildingArchive, clientID)
+	var i Archive
 	err := row.Scan(
-		&i.ProjectID,
+		&i.ID,
 		&i.ClientID,
-		&i.ArchiveAfterWeeks,
+		&i.Status,
+		&i.StorageBackend,
+		&i.ObjectKey,
+		&i.FileName,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.LogCount,
+		&i.CutoffAt,
+		&i.ClaimedAt,
+		&i.FromAt,
+		&i.ToAt,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const insertBuildingArchive = `-- name: InsertBuildingArchive :exec
+const getReadyArchive = `-- name: GetReadyArchive :one
+SELECT a.id, a.client_id, a.status, a.storage_backend, a.object_key, a.file_name, a.size_bytes, a.sha256, a.log_count, a.cutoff_at, a.claimed_at, a.from_at, a.to_at, a.created_at, a.updated_at
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = $1
+  AND a.client_id = $2
+  AND a.id = $3
+  AND a.status = 'ready'
+`
+
+type GetReadyArchiveParams struct {
+	ProjectID uuid.UUID
+	ClientID  uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetReadyArchive(ctx context.Context, arg GetReadyArchiveParams) (Archive, error) {
+	row := q.db.QueryRow(ctx, getReadyArchive, arg.ProjectID, arg.ClientID, arg.ID)
+	var i Archive
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Status,
+		&i.StorageBackend,
+		&i.ObjectKey,
+		&i.FileName,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.LogCount,
+		&i.CutoffAt,
+		&i.ClaimedAt,
+		&i.FromAt,
+		&i.ToAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertBuildingArchive = `-- name: InsertBuildingArchive :one
 INSERT INTO archives (
-    id, client_id, status, storage_backend, object_key, file_name, cutoff_at
+    id, client_id, status, storage_backend, object_key, file_name, cutoff_at, claimed_at
 ) VALUES (
     $1, $2, 'building', 'disk',
-    $3, $4, $5
+    $3, $4, $5, now()
 )
+RETURNING id, client_id, status, storage_backend, object_key, file_name, size_bytes, sha256, log_count, cutoff_at, claimed_at, from_at, to_at, created_at, updated_at
 `
 
 type InsertBuildingArchiveParams struct {
@@ -125,15 +196,166 @@ type InsertBuildingArchiveParams struct {
 	CutoffAt  time.Time
 }
 
-func (q *Queries) InsertBuildingArchive(ctx context.Context, arg InsertBuildingArchiveParams) error {
-	_, err := q.db.Exec(ctx, insertBuildingArchive,
+func (q *Queries) InsertBuildingArchive(ctx context.Context, arg InsertBuildingArchiveParams) (Archive, error) {
+	row := q.db.QueryRow(ctx, insertBuildingArchive,
 		arg.ID,
 		arg.ClientID,
 		arg.ObjectKey,
 		arg.FileName,
 		arg.CutoffAt,
 	)
-	return err
+	var i Archive
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Status,
+		&i.StorageBackend,
+		&i.ObjectKey,
+		&i.FileName,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.LogCount,
+		&i.CutoffAt,
+		&i.ClaimedAt,
+		&i.FromAt,
+		&i.ToAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listArchiveLogs = `-- name: ListArchiveLogs :many
+SELECT id, instance_name, occurred_at, sequence_number, message
+FROM logs
+WHERE client_id = $1
+  AND archive_id = $2
+  AND (
+    NOT $3::bool
+    OR (occurred_at, sequence_number, id)
+       < ($4::timestamptz, $5::bigint, $6::bigint)
+  )
+ORDER BY occurred_at DESC, sequence_number DESC, id DESC
+LIMIT $7
+`
+
+type ListArchiveLogsParams struct {
+	ClientID       uuid.UUID
+	ArchiveID      *uuid.UUID
+	HasCursor      bool
+	CursorAt       time.Time
+	CursorSequence int64
+	CursorID       int64
+	PageSize       int32
+}
+
+type ListArchiveLogsRow struct {
+	ID             int64
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) ListArchiveLogs(ctx context.Context, arg ListArchiveLogsParams) ([]ListArchiveLogsRow, error) {
+	rows, err := q.db.Query(ctx, listArchiveLogs,
+		arg.ClientID,
+		arg.ArchiveID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorSequence,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListArchiveLogsRow
+	for rows.Next() {
+		var i ListArchiveLogsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReadyArchives = `-- name: ListReadyArchives :many
+SELECT a.id, a.client_id, a.status, a.storage_backend, a.object_key, a.file_name, a.size_bytes, a.sha256, a.log_count, a.cutoff_at, a.claimed_at, a.from_at, a.to_at, a.created_at, a.updated_at
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = $1
+  AND a.client_id = $2
+  AND a.status = 'ready'
+  AND (
+    NOT $3::bool
+    OR (a.created_at, a.id) < ($4::timestamptz, $5::uuid)
+  )
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $6
+`
+
+type ListReadyArchivesParams struct {
+	ProjectID uuid.UUID
+	ClientID  uuid.UUID
+	HasCursor bool
+	CursorAt  time.Time
+	CursorID  uuid.UUID
+	PageSize  int32
+}
+
+func (q *Queries) ListReadyArchives(ctx context.Context, arg ListReadyArchivesParams) ([]Archive, error) {
+	rows, err := q.db.Query(ctx, listReadyArchives,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Archive
+	for rows.Next() {
+		var i Archive
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.Status,
+			&i.StorageBackend,
+			&i.ObjectKey,
+			&i.FileName,
+			&i.SizeBytes,
+			&i.Sha256,
+			&i.LogCount,
+			&i.CutoffAt,
+			&i.ClaimedAt,
+			&i.FromAt,
+			&i.ToAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markArchiveReady = `-- name: MarkArchiveReady :execrows
@@ -176,21 +398,69 @@ func (q *Queries) MarkArchiveReady(ctx context.Context, arg MarkArchiveReadyPara
 	return result.RowsAffected(), nil
 }
 
-const updateArchivePolicy = `-- name: UpdateArchivePolicy :execrows
-UPDATE archive_policies
-SET archive_after_weeks = $1, updated_at = now()
-WHERE client_id = $2
+const releaseArchiveLogs = `-- name: ReleaseArchiveLogs :exec
+UPDATE logs l
+SET archive_id = NULL
+FROM archives a
+WHERE l.archive_id = a.id
+  AND l.client_id = a.client_id
+  AND a.id = $1
+  AND a.client_id = $2
+  AND a.status = 'building'
 `
 
-type UpdateArchivePolicyParams struct {
-	ArchiveAfterWeeks int32
-	ClientID          uuid.UUID
+type ReleaseArchiveLogsParams struct {
+	ID       uuid.UUID
+	ClientID uuid.UUID
 }
 
-func (q *Queries) UpdateArchivePolicy(ctx context.Context, arg UpdateArchivePolicyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateArchivePolicy, arg.ArchiveAfterWeeks, arg.ClientID)
+func (q *Queries) ReleaseArchiveLogs(ctx context.Context, arg ReleaseArchiveLogsParams) error {
+	_, err := q.db.Exec(ctx, releaseArchiveLogs, arg.ID, arg.ClientID)
+	return err
+}
+
+const setArchivePolicy = `-- name: SetArchivePolicy :execrows
+INSERT INTO archive_policies (client_id, archive_after_weeks)
+SELECT c.id, $1
+FROM clients c
+WHERE c.id = $2
+  AND c.project_id = $3
+ON CONFLICT (client_id) DO UPDATE
+SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now()
+`
+
+type SetArchivePolicyParams struct {
+	ArchiveAfterWeeks int32
+	ClientID          uuid.UUID
+	ProjectID         uuid.UUID
+}
+
+func (q *Queries) SetArchivePolicy(ctx context.Context, arg SetArchivePolicyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setArchivePolicy, arg.ArchiveAfterWeeks, arg.ClientID, arg.ProjectID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const tryLockArchiveClient = `-- name: TryLockArchiveClient :one
+SELECT pg_try_advisory_lock(hashtextextended('svarog:archive:' || $1::uuid::text, 0)) AS locked
+`
+
+func (q *Queries) TryLockArchiveClient(ctx context.Context, clientID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, tryLockArchiveClient, clientID)
+	var locked bool
+	err := row.Scan(&locked)
+	return locked, err
+}
+
+const unlockArchiveClient = `-- name: UnlockArchiveClient :one
+SELECT pg_advisory_unlock(hashtextextended('svarog:archive:' || $1::uuid::text, 0)) AS unlocked
+`
+
+func (q *Queries) UnlockArchiveClient(ctx context.Context, clientID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, unlockArchiveClient, clientID)
+	var unlocked bool
+	err := row.Scan(&unlocked)
+	return unlocked, err
 }

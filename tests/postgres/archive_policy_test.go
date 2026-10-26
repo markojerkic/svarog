@@ -13,69 +13,94 @@ import (
 )
 
 func TestArchivePolicies(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "ArchivePolicies", []string{"api", "worker"})
+	projectsService := projects.NewPostgresProjectsService(pool)
+	project, err := projectsService.CreateProject(ctx, "ArchivePolicies", []string{"api", "worker"})
 	require.NoError(t, err, "create project and clients for archive policies")
-	other, err := projectService.CreateProject(ctx, "ArchivePoliciesOther", []string{"api"})
+	other, err := projectsService.CreateProject(ctx, "ArchivePoliciesOther", []string{"api"})
 	require.NoError(t, err, "create a second project")
-	service := archive.NewArchiveService(nil, pool, "")
-	apiID := clientByName(t, project, "api")
-	workerID := clientByName(t, project, "worker")
-	projectID := project.ID.String()
-	clientID := apiID.String()
+	var service archive.Archiver = archive.NewArchiveService(pool, t.TempDir())
+	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
 
-	t.Run("create and get", func(t *testing.T) {
-		require.NoError(t, service.CreateSetting(ctx, projectID, clientID, 10), "create a policy for a client in the project")
-		setting, err := service.GetSettings(ctx, projectID, clientID)
-		require.NoError(t, err, "read the created policy")
-		require.Equal(t, clientID, setting.ClientID, "policy id is the client id")
-		require.Equal(t, projectID, setting.ProjectID, "policy reports the owning project")
-		require.Equal(t, 10, setting.ArhiveAfterWeeks, "policy stores the requested week count")
-		require.False(t, setting.UpdatedAt.IsZero(), "policy records an update time")
+	t.Run("missing policy is disabled", func(t *testing.T) {
+		policy, err := service.GetPolicy(ctx, scope)
+		require.NoError(t, err, "a client without a policy remains readable")
+		require.Equal(t, archive.Policy{}, policy, "a missing rule is a disabled policy")
 	})
 
-	t.Run("duplicate and wrong scope", func(t *testing.T) {
-		require.ErrorIs(t, service.CreateSetting(ctx, projectID, clientID, 12), archive.ErrArchivePolicyExists, "a client can have only one policy")
-		require.ErrorIs(t, service.CreateSetting(ctx, other.ID.String(), clientID, 10), archive.ErrArchivePolicyNotFound, "a client from another project is not writable")
-		_, err := service.GetSettings(ctx, other.ID.String(), clientID)
-		require.ErrorIs(t, err, archive.ErrArchivePolicyNotFound, "a client from another project is not readable")
-		require.ErrorIs(t, service.CreateSetting(ctx, projectID, uuid.NewString(), 10), archive.ErrArchivePolicyNotFound, "a missing client does not get a policy")
-		require.Error(t, service.CreateSetting(ctx, projectID, "marko", 10), "an invalid client id is rejected")
-		require.Error(t, service.CreateSetting(ctx, projectID, clientID, 0), "zero weeks is rejected before the query")
-		require.Error(t, service.CreateSetting(ctx, projectID, workerID.String(), -1), "negative weeks is rejected before the query")
+	t.Run("set creates updates and repeats", func(t *testing.T) {
+		for _, weeks := range []int{10, 20, 20} {
+			want := archive.Policy{Enabled: true, ArchiveAfterWeeks: weeks}
+			require.NoError(t, service.SetPolicy(ctx, scope, want), "set replaces the desired policy idempotently")
+			got, err := service.GetPolicy(ctx, scope)
+			require.NoError(t, err, "read the saved policy")
+			require.Equal(t, want, got, "the policy reflects the latest desired state")
+		}
 	})
 
-	t.Run("update and delete only the policy", func(t *testing.T) {
-		require.NoError(t, service.UpdateSetting(ctx, clientID, 20), "update the policy by client id")
-		setting, err := service.GetSettings(ctx, projectID, clientID)
-		require.NoError(t, err, "read the updated policy")
-		require.Equal(t, 20, setting.ArhiveAfterWeeks, "update replaces the week count")
-		require.ErrorIs(t, service.UpdateSetting(ctx, uuid.NewString(), 20), archive.ErrArchivePolicyNotFound, "updating a missing policy fails")
-
-		archiveID := uuid.New()
-		_, err = pool.Exec(ctx, `
-			INSERT INTO archives (id, client_id, storage_backend, object_key, file_name, cutoff_at)
-			VALUES ($1, $2, 'disk', 'policies/test.zip', 'test.zip', now())`, archiveID, apiID)
-		require.NoError(t, err, "insert an archive row that must survive policy deletion")
-		require.NoError(t, service.DeleteSetting(ctx, clientID), "delete only the policy")
-		_, err = service.GetSettings(ctx, projectID, clientID)
-		require.ErrorIs(t, err, archive.ErrArchivePolicyNotFound, "deleted policy is no longer readable")
-		var archives int
-		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE id = $1", archiveID).Scan(&archives), "count the archive after policy deletion")
-		require.Equal(t, 1, archives, "deleting a policy does not delete archive rows")
-		require.ErrorIs(t, service.DeleteSetting(ctx, clientID), archive.ErrArchivePolicyNotFound, "deleting a missing policy fails")
+	t.Run("scope validation covers every operation", func(t *testing.T) {
+		want := archive.Policy{Enabled: true, ArchiveAfterWeeks: 20}
+		require.NoError(t, service.SetPolicy(ctx, scope, want), "set the initial policy for scope validation independently")
+		for _, invalid := range []archive.Scope{
+			{ProjectID: other.ID, ClientID: scope.ClientID},
+			{ProjectID: project.ID, ClientID: uuid.New()},
+		} {
+			_, err := service.GetPolicy(ctx, invalid)
+			require.ErrorIs(t, err, archive.ErrClientNotFound, "a missing or wrong-project client cannot be read")
+			require.ErrorIs(t, service.SetPolicy(ctx, invalid, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), archive.ErrClientNotFound, "a wrong scope cannot enable or update a policy")
+			require.ErrorIs(t, service.SetPolicy(ctx, invalid, archive.Policy{}), archive.ErrClientNotFound, "a wrong scope cannot disable a policy")
+			_, err = service.Create(ctx, invalid)
+			require.ErrorIs(t, err, archive.ErrClientNotFound, "a wrong scope cannot create an archive")
+			_, err = service.List(ctx, invalid, archive.ListQuery{})
+			require.ErrorIs(t, err, archive.ErrClientNotFound, "a wrong scope cannot list archives")
+			_, err = service.Open(ctx, invalid, uuid.New())
+			require.ErrorIs(t, err, archive.ErrClientNotFound, "a wrong scope cannot open archives")
+		}
+		_, err := service.GetPolicy(ctx, archive.Scope{})
+		require.ErrorIs(t, err, archive.ErrInvalidInput, "empty UUIDs are invalid input")
+		policy, err := service.GetPolicy(ctx, scope)
+		require.NoError(t, err, "read the original policy after wrong-scope mutations")
+		require.Equal(t, want, policy, "rejected mutations do not alter another project's policy")
 	})
 
-	t.Run("inactive client stays readable", func(t *testing.T) {
-		inactiveClient := clientByName(t, other, "api")
-		require.NoError(t, service.CreateSetting(ctx, other.ID.String(), inactiveClient.String(), 6), "create a policy before deactivating the client")
-		_, err := projectService.UpdateProject(ctx, other.ID, other.Name, nil)
-		require.NoError(t, err, "deactivate the client while retaining its row")
-		setting, err := service.GetSettings(ctx, other.ID.String(), inactiveClient.String())
-		require.NoError(t, err, "an inactive client policy stays readable")
-		require.Equal(t, 6, setting.ArhiveAfterWeeks, "deactivation does not change the stored week count")
+	t.Run("weeks are bounded by cutoff arithmetic", func(t *testing.T) {
+		for _, weeks := range []int{0, -1, archive.MaxArchiveAfterWeeks + 1} {
+			err := service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: weeks})
+			require.ErrorIs(t, err, archive.ErrInvalidInput, "unsupported week count %d is rejected", weeks)
+		}
+		require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: archive.MaxArchiveAfterWeeks}), "the largest safe week count is accepted")
+	})
+
+	t.Run("disable is idempotent and ignores weeks", func(t *testing.T) {
+		require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the initial policy before testing disabling")
+		for range 2 {
+			require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{ArchiveAfterWeeks: -1}), "disabling is idempotent and ignores the week count")
+		}
+		policy, err := service.GetPolicy(ctx, scope)
+		require.NoError(t, err, "a disabled policy remains readable")
+		require.Equal(t, archive.Policy{}, policy, "disabled policies have a canonical zero value")
+	})
+
+	t.Run("inactive client remains supported", func(t *testing.T) {
+		inactive := archive.Scope{ProjectID: other.ID, ClientID: clientByName(t, other, "api")}
+		want := archive.Policy{Enabled: true, ArchiveAfterWeeks: 6}
+		require.NoError(t, service.SetPolicy(ctx, inactive, want), "enable archiving before deactivation")
+		_, err := projectsService.UpdateProject(ctx, other.ID, other.Name, nil)
+		require.NoError(t, err, "deactivate the client without removing history")
+		got, err := service.GetPolicy(ctx, inactive)
+		require.NoError(t, err, "inactive clients retain their policy")
+		require.Equal(t, want, got, "deactivation preserves the archive policy")
+	})
+
+	t.Run("missing configuration only prevents enabling", func(t *testing.T) {
+		unconfigured := archive.NewArchiveService(pool, "")
+		require.ErrorIs(t, unconfigured.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), archive.ErrNotConfigured, "enabling requires a configured directory")
+		require.NoError(t, unconfigured.SetPolicy(ctx, scope, archive.Policy{}), "disabling does not require storage configuration")
+		result, err := unconfigured.Create(ctx, scope)
+		require.NoError(t, err, "an unconfigured but disabled client is an expected skip")
+		require.Equal(t, archive.SkippedDisabled, result.Outcome, "disabled clients do not require storage")
+		require.Nil(t, result.Archive, "skipped results have no archive")
 	})
 }

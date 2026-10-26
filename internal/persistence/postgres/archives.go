@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,71 +12,62 @@ import (
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
-type ArchivePolicy struct {
-	ProjectID         uuid.UUID
-	ClientID          uuid.UUID
-	ArchiveAfterWeeks int32
-	UpdatedAt         time.Time
+// WithArchiveClientLock holds a session lock and a dedicated connection for the
+// entire build, but does not keep a transaction open during file IO. All build
+// transactions must use this connection: losing it also loses ownership.
+func WithArchiveClientLock(ctx context.Context, pool *pgxpool.Pool, clientID uuid.UUID, fn func(*pgx.Conn) error) (locked bool, err error) {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return false, fmt.Errorf("acquire archive connection: %w", err)
+	}
+	defer conn.Release()
+	queries := sqlc.New(conn)
+	locked, err = queries.TryLockArchiveClient(ctx, clientID)
+	if err != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = conn.Conn().Close(closeCtx)
+		return false, fmt.Errorf("lock archive client: %w", err)
+	}
+	if !locked {
+		return false, nil
+	}
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		unlocked, unlockErr := queries.UnlockArchiveClient(cleanupCtx, clientID)
+		if unlockErr != nil || !unlocked {
+			// A session lock must never be returned to the pool.
+			_ = conn.Conn().Close(cleanupCtx)
+			if unlockErr == nil {
+				unlockErr = errors.New("archive client lock was not held")
+			}
+			err = errors.Join(err, fmt.Errorf("unlock archive client: %w", unlockErr))
+		}
+	}()
+	return true, fn(conn.Conn())
 }
 
-func CreateArchivePolicy(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID, weeks int32) (int64, error) {
-	rows, err := sqlc.New(pool).CreateArchivePolicy(ctx, sqlc.CreateArchivePolicyParams{
-		ArchiveAfterWeeks: weeks,
-		ClientID:          clientID,
-		ProjectID:         projectID,
+// BeginArchive freezes the exact cohort in the same transaction as its row.
+func BeginArchive(ctx context.Context, conn *pgx.Conn, input sqlc.InsertBuildingArchiveParams) (record sqlc.Archive, count int64, err error) {
+	err = pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		queries := sqlc.New(tx)
+		var err error
+		record, err = queries.InsertBuildingArchive(ctx, input)
+		if err != nil {
+			return err
+		}
+		count, err = queries.ClaimArchiveLogs(ctx, sqlc.ClaimArchiveLogsParams{
+			ArchiveID: &input.ID,
+			ClientID:  input.ClientID,
+			CutoffAt:  input.CutoffAt,
+		})
+		return err
 	})
 	if err != nil {
-		return 0, fmt.Errorf("create archive policy: %w", err)
+		return sqlc.Archive{}, 0, fmt.Errorf("begin archive: %w", err)
 	}
-	return rows, nil
-}
-
-func GetArchivePolicy(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID) (ArchivePolicy, error) {
-	row, err := sqlc.New(pool).GetArchivePolicy(ctx, sqlc.GetArchivePolicyParams{
-		ClientID:  clientID,
-		ProjectID: projectID,
-	})
-	if err != nil {
-		return ArchivePolicy{}, err
-	}
-	return ArchivePolicy{
-		ProjectID:         row.ProjectID,
-		ClientID:          row.ClientID,
-		ArchiveAfterWeeks: row.ArchiveAfterWeeks,
-		UpdatedAt:         row.UpdatedAt,
-	}, nil
-}
-
-func UpdateArchivePolicy(ctx context.Context, pool *pgxpool.Pool, clientID uuid.UUID, weeks int32) (int64, error) {
-	rows, err := sqlc.New(pool).UpdateArchivePolicy(ctx, sqlc.UpdateArchivePolicyParams{
-		ArchiveAfterWeeks: weeks,
-		ClientID:          clientID,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("update archive policy: %w", err)
-	}
-	return rows, nil
-}
-
-func InsertBuildingArchive(ctx context.Context, pool *pgxpool.Pool, id, clientID uuid.UUID, objectKey, fileName string, cutoffAt time.Time) error {
-	err := sqlc.New(pool).InsertBuildingArchive(ctx, sqlc.InsertBuildingArchiveParams{
-		ID:        id,
-		ClientID:  clientID,
-		ObjectKey: objectKey,
-		FileName:  fileName,
-		CutoffAt:  cutoffAt,
-	})
-	if err != nil {
-		return fmt.Errorf("insert building archive: %w", err)
-	}
-	return nil
-}
-
-func DeleteBuildingArchive(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
-	if err := sqlc.New(pool).DeleteBuildingArchive(ctx, id); err != nil {
-		return fmt.Errorf("delete building archive: %w", err)
-	}
-	return nil
+	return record, count, nil
 }
 
 type ReadyArchive struct {
@@ -86,11 +78,10 @@ type ReadyArchive struct {
 	LogCount  int64
 	FromAt    time.Time
 	ToAt      time.Time
-	CutoffAt  time.Time
 }
 
-func CompleteArchive(ctx context.Context, pool *pgxpool.Pool, archive ReadyArchive) error {
-	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+func CompleteArchive(ctx context.Context, conn *pgx.Conn, archive ReadyArchive) error {
+	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
 		queries := sqlc.New(tx)
 		rows, err := queries.MarkArchiveReady(ctx, sqlc.MarkArchiveReadyParams{
 			SizeBytes: archive.SizeBytes,
@@ -107,11 +98,17 @@ func CompleteArchive(ctx context.Context, pool *pgxpool.Pool, archive ReadyArchi
 		if rows != 1 {
 			return fmt.Errorf("archive %s was not building", archive.ID)
 		}
-		_, err = queries.DeleteClientLogsBefore(ctx, sqlc.DeleteClientLogsBeforeParams{
-			ClientID: archive.ClientID,
-			CutoffAt: archive.CutoffAt,
+		deleted, err := queries.DeleteArchivedLogs(ctx, sqlc.DeleteArchivedLogsParams{
+			ClientID:  archive.ClientID,
+			ArchiveID: &archive.ID,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if deleted != archive.LogCount {
+			return fmt.Errorf("archive %s contains %d logs but selected %d for deletion", archive.ID, archive.LogCount, deleted)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("complete archive: %w", err)
@@ -119,10 +116,24 @@ func CompleteArchive(ctx context.Context, pool *pgxpool.Pool, archive ReadyArchi
 	return nil
 }
 
-func DeleteArchivePolicy(ctx context.Context, pool *pgxpool.Pool, clientID uuid.UUID) (int64, error) {
-	rows, err := sqlc.New(pool).DeleteArchivePolicy(ctx, clientID)
+// AbortArchive releases claimed logs and removes only a building row. A false
+// result (including an already committed ready row) forbids file cleanup.
+func AbortArchive(ctx context.Context, conn *pgx.Conn, archiveID, clientID uuid.UUID) (removed bool, err error) {
+	err = pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		queries := sqlc.New(tx)
+		if err := queries.ReleaseArchiveLogs(ctx, sqlc.ReleaseArchiveLogsParams{
+			ID: archiveID, ClientID: clientID,
+		}); err != nil {
+			return err
+		}
+		rows, err := queries.DeleteBuildingArchive(ctx, sqlc.DeleteBuildingArchiveParams{
+			ID: archiveID, ClientID: clientID,
+		})
+		removed = rows == 1
+		return err
+	})
 	if err != nil {
-		return 0, fmt.Errorf("delete archive policy: %w", err)
+		return false, fmt.Errorf("abort archive: %w", err)
 	}
-	return rows, nil
+	return removed, nil
 }

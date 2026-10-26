@@ -3,7 +3,6 @@ package postgres_test
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -110,8 +109,9 @@ func TestArchiveLargeClient(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	dir := t.TempDir()
-	service := archive.NewArchiveService(env.logs, env.pool, dir)
-	require.NoError(t, service.CreateSetting(ctx, env.projectID, env.clientID.String(), 1), "create a one-week archive policy")
+	var service archive.Archiver = archive.NewArchiveService(env.pool, dir)
+	scope := archive.Scope{ProjectID: uuid.MustParse(env.projectID), ClientID: env.clientID}
+	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
 
 	recent := time.Now().UTC().Truncate(time.Microsecond)
 	old := recent.Add(-14 * 24 * time.Hour)
@@ -133,15 +133,17 @@ func TestArchiveLargeClient(t *testing.T) {
 	_, err := store.InsertLogs(ctx, env.pool, batch)
 	require.NoError(t, err, "insert %d old and %d new logs", oldCount, recentCount)
 
-	record, err := service.CreateArhiveForClient(ctx, env.projectID, env.clientID.String())
+	result, err := service.Create(ctx, scope)
 	require.NoError(t, err, "archive twenty full 5000-line pages")
+	require.Equal(t, archive.Created, result.Outcome, "a large client returns a completed archive")
+	require.NotNil(t, result.Archive, "large archive creation includes metadata")
+	record := result.Archive
 	require.Equal(t, int64(oldCount), record.LogCount, "only logs older than the cutoff are archived")
 	wantZip := make([]string, oldCount)
 	for i := range wantZip {
 		wantZip[i] = fmt.Sprintf("old %d", oldCount-1-i)
 	}
-	zipPath := filepath.Join(dir, filepath.FromSlash(record.ObjectKey))
-	require.Equal(t, wantZip, zipMessages(t, zipPath), "zip contains all old lines newest-first across all files")
+	require.Equal(t, wantZip, zipMessages(t, archiveBytes(t, ctx, service, scope, record.ID)), "zip contains all old lines newest-first across all files")
 
 	wantKept := make([]string, recentCount)
 	for i := range wantKept {
