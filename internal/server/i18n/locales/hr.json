@@ -103,6 +103,14 @@
   "archives.weeks": { "other": "tjedana" },
   "archives.invalid_weeks": { "other": "Unesite valjan pozitivan cijeli broj tjedana." },
   "archives.save_changes": { "other": "Spremi promjene" },
+  "archives.load_failed": {
+    "other": "Postavke arhiviranja nije moguće učitati. Pokušajte ponovno."
+  },
+  "archives.save_failed": {
+    "other": "Postavke arhiviranja nije moguće spremiti. Pokušajte ponovno."
+  },
+  "archives.saved": { "other": "Postavke arhiviranja su spremljene." },
+  "archives.not_configured": { "other": "Arhiviranje nije konfigurirano." },
   "projects.description": { "other": "Upravljajte projektima i klijentima koji šalju logove." },
   "projects.search": { "other": "Pretraži projekte" },
   "projects.search_placeholder": { "other": "Pretraži projekte..." },

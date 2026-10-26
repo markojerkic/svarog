@@ -1,4 +1,3 @@
-// UI preview only: drafts reset when the sheet opens and never leave the browser.
 function updateArchiveSettings(form, validate = false) {
   const enabled = form.elements.namedItem("enabled").checked;
   const weeks = form.elements.namedItem("archiveAfterWeeks");
@@ -13,6 +12,8 @@ function updateArchiveSettings(form, validate = false) {
   } else {
     weeks.removeAttribute("aria-invalid");
   }
+  const save = document.querySelector("#archive-save-changes");
+  if (save) save.disabled = invalid;
 }
 
 window.templ.lifecycle.register("#log-archive-settings-form", {
@@ -21,18 +22,16 @@ window.templ.lifecycle.register("#log-archive-settings-form", {
   },
 });
 
-document.addEventListener("dialog-open-change", (event) => {
-  if (event.target.id !== "log-archive-sheet" || !event.detail.open) return;
-  const form = event.target.querySelector("#log-archive-settings-form");
-  form.reset();
-  updateArchiveSettings(form);
-});
-
 document.addEventListener("input", (event) => {
   const form = event.target.closest("#log-archive-settings-form");
   if (form) updateArchiveSettings(form, true);
 });
 
-document.addEventListener("submit", (event) => {
-  if (event.target.id === "log-archive-settings-form") event.preventDefault();
+document.addEventListener("htmx:responseError", (event) => {
+  if (event.detail.ctx.elt.id !== "log-archive-settings-form") return;
+  const message = window.svarogI18n(
+    "archives.save_failed",
+    "Could not save archive settings. Try again.",
+  );
+  window.templ.toast.add({ title: message, type: "error", timeout: 4000 });
 });

@@ -65,6 +65,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
 	handlers.NewLogsRouter(self.logService, self.authService, self.projectsService, privateApi)
+	handlers.NewArchiveRouter(self.archiver, self.authService, self.projectsService, privateApi)
 	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
 	handlers.NewWsConnectionRouter(self.watchHub, self.authService, self.projectsService, privateApi)
 

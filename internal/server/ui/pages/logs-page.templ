@@ -105,7 +105,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 		}
 	}
 	if auth.IsAdmin(ctx) {
-		@archives.Trigger()
+		@archives.Trigger(props.ProjectId, props.ClientId)
 	}
 }
 

@@ -1,5 +1,8 @@
 package archives
 
+import "fmt"
+import "strconv"
+import "github.com/markojerkic/svarog/internal/lib/archive"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
@@ -8,12 +11,16 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/label"
 import "github.com/markojerkic/svarog/internal/server/ui/components/sheet"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
-templ Trigger() {
+templ Trigger(projectID, clientID string) {
 	@button.Button(button.Props{
 		ID:      "log-archive-trigger",
 		Variant: button.VariantOutline,
 		Size:    button.SizeSm,
 		Attributes: utils.MergeAttributes(sheet.TriggerFor("log-archive-sheet"), templ.Attributes{
+			"hx-get":     fmt.Sprintf("/logs/%s/%s/archives/settings", projectID, clientID),
+			"hx-target":  "#log-archive-settings-body",
+			"hx-swap":    "innerHTML",
+			"hx-trigger": "click",
 			"aria-label": i18n.T(ctx, "archives.title"),
 			"title":      i18n.T(ctx, "archives.title"),
 		}),
@@ -36,68 +43,16 @@ templ SettingsSheet() {
 					{ i18n.T(ctx, "archives.all_instances") }
 				}
 			}
-			<div class="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
-				<form id="log-archive-settings-form" hx-boost="false" class="space-y-6">
-					<div class="flex items-center justify-between gap-4">
-						<div class="space-y-1">
-							@label.Label(label.Props{For: "archive-enabled"}) {
-								{ i18n.T(ctx, "archives.title") }
-							}
-							<p id="archive-enabled-description" class="text-xs text-muted-foreground">
-								<span data-archive-enabled hidden>{ i18n.T(ctx, "archives.enabled") }</span>
-								<span data-archive-disabled>{ i18n.T(ctx, "archives.disabled") }</span>
-							</p>
-						</div>
-						<label class="relative inline-flex shrink-0 cursor-pointer items-center">
-							<input
-								id="archive-enabled"
-								name="enabled"
-								type="checkbox"
-								role="switch"
-								aria-describedby="archive-enabled-description"
-								class="peer sr-only"
-							/>
-							<span aria-hidden="true" class="inline-flex h-5 w-8 items-center rounded-full border border-transparent bg-input p-0.5 transition-colors peer-checked:bg-primary peer-checked:[&>span]:translate-x-3 peer-checked:[&>span]:bg-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 motion-reduce:transition-none">
-								<span class="size-3.5 rounded-full bg-background shadow-xs transition-transform motion-reduce:transition-none"></span>
-							</span>
-						</label>
-					</div>
-					<div class="space-y-2">
-						@label.Label(label.Props{For: "archive-after-weeks"}) {
-							{ i18n.T(ctx, "archives.older_than") }
-						}
-						<div class="flex items-center gap-2.5">
-							@input.Input(input.Props{
-								ID:       "archive-after-weeks",
-								Name:     "archiveAfterWeeks",
-								Type:     "number",
-								Value:    "4",
-								Class:    "w-22 tabular-nums",
-								Disabled: true,
-								Required: true,
-								Attributes: templ.Attributes{
-									"min":              "1",
-									"max":              "2147483647",
-									"step":             "1",
-									"inputmode":        "numeric",
-									"aria-describedby": "archive-weeks-unit archive-weeks-error",
-								},
-							})
-							<span id="archive-weeks-unit" class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.weeks") }</span>
-						</div>
-						<p id="archive-weeks-error" class="text-xs text-destructive" role="status" hidden>{ i18n.T(ctx, "archives.invalid_weeks") }</p>
-					</div>
-				</form>
-			</div>
+			<div id="log-archive-settings-body" class="min-h-0 flex-1 overflow-y-auto px-6 pb-6"></div>
 			@sheet.Footer(sheet.FooterProps{Class: "shrink-0 gap-3 border-t bg-muted/50 p-6"}) {
 				<div class="flex justify-end gap-2">
 					@button.Button(button.Props{Variant: button.VariantOutline, Attributes: sheet.Close(ctx)}) {
 						{ i18n.T(ctx, "common.cancel") }
 					}
 					@button.Button(button.Props{
-						Type:     button.TypeSubmit,
-						Form:     "log-archive-settings-form",
-						Disabled: true,
+						ID:   "archive-save-changes",
+						Type: button.TypeSubmit,
+						Form: "log-archive-settings-form",
 					}) {
 						{ i18n.T(ctx, "archives.save_changes") }
 					}
@@ -105,4 +60,77 @@ templ SettingsSheet() {
 			}
 		}
 	}
+}
+
+type SettingsFormProps struct {
+	ProjectID string
+	ClientID  string
+	Policy    archive.Policy
+}
+
+templ SettingsForm(props SettingsFormProps) {
+	{{ weeks := props.Policy.ArchiveAfterWeeks }}
+	if weeks < 1 {
+		{{ weeks = 4 }}
+	}
+	<form
+		id="log-archive-settings-form"
+		hx-post={ fmt.Sprintf("/logs/%s/%s/archives/settings", props.ProjectID, props.ClientID) }
+		hx-disabled-elt="#archive-save-changes"
+		hx-target="#log-archive-settings-body"
+		hx-swap="innerHTML"
+		hx-boost="false"
+		class="space-y-6"
+	>
+		<div class="flex items-center justify-between gap-4">
+			<div class="space-y-1">
+				@label.Label(label.Props{For: "archive-enabled"}) {
+					{ i18n.T(ctx, "archives.title") }
+				}
+				<p id="archive-enabled-description" class="text-xs text-muted-foreground">
+					<span data-archive-enabled hidden?={ !props.Policy.Enabled }>{ i18n.T(ctx, "archives.enabled") }</span>
+					<span data-archive-disabled hidden?={ props.Policy.Enabled }>{ i18n.T(ctx, "archives.disabled") }</span>
+				</p>
+			</div>
+			<label class="relative inline-flex shrink-0 cursor-pointer items-center">
+				<input
+					id="archive-enabled"
+					name="enabled"
+					type="checkbox"
+					role="switch"
+					aria-describedby="archive-enabled-description"
+					checked?={ props.Policy.Enabled }
+					class="peer sr-only"
+				/>
+				<span aria-hidden="true" class="inline-flex h-5 w-8 items-center rounded-full border border-transparent bg-input p-0.5 transition-colors peer-checked:bg-primary peer-checked:[&>span]:translate-x-3 peer-checked:[&>span]:bg-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 motion-reduce:transition-none">
+					<span class="size-3.5 rounded-full bg-background shadow-xs transition-transform motion-reduce:transition-none"></span>
+				</span>
+			</label>
+		</div>
+		<div class="space-y-2">
+			@label.Label(label.Props{For: "archive-after-weeks"}) {
+				{ i18n.T(ctx, "archives.older_than") }
+			}
+			<div class="flex items-center gap-2.5">
+				@input.Input(input.Props{
+					ID:       "archive-after-weeks",
+					Name:     "archiveAfterWeeks",
+					Type:     "number",
+					Value:    strconv.Itoa(weeks),
+					Class:    "w-22 tabular-nums",
+					Disabled: !props.Policy.Enabled,
+					Required: true,
+					Attributes: templ.Attributes{
+						"min":              "1",
+						"max":              strconv.Itoa(archive.MaxArchiveAfterWeeks),
+						"step":             "1",
+						"inputmode":        "numeric",
+						"aria-describedby": "archive-weeks-unit archive-weeks-error",
+					},
+				})
+				<span id="archive-weeks-unit" class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.weeks") }</span>
+			</div>
+			<p id="archive-weeks-error" class="text-xs text-destructive" role="status" hidden>{ i18n.T(ctx, "archives.invalid_weeks") }</p>
+		</div>
+	</form>
 }
