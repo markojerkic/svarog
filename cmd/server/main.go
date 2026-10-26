@@ -13,6 +13,7 @@ import (
 	envParser "github.com/caarlos0/env/v11"
 	"github.com/jackc/pgx/v5/pgxpool"
 	dotenv "github.com/joho/godotenv"
+	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
@@ -88,6 +89,7 @@ func main() {
 	}
 
 	projectsService := projects.NewPostgresProjectsService(postgresPool)
+	archiver := archive.NewArchiveService(postgresPool, env.ArchiveDir)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {
@@ -132,6 +134,7 @@ func main() {
 			LogService:            logsService,
 			AuthService:           authService,
 			ProjectsService:       projectsService,
+			Archiver:              archiver,
 			NatsCredentialService: natsCredService,
 			WatchHub:              watchHub,
 		})

@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
@@ -22,6 +23,7 @@ type HttpServer struct {
 	sessionStore          sessions.Store
 	authService           auth.AuthService
 	projectsService       projects.ProjectsService
+	archiver              archive.Archiver
 	natsCredentialService *serverauth.NatsCredentialService
 	watchHub              *websocket.WatchHub
 
@@ -34,6 +36,7 @@ type HttpServerOptions struct {
 	SessionStore          sessions.Store
 	AuthService           auth.AuthService
 	ProjectsService       projects.ProjectsService
+	Archiver              archive.Archiver
 	NatsCredentialService *serverauth.NatsCredentialService
 	WatchHub              *websocket.WatchHub
 
@@ -88,6 +91,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		serverPort:            options.ServerPort,
 		authService:           options.AuthService,
 		projectsService:       options.ProjectsService,
+		archiver:              options.Archiver,
 		natsCredentialService: options.NatsCredentialService,
 		watchHub:              options.WatchHub,
 	}
