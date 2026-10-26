@@ -26,12 +26,3 @@ document.addEventListener("input", (event) => {
   const form = event.target.closest("#log-archive-settings-form");
   if (form) updateArchiveSettings(form, true);
 });
-
-document.addEventListener("htmx:responseError", (event) => {
-  if (event.detail.ctx.elt.id !== "log-archive-settings-form") return;
-  const message = window.svarogI18n(
-    "archives.save_failed",
-    "Could not save archive settings. Try again.",
-  );
-  window.templ.toast.add({ title: message, type: "error", timeout: 4000 });
-});

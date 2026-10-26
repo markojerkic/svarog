@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -24,7 +25,7 @@ type ArchiveRouter struct {
 type archiveSettingsForm struct {
 	ProjectID         string `param:"projectId"`
 	ClientID          string `param:"clientId"`
-	Enabled           bool   `form:"enabled"`
+	Enabled           string `form:"enabled"`
 	ArchiveAfterWeeks string `form:"archiveAfterWeeks"`
 }
 
@@ -48,7 +49,7 @@ func NewArchiveRouter(
 func (a *ArchiveRouter) getSettings(c *echo.Context) error {
 	scope, err := archiveScope(c.Param("projectId"), c.Param("clientId"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "auth.invalid_ids"))
+		return archiveJSONError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "auth.invalid_ids"))
 	}
 	policy, err := a.archiver.GetPolicy(c.Request().Context(), scope)
 	if err != nil {
@@ -64,18 +65,18 @@ func (a *ArchiveRouter) getSettings(c *echo.Context) error {
 func (a *ArchiveRouter) saveSettings(c *echo.Context) error {
 	var form archiveSettingsForm
 	if err := c.Bind(&form); err != nil {
-		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+		return archiveJSONError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 	scope, err := archiveScope(form.ProjectID, form.ClientID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "auth.invalid_ids"))
+		return archiveJSONError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "auth.invalid_ids"))
 	}
 
-	policy := archive.Policy{Enabled: form.Enabled}
-	if form.Enabled {
+	policy := archive.Policy{Enabled: archiveFormEnabled(form.Enabled)}
+	if policy.Enabled {
 		weeks, err := strconv.Atoi(form.ArchiveAfterWeeks)
 		if err != nil || weeks < 1 || weeks > archive.MaxArchiveAfterWeeks {
-			return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "archives.invalid_weeks"))
+			return archiveJSONError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "archives.invalid_weeks"))
 		}
 		policy.ArchiveAfterWeeks = weeks
 	}
@@ -89,6 +90,15 @@ func (a *ArchiveRouter) saveSettings(c *echo.Context) error {
 		ClientID:  scope.ClientID.String(),
 		Policy:    policy,
 	}))
+}
+
+func archiveFormEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "t", "true", "on", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func archiveScope(projectID, clientID string) (archive.Scope, error) {
@@ -110,10 +120,15 @@ func archiveError(c *echo.Context, err error, fallback string) error {
 		htmx.AddErrorToast(c, i18n.T(ctx, "auth.project_client_missing"))
 		return utils.HxRedirect(c, "/")
 	case errors.Is(err, archive.ErrInvalidInput):
-		return c.JSON(http.StatusBadRequest, i18n.T(ctx, "archives.invalid_weeks"))
+		return archiveJSONError(c, http.StatusBadRequest, i18n.T(ctx, "archives.invalid_weeks"))
 	case errors.Is(err, archive.ErrNotConfigured):
-		return c.JSON(http.StatusServiceUnavailable, i18n.T(ctx, "archives.not_configured"))
+		return archiveJSONError(c, http.StatusServiceUnavailable, i18n.T(ctx, "archives.not_configured"))
 	default:
-		return c.JSON(http.StatusInternalServerError, fallback)
+		return archiveJSONError(c, http.StatusInternalServerError, fallback)
 	}
+}
+
+func archiveJSONError(c *echo.Context, status int, message string) error {
+	htmx.AddErrorToast(c, message)
+	return c.JSON(status, message)
 }
