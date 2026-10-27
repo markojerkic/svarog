@@ -17,8 +17,8 @@ templ Trigger(projectID, clientID string) {
 		Variant: button.VariantOutline,
 		Size:    button.SizeSm,
 		Attributes: utils.MergeAttributes(sheet.TriggerFor("log-archive-sheet"), templ.Attributes{
-			"hx-get":     fmt.Sprintf("/logs/%s/%s/archives/settings", projectID, clientID),
-			"hx-target":  "#log-archive-settings-body",
+			"hx-get":     ArchivePanelURL(projectID, clientID),
+			"hx-target":  "#log-archive-panel",
 			"hx-swap":    "innerHTML",
 			"hx-trigger": "click",
 			"aria-label": i18n.T(ctx, "archives.title"),
@@ -43,7 +43,7 @@ templ SettingsSheet() {
 					{ i18n.T(ctx, "archives.all_instances") }
 				}
 			}
-			<div id="log-archive-settings-body" class="min-h-0 flex-1 overflow-y-auto px-6 pb-6"></div>
+			<div id="log-archive-panel" class="min-h-0 flex-1 overflow-y-auto px-6 pb-6"></div>
 			@sheet.Footer(sheet.FooterProps{Class: "shrink-0 gap-3 border-t bg-muted/50 p-6"}) {
 				<div class="flex justify-end gap-2">
 					@button.Button(button.Props{Variant: button.VariantOutline, Attributes: sheet.Close(ctx)}) {

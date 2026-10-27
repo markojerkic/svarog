@@ -1,0 +1,100 @@
+package archives
+
+import "github.com/markojerkic/svarog/internal/lib/archive"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+
+type PanelProps struct {
+	Settings SettingsFormProps
+	Page     archive.Page
+}
+
+templ Panel(props PanelProps) {
+	<div id="log-archive-settings-body">
+		@SettingsForm(props.Settings)
+	</div>
+	@ArchiveList(props.Settings.ProjectID, props.Settings.ClientID, props.Page)
+}
+
+templ ArchiveList(projectID, clientID string, page archive.Page) {
+	<section id="log-archive-list" class="mt-8 space-y-3 border-t pt-6" aria-labelledby="log-archive-list-title">
+		<h3 id="log-archive-list-title" class="text-sm font-medium">{ i18n.T(ctx, "archives.completed") }</h3>
+		if len(page.Items) == 0 {
+			<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.empty") }</p>
+		} else {
+			<ul id="log-archive-items" class="space-y-2">
+				for _, item := range page.Items {
+					@archiveItem(projectID, clientID, item, false)
+				}
+			</ul>
+			if page.Next != nil {
+				@archiveLoadOlder(ArchiveListURL(projectID, clientID, page.Next))
+			}
+		}
+	</section>
+}
+
+templ ArchiveListMore(projectID, clientID string, page archive.Page) {
+	for _, item := range page.Items {
+		@archiveItem(projectID, clientID, item, true)
+	}
+	if page.Next != nil {
+		@archiveLoadOlder(ArchiveListURL(projectID, clientID, page.Next))
+	} else {
+		<span id="archive-load-older" hidden></span>
+	}
+}
+
+templ archiveItem(projectID, clientID string, item archive.Archive, oob bool) {
+	{{ created := formatArchiveTime(ctx, item.CreatedAt) }}
+	{{ summary := formatArchiveSummary(ctx, item.LogCount, item.SizeBytes) }}
+	{{ span := formatArchiveRange(ctx, item.FromAt, item.ToAt) }}
+	<li
+		class="flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5"
+		if oob {
+			hx-swap-oob="beforeend:#log-archive-items"
+		}
+	>
+		<div class="min-w-0 space-y-0.5">
+			<p class="text-sm font-medium">{ created }</p>
+			<p class="text-xs text-muted-foreground">{ summary }</p>
+			if span != "" {
+				<p class="text-xs text-muted-foreground">{ span }</p>
+			}
+		</div>
+		@button.Button(button.Props{
+			Variant: button.VariantOutline,
+			Size:    button.SizeIconSm,
+			Href:    ArchiveDownloadURL(projectID, clientID, item.ID.String()),
+			Class:   "shrink-0",
+			Attributes: templ.Attributes{
+				"hx-boost":   "false",
+				"download":   item.FileName,
+				"title":      item.FileName,
+				"aria-label": i18n.Format(ctx, i18n.Message{ID: "archives.download_named", Data: map[string]any{"Created": created}}),
+			},
+		}) {
+			@icon.Download(icon.Props{Class: "size-3.5"})
+		}
+	</li>
+}
+
+templ archiveLoadOlder(url string) {
+	@button.Button(button.Props{
+		ID:      "archive-load-older",
+		Variant: button.VariantOutline,
+		Size:    button.SizeSm,
+		Class:   "w-full",
+		Type:    button.TypeButton,
+		Attributes: templ.Attributes{
+			"hx-get":          url,
+			"hx-target":       "this",
+			"hx-swap":         "outerHTML",
+			"hx-boost":        "false",
+			"hx-disabled-elt": "this",
+		},
+	}) {
+		{ i18n.T(ctx, "archives.load_older") }
+	}
+}
