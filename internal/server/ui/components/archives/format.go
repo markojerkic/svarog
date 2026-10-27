@@ -15,6 +15,10 @@ func ArchivePanelURL(projectID, clientID string) string {
 	return fmt.Sprintf("/logs/%s/%s/archives", projectID, clientID)
 }
 
+func ArchiveSettingsURL(projectID, clientID string) string {
+	return ArchivePanelURL(projectID, clientID) + "/settings"
+}
+
 func ArchiveDownloadURL(projectID, clientID, archiveID string) string {
 	return fmt.Sprintf("/logs/%s/%s/archives/%s", projectID, clientID, archiveID)
 }

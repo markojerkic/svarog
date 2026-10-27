@@ -11,9 +11,10 @@ type PanelProps struct {
 }
 
 templ Panel(props PanelProps) {
-	<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+	<div id="log-archive-view" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-6">
+		@ViewSwitch(props.Settings.ProjectID, props.Settings.ClientID, "archives")
 		@Rule(props.Settings)
-		@RunControl(props.Settings, false)
+		@RunControl(props.Settings)
 		@ArchiveList(props.Settings.ProjectID, props.Settings.ClientID, props.Page)
 	</div>
 }

@@ -170,7 +170,7 @@ func (a *ArchiveRouter) getSettings(c *echo.Context) error {
 	if err != nil {
 		return archiveError(c, err, i18n.T(c.Request().Context(), "archives.load_failed"))
 	}
-	return utils.Render(c, http.StatusOK, archivecomponents.SettingsForm(archivecomponents.SettingsFormProps{
+	return utils.Render(c, http.StatusOK, archivecomponents.SettingsEditor(archivecomponents.SettingsFormProps{
 		ProjectID: scope.ProjectID.String(),
 		ClientID:  scope.ClientID.String(),
 		Policy:    policy,
@@ -200,7 +200,7 @@ func (a *ArchiveRouter) saveSettings(c *echo.Context) error {
 		return archiveError(c, err, i18n.T(c.Request().Context(), "archives.save_failed"))
 	}
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "archives.saved"))
-	return utils.Render(c, http.StatusOK, archivecomponents.SettingsSaved(archivecomponents.SettingsFormProps{
+	return utils.Render(c, http.StatusOK, archivecomponents.SettingsEditor(archivecomponents.SettingsFormProps{
 		ProjectID: scope.ProjectID.String(),
 		ClientID:  scope.ClientID.String(),
 		Policy:    policy,
