@@ -88,11 +88,12 @@ templ archiveLoadOlder(url string) {
 		Class:   "w-full",
 		Type:    button.TypeButton,
 		Attributes: templ.Attributes{
-			"hx-get":          url,
-			"hx-target":       "this",
-			"hx-swap":         "outerHTML",
-			"hx-boost":        "false",
-			"hx-disabled-elt": "this",
+			"hx-get":     url,
+			"hx-target":  "this",
+			"hx-swap":    "outerHTML",
+			"hx-boost":   "false",
+			"hx-disable": "this",
+			"hx-sync":    "#log-archive-sheet:drop",
 		},
 	}) {
 		{ i18n.T(ctx, "archives.load_older") }

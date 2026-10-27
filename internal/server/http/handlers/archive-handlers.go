@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -49,6 +50,7 @@ func NewArchiveRouter(
 	group.GET("", router.getPanel)
 	group.GET("/settings", router.getSettings)
 	group.POST("/settings", router.saveSettings)
+	group.POST("/create", router.createArchive)
 	group.GET("/list", router.listArchives)
 	group.GET("/:archiveId", router.downloadArchive)
 	return router
@@ -95,6 +97,39 @@ func (a *ArchiveRouter) listArchives(c *echo.Context) error {
 		scope.ClientID.String(),
 		page,
 	))
+}
+
+func (a *ArchiveRouter) createArchive(c *echo.Context) error {
+	scope, err := archiveScope(c.Param("projectId"), c.Param("clientId"))
+	if err != nil {
+		return archiveJSONError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "auth.invalid_ids"))
+	}
+	ctx := c.Request().Context()
+	result, err := a.archiver.Create(ctx, scope)
+	if err != nil {
+		slog.ErrorContext(ctx, "Manual archiving failed", "projectID", scope.ProjectID, "clientID", scope.ClientID, "error", err)
+		return archiveError(c, err, i18n.T(ctx, "archives.create_failed"))
+	}
+	switch result.Outcome {
+	case archive.Created:
+		page, err := a.archiver.List(ctx, scope, archive.ListQuery{})
+		if err != nil {
+			slog.ErrorContext(ctx, "Could not refresh archives after creation", "clientID", scope.ClientID, "error", err)
+			return archiveJSONError(c, http.StatusInternalServerError, i18n.T(ctx, "archives.created_list_failed"))
+		}
+		htmx.AddSuccessToast(c, i18n.T(ctx, "archives.created"))
+		return utils.Render(c, http.StatusOK, archivecomponents.ArchiveList(scope.ProjectID.String(), scope.ClientID.String(), page))
+	case archive.SkippedNoLogs:
+		htmx.AddInfoToast(c, i18n.T(ctx, "archives.no_eligible_logs"))
+	case archive.SkippedDisabled:
+		htmx.AddInfoToast(c, i18n.T(ctx, "archives.enable_first"))
+	case archive.SkippedBusy:
+		htmx.AddInfoToast(c, i18n.T(ctx, "archives.already_running"))
+	default:
+		slog.ErrorContext(ctx, "Unexpected manual archive outcome", "clientID", scope.ClientID, "outcome", result.Outcome)
+		return archiveJSONError(c, http.StatusInternalServerError, i18n.T(ctx, "archives.create_failed"))
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (a *ArchiveRouter) downloadArchive(c *echo.Context) error {

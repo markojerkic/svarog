@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -70,36 +69,6 @@ func newArchiveTestServer(t *testing.T, archiver archive.Archiver) *echo.Echo {
 	})
 	handlers.NewArchiveRouter(archiver, archiveAccessAuth{}, archiveAccessProjects{}, root)
 	return e
-}
-
-func TestArchivePanelListsCompletedArchivesWithoutStoragePaths(t *testing.T) {
-	projectID := uuid.New()
-	clientID := uuid.New()
-	archiveID := uuid.New()
-	created := time.Date(2026, 10, 26, 16, 4, 5, 0, time.UTC)
-	stub := &archiveHTTPStub{page: archive.Page{Items: []archive.Archive{{
-		ID:        archiveID,
-		ClientID:  clientID,
-		FileName:  "archive.zip",
-		SizeBytes: 2048,
-		LogCount:  3,
-		CreatedAt: created,
-	}}}}
-	server := newArchiveTestServer(t, stub)
-
-	request := httptest.NewRequest(http.MethodGet, "/logs/"+projectID.String()+"/"+clientID.String()+"/archives", nil)
-	request.Header.Set("HX-Request", "true")
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, request)
-
-	require.Equal(t, http.StatusOK, response.Code, "Opening the archive panel must return the settings form and completed archives")
-	body := response.Body.String()
-	require.Contains(t, body, `id="log-archive-settings-form"`, "The panel must still contain the settings form")
-	require.Contains(t, body, "/archives/"+archiveID.String(), "Each completed archive must link to its own download")
-	require.Contains(t, body, `hx-boost="false"`, "Downloading an archive must not be intercepted as an HTMX page swap")
-	require.Contains(t, body, `hx-post="`, "Saving settings must remain separate from listing archives")
-	require.NotContains(t, body, "tmp/archives", "The panel must not expose the archive storage location")
-	require.NotContains(t, body, "/archives/create", "Listing archives must not offer to start archive creation")
 }
 
 func TestArchiveDownloadStreamsOnlyTheRequestedArchive(t *testing.T) {

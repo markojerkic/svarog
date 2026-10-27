@@ -105,6 +105,21 @@
   "archives.save_failed": { "other": "Could not save archive settings. Try again." },
   "archives.saved": { "other": "Archive settings saved." },
   "archives.not_configured": { "other": "Archiving is not configured." },
+  "archives.run": { "other": "Run archiving" },
+  "archives.running": { "other": "Archiving…" },
+  "archives.run_description": {
+    "other": "Uses saved settings. Archived logs are moved from the log viewer into a ZIP file."
+  },
+  "archives.enable_first": { "other": "Enable and save archiving first." },
+  "archives.created": { "other": "Archive created." },
+  "archives.no_eligible_logs": { "other": "No logs are older than the saved archive threshold." },
+  "archives.already_running": { "other": "Archiving is already in progress for this client." },
+  "archives.create_failed": {
+    "other": "Could not confirm the archiving result. Reopen the archive list before trying again."
+  },
+  "archives.created_list_failed": {
+    "other": "Archive created, but the list could not be refreshed. Reopen the archive panel."
+  },
   "archives.completed": { "other": "Completed archives" },
   "archives.empty": { "other": "No completed archives." },
   "archives.summary": {

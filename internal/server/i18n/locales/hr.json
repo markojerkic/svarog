@@ -111,6 +111,23 @@
   },
   "archives.saved": { "other": "Postavke arhiviranja su spremljene." },
   "archives.not_configured": { "other": "Arhiviranje nije konfigurirano." },
+  "archives.run": { "other": "Pokreni arhiviranje" },
+  "archives.running": { "other": "Arhiviranje u tijeku…" },
+  "archives.run_description": {
+    "other": "Koristi spremljene postavke. Arhivirani logovi premještaju se iz preglednika logova u ZIP datoteku."
+  },
+  "archives.enable_first": { "other": "Najprije uključite i spremite arhiviranje." },
+  "archives.created": { "other": "Arhiva je izrađena." },
+  "archives.no_eligible_logs": {
+    "other": "Nema logova starijih od spremljenog praga arhiviranja."
+  },
+  "archives.already_running": { "other": "Arhiviranje je već u tijeku za ovog klijenta." },
+  "archives.create_failed": {
+    "other": "Rezultat arhiviranja nije moguće potvrditi. Ponovno otvorite popis arhiva prije ponovnog pokušaja."
+  },
+  "archives.created_list_failed": {
+    "other": "Arhiva je izrađena, ali popis nije moguće osvježiti. Ponovno otvorite panel arhiviranja."
+  },
   "archives.completed": { "other": "Dovršene arhive" },
   "archives.empty": { "other": "Nema dovršenih arhiva." },
   "archives.summary": {

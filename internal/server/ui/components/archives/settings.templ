@@ -76,7 +76,8 @@ templ SettingsForm(props SettingsFormProps) {
 	<form
 		id="log-archive-settings-form"
 		hx-post={ fmt.Sprintf("/logs/%s/%s/archives/settings", props.ProjectID, props.ClientID) }
-		hx-disabled-elt="#archive-save-changes"
+		hx-disable="#archive-save-changes, #archive-run"
+		hx-sync="#log-archive-sheet:drop"
 		hx-target="#log-archive-settings-body"
 		hx-swap="innerHTML"
 		hx-boost="false"
@@ -134,4 +135,33 @@ templ SettingsForm(props SettingsFormProps) {
 			<p id="archive-weeks-error" class="text-xs text-destructive" role="status" hidden>{ i18n.T(ctx, "archives.invalid_weeks") }</p>
 		</div>
 	</form>
+	<div class="mt-6 space-y-3 border-t pt-6">
+		<p id="archive-run-description" class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.run_description") }</p>
+		@button.Button(button.Props{
+			ID:       "archive-run",
+			Variant:  button.VariantOutline,
+			Size:     button.SizeSm,
+			Class:    "w-full",
+			Disabled: !props.Policy.Enabled,
+			Attributes: templ.Attributes{
+				"hx-post":          ArchivePanelURL(props.ProjectID, props.ClientID) + "/create",
+				"hx-target":        "#log-archive-list",
+				"hx-swap":          "outerHTML",
+				"hx-sync":          "#log-archive-sheet:drop",
+				"hx-disable":       "#archive-run, #archive-save-changes, #log-archive-settings-form input, #archive-load-older",
+				"hx-indicator":     "this",
+				"aria-describedby": "archive-run-description",
+			},
+		}) {
+			<span class="svarog-indicator-container" aria-hidden="true">
+				<span data-fallback>@icon.Archive(icon.Props{Class: "size-3.5"})</span>
+				<span>@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})</span>
+			</span>
+			<span class="svarog-indicator" data-fallback>{ i18n.T(ctx, "archives.run") }</span>
+			<span class="svarog-indicator" role="status">{ i18n.T(ctx, "archives.running") }</span>
+		}
+		if !props.Policy.Enabled {
+			<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.enable_first") }</p>
+		}
+	</div>
 }
