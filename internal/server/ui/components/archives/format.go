@@ -30,6 +30,17 @@ func ArchiveListURL(projectID, clientID string, next *archive.Cursor) string {
 	return path + "?" + query.Encode()
 }
 
+func formatRuleAge(ctx context.Context, weeks int) string {
+	if weeks < 1 {
+		weeks = 1
+	}
+	return i18n.Format(ctx, i18n.Message{
+		ID:    "archives.rule_age",
+		Count: &weeks,
+		Data:  map[string]any{"Count": weeks},
+	})
+}
+
 func formatArchiveTime(ctx context.Context, value time.Time) string {
 	value = value.In(time.Local)
 	if i18n.LanguageFrom(ctx) == i18n.Croatian {

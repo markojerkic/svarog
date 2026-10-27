@@ -96,6 +96,17 @@
   "logs.link_copied": { "other": "Poveznica na redak loga kopirana je u međuspremnik." },
   "logs.copy_failed": { "other": "Poveznicu na log nije moguće kopirati. Pokušajte ponovno." },
   "archives.title": { "other": "Arhiviranje" },
+  "archives.edit": { "other": "Uredi" },
+  "archives.cancel_edit": { "other": "Odustani" },
+  "archives.on": { "other": "Uključeno" },
+  "archives.rule_off": { "other": "Isključeno" },
+  "archives.rule_off_hint": { "other": "Nema aktivnog pravila." },
+  "archives.rule_on": { "other": "Uključeno za sve instance." },
+  "archives.rule_age": {
+    "one": "Starije od {{.Count}} tjedna",
+    "few": "Starije od {{.Count}} tjedna",
+    "other": "Starije od {{.Count}} tjedana"
+  },
   "archives.all_instances": { "other": "Pravilo vrijedi za sve instance ovog klijenta." },
   "archives.enabled": { "other": "Uključeno za ovog klijenta." },
   "archives.disabled": { "other": "Isključeno za ovog klijenta." },

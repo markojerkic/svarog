@@ -94,6 +94,16 @@
   "logs.link_copied": { "other": "Copied log line link to clipboard" },
   "logs.copy_failed": { "other": "Could not copy log link. Try again." },
   "archives.title": { "other": "Archiving" },
+  "archives.edit": { "other": "Edit" },
+  "archives.cancel_edit": { "other": "Cancel" },
+  "archives.on": { "other": "Enabled" },
+  "archives.rule_off": { "other": "Disabled" },
+  "archives.rule_off_hint": { "other": "No active rule." },
+  "archives.rule_on": { "other": "Enabled for all instances." },
+  "archives.rule_age": {
+    "one": "Older than {{.Count}} week",
+    "other": "Older than {{.Count}} weeks"
+  },
   "archives.all_instances": { "other": "This rule applies to all instances of this client." },
   "archives.enabled": { "other": "Enabled for this client." },
   "archives.disabled": { "other": "Disabled for this client." },

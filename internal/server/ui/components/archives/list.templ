@@ -11,14 +11,15 @@ type PanelProps struct {
 }
 
 templ Panel(props PanelProps) {
-	<div id="log-archive-settings-body">
-		@SettingsForm(props.Settings)
+	<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+		@Rule(props.Settings)
+		@RunControl(props.Settings, false)
+		@ArchiveList(props.Settings.ProjectID, props.Settings.ClientID, props.Page)
 	</div>
-	@ArchiveList(props.Settings.ProjectID, props.Settings.ClientID, props.Page)
 }
 
 templ ArchiveList(projectID, clientID string, page archive.Page) {
-	<section id="log-archive-list" class="mt-8 space-y-3 border-t pt-6" aria-labelledby="log-archive-list-title">
+	<section id="log-archive-list" class="space-y-3" aria-labelledby="log-archive-list-title">
 		<h3 id="log-archive-list-title" class="text-sm font-medium">{ i18n.T(ctx, "archives.completed") }</h3>
 		if len(page.Items) == 0 {
 			<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.empty") }</p>

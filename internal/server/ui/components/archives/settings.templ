@@ -39,25 +39,8 @@ templ SettingsSheet() {
 				@sheet.Title() {
 					{ i18n.T(ctx, "archives.title") }
 				}
-				@sheet.Description() {
-					{ i18n.T(ctx, "archives.all_instances") }
-				}
 			}
-			<div id="log-archive-panel" class="min-h-0 flex-1 overflow-y-auto px-6 pb-6"></div>
-			@sheet.Footer(sheet.FooterProps{Class: "shrink-0 gap-3 border-t bg-muted/50 p-6"}) {
-				<div class="flex justify-end gap-2">
-					@button.Button(button.Props{Variant: button.VariantOutline, Attributes: sheet.Close(ctx)}) {
-						{ i18n.T(ctx, "common.cancel") }
-					}
-					@button.Button(button.Props{
-						ID:   "archive-save-changes",
-						Type: button.TypeSubmit,
-						Form: "log-archive-settings-form",
-					}) {
-						{ i18n.T(ctx, "archives.save_changes") }
-					}
-				</div>
-			}
+			<div id="log-archive-panel" class="flex min-h-0 flex-1 flex-col px-6 pb-6"></div>
 		}
 	}
 }
@@ -68,6 +51,46 @@ type SettingsFormProps struct {
 	Policy    archive.Policy
 }
 
+templ Rule(props SettingsFormProps) {
+	<div id="log-archive-rule" class="space-y-3 border-b pb-4">
+		<div class="flex items-start justify-between gap-3">
+			<div class="min-w-0 space-y-0.5">
+				<p class="text-sm font-medium">
+					if props.Policy.Enabled {
+						{ formatRuleAge(ctx, props.Policy.ArchiveAfterWeeks) }
+					} else {
+						{ i18n.T(ctx, "archives.rule_off") }
+					}
+				</p>
+				<p class="text-xs text-muted-foreground">
+					if props.Policy.Enabled {
+						{ i18n.T(ctx, "archives.rule_on") }
+					} else {
+						{ i18n.T(ctx, "archives.rule_off_hint") }
+					}
+				</p>
+			</div>
+			@button.Button(button.Props{
+				ID:      "archive-edit",
+				Variant: button.VariantLink,
+				Size:    button.SizeSm,
+				Type:    button.TypeButton,
+				Class:   "h-auto shrink-0 px-0",
+				Attributes: templ.Attributes{
+					"aria-expanded": "false",
+					"aria-controls": "log-archive-editor",
+				},
+			}) {
+				<span data-archive-edit>{ i18n.T(ctx, "archives.edit") }</span>
+				<span data-archive-cancel hidden>{ i18n.T(ctx, "archives.cancel_edit") }</span>
+			}
+		</div>
+		<div id="log-archive-editor" hidden>
+			@SettingsForm(props)
+		</div>
+	</div>
+}
+
 templ SettingsForm(props SettingsFormProps) {
 	{{ weeks := props.Policy.ArchiveAfterWeeks }}
 	if weeks < 1 {
@@ -76,23 +99,19 @@ templ SettingsForm(props SettingsFormProps) {
 	<form
 		id="log-archive-settings-form"
 		hx-post={ fmt.Sprintf("/logs/%s/%s/archives/settings", props.ProjectID, props.ClientID) }
-		hx-disable="#archive-save-changes, #archive-run"
+		hx-disable="#archive-save-changes, #archive-run, #archive-edit"
 		hx-sync="#log-archive-sheet:drop"
-		hx-target="#log-archive-settings-body"
-		hx-swap="innerHTML"
+		hx-target="#log-archive-rule"
+		hx-swap="outerHTML"
 		hx-boost="false"
-		class="space-y-6"
+		class="space-y-3"
+		data-saved-enabled={ strconv.FormatBool(props.Policy.Enabled) }
+		data-saved-weeks={ strconv.Itoa(weeks) }
 	>
 		<div class="flex items-center justify-between gap-4">
-			<div class="space-y-1">
-				@label.Label(label.Props{For: "archive-enabled"}) {
-					{ i18n.T(ctx, "archives.title") }
-				}
-				<p id="archive-enabled-description" class="text-xs text-muted-foreground">
-					<span data-archive-enabled hidden?={ !props.Policy.Enabled }>{ i18n.T(ctx, "archives.enabled") }</span>
-					<span data-archive-disabled hidden?={ props.Policy.Enabled }>{ i18n.T(ctx, "archives.disabled") }</span>
-				</p>
-			</div>
+			@label.Label(label.Props{For: "archive-enabled"}) {
+				{ i18n.T(ctx, "archives.on") }
+			}
 			<label class="relative inline-flex shrink-0 cursor-pointer items-center">
 				<input
 					id="archive-enabled"
@@ -100,7 +119,6 @@ templ SettingsForm(props SettingsFormProps) {
 					type="checkbox"
 					value="true"
 					role="switch"
-					aria-describedby="archive-enabled-description"
 					checked?={ props.Policy.Enabled }
 					class="peer sr-only"
 				/>
@@ -109,37 +127,52 @@ templ SettingsForm(props SettingsFormProps) {
 				</span>
 			</label>
 		</div>
-		<div class="space-y-2">
-			@label.Label(label.Props{For: "archive-after-weeks"}) {
-				{ i18n.T(ctx, "archives.older_than") }
+		<div class="flex flex-wrap items-center gap-2.5">
+			<label class="sr-only" for="archive-after-weeks">{ i18n.T(ctx, "archives.older_than") }</label>
+			@input.Input(input.Props{
+				ID:       "archive-after-weeks",
+				Name:     "archiveAfterWeeks",
+				Type:     "number",
+				Value:    strconv.Itoa(weeks),
+				Class:    "w-22 tabular-nums",
+				Disabled: !props.Policy.Enabled,
+				Required: true,
+				Attributes: templ.Attributes{
+					"min":              "1",
+					"max":              strconv.Itoa(archive.MaxArchiveAfterWeeks),
+					"step":             "1",
+					"inputmode":        "numeric",
+					"aria-describedby": "archive-weeks-unit archive-weeks-error",
+				},
+			})
+			<span id="archive-weeks-unit" class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.weeks") }</span>
+			@button.Button(button.Props{
+				ID:   "archive-save-changes",
+				Type: button.TypeSubmit,
+				Size: button.SizeSm,
+			}) {
+				{ i18n.T(ctx, "common.save") }
 			}
-			<div class="flex items-center gap-2.5">
-				@input.Input(input.Props{
-					ID:       "archive-after-weeks",
-					Name:     "archiveAfterWeeks",
-					Type:     "number",
-					Value:    strconv.Itoa(weeks),
-					Class:    "w-22 tabular-nums",
-					Disabled: !props.Policy.Enabled,
-					Required: true,
-					Attributes: templ.Attributes{
-						"min":              "1",
-						"max":              strconv.Itoa(archive.MaxArchiveAfterWeeks),
-						"step":             "1",
-						"inputmode":        "numeric",
-						"aria-describedby": "archive-weeks-unit archive-weeks-error",
-					},
-				})
-				<span id="archive-weeks-unit" class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.weeks") }</span>
-			</div>
-			<p id="archive-weeks-error" class="text-xs text-destructive" role="status" hidden>{ i18n.T(ctx, "archives.invalid_weeks") }</p>
 		</div>
+		<p id="archive-weeks-error" class="text-xs text-destructive" role="status" hidden>{ i18n.T(ctx, "archives.invalid_weeks") }</p>
 	</form>
-	<div class="mt-6 space-y-3 border-t pt-6">
-		<p id="archive-run-description" class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.run_description") }</p>
+}
+
+templ SettingsSaved(props SettingsFormProps) {
+	@Rule(props)
+	@RunControl(props, true)
+}
+
+templ RunControl(props SettingsFormProps, oob bool) {
+	<div
+		id="log-archive-run"
+		class="space-y-2"
+		if oob {
+			hx-swap-oob="outerHTML"
+		}
+	>
 		@button.Button(button.Props{
 			ID:       "archive-run",
-			Variant:  button.VariantOutline,
 			Size:     button.SizeSm,
 			Class:    "w-full",
 			Disabled: !props.Policy.Enabled,
@@ -148,7 +181,7 @@ templ SettingsForm(props SettingsFormProps) {
 				"hx-target":        "#log-archive-list",
 				"hx-swap":          "outerHTML",
 				"hx-sync":          "#log-archive-sheet:drop",
-				"hx-disable":       "#archive-run, #archive-save-changes, #log-archive-settings-form input, #archive-load-older",
+				"hx-disable":       "#archive-run, #archive-save-changes, #archive-edit, #log-archive-settings-form input, #archive-load-older",
 				"hx-indicator":     "this",
 				"aria-describedby": "archive-run-description",
 			},
@@ -160,6 +193,7 @@ templ SettingsForm(props SettingsFormProps) {
 			<span class="svarog-indicator" data-fallback>{ i18n.T(ctx, "archives.run") }</span>
 			<span class="svarog-indicator" role="status">{ i18n.T(ctx, "archives.running") }</span>
 		}
+		<p id="archive-run-description" class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.run_description") }</p>
 		if !props.Policy.Enabled {
 			<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.enable_first") }</p>
 		}
