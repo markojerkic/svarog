@@ -93,7 +93,11 @@ func main() {
 	}
 
 	projectsService := projects.NewPostgresProjectsService(postgresPool)
-	archiver := archive.NewArchiveService(postgresPool, archive.NewDiskStore(env.ArchiveDir))
+	archiveStore, err := newArchiveStore(env)
+	if err != nil {
+		log.Fatal("Failed to configure archive storage", "error", err)
+	}
+	archiver := archive.NewArchiveService(postgresPool, archiveStore)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {

@@ -37,7 +37,7 @@ tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
-      - go tool templ generate --watch --proxy="http://localhost:1323" --cmd="go run cmd/server/main.go" --open-browser=false
+      - go tool templ generate --watch --proxy="http://localhost:1323" --cmd="go run ./cmd/server" --open-browser=false
 
   ui:scripts:
     desc: Watch shadcn-templ component scripts and rebuild their bundle
