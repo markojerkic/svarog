@@ -215,8 +215,16 @@ func TestArchiveInterruptedBuild(t *testing.T) {
 	}
 	release()
 	require.Equal(t, []string{"retained"}, remainingMessages(t, ctx, pool, scope.ClientID), "an interrupted final transaction never loses source logs")
-	result, err := service.Create(ctx, scope)
+	// Closing a canceled connection can return before PostgreSQL releases its
+	// session lock. Retry only the expected busy outcome during that interval.
+	var result archive.CreateResult
+	var err error
+	require.Eventually(t, func() bool {
+		result, err = service.Create(ctx, scope)
+		return err != nil || result.Outcome != archive.SkippedBusy
+	}, 10*time.Second, 10*time.Millisecond, "the canceled connection eventually releases the archive client lock")
 	require.NoError(t, err, "the next build recovers any remaining claim and retries")
+	require.Equal(t, archive.Created, result.Outcome, "retrying after cancellation creates the recovered archive")
 	require.NotNil(t, result.Archive, "retrying an interrupted build returns a completed archive")
 	require.Equal(t, []string{"retained"}, zipMessages(t, archiveBytes(t, ctx, service, scope, result.Archive.ID)), "the retained row is recoverable after cancellation")
 	files, err := filepath.Glob(filepath.Join(dir, scope.ClientID.String(), "*"))
