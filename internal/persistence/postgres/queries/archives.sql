@@ -43,11 +43,19 @@ WHERE client_id = sqlc.arg(client_id)
   AND occurred_at < sqlc.arg(cutoff_at)
   AND archive_id IS NULL;
 
+-- name: ListArchiveInstances :many
+SELECT DISTINCT instance_name
+FROM logs
+WHERE client_id = sqlc.arg(client_id)
+  AND archive_id = sqlc.arg(archive_id)
+ORDER BY instance_name;
+
 -- name: ListArchiveLogs :many
 SELECT id, instance_name, occurred_at, sequence_number, message
 FROM logs
 WHERE client_id = sqlc.arg(client_id)
   AND archive_id = sqlc.arg(archive_id)
+  AND instance_name = sqlc.arg(instance_name)
   AND (
     NOT sqlc.arg(has_cursor)::bool
     OR (occurred_at, sequence_number, id)

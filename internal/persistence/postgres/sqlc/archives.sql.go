@@ -227,23 +227,58 @@ func (q *Queries) InsertBuildingArchive(ctx context.Context, arg InsertBuildingA
 	return i, err
 }
 
+const listArchiveInstances = `-- name: ListArchiveInstances :many
+SELECT DISTINCT instance_name
+FROM logs
+WHERE client_id = $1
+  AND archive_id = $2
+ORDER BY instance_name
+`
+
+type ListArchiveInstancesParams struct {
+	ClientID  uuid.UUID
+	ArchiveID *uuid.UUID
+}
+
+func (q *Queries) ListArchiveInstances(ctx context.Context, arg ListArchiveInstancesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listArchiveInstances, arg.ClientID, arg.ArchiveID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var instance_name string
+		if err := rows.Scan(&instance_name); err != nil {
+			return nil, err
+		}
+		items = append(items, instance_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArchiveLogs = `-- name: ListArchiveLogs :many
 SELECT id, instance_name, occurred_at, sequence_number, message
 FROM logs
 WHERE client_id = $1
   AND archive_id = $2
+  AND instance_name = $3
   AND (
-    NOT $3::bool
+    NOT $4::bool
     OR (occurred_at, sequence_number, id)
-       < ($4::timestamptz, $5::bigint, $6::bigint)
+       < ($5::timestamptz, $6::bigint, $7::bigint)
   )
 ORDER BY occurred_at DESC, sequence_number DESC, id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListArchiveLogsParams struct {
 	ClientID       uuid.UUID
 	ArchiveID      *uuid.UUID
+	InstanceName   string
 	HasCursor      bool
 	CursorAt       time.Time
 	CursorSequence int64
@@ -263,6 +298,7 @@ func (q *Queries) ListArchiveLogs(ctx context.Context, arg ListArchiveLogsParams
 	rows, err := q.db.Query(ctx, listArchiveLogs,
 		arg.ClientID,
 		arg.ArchiveID,
+		arg.InstanceName,
 		arg.HasCursor,
 		arg.CursorAt,
 		arg.CursorSequence,

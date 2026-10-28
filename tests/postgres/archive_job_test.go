@@ -44,6 +44,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
 	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{
 		{ClientID: apiID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "old-a"},
+		{ClientID: apiID, InstanceName: "worker", OccurredAt: old.Add(500 * time.Millisecond), SequenceNumber: 1, Message: "old-worker"},
 		{ClientID: apiID, InstanceName: "web", OccurredAt: old.Add(time.Second), SequenceNumber: 2, Message: "old-b"},
 		{ClientID: apiID, InstanceName: "web", OccurredAt: recent, SequenceNumber: 3, Message: "recent"},
 		{ClientID: workerID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "other-client"},
@@ -55,7 +56,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	require.Equal(t, archive.Created, result.Outcome, "successful creation returns a completed archive")
 	require.NotNil(t, result.Archive, "created results include archive metadata")
 	record := result.Archive
-	require.Equal(t, int64(2), record.LogCount, "archive counts only the client's old logs")
+	require.Equal(t, int64(3), record.LogCount, "archive counts only the client's old logs")
 	require.Equal(t, old, record.FromAt.UTC().Truncate(time.Microsecond), "from_at is the oldest archived log")
 	require.Equal(t, old.Add(time.Second), record.ToAt.UTC().Truncate(time.Microsecond), "to_at is the newest archived log")
 
@@ -68,7 +69,10 @@ func TestCreateArchiveForClient(t *testing.T) {
 	require.Equal(t, sum, record.SHA256, "returned hash matches the zip")
 	require.Equal(t, size, record.SizeBytes, "returned size matches the zip")
 	require.Equal(t, *record, download.Archive, "opening an archive returns the persisted creation metadata")
-	require.Equal(t, []string{"old-b", "old-a"}, zipMessages(t, content), "zip contains the archived lines newest first")
+	require.Equal(t, map[string][]string{
+		"web":    {"old-b", "old-a"},
+		"worker": {"old-worker"},
+	}, zipMessagesByInstance(t, content), "each instance keeps its own newest-first files")
 	require.False(t, record.CreatedAt.IsZero(), "completed metadata includes its creation timestamp")
 
 	require.Equal(t, []string{"recent"}, remainingMessages(t, ctx, pool, apiID), "recent logs for the archived client remain")
@@ -308,40 +312,58 @@ func archiveBytes(t *testing.T, ctx context.Context, service archive.Archiver, s
 
 func zipMessages(t *testing.T, content []byte) []string {
 	t.Helper()
+	grouped := zipMessagesByInstance(t, content)
+	var messages []string
+	for _, instance := range slices.Sorted(maps.Keys(grouped)) {
+		messages = append(messages, grouped[instance]...)
+	}
+	return messages
+}
+
+func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
+	t.Helper()
 	reader, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
 	require.NoError(t, err, "open the archive zip")
-	files := make(map[int]*zip.File)
+	files := make(map[string]map[int]*zip.File)
 	for _, file := range reader.File {
 		require.True(t, filepath.IsLocal(file.Name), "ZIP entries use safe relative paths")
 		if file.FileInfo().IsDir() {
 			continue
 		}
-		name := filepath.Base(file.Name)
+		directory, name := filepath.Split(filepath.FromSlash(file.Name))
+		instance := strings.Trim(filepath.ToSlash(directory), "/")
+		require.NotEmpty(t, instance, "archive logs are stored in an instance directory")
+		require.NotContains(t, instance, "/", "an instance archive has exactly one directory level")
 		index, err := strconv.Atoi(strings.TrimSuffix(name[strings.LastIndex(name, "_")+1:], ".log"))
 		require.NoError(t, err, "archive log filename ends with a numeric page index")
-		require.NotContains(t, files, index, "each archive page index occurs only once")
-		files[index] = file
-	}
-	var messages []string
-	// ZIP entry order is lexical (_10 before _2); log pages have numeric order.
-	for _, index := range slices.Sorted(maps.Keys(files)) {
-		file := files[index]
-		body, err := file.Open()
-		require.NoError(t, err, "open a zipped log file")
-		scanner := bufio.NewScanner(body)
-		for scanner.Scan() {
-			line := scanner.Text()
-			marker := "] "
-			if i := len(line) - len(marker); i >= 0 {
-				if cut := lastIndex(line, marker); cut >= 0 {
-					messages = append(messages, line[cut+len(marker):])
-				}
-			}
+		if files[instance] == nil {
+			files[instance] = make(map[int]*zip.File)
 		}
-		require.NoError(t, scanner.Err(), "read a zipped log file")
-		require.NoError(t, body.Close(), "close a zipped log file")
+		require.NotContains(t, files[instance], index, "each instance page index occurs only once")
+		files[instance][index] = file
 	}
-	return messages
+	grouped := make(map[string][]string, len(files))
+	for instance, pages := range files {
+		// ZIP entry order is lexical (_10 before _2); log pages have numeric order.
+		for _, index := range slices.Sorted(maps.Keys(pages)) {
+			body, err := pages[index].Open()
+			require.NoError(t, err, "open a zipped log file")
+			scanner := bufio.NewScanner(body)
+			scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+			for scanner.Scan() {
+				line := scanner.Text()
+				marker := "] "
+				cut := lastIndex(line, marker)
+				require.GreaterOrEqual(t, cut, 0, "every archived line has an instance marker")
+				header := line[:cut]
+				require.True(t, strings.HasSuffix(header, " "+instance), "an instance file contains only that instance")
+				grouped[instance] = append(grouped[instance], line[cut+len(marker):])
+			}
+			require.NoError(t, scanner.Err(), "read a zipped log file")
+			require.NoError(t, body.Close(), "close a zipped log file")
+		}
+	}
+	return grouped
 }
 
 func lastIndex(line, marker string) int {
