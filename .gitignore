@@ -11,6 +11,7 @@ node_modules/
 **/assets/js/shadcn-templ-*.js
 .task
 .env.log-demo
+.env.local
 
 # Playwright
 test-results/

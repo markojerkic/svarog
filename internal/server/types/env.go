@@ -7,6 +7,12 @@ type ServerEnv struct {
 	SessionSecret  string `env:"SESSION_SECRET"`
 	ArchiveDir     string `env:"ARCHIVE_DIR"`
 
+	ArchiveS3Bucket          string `env:"ARCHIVE_S3_BUCKET"`
+	ArchiveS3Endpoint        string `env:"ARCHIVE_S3_ENDPOINT"`
+	ArchiveS3Region          string `env:"ARCHIVE_S3_REGION" envDefault:"auto"`
+	ArchiveS3AccessKeyID     string `env:"ARCHIVE_S3_ACCESS_KEY_ID"`
+	ArchiveS3SecretAccessKey string `env:"ARCHIVE_S3_SECRET_ACCESS_KEY"`
+
 	NatsPublicAddr     string `env:"NATS_PUBLIC_ADDR"`
 	NatsAddr           string `env:"NATS_ADDR"`
 	NatsAccountSeed    string `env:"NATS_ACCOUNT_SEED"`

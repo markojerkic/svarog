@@ -29,6 +29,10 @@ import (
 func loadEnv() types.ServerEnv {
 	env := types.ServerEnv{}
 	if os.Getenv("DOCKER") != "true" {
+		// Local values override .env defaults, but never the process environment.
+		if err := dotenv.Load(".env.local"); err != nil && !os.IsNotExist(err) {
+			log.Fatal("Error loading .env.local file", "error", err)
+		}
 		err := dotenv.Load()
 
 		if err != nil {
