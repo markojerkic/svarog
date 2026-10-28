@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,14 +14,16 @@ import (
 )
 
 type Service struct {
-	pool       *pgxpool.Pool
-	archiveDir string
+	pool  *pgxpool.Pool
+	store Store
 }
 
 var _ Archiver = (*Service)(nil)
 
-func NewArchiveService(pool *pgxpool.Pool, archiveDir string) *Service {
-	return &Service{pool: pool, archiveDir: archiveDir}
+// NewArchiveService uses store for archive content. A nil store permits metadata
+// reads and policy disabling, but not enabling, creating or opening archives.
+func NewArchiveService(pool *pgxpool.Pool, store Store) *Service {
+	return &Service{pool: pool, store: store}
 }
 
 func (a *Service) GetPolicy(ctx context.Context, scope Scope) (Policy, error) {
@@ -50,7 +49,7 @@ func (a *Service) SetPolicy(ctx context.Context, scope Scope, policy Policy) err
 	if err := validatePolicy(policy); err != nil {
 		return err
 	}
-	if a.archiveDir == "" {
+	if a.store == nil {
 		return ErrNotConfigured
 	}
 	rows, err := queries.SetArchivePolicy(ctx, sqlc.SetArchivePolicyParams{
@@ -85,7 +84,7 @@ func (a *Service) Create(ctx context.Context, scope Scope) (result CreateResult,
 		if err := validatePolicy(policy); err != nil {
 			return err
 		}
-		if a.archiveDir == "" {
+		if a.store == nil {
 			return ErrNotConfigured
 		}
 		result, err = a.create(ctx, conn, scope, policy)
@@ -159,27 +158,17 @@ func (a *Service) Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (D
 	if err != nil {
 		return Download{}, fmt.Errorf("get archive: %w", err)
 	}
-	if a.archiveDir == "" {
+	if a.store == nil {
 		return Download{}, ErrNotConfigured
 	}
-	if record.StorageBackend != "disk" {
+	if record.StorageBackend != a.store.Backend() {
 		return Download{}, ErrArchiveUnavailable
 	}
-	root, err := os.OpenRoot(a.archiveDir)
+	content, err := a.store.Open(ctx, record.ObjectKey, record.SizeBytes.Int64)
 	if err != nil {
-		return Download{}, fmt.Errorf("%w: open archive directory: %w", ErrArchiveUnavailable, err)
+		return Download{}, fmt.Errorf("%w: %w", ErrArchiveUnavailable, err)
 	}
-	defer root.Close()
-	file, err := root.Open(filepath.FromSlash(record.ObjectKey))
-	if err != nil {
-		return Download{}, fmt.Errorf("%w: open archive content: %w", ErrArchiveUnavailable, err)
-	}
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() != record.SizeBytes.Int64 {
-		_ = file.Close()
-		return Download{}, fmt.Errorf("%w: invalid archive file", ErrArchiveUnavailable)
-	}
-	return Download{Archive: publicArchive(record), Content: file}, nil
+	return Download{Archive: publicArchive(record), Content: content}, nil
 }
 
 func getPolicy(ctx context.Context, db sqlc.DBTX, scope Scope) (Policy, error) {
@@ -199,9 +188,10 @@ func (a *Service) create(ctx context.Context, conn *pgx.Conn, scope Scope, polic
 	id := uuid.New()
 	record, count, err := store.BeginArchive(ctx, conn, sqlc.InsertBuildingArchiveParams{
 		ID: id, ClientID: scope.ClientID,
-		ObjectKey: scope.ClientID.String() + "/" + id.String() + ".zip",
-		FileName:  fmt.Sprintf("archive_%s_%s.zip", scope.ClientID, id),
-		CutoffAt:  time.Now().UTC().Add(-time.Duration(policy.ArchiveAfterWeeks) * 7 * 24 * time.Hour).Truncate(time.Microsecond),
+		StorageBackend: a.store.Backend(),
+		ObjectKey:      scope.ClientID.String() + "/" + id.String() + ".zip",
+		FileName:       fmt.Sprintf("archive_%s_%s.zip", scope.ClientID, id),
+		CutoffAt:       time.Now().UTC().Add(-time.Duration(policy.ArchiveAfterWeeks) * 7 * 24 * time.Hour).Truncate(time.Microsecond),
 	})
 	if err != nil {
 		return CreateResult{}, err
@@ -219,7 +209,7 @@ func (a *Service) create(ctx context.Context, conn *pgx.Conn, scope Scope, polic
 	if count == 0 {
 		return CreateResult{Outcome: SkippedNoLogs}, nil
 	}
-	written, sum, size, err := a.createRollingArchive(ctx, conn, record)
+	written, object, err := a.createRollingArchive(ctx, conn, record)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -228,14 +218,14 @@ func (a *Service) create(ctx context.Context, conn *pgx.Conn, scope Scope, polic
 	}
 	if err := store.CompleteArchive(ctx, conn, store.ReadyArchive{
 		ID: record.ID, ClientID: scope.ClientID,
-		SizeBytes: size, SHA256: sum[:], LogCount: written.count,
+		SizeBytes: object.SizeBytes, SHA256: object.SHA256[:], LogCount: written.count,
 		FromAt: written.from, ToAt: written.to,
 	}); err != nil {
 		return CreateResult{}, err
 	}
 	completed := Archive{
 		ID: record.ID, ClientID: scope.ClientID, FileName: record.FileName,
-		SizeBytes: size, SHA256: sum, LogCount: written.count,
+		SizeBytes: object.SizeBytes, SHA256: object.SHA256, LogCount: written.count,
 		CutoffAt: record.CutoffAt, FromAt: written.from, ToAt: written.to,
 		CreatedAt: record.CreatedAt,
 	}
@@ -259,21 +249,11 @@ func (a *Service) abortBuild(ctx context.Context, conn *pgx.Conn, record sqlc.Ar
 		// Preserve the ZIP when commit state is unknown or already ready.
 		return err
 	}
-	if a.archiveDir == "" || record.StorageBackend != "disk" {
+	if a.store == nil || record.StorageBackend != a.store.Backend() {
 		return nil
 	}
-	root, err := os.OpenRoot(a.archiveDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("open archive directory for cleanup: %w", err)
-	}
-	defer root.Close()
-	for _, name := range []string{record.ObjectKey + ".part", record.ObjectKey} {
-		if err := root.Remove(filepath.FromSlash(name)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.Warn("Could not remove unfinished archive file", "archiveID", record.ID, "error", err)
-		}
+	if err := a.store.Delete(ctx, record.ObjectKey); err != nil {
+		return fmt.Errorf("remove unfinished archive content: %w", err)
 	}
 	return nil
 }

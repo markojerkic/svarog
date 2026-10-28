@@ -24,7 +24,7 @@ func TestArchiveListAndOpen(t *testing.T) {
 	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "ArchiveDownloads", []string{"api", "worker"})
 	require.NoError(t, err, "create the download project's clients")
 	dir := t.TempDir()
-	var service archive.Archiver = archive.NewArchiveService(pool, dir)
+	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(dir))
 	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
 	other := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "worker")}
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the download client's archive policy")
@@ -94,7 +94,7 @@ func TestArchiveListAndOpen(t *testing.T) {
 
 	t.Run("disabled and unconfigured policies do not hide metadata", func(t *testing.T) {
 		require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{}), "disable future archiving")
-		unconfigured := archive.NewArchiveService(pool, "")
+		unconfigured := archive.NewArchiveService(pool, nil)
 		page, err := unconfigured.List(ctx, scope, archive.ListQuery{})
 		require.NoError(t, err, "listing does not require configured storage or an enabled policy")
 		require.Len(t, page.Items, len(ids), "disabled clients retain every completed archive")

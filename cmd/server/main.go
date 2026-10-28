@@ -89,7 +89,7 @@ func main() {
 	}
 
 	projectsService := projects.NewPostgresProjectsService(postgresPool)
-	archiver := archive.NewArchiveService(postgresPool, env.ArchiveDir)
+	archiver := archive.NewArchiveService(postgresPool, archive.NewDiskStore(env.ArchiveDir))
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {

@@ -31,7 +31,7 @@ SELECT pg_advisory_unlock(hashtextextended('svarog:archive:' || sqlc.arg(client_
 INSERT INTO archives (
     id, client_id, status, storage_backend, object_key, file_name, cutoff_at, claimed_at
 ) VALUES (
-    sqlc.arg(id), sqlc.arg(client_id), 'building', 'disk',
+    sqlc.arg(id), sqlc.arg(client_id), 'building', sqlc.arg(storage_backend),
     sqlc.arg(object_key), sqlc.arg(file_name), sqlc.arg(cutoff_at), now()
 )
 RETURNING *;

@@ -109,7 +109,7 @@ func TestArchiveLargeClient(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	dir := t.TempDir()
-	var service archive.Archiver = archive.NewArchiveService(env.pool, dir)
+	var service archive.Archiver = archive.NewArchiveService(env.pool, archive.NewDiskStore(dir))
 	scope := archive.Scope{ProjectID: uuid.MustParse(env.projectID), ClientID: env.clientID}
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
 

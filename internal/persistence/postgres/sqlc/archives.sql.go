@@ -182,24 +182,26 @@ const insertBuildingArchive = `-- name: InsertBuildingArchive :one
 INSERT INTO archives (
     id, client_id, status, storage_backend, object_key, file_name, cutoff_at, claimed_at
 ) VALUES (
-    $1, $2, 'building', 'disk',
-    $3, $4, $5, now()
+    $1, $2, 'building', $3,
+    $4, $5, $6, now()
 )
 RETURNING id, client_id, status, storage_backend, object_key, file_name, size_bytes, sha256, log_count, cutoff_at, claimed_at, from_at, to_at, created_at, updated_at
 `
 
 type InsertBuildingArchiveParams struct {
-	ID        uuid.UUID
-	ClientID  uuid.UUID
-	ObjectKey string
-	FileName  string
-	CutoffAt  time.Time
+	ID             uuid.UUID
+	ClientID       uuid.UUID
+	StorageBackend string
+	ObjectKey      string
+	FileName       string
+	CutoffAt       time.Time
 }
 
 func (q *Queries) InsertBuildingArchive(ctx context.Context, arg InsertBuildingArchiveParams) (Archive, error) {
 	row := q.db.QueryRow(ctx, insertBuildingArchive,
 		arg.ID,
 		arg.ClientID,
+		arg.StorageBackend,
 		arg.ObjectKey,
 		arg.FileName,
 		arg.CutoffAt,

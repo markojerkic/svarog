@@ -21,7 +21,7 @@ func TestArchivePolicies(t *testing.T) {
 	require.NoError(t, err, "create project and clients for archive policies")
 	other, err := projectsService.CreateProject(ctx, "ArchivePoliciesOther", []string{"api"})
 	require.NoError(t, err, "create a second project")
-	var service archive.Archiver = archive.NewArchiveService(pool, t.TempDir())
+	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(t.TempDir()))
 	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
 
 	t.Run("missing policy is disabled", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestArchivePolicies(t *testing.T) {
 	})
 
 	t.Run("missing configuration only prevents enabling", func(t *testing.T) {
-		unconfigured := archive.NewArchiveService(pool, "")
+		unconfigured := archive.NewArchiveService(pool, nil)
 		require.ErrorIs(t, unconfigured.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), archive.ErrNotConfigured, "enabling requires a configured directory")
 		require.NoError(t, unconfigured.SetPolicy(ctx, scope, archive.Policy{}), "disabling does not require storage configuration")
 		result, err := unconfigured.Create(ctx, scope)
