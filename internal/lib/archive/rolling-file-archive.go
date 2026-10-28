@@ -4,10 +4,10 @@ import (
 	"archive/zip"
 	"bufio"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"path"
 	"strings"
 	"time"
 
@@ -44,9 +44,13 @@ func writeArchivePages(ctx context.Context, queries *sqlc.Queries, writer *zip.W
 	if err != nil {
 		return archivingResult{}, fmt.Errorf("read claimed archive instances: %w", err)
 	}
+	dirs, err := archiveInstanceDirs(instances)
+	if err != nil {
+		return archivingResult{}, err
+	}
 	var result archivingResult
 	for _, instance := range instances {
-		written, err := writeInstancePages(ctx, queries, writer, record, instance)
+		written, err := writeInstancePages(ctx, queries, writer, record, instance, dirs[instance])
 		if err != nil {
 			return archivingResult{}, err
 		}
@@ -61,7 +65,7 @@ func writeArchivePages(ctx context.Context, queries *sqlc.Queries, writer *zip.W
 	return result, nil
 }
 
-func writeInstancePages(ctx context.Context, queries *sqlc.Queries, writer *zip.Writer, record sqlc.Archive, instance string) (archivingResult, error) {
+func writeInstancePages(ctx context.Context, queries *sqlc.Queries, writer *zip.Writer, record sqlc.Archive, instance, dir string) (archivingResult, error) {
 	params := sqlc.ListArchiveLogsParams{
 		ClientID: record.ClientID, ArchiveID: &record.ID, InstanceName: instance, PageSize: archivePageSize,
 	}
@@ -77,7 +81,7 @@ func writeInstancePages(ctx context.Context, queries *sqlc.Queries, writer *zip.
 			}
 			return result, nil
 		}
-		entry, err := writer.Create(fmt.Sprintf("%s/logs_%06d.log", archiveInstancePath(instance), index))
+		entry, err := writer.Create(fmt.Sprintf("%s/logs_%06d.log", dir, index))
 		if err != nil {
 			return archivingResult{}, err
 		}
@@ -111,20 +115,102 @@ func writeInstancePages(ctx context.Context, queries *sqlc.Queries, writer *zip.
 	}
 }
 
-func archiveInstancePath(instance string) string {
-	var builder strings.Builder
-	builder.Grow(len(instance))
-	for _, char := range instance {
-		switch {
-		case char == '/' || char == '\\' || char < 0x20 || char == 0x7f:
-			builder.WriteByte('_')
-		default:
-			builder.WriteRune(char)
+func archiveInstanceDirs(instances []string) (map[string]string, error) {
+	dirs := make(map[string]string, len(instances))
+	folded := make(map[string][]string)
+	for _, instance := range instances {
+		dir := archiveInstancePath(instance)
+		dirs[instance] = dir
+		folded[strings.ToLower(dir)] = append(folded[strings.ToLower(dir)], instance)
+	}
+	for _, group := range folded {
+		if len(group) < 2 {
+			continue
+		}
+		for _, instance := range group {
+			dirs[instance] = encodedArchiveDir(instance)
 		}
 	}
-	name := strings.Trim(builder.String(), ". ")
-	if name == "" || name == ".." {
-		return "_unnamed"
+	seen := make(map[string]string, len(dirs))
+	for instance, dir := range dirs {
+		key := strings.ToLower(dir)
+		if other, ok := seen[key]; ok {
+			return nil, fmt.Errorf("instances %q and %q share archive directory %q", other, instance, dir)
+		}
+		seen[key] = instance
 	}
-	return path.Clean(name)
+	return dirs, nil
+}
+
+func archiveInstancePath(instance string) string {
+	if isIdentityArchiveDir(instance) {
+		return instance
+	}
+	encoded := percentEncodeInstance(instance)
+	if isUsableArchiveDir(encoded) && strings.Contains(encoded, "%") {
+		return encoded
+	}
+	return encodedArchiveDir(instance)
+}
+
+func encodedArchiveDir(instance string) string {
+	return "=" + hex.EncodeToString([]byte(instance))
+}
+
+func percentEncodeInstance(instance string) string {
+	var builder strings.Builder
+	builder.Grow(len(instance))
+	for i := 0; i < len(instance); i++ {
+		char := instance[i]
+		if isUnreservedArchiveByte(char) {
+			builder.WriteByte(char)
+			continue
+		}
+		fmt.Fprintf(&builder, "%%%02X", char)
+	}
+	return builder.String()
+}
+
+func isIdentityArchiveDir(name string) bool {
+	if !isUsableArchiveDir(name) {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if !isUnreservedArchiveByte(name[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isUsableArchiveDir(name string) bool {
+	if name == "" || name == "." || name == ".." || strings.HasSuffix(name, ".") || strings.HasSuffix(name, " ") {
+		return false
+	}
+	if strings.ContainsAny(name, "/\\") || strings.ContainsRune(name, 0) {
+		return false
+	}
+	return !isWindowsReservedName(name)
+}
+
+func isUnreservedArchiveByte(char byte) bool {
+	return char == '-' || char == '_' || char == '.' ||
+		(char >= '0' && char <= '9') ||
+		(char >= 'A' && char <= 'Z') ||
+		(char >= 'a' && char <= 'z')
+}
+
+func isWindowsReservedName(name string) bool {
+	stem := name
+	if dot := strings.IndexByte(name, '.'); dot >= 0 {
+		stem = name[:dot]
+	}
+	switch strings.ToUpper(stem) {
+	case "CON", "PRN", "AUX", "NUL",
+		"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		return true
+	default:
+		return false
+	}
 }

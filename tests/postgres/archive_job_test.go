@@ -325,6 +325,7 @@ func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
 	reader, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
 	require.NoError(t, err, "open the archive zip")
 	files := make(map[string]map[int]*zip.File)
+	foldedDirs := make(map[string]string)
 	for _, file := range reader.File {
 		require.True(t, filepath.IsLocal(file.Name), "ZIP entries use safe relative paths")
 		if file.FileInfo().IsDir() {
@@ -334,6 +335,11 @@ func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
 		instance := strings.Trim(filepath.ToSlash(directory), "/")
 		require.NotEmpty(t, instance, "archive logs are stored in an instance directory")
 		require.NotContains(t, instance, "/", "an instance archive has exactly one directory level")
+		folded := strings.ToLower(instance)
+		if previous, ok := foldedDirs[folded]; ok {
+			require.Equal(t, previous, instance, "archive directories are distinct ignoring case")
+		}
+		foldedDirs[folded] = instance
 		index, err := strconv.Atoi(strings.TrimSuffix(name[strings.LastIndex(name, "_")+1:], ".log"))
 		require.NoError(t, err, "archive log filename ends with a numeric page index")
 		if files[instance] == nil {
@@ -343,6 +349,7 @@ func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
 		files[instance][index] = file
 	}
 	grouped := make(map[string][]string, len(files))
+	rawByDir := make(map[string]string, len(files))
 	for instance, pages := range files {
 		// ZIP entry order is lexical (_10 before _2); log pages have numeric order.
 		for _, index := range slices.Sorted(maps.Keys(pages)) {
@@ -355,8 +362,12 @@ func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
 				marker := "] "
 				cut := lastIndex(line, marker)
 				require.GreaterOrEqual(t, cut, 0, "every archived line has an instance marker")
-				header := line[:cut]
-				require.True(t, strings.HasSuffix(header, " "+instance), "an instance file contains only that instance")
+				raw := instanceInHeader(line[:cut])
+				require.NotEmpty(t, raw, "every archived line names its instance")
+				if previous, ok := rawByDir[instance]; ok {
+					require.Equal(t, previous, raw, "an instance directory contains only that instance")
+				}
+				rawByDir[instance] = raw
 				grouped[instance] = append(grouped[instance], line[cut+len(marker):])
 			}
 			require.NoError(t, scanner.Err(), "read a zipped log file")
@@ -364,6 +375,17 @@ func zipMessagesByInstance(t *testing.T, content []byte) map[string][]string {
 		}
 	}
 	return grouped
+}
+
+func instanceInHeader(header string) string {
+	if !strings.HasPrefix(header, "[") {
+		return ""
+	}
+	_, raw, ok := strings.Cut(strings.TrimPrefix(header, "["), " ")
+	if !ok {
+		return ""
+	}
+	return raw
 }
 
 func lastIndex(line, marker string) int {
