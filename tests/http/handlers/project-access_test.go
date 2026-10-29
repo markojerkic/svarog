@@ -150,7 +150,8 @@ func TestProjectAccessMiddleware(t *testing.T) {
 				rec := httptest.NewRecorder()
 				e.ServeHTTP(rec, req)
 				require.Equal(t, tc.status, rec.Code, "Middleware must return the expected status")
-				require.Equal(t, tc.redirect, rec.Header().Get("HX-Location"), "Denied requests must preserve HTMX redirects")
+				require.Equal(t, tc.redirect, rec.Header().Get("HX-Redirect"), "Denied requests must fully navigate instead of swapping into the private URL")
+				require.Empty(t, rec.Header().Get("HX-Location"), "Auth-wall denials must not use HX-Location, which leaves the address bar on the private URL")
 				require.Equal(t, tc.status == http.StatusNoContent, called, "Only authorized requests may reach the downstream handler")
 				require.Equal(t, tc.authCalls, a.calls, "Authorization must be checked live only after UUID validation")
 				require.Equal(t, tc.projectCalls, p.calls, "Client ownership must not be queried before membership is allowed")
@@ -192,7 +193,8 @@ func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 					rec := httptest.NewRecorder()
 					e.ServeHTTP(rec, req)
 					require.Equal(t, http.StatusOK, rec.Code, "Denied route must respond without invoking nil dependencies")
-					require.Equal(t, "/", rec.Header().Get("HX-Location"), "Denied route must redirect home")
+					require.Equal(t, "/", rec.Header().Get("HX-Redirect"), "Denied route must fully navigate home")
+					require.Empty(t, rec.Header().Get("HX-Location"), "Denied route must not swap home into the private URL")
 					require.Empty(t, rec.Body.String(), "Denied route must not expose any project data")
 				})
 			}
@@ -216,7 +218,7 @@ func TestProjectAccessIsRecheckedOnEveryRequest(t *testing.T) {
 	a.allowed = false
 	denied := httptest.NewRecorder()
 	e.ServeHTTP(denied, httptest.NewRequest(http.MethodGet, path, nil))
-	require.Equal(t, http.StatusFound, denied.Code, "A revoked membership must deny the very next request")
+	require.Equal(t, http.StatusTemporaryRedirect, denied.Code, "A revoked membership must deny the very next non-HTMX request with a full redirect")
 	require.Equal(t, "/", denied.Header().Get("Location"), "Non-HTMX denial must preserve the home redirect")
 	require.Equal(t, 2, a.calls, "Membership must be checked again rather than trusting cached project IDs")
 	require.Equal(t, 1, p.calls, "Revoked membership must deny before querying clients")

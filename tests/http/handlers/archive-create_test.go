@@ -166,7 +166,8 @@ func TestArchiveManualCreationRequiresAuthorizedAdmin(t *testing.T) {
 
 			require.Empty(t, stub.calls, "Unauthorized requests must never reach archive creation or list operations")
 			require.Equal(t, http.StatusOK, response.Code, "Denied HTMX requests must return the existing redirect response status")
-			require.Equal(t, test.redirect, response.Header().Get("HX-Location"), "Unauthorized manual creation must use the existing HTMX authorization redirect")
+			require.Equal(t, test.redirect, response.Header().Get("HX-Redirect"), "Unauthorized manual creation must fully navigate away instead of swapping into the private URL")
+			require.Empty(t, response.Header().Get("HX-Location"), "Authorization failures must not use HX-Location")
 		})
 	}
 }

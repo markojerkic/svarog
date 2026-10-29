@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -24,7 +25,7 @@ func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService)
 func (h *HomeHandler) homeHandler(c *echo.Context) error {
 	user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 	if !ok || user == nil {
-		return utils.HxRedirect(c, "/login")
+		return htmx.Redirect(c, "/login")
 	}
 	var visibleProjects []projects.Project
 	var err error

@@ -250,7 +250,7 @@ func archiveError(c *echo.Context, err error, fallback string) error {
 	switch {
 	case errors.Is(err, archive.ErrClientNotFound):
 		htmx.AddErrorToast(c, i18n.T(ctx, "auth.project_client_missing"))
-		return utils.HxRedirect(c, "/")
+		return htmx.Redirect(c, "/")
 	case errors.Is(err, archive.ErrInvalidInput):
 		return archiveJSONError(c, http.StatusBadRequest, i18n.T(ctx, "archives.invalid_weeks"))
 	case errors.Is(err, archive.ErrNotConfigured):

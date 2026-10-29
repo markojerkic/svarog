@@ -10,7 +10,6 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
-	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsService projects.ProjectsService) echo.MiddlewareFunc {
@@ -19,7 +18,7 @@ func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsServi
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 			if !ok || user == nil {
 				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.login_required"))
-				return utils.HxRedirect(c, "/login")
+				return htmx.Redirect(c, "/login")
 			}
 
 			projectID, clientID := c.Param("projectId"), c.Param("clientId")
@@ -37,7 +36,7 @@ func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsServi
 			}
 			if !allowed {
 				htmx.AddErrorToast(c, i18n.T(ctx, "auth.project_forbidden"))
-				return utils.HxRedirect(c, "/")
+				return htmx.Redirect(c, "/")
 			}
 
 			// Historical logs remain readable for inactive clients, but never for another project's client.
@@ -47,7 +46,7 @@ func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsServi
 			}
 			if !belongs {
 				htmx.AddErrorToast(c, i18n.T(ctx, "auth.project_client_missing"))
-				return utils.HxRedirect(c, "/")
+				return htmx.Redirect(c, "/")
 			}
 			return next(c)
 		}

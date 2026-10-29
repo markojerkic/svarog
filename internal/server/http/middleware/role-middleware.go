@@ -5,7 +5,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 func RequiresRoleMiddleware(role auth.Role) echo.MiddlewareFunc {
@@ -14,12 +13,12 @@ func RequiresRoleMiddleware(role auth.Role) echo.MiddlewareFunc {
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
 			if !ok || user == nil {
 				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.login_required"))
-				return utils.HxRedirect(c, "/login")
+				return htmx.Redirect(c, "/login")
 			}
 
 			if user.Role != role {
 				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.page_forbidden"))
-				return utils.HxRedirect(c, "/")
+				return htmx.Redirect(c, "/")
 			}
 			return next(c)
 		}

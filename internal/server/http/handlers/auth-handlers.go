@@ -127,7 +127,7 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
-		return utils.HxRedirect(c, "/login")
+		return htmx.Redirect(c, "/login")
 	}
 
 	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
@@ -148,7 +148,7 @@ func (a *AuthRouter) logout(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "auth.logout_failed")})
 	}
-	return utils.HxRedirect(c, "/")
+	return htmx.Redirect(c, "/login")
 }
 
 func (a *AuthRouter) getUsersPage(c *echo.Context) error {

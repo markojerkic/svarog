@@ -55,6 +55,7 @@ func (self *HttpServer) Start() error {
 	})
 
 	privateApi := e.Group("",
+		customMiddleware.NoStoreMiddleware,
 		sessionMiddleware,
 		customMiddleware.AuthContextMiddleware(self.authService),
 		customMiddleware.RestPasswordMiddleware())
