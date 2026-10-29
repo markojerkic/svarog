@@ -1,5 +1,6 @@
 package datepicker
 
+import "time"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
@@ -13,6 +14,8 @@ type Props struct {
 	Placeholder string
 	HasError    bool
 	Attributes  templ.Attributes
+	// NotBefore disables calendar days before this day. The zero value leaves every day selectable.
+	NotBefore time.Time
 }
 
 templ DatePicker(props ...Props) {
@@ -47,7 +50,15 @@ templ DatePicker(props ...Props) {
 			@icon.Calendar(icon.Props{Class: "size-4"})
 		}
 		@popover.Content(popover.ContentProps{Class: "w-auto p-0", Align: popover.AlignStart}) {
-			@calendar.Calendar(calendar.Props{Mode: calendar.ModeSingle, Locale: i18n.Locale(ctx)})
+			{{
+				calendarProps := calendar.Props{Mode: calendar.ModeSingle, Locale: i18n.Locale(ctx)}
+				if !p.NotBefore.IsZero() {
+					calendarProps.Disabled = calendar.DateBefore{Before: p.NotBefore}
+					year, month, _ := p.NotBefore.Date()
+					calendarProps.StartMonth = time.Date(year, month, 1, 0, 0, 0, 0, p.NotBefore.Location())
+				}
+			}}
+			@calendar.Calendar(calendarProps)
 		}
 	}
 	<input type="hidden" id={ p.ID + "-value" } name={ p.Name }/>

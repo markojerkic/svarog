@@ -14,6 +14,9 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// ErrExpiryNotInFuture means the requested credential expiry is not strictly after the current time.
+var ErrExpiryNotInFuture = errors.New("credential expiry must be in the future")
+
 type NatsCredentialService struct {
 	accountKeyPair   nkeys.KeyPair
 	accountPublicKey string
@@ -76,17 +79,19 @@ func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generatio
 		return "", errors.New("project not found")
 	}
 
-	var expiry *time.Duration
+	var expiry *time.Time
 	if generationRequest.Expiry.Valid {
-		duration := time.Until(generationRequest.Expiry.Time)
-		expiry = &duration
+		if !generationRequest.Expiry.Time.After(time.Now()) {
+			return "", ErrExpiryNotInFuture
+		}
+		expiry = &generationRequest.Expiry.Time
 	}
 
 	topic := fmt.Sprintf("logs.%s.%s", generationRequest.ProjectID, generationRequest.ClientID)
 	return s.generateUserCreds(generationRequest.ProjectID, []string{topic}, []string{}, expiry)
 }
 
-func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Duration) (string, error) {
+func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Time) (string, error) {
 	userKp, err := nkeys.CreateUser()
 	if err != nil {
 		return "", fmt.Errorf("failed to create user key pair: %w", err)
@@ -100,7 +105,7 @@ func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []
 	claims.IssuerAccount = s.accountPublicKey
 
 	if expiry != nil {
-		claims.Expires = time.Now().Add(*expiry).Unix()
+		claims.Expires = expiry.Unix()
 	}
 
 	// Publish Permissions

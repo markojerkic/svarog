@@ -204,8 +204,9 @@
   "connection.expiry": { "other": "Datum isteka (neobavezno)" },
   "connection.expiry_placeholder": { "other": "Odaberi datum isteka" },
   "connection.expiry_description": {
-    "other": "Ostavite prazno ako pristupni podaci ne trebaju isteći"
+    "other": "Ostavi prazno za pristupne podatke koji nikad ne istječu. Odabrani dan vrijedi do kraja tog dana (UTC)."
   },
+  "connection.expiry_past": { "other": "Datum isteka mora biti danas ili kasnije" },
   "connection.generate_failed": { "other": "Pristupne podatke nije moguće generirati." },
   "connection.generated": { "other": "URL za povezivanje generiran je i kopiran u međuspremnik." },
   "users.description": { "other": "Upravljajte računima, ulogama i pristupom projektima." },

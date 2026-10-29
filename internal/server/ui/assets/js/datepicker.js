@@ -7,6 +7,10 @@ document.addEventListener("calendar-select", (event) => {
   if (!(trigger instanceof HTMLElement) || !hidden) return;
   const date = event.detail?.selected;
   const label = trigger.querySelector("span");
+  if (date instanceof Date && !Number.isNaN(date.getTime()) && isBeforeLocalToday(date)) {
+    window.templ?.popover?.close(popup);
+    return;
+  }
   if (date instanceof Date && !Number.isNaN(date.getTime())) {
     const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     hidden.value = iso;
@@ -22,3 +26,14 @@ document.addEventListener("calendar-select", (event) => {
   }
   window.templ?.popover?.close(popup);
 });
+
+function isBeforeLocalToday(date) {
+  const today = new Date();
+  if (date.getFullYear() !== today.getFullYear()) {
+    return date.getFullYear() < today.getFullYear();
+  }
+  if (date.getMonth() !== today.getMonth()) {
+    return date.getMonth() < today.getMonth();
+  }
+  return date.getDate() < today.getDate();
+}

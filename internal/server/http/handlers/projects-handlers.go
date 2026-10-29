@@ -336,24 +336,9 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 		return c.JSON(400, err)
 	}
 	if err := utils.Validate(c, &request); err != nil {
-		if apiErr, ok := err.(types.ApiError); ok {
-			htmx.Reswap(c, htmx.ReswapProps{
-				Swap:   "outerHTML",
-				Target: "this",
-				Select: "form",
-			})
-
-			project, projErr := p.projectsService.GetProject(c.Request().Context(), request.ProjectID)
-			if projErr != nil {
-				htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
-				return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
-			}
-
-			return utils.Render(c, http.StatusBadRequest, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
-				ProjectID: request.ProjectID,
-				Clients:   project.Clients,
-				ApiError:  apiErr,
-			}))
+		var apiErr types.ApiError
+		if errors.As(err, &apiErr) {
+			return p.renderConnectionStringFormError(c, request.ProjectID, apiErr)
 		}
 		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
 		return c.JSON(400, err)
@@ -361,6 +346,12 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 
 	creds, err := p.natsCredsService.GenerateConnString(c.Request().Context(), request)
 	if err != nil {
+		if errors.Is(err, serverauth.ErrExpiryNotInFuture) {
+			message := i18n.T(c.Request().Context(), "connection.expiry_past")
+			return p.renderConnectionStringFormError(c, request.ProjectID, types.NewApiError(message, map[string]string{
+				"expiry": message,
+			}))
+		}
 		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "connection.generate_failed")})
 	}
@@ -374,6 +365,26 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	htmx.AddTrigger(c, "copyToClipboard", connString)
 
 	return c.String(200, connString)
+}
+
+func (p *ProjectsRouter) renderConnectionStringFormError(c *echo.Context, projectID string, apiErr types.ApiError) error {
+	htmx.Reswap(c, htmx.ReswapProps{
+		Swap:   "outerHTML",
+		Target: "this",
+		Select: "form",
+	})
+
+	project, err := p.projectsService.GetProject(c.Request().Context(), projectID)
+	if err != nil {
+		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "connection.generate_failed"))
+		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
+	}
+
+	return utils.Render(c, http.StatusBadRequest, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
+		ProjectID: projectID,
+		Clients:   project.Clients,
+		ApiError:  apiErr,
+	}))
 }
 
 func NewProjectsRouter(

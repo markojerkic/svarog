@@ -191,7 +191,10 @@
   },
   "connection.expiry": { "other": "Expiry Date (Optional)" },
   "connection.expiry_placeholder": { "other": "Select expiry date" },
-  "connection.expiry_description": { "other": "Leave empty for credentials that never expire" },
+  "connection.expiry_description": {
+    "other": "Leave empty for credentials that never expire. A selected day remains valid through the end of that day (UTC)."
+  },
+  "connection.expiry_past": { "other": "Expiry date must be today or later" },
   "connection.generate_failed": { "other": "Failed to generate credentials" },
   "connection.generated": { "other": "Connection string generated and copied to clipboard" },
   "users.description": { "other": "Manage accounts, roles and access to projects." },
