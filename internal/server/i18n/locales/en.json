@@ -18,6 +18,9 @@
   "auth.credentials_required": { "other": "Username and password are required" },
   "auth.invalid_credentials": { "other": "Invalid credentials" },
   "auth.password_too_short": { "other": "Password must be at least 8 characters" },
+  "auth.password_blank": {
+    "other": "Password must contain at least 8 characters that are not spaces"
+  },
   "auth.passwords_mismatch": { "other": "Passwords do not match" },
   "auth.reset_failed": { "other": "Error resetting password, try again" },
   "common.cancel": { "other": "Cancel" },

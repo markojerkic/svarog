@@ -43,6 +43,7 @@ const (
 	UserAlreadyExists   = "User already exists"
 	LoginTokenNotValid  = "Login token not valid"
 	PasswordsDoNotMatch = "Passwords do not match"
+	ErrPasswordBlank    = "password must contain at least 8 non-space characters"
 	loginTokenDuration  = 24 * time.Hour
 )
 
@@ -251,8 +252,8 @@ func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, 
 	if form.Password != form.RepeatedPassword {
 		return errors.New(PasswordsDoNotMatch)
 	}
-	if len(form.Password) < 8 || len(form.Password) > 72 {
-		return errors.New("Password must contain between 8 and 72 bytes")
+	if err := ValidateNewPassword(form.Password); err != nil {
+		return err
 	}
 	id, err := uuid.Parse(userID)
 	if err != nil {

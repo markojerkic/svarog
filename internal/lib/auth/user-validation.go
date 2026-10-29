@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strings"
 	"unicode/utf8"
@@ -63,6 +64,22 @@ func ValidateUserPage(ctx context.Context, query types.GetUserPageInput) error {
 	}
 	if len(fields) > 0 {
 		return types.NewApiError(i18n.T(ctx, "request.invalid_parameters"), fields)
+	}
+	return nil
+}
+
+// ValidateNewPassword rejects a password whose meaningful content is shorter than 8
+// characters. Eight spaces pass a raw length check and can then be used to log in.
+// The stored value is not trimmed: surrounding spaces in an otherwise long password stay significant.
+func ValidateNewPassword(password string) error {
+	if !utf8.ValidString(password) || strings.ContainsRune(password, '\x00') {
+		return errors.New(ErrPasswordBlank)
+	}
+	if utf8.RuneCountInString(strings.TrimSpace(password)) < 8 {
+		return errors.New(ErrPasswordBlank)
+	}
+	if len(password) > 72 {
+		return errors.New("Password must contain between 8 and 72 bytes")
 	}
 	return nil
 }

@@ -18,6 +18,7 @@
   "auth.credentials_required": { "other": "Korisničko ime i lozinka su obavezni" },
   "auth.invalid_credentials": { "other": "Neispravno korisničko ime ili lozinka" },
   "auth.password_too_short": { "other": "Lozinka mora imati najmanje 8 znakova" },
+  "auth.password_blank": { "other": "Lozinka mora imati najmanje 8 znakova koji nisu razmaci" },
   "auth.passwords_mismatch": { "other": "Lozinke se ne podudaraju" },
   "auth.reset_failed": { "other": "Lozinku nije moguće promijeniti. Pokušajte ponovno." },
   "common.cancel": { "other": "Odustani" },

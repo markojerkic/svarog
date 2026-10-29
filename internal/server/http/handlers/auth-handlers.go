@@ -124,6 +124,13 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	if resetPasswordForm.Password != resetPasswordForm.RepeatedPassword {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.passwords_mismatch")))
 	}
+	if err := auth.ValidateNewPassword(resetPasswordForm.Password); err != nil {
+		messageKey := "auth.password_too_short"
+		if err.Error() == auth.ErrPasswordBlank {
+			messageKey = "auth.password_blank"
+		}
+		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), messageKey)))
+	}
 
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
