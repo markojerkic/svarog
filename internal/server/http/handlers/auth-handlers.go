@@ -311,9 +311,26 @@ func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 		return err
 	}
 
-	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.token_copied"))
-	htmx.AddTrigger(c, "copyLoginToken", loginToken)
-	return c.String(200, loginToken)
+	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.login_link_created"))
+	htmx.Reswap(c, htmx.ReswapProps{
+		Swap:   "innerHTML",
+		Target: "#login-link-result",
+	})
+	return utils.Render(c, http.StatusOK, usercomponents.LoginLinkResult(loginLinkURL(c, loginToken)))
+}
+
+func requestScheme(c *echo.Context) string {
+	if c.Scheme() == "https" {
+		return "https"
+	}
+	if strings.EqualFold(strings.TrimSpace(c.Request().Header.Get("X-Forwarded-Proto")), "https") {
+		return "https"
+	}
+	return "http"
+}
+
+func loginLinkURL(c *echo.Context, token string) string {
+	return requestScheme(c) + "://" + c.Request().Host + "/login?token=" + url.QueryEscape(token)
 }
 
 func NewAuthRouter(authService auth.AuthService,

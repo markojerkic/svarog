@@ -51,6 +51,10 @@
   "common.edit": { "other": "Uredi" },
   "common.actions": { "other": "Radnje" },
   "common.close": { "other": "Zatvori" },
+  "common.copy": { "other": "Kopiraj" },
+  "common.copy_failed": {
+    "other": "Kopiranje nije uspjelo. Označite vrijednost i kopirajte je ručno."
+  },
   "common.dismiss": { "other": "Ukloni" },
   "common.generate": { "other": "Generiraj" },
   "common.search": { "other": "Pretraži" },
@@ -208,7 +212,7 @@
   },
   "connection.expiry_past": { "other": "Datum isteka mora biti danas ili kasnije" },
   "connection.generate_failed": { "other": "Pristupne podatke nije moguće generirati." },
-  "connection.generated": { "other": "URL za povezivanje generiran je i kopiran u međuspremnik." },
+  "connection.generated": { "other": "URL za povezivanje je generiran." },
   "users.description": { "other": "Upravljajte računima, ulogama i pristupom projektima." },
   "users.search": { "other": "Pretraži korisnike" },
   "users.search_placeholder": { "other": "Pretraži korisnike..." },
@@ -232,6 +236,15 @@
     "other": "Nema pronađenih korisnika. Pokušajte s drugom pretragom ili dodajte korisnika."
   },
   "users.login_link": { "other": "Poveznica za prijavu" },
+  "users.login_link_confirm": {
+    "other": "Ovo odmah poništava lozinku korisnika. Prethodna lozinka prestaje vrijediti. Jednokratna poveznica za prijavu, važeća 24 sata, prikazat će se nakon potvrde."
+  },
+  "users.login_link_created": {
+    "other": "Poveznica za prijavu je stvorena. Prethodna lozinka više ne vrijedi."
+  },
+  "users.login_link_description": {
+    "other": "Jednokratna poveznica za prijavu, važeća 24 sata. Prethodna lozinka više ne vrijedi."
+  },
   "users.updated": { "other": "Korisnik je ažuriran." },
   "users.deleted": { "other": "Korisnik je izbrisan." },
   "users.not_found": { "other": "Korisnik nije pronađen." },
@@ -240,7 +253,6 @@
   "users.username_exists": { "other": "Korisnik s tim korisničkim imenom već postoji." },
   "users.save_failed": { "other": "Korisnika nije moguće spremiti." },
   "users.delete_failed": { "other": "Korisnika nije moguće izbrisati." },
-  "users.token_copied": { "other": "Token je kopiran u međuspremnik, a lozinka je poništena." },
   "auth.token_invalid": { "other": "Token nije valjan." },
   "auth.logged_in": { "other": "Prijava je uspješna." },
   "auth.logout_failed": { "other": "Odjava nije uspjela." },

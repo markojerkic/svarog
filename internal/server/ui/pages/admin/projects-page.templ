@@ -81,7 +81,6 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					}
 				</div>
 				@projectcomponents.EditProjectDialog()
-				@projectcomponents.ConnectionStringDialog()
 				<div hx-push-url:inherited="true">
 					@pagination.PaginationWrapper(pagination.WrapperProps{
 						Page:       props.Page,
@@ -91,6 +90,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 					})
 				</div>
 			</div>
+			@projectcomponents.ConnectionStringDialog()
 		</div>
 	}
 }

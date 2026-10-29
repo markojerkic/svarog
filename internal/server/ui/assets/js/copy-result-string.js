@@ -1,28 +1,70 @@
-/** @param {String | null} connString */
-function copyConnString(connString) {
-  if (!connString) {
-    console.error("No connection string to copy");
-    return;
+function secretText(field) {
+  if (!field) return "";
+  if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) {
+    return field.value;
   }
-
-  navigator.clipboard.writeText(connString);
+  return field.textContent || "";
 }
 
-// Listen for HTMX custom event to copy to clipboard
-document.addEventListener("copyToClipboard", function (evt) {
-  if (evt.detail && evt.detail.value) {
-    copyConnString(evt.detail.value);
+function writeClipboard(text) {
+  if (!text || !navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+    return Promise.reject(new Error("clipboard unavailable"));
   }
+  return navigator.clipboard.writeText(text);
+}
+
+function showCopyFailed() {
+  const message =
+    (window.svarogI18n &&
+      window.svarogI18n(
+        "common.copy_failed",
+        "Could not copy. Select the value and copy it manually.",
+      )) ||
+    "Could not copy. Select the value and copy it manually.";
+  if (typeof showToast === "function") {
+    showToast(message, "error");
+    return;
+  }
+  if (window.templ && window.templ.toast) {
+    window.templ.toast.add({ title: message, type: "error", timeout: 4000 });
+  }
+}
+
+document.addEventListener("click", function (evt) {
+  const button = evt.target instanceof Element ? evt.target.closest("[data-copy-target]") : null;
+  if (!button) return;
+  evt.preventDefault();
+  const field = document.getElementById(button.getAttribute("data-copy-target"));
+  writeClipboard(secretText(field)).catch(showCopyFailed);
 });
 
-document.addEventListener("copyLoginToken", function (evt) {
-  if (evt.detail && evt.detail.value) {
-    const url = new URL(window.location.href);
-    url.protocol = window.location.protocol;
-    url.hostname = window.location.hostname;
-    url.port = window.location.port;
-    url.pathname = "/login";
-    url.searchParams.set("token", evt.detail.value);
-    copyConnString(url.toString());
+// Best-effort copy after the secret is already in the page. A rejected
+// clipboard write must not be reported as success; the visible field remains.
+document.addEventListener("htmx:after:swap", function (evt) {
+  const target = evt.detail && evt.detail.ctx && evt.detail.ctx.target;
+  if (!(target instanceof Element)) return;
+
+  // open() is a no-op when the dialog is already open, and shows the secret
+  // if the admin closed the dialog before the response arrived.
+  if (
+    target.id === "login-link-result" ||
+    target.id === "login-link-url" ||
+    target.querySelector("#login-link-url")
+  ) {
+    window.templ.dialog.open("login-link-dialog");
   }
+  if (target.id === "connection-string-value" || target.querySelector("#connection-string-value")) {
+    window.templ.dialog.open("connection-string-dialog");
+  }
+
+  const field = target.matches("[data-copy-source]")
+    ? target
+    : target.querySelector("[data-copy-source]");
+  if (!field) return;
+
+  requestAnimationFrame(function () {
+    if (typeof field.focus === "function") field.focus();
+    if (typeof field.select === "function") field.select();
+  });
+  writeClipboard(secretText(field)).catch(function () {});
 });

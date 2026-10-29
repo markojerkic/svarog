@@ -200,7 +200,7 @@ func (p *ProjectsRouter) getConnectionStringForm(c *echo.Context) error {
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
 	}
 
-	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringForm(projectcomponents.ConnectionStringFormProps{
+	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringFormResponse(projectcomponents.ConnectionStringFormProps{
 		ProjectID: project.ID.String(),
 		Clients:   project.Clients,
 	}))
@@ -359,12 +359,13 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	connString := creds.GetConnString()
 	slog.Debug("Generated connection string", "connString", connString)
 
-	htmx.CloseDialog(c)
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "connection.generated"))
+	htmx.Reswap(c, htmx.ReswapProps{
+		Swap:   "innerHTML",
+		Target: "#connection-string-form-container",
+	})
 
-	htmx.AddTrigger(c, "copyToClipboard", connString)
-
-	return c.String(200, connString)
+	return utils.Render(c, http.StatusOK, projectcomponents.ConnectionStringResult(connString))
 }
 
 func (p *ProjectsRouter) renderConnectionStringFormError(c *echo.Context, projectID string, apiErr types.ApiError) error {

@@ -92,6 +92,7 @@ templ UsersListPage(props UsersListPageProps) {
 					})
 				</div>
 			</div>
+			@usercomponents.LoginLinkDialog()
 		</div>
 	}
 }
@@ -193,8 +194,10 @@ templ userActions(user auth.User) {
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
-						"hx-post": "/admin/users/generate-login-token",
-						"hx-swap": "none",
+						"hx-post":    "/admin/users/generate-login-token",
+						"hx-target":  "#login-link-result",
+						"hx-swap":    "innerHTML",
+						"hx-confirm": i18n.T(ctx, "users.login_link_confirm"),
 						"hx-vals": htmx.HxVals(map[string]string{
 							"userId": user.ID.String(),
 						}),

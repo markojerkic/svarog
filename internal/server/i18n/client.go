@@ -9,7 +9,7 @@ import (
 func ClientCatalog(ctx context.Context) string {
 	messages := make(map[string]string)
 	for _, key := range []string{
-		"common.dismiss", "common.select_date",
+		"common.dismiss", "common.copy_failed", "common.select_date",
 		"logs.link_copied", "logs.copy_failed",
 		"calendar.previous_month", "calendar.next_month",
 		"calendar.choose_month", "calendar.choose_year",

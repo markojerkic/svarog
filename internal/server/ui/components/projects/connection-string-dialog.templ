@@ -7,6 +7,7 @@ import selectcomp "github.com/markojerkic/svarog/internal/server/ui/components/s
 import "github.com/markojerkic/svarog/internal/server/ui/components/datepicker"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/textarea"
 import "github.com/markojerkic/svarog/internal/lib/projects"
 import "time"
 import "github.com/markojerkic/svarog/internal/server/i18n"
@@ -26,7 +27,8 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 		class="space-y-4"
 		id="connection-string-form"
 		hx-post="/admin/projects/conn-string"
-		hx-swap="none"
+		hx-target="#connection-string-form-container"
+		hx-swap="innerHTML"
 		hx-disable="input, button"
 	>
 		<input type="hidden" name="projectId" value={ p.ProjectID }/>
@@ -108,7 +110,7 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 templ ConnectionStringDialog() {
 	@dialog.Dialog(dialog.Props{ID: "connection-string-dialog"}) {
 		{ children... }
-		@dialog.Content(dialog.ContentProps{Class: "max-w-md"}) {
+		@dialog.Content(dialog.ContentProps{Class: "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"}) {
 			@dialog.Header() {
 				@dialog.Title() {
 					{ i18n.T(ctx, "connection.generate_title") }
@@ -120,21 +122,78 @@ templ ConnectionStringDialog() {
 			<div id="connection-string-form-container">
 				@ConnectionStringForm()
 			</div>
-			@dialog.Footer() {
-				@button.Button(button.Props{
-					Variant:    button.VariantOutline,
-					Attributes: dialog.Close(ctx),
-				}) {
-					{ i18n.T(ctx, "common.cancel") }
-				}
-				@button.Button(button.Props{
-					Type: button.TypeSubmit,
-					Attributes: templ.Attributes{
-						"form": "connection-string-form",
-					},
-				}) {
-					{ i18n.T(ctx, "common.generate") }
-				}
+			@connectionStringFooter(false, false)
+		}
+	}
+}
+
+templ ConnectionStringFormResponse(props ...ConnectionStringFormProps) {
+	@ConnectionStringForm(props...)
+	@connectionStringFooter(false, true)
+}
+
+templ ConnectionStringResult(connString string) {
+	<div class="space-y-2">
+		@field.Field(field.Props{Class: "space-y-2"}) {
+			@field.Label(field.LabelProps{For: "connection-string-value"}) {
+				{ i18n.T(ctx, "connection.title") }
+			}
+			@textarea.Textarea(textarea.Props{
+				ID:       "connection-string-value",
+				ReadOnly: true,
+				Rows:     6,
+				Value:    connString,
+				Class:    "max-h-64 min-h-24 overflow-auto break-all font-mono text-xs",
+				Attributes: templ.Attributes{
+					"data-copy-source": "true",
+					"spellcheck":       "false",
+					"style":            "field-sizing: fixed; overflow-wrap: anywhere;",
+				},
+			})
+		}
+	</div>
+	@connectionStringFooter(true, true)
+}
+
+templ connectionStringFooter(copy bool, oob bool) {
+	{{
+		attrs := templ.Attributes{}
+		if oob {
+			attrs["hx-swap-oob"] = "outerHTML"
+		}
+	}}
+	@dialog.Footer(dialog.FooterProps{
+		ID:         "connection-string-dialog-footer",
+		Attributes: attrs,
+	}) {
+		if copy {
+			@button.Button(button.Props{
+				Variant:    button.VariantOutline,
+				Attributes: dialog.CloseFor("connection-string-dialog"),
+			}) {
+				{ i18n.T(ctx, "common.close") }
+			}
+			@button.Button(button.Props{
+				Attributes: templ.Attributes{
+					"data-copy-target": "connection-string-value",
+				},
+			}) {
+				{ i18n.T(ctx, "common.copy") }
+			}
+		} else {
+			@button.Button(button.Props{
+				Variant:    button.VariantOutline,
+				Attributes: dialog.CloseFor("connection-string-dialog"),
+			}) {
+				{ i18n.T(ctx, "common.cancel") }
+			}
+			@button.Button(button.Props{
+				Type: button.TypeSubmit,
+				Attributes: templ.Attributes{
+					"form": "connection-string-form",
+				},
+			}) {
+				{ i18n.T(ctx, "common.generate") }
 			}
 		}
 	}

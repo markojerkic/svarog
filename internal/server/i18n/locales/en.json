@@ -49,6 +49,8 @@
   "common.edit": { "other": "Edit" },
   "common.actions": { "other": "Actions" },
   "common.close": { "other": "Close" },
+  "common.copy": { "other": "Copy" },
+  "common.copy_failed": { "other": "Could not copy. Select the value and copy it manually." },
   "common.dismiss": { "other": "Dismiss" },
   "common.generate": { "other": "Generate" },
   "common.search": { "other": "Search" },
@@ -196,7 +198,7 @@
   },
   "connection.expiry_past": { "other": "Expiry date must be today or later" },
   "connection.generate_failed": { "other": "Failed to generate credentials" },
-  "connection.generated": { "other": "Connection string generated and copied to clipboard" },
+  "connection.generated": { "other": "Connection string generated" },
   "users.description": { "other": "Manage accounts, roles and access to projects." },
   "users.search": { "other": "Search users" },
   "users.search_placeholder": { "other": "Search users..." },
@@ -218,6 +220,15 @@
   "users.delete_confirm": { "other": "Are you sure you want to delete this user?" },
   "users.no_results": { "other": "No users found. Try another search or create a user." },
   "users.login_link": { "other": "Login link" },
+  "users.login_link_confirm": {
+    "other": "This resets the user's password immediately. The previous password stops working. A one-time login link, valid for 24 hours, will be shown after you confirm."
+  },
+  "users.login_link_created": {
+    "other": "Login link created. The previous password no longer works."
+  },
+  "users.login_link_description": {
+    "other": "This one-time login link is valid for 24 hours. The previous password no longer works."
+  },
   "users.updated": { "other": "User updated" },
   "users.deleted": { "other": "User deleted" },
   "users.not_found": { "other": "User not found" },
@@ -226,7 +237,6 @@
   "users.username_exists": { "other": "User with this username already exists" },
   "users.save_failed": { "other": "Error creating/updating user" },
   "users.delete_failed": { "other": "Error deleting user" },
-  "users.token_copied": { "other": "Token copied to clipboard, password is reset" },
   "auth.token_invalid": { "other": "Token is invalid" },
   "auth.logged_in": { "other": "Logged in" },
   "auth.logout_failed": { "other": "Error logging out" },

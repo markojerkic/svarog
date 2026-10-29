@@ -1,0 +1,58 @@
+package usercomponents
+
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/field"
+import "github.com/markojerkic/svarog/internal/server/ui/components/textarea"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+
+templ LoginLinkDialog() {
+	@dialog.Dialog(dialog.Props{ID: "login-link-dialog"}) {
+		@dialog.Content(dialog.ContentProps{Class: "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"}) {
+			@dialog.Header() {
+				@dialog.Title() {
+					{ i18n.T(ctx, "users.login_link") }
+				}
+				@dialog.Description() {
+					{ i18n.T(ctx, "users.login_link_description") }
+				}
+			}
+			<div id="login-link-result"></div>
+			@dialog.Footer() {
+				@button.Button(button.Props{
+					Variant:    button.VariantOutline,
+					Attributes: dialog.Close(ctx),
+				}) {
+					{ i18n.T(ctx, "common.close") }
+				}
+				@button.Button(button.Props{
+					Attributes: templ.Attributes{
+						"data-copy-target": "login-link-url",
+					},
+				}) {
+					{ i18n.T(ctx, "common.copy") }
+				}
+			}
+		}
+	}
+}
+
+templ LoginLinkResult(loginURL string) {
+	@field.Field(field.Props{Class: "space-y-2"}) {
+		@field.Label(field.LabelProps{For: "login-link-url"}) {
+			{ i18n.T(ctx, "users.login_link") }
+		}
+		@textarea.Textarea(textarea.Props{
+			ID:       "login-link-url",
+			ReadOnly: true,
+			Rows:     4,
+			Value:    loginURL,
+			Class:    "max-h-48 min-h-20 overflow-auto break-all font-mono text-xs",
+			Attributes: templ.Attributes{
+				"data-copy-source": "true",
+				"spellcheck":       "false",
+				"style":            "field-sizing: fixed; overflow-wrap: anywhere;",
+			},
+		})
+	}
+}
