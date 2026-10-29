@@ -190,6 +190,7 @@ templ RunControl(props SettingsFormProps) {
 			Disabled: !props.Policy.Enabled,
 			Attributes: templ.Attributes{
 				"hx-post":          ArchivePanelURL(props.ProjectID, props.ClientID) + "/create",
+				"hx-confirm":       i18n.T(ctx, "archives.run_confirm"),
 				"hx-target":        "#log-archive-list",
 				"hx-swap":          "outerHTML",
 				"hx-sync":          "#log-archive-sheet:drop",
@@ -199,8 +200,10 @@ templ RunControl(props SettingsFormProps) {
 			},
 		}) {
 			<span class="svarog-indicator-container" aria-hidden="true">
-				<span data-fallback>@icon.Archive(icon.Props{Class: "size-3.5"})</span>
-				<span>@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})</span>
+				<span data-fallback>@icon.Archive(icon.Props{Class: "size-3.5"})
+</span>
+				<span>@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})
+</span>
 			</span>
 			<span class="svarog-indicator" data-fallback>{ i18n.T(ctx, "archives.run") }</span>
 			<span class="svarog-indicator" role="status">{ i18n.T(ctx, "archives.running") }</span>

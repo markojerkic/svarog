@@ -133,6 +133,9 @@
   "archives.run_description": {
     "other": "Koristi spremljene postavke. Arhivirani logovi premještaju se iz preglednika logova u ZIP datoteku."
   },
+  "archives.run_confirm": {
+    "other": "Pokrenuti arhiviranje? Logovi stariji od spremljenog praga premještaju se iz preglednika logova u ZIP datoteku."
+  },
   "archives.enable_first": { "other": "Najprije uključite i spremite arhiviranje." },
   "archives.created": { "other": "Arhiva je izrađena." },
   "archives.no_eligible_logs": {

@@ -126,6 +126,9 @@
   "archives.run_description": {
     "other": "Uses saved settings. Archived logs are moved from the log viewer into a ZIP file."
   },
+  "archives.run_confirm": {
+    "other": "Run archiving now? Logs older than the saved threshold are moved out of the log viewer into a ZIP file."
+  },
   "archives.enable_first": { "other": "Enable and save archiving first." },
   "archives.created": { "other": "Archive created." },
   "archives.no_eligible_logs": { "other": "No logs are older than the saved archive threshold." },
