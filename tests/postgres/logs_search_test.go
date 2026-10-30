@@ -37,6 +37,7 @@ func TestSearchLogs(t *testing.T) {
 		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(30 * time.Second), SequenceNumber: 9, Message: "Error code 500"},
 		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(40 * time.Second), SequenceNumber: 10, Message: "foo-bar happened"},
 		{ClientID: workerID, InstanceName: "other-host", OccurredAt: base, SequenceNumber: 1, Message: "connection refused elsewhere"},
+		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(50 * time.Second), SequenceNumber: 11, Message: "SocketTimeoutException id=1 Čekanje"},
 	})
 	require.NoError(t, err, "insert searchable logs")
 
@@ -67,7 +68,9 @@ func TestSearchLogs(t *testing.T) {
 		oneWord := mustSearch(t, ctx, logs, "connection", api, client, nil, 10, nil)
 		require.Equal(t, []string{"connection timeout", "older connection refused"}, messages(oneWord), "a single word matches every client log containing it, newest first")
 		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "error", api, client, nil, 10, nil)), "simple text search is case insensitive")
-		require.Empty(t, mustSearch(t, ctx, logs, "err", api, client, nil, 10, nil), "a prefix is not a match")
+		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "err", api, client, nil, 10, nil)), "a prefix must match inside a word")
+		require.Equal(t, []string{"connection timeout"}, messages(mustSearch(t, ctx, logs, "time CONNECT", api, client, nil, 10, nil)), "all substrings must match regardless of order and case")
+		require.Equal(t, []string{"SocketTimeoutException id=1 Čekanje"}, messages(mustSearch(t, ctx, logs, "cept id=1 čEK", api, client, nil, 10, nil)), "interior substrings, short extra terms and Croatian letters must match literally")
 	})
 
 	t.Run("hyphen is not an exclusion operator", func(t *testing.T) {
@@ -87,6 +90,13 @@ func TestSearchLogs(t *testing.T) {
 		require.Empty(t, mustSearch(t, ctx, logs, "   ", api, client, nil, 10, nil), "a blank search matches no logs")
 		require.Empty(t, mustSearch(t, ctx, logs, "connection", uuid.New().String(), client, nil, 10, nil), "a client from another project is not searchable")
 		require.Empty(t, mustSearch(t, ctx, logs, "connection", api, "marko", nil, 10, nil), "an invalid client id returns no logs")
+	})
+
+	t.Run("search needs an indexable term", func(t *testing.T) {
+		for _, query := range []string{"id", "ab cd", "a-b-c", "%_", "id=1"} {
+			_, err := logs.SearchLogs(ctx, query, api, client, nil, 10, nil)
+			require.Error(t, err, "query %q must be rejected without three consecutive letters or digits", query)
+		}
 	})
 
 	t.Run("instance filter and cursor id", func(t *testing.T) {
@@ -165,6 +175,22 @@ func TestSearchLogs(t *testing.T) {
 		require.NoError(t, err, "deactivate client while retaining its row")
 		found := mustSearch(t, ctx, logs, "secret", inactiveProject.ID.String(), inactiveClient.String(), nil, 10, nil)
 		require.Equal(t, []string{"kept secret"}, messages(found), "deactivating a client does not hide its logs from search")
+	})
+
+	t.Run("punctuation is literal in primary and additional terms", func(t *testing.T) {
+		literal := `literal 100% foo_bar C:\logs\app "quoted" key=value -danger`
+		_, err := store.InsertLogs(ctx, pool, []store.LogInsert{
+			{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(time.Hour), Message: literal},
+			{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(2 * time.Hour), Message: `literal 1000 fooXbar C:logsapp unquoted key:value danger`},
+			{ClientID: workerID, InstanceName: "other-host", OccurredAt: base.Add(3 * time.Hour), Message: literal},
+		})
+		require.NoError(t, err, "insert literal-search logs and lookalikes in both clients")
+		for _, query := range []string{`100%`, `foo_bar`, `C:\logs\app`, `"quoted"`, `key=value`, `-danger`, `literal 100%`, `literal foo_bar`, `literal C:\logs\app`} {
+			t.Run(query, func(t *testing.T) {
+				found := mustSearch(t, ctx, logs, query, api, client, nil, 10, nil)
+				require.Equal(t, []string{literal}, messages(found), "punctuation in %q must not become wildcards, operators or token separators", query)
+			})
+		}
 	})
 }
 

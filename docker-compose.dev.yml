@@ -10,7 +10,7 @@ services:
       - "127.0.0.1:${SVAROG_POSTGRES_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./internal/persistence/postgres/migrations/000001_initial.up.sql:/docker-entrypoint-initdb.d/000001_initial.sql:ro
+      - ./internal/persistence/postgres/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U svarog -d svarog"]
       interval: 5s

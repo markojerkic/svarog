@@ -80,6 +80,9 @@
   "logs.search": { "other": "Search logs" },
   "logs.search_placeholder": { "other": "Search logs…" },
   "logs.searching": { "other": "Searching" },
+  "logs.search_too_short": {
+    "other": "Enter at least one term with three consecutive letters or digits."
+  },
   "logs.run_search": { "other": "Run search" },
   "logs.clear_search": { "other": "Clear search" },
   "logs.filters": { "other": "Filters" },

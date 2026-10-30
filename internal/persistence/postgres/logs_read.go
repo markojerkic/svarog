@@ -67,20 +67,21 @@ func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) (
 	if hasCursorID {
 		cursorID = *query.CursorID
 	}
-	rows, err := sqlc.New(pool).SearchLogs(ctx, sqlc.SearchLogsParams{
-		ProjectID:       query.ProjectID,
-		ClientID:        query.ClientID,
-		Search:          query.Search,
-		FilterInstances: query.FilterInstances,
-		Instances:       instances,
-		HasCursor:       query.HasCursor,
-		Backward:        query.Backward,
-		Inclusive:       query.Inclusive,
-		HasCursorID:     hasCursorID,
-		CursorAt:        query.CursorAt,
-		CursorSequence:  query.CursorSequence,
-		CursorID:        cursorID,
-		PageSize:        query.PageSize,
+	rows, err := sqlc.New(searchQueryDB{DBTX: pool}).SearchLogs(ctx, sqlc.SearchLogsParams{
+		ProjectID:         query.ProjectID,
+		ClientID:          query.ClientID,
+		PrimaryPattern:    query.PrimaryPattern,
+		RemainingPatterns: query.RemainingPatterns,
+		FilterInstances:   query.FilterInstances,
+		Instances:         instances,
+		HasCursor:         query.HasCursor,
+		Backward:          query.Backward,
+		Inclusive:         query.Inclusive,
+		HasCursorID:       hasCursorID,
+		CursorAt:          query.CursorAt,
+		CursorSequence:    query.CursorSequence,
+		CursorID:          cursorID,
+		PageSize:          query.PageSize,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search logs: %w", err)
@@ -101,6 +102,17 @@ func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) (
 		}
 	}
 	return logs, nil
+}
+
+// Search selectivity and cursor direction vary per request. Cache parameter
+// descriptions, but use an unnamed statement so PostgreSQL plans with the actual
+// values instead of eventually reusing a generic plan for the optional filters.
+type searchQueryDB struct {
+	sqlc.DBTX
+}
+
+func (db searchQueryDB) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
+	return db.DBTX.Query(ctx, query, append([]any{pgx.QueryExecModeCacheDescribe}, args...)...)
 }
 
 func GetLogAnchor(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID, id int64) (LogRow, error) {

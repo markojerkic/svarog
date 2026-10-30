@@ -18,13 +18,13 @@ func NewPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		postgres.WithDatabase("svarog_test"),
 		postgres.WithUsername("svarog"),
 		postgres.WithPassword("svarog"),
-		postgres.WithInitScripts(filepath.Join("..", "..", "internal", "persistence", "postgres", "migrations", "000001_initial.up.sql")),
+		postgres.WithOrderedInitScripts(PostgresMigrations(t)...),
 		postgres.BasicWaitStrategies(),
 	)
 	if container != nil {
 		testcontainers.CleanupContainer(t, container)
 	}
-	require.NoError(t, err, "start PostgreSQL 18 container with initial migration")
+	require.NoError(t, err, "start PostgreSQL 18 container with all migrations")
 	connectionString, err := container.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err, "get PostgreSQL connection string")
 	pool, err := pgxpool.New(ctx, connectionString)
@@ -32,4 +32,13 @@ func NewPostgresPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	require.NoError(t, pool.Ping(ctx), "connect to migrated PostgreSQL test database")
 	return pool
+}
+
+func PostgresMigrations(t *testing.T) []string {
+	t.Helper()
+	// Glob returns sorted paths; the numeric prefixes define migration order.
+	paths, err := filepath.Glob(filepath.Join("..", "..", "internal", "persistence", "postgres", "migrations", "*.up.sql"))
+	require.NoError(t, err, "find PostgreSQL migrations")
+	require.NotEmpty(t, paths, "test databases must apply the application migrations")
+	return paths
 }

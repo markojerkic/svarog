@@ -3,18 +3,18 @@ package postgres_test
 import (
 	"context"
 	"io"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/exec"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func TestInitialMigrationCreatesTables(t *testing.T) {
+func TestMigrationsCreateTables(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -22,13 +22,13 @@ func TestInitialMigrationCreatesTables(t *testing.T) {
 		postgres.WithDatabase("svarog_test"),
 		postgres.WithUsername("svarog"),
 		postgres.WithPassword("svarog"),
-		postgres.WithInitScripts(filepath.Join("..", "..", "internal", "persistence", "postgres", "migrations", "000001_initial.up.sql")),
+		postgres.WithOrderedInitScripts(testutils.PostgresMigrations(t)...),
 		postgres.BasicWaitStrategies(),
 	)
 	if container != nil {
 		testcontainers.CleanupContainer(t, container)
 	}
-	require.NoError(t, err, "start PostgreSQL with initial migration")
+	require.NoError(t, err, "start PostgreSQL with all migrations")
 
 	exitCode, output, err := container.Exec(ctx, []string{
 		"psql", "-X", "-U", "svarog", "-d", "svarog_test", "-At", "-v", "ON_ERROR_STOP=1", "-c",
@@ -48,5 +48,5 @@ func TestInitialMigrationCreatesTables(t *testing.T) {
 		"sessions",
 		"user_projects",
 		"users",
-	}, strings.Fields(string(result)), "initial migration creates exactly the expected public tables")
+	}, strings.Fields(string(result)), "migrations create exactly the expected public tables")
 }

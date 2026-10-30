@@ -119,21 +119,40 @@ func (q *Queries) InsertLogs(ctx context.Context, arg InsertLogsParams) ([]int64
 }
 
 const listInstances = `-- name: ListInstances :many
-SELECT DISTINCT l.instance_name
-FROM logs l
-JOIN clients c ON c.id = l.client_id
-WHERE c.project_id = $1
-  AND l.client_id = $2
-ORDER BY l.instance_name
+WITH RECURSIVE scope AS (
+    SELECT c.id FROM clients c
+    WHERE c.id = $1
+      AND c.project_id = $2
+), names(instance_name) AS (
+    (
+        SELECT l.instance_name FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+        ORDER BY l.instance_name
+        LIMIT 1
+    )
+    UNION ALL
+    SELECT next_name.instance_name
+    FROM names previous
+    CROSS JOIN LATERAL (
+        SELECT l.instance_name FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+          AND l.instance_name > previous.instance_name
+        ORDER BY l.instance_name
+        LIMIT 1
+    ) next_name
+)
+SELECT instance_name FROM names ORDER BY instance_name
 `
 
 type ListInstancesParams struct {
-	ProjectID uuid.UUID
 	ClientID  uuid.UUID
+	ProjectID uuid.UUID
 }
 
+// Seek to the next distinct instance using logs_client_instance_order_idx.
+// Work scales with the number of instances rather than the number of log rows.
 func (q *Queries) ListInstances(ctx context.Context, arg ListInstancesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listInstances, arg.ProjectID, arg.ClientID)
+	rows, err := q.db.Query(ctx, listInstances, arg.ClientID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -280,69 +299,71 @@ FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE c.project_id = $1
   AND l.client_id = $2
-  AND to_tsvector('simple', l.message) @@ plainto_tsquery('simple', $3)
+  AND l.message ILIKE $3::text ESCAPE E'\\'
+  AND l.message ILIKE ALL($4::text[])
   AND (
-    NOT $4::bool
-    OR l.instance_name = ANY($5::text[])
+    NOT $5::bool
+    OR l.instance_name = ANY($6::text[])
   )
   AND (
-    NOT $6::bool
+    NOT $7::bool
     OR (
-      $7::bool
-      AND $8::bool
+      $8::bool
       AND $9::bool
+      AND $10::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          <= ($10, $11::bigint, $12::bigint)
+          <= ($11, $12::bigint, $13::bigint)
     )
     OR (
-      $7::bool
-      AND NOT $8::bool
+      $8::bool
       AND NOT $9::bool
+      AND NOT $10::bool
       AND (l.occurred_at, l.sequence_number)
-          < ($10, $11::bigint)
+          < ($11, $12::bigint)
     )
     OR (
-      $7::bool
-      AND NOT $8::bool
-      AND $9::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < ($10, $11::bigint, $12::bigint)
-    )
-    OR (
-      NOT $7::bool
+      $8::bool
       AND NOT $9::bool
-      AND (l.occurred_at, l.sequence_number)
-          > ($10, $11::bigint)
+      AND $10::bool
+      AND (l.occurred_at, l.sequence_number, l.id)
+          < ($11, $12::bigint, $13::bigint)
     )
     OR (
-      NOT $7::bool
-      AND $9::bool
+      NOT $8::bool
+      AND NOT $10::bool
+      AND (l.occurred_at, l.sequence_number)
+          > ($11, $12::bigint)
+    )
+    OR (
+      NOT $8::bool
+      AND $10::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          > ($10, $11::bigint, $12::bigint)
+          > ($11, $12::bigint, $13::bigint)
     )
   )
 ORDER BY
-  CASE WHEN $6::bool AND NOT $7::bool THEN l.occurred_at END ASC,
-  CASE WHEN $6::bool AND NOT $7::bool THEN l.sequence_number END ASC,
-  CASE WHEN $6::bool AND NOT $7::bool THEN l.id END ASC,
+  CASE WHEN $7::bool AND NOT $8::bool THEN l.occurred_at END ASC,
+  CASE WHEN $7::bool AND NOT $8::bool THEN l.sequence_number END ASC,
+  CASE WHEN $7::bool AND NOT $8::bool THEN l.id END ASC,
   l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $13
+LIMIT $14
 `
 
 type SearchLogsParams struct {
-	ProjectID       uuid.UUID
-	ClientID        uuid.UUID
-	Search          string
-	FilterInstances bool
-	Instances       []string
-	HasCursor       bool
-	Backward        bool
-	Inclusive       bool
-	HasCursorID     bool
-	CursorAt        time.Time
-	CursorSequence  int64
-	CursorID        int64
-	PageSize        int32
+	ProjectID         uuid.UUID
+	ClientID          uuid.UUID
+	PrimaryPattern    string
+	RemainingPatterns []string
+	FilterInstances   bool
+	Instances         []string
+	HasCursor         bool
+	Backward          bool
+	Inclusive         bool
+	HasCursorID       bool
+	CursorAt          time.Time
+	CursorSequence    int64
+	CursorID          int64
+	PageSize          int32
 }
 
 type SearchLogsRow struct {
@@ -359,7 +380,8 @@ func (q *Queries) SearchLogs(ctx context.Context, arg SearchLogsParams) ([]Searc
 	rows, err := q.db.Query(ctx, searchLogs,
 		arg.ProjectID,
 		arg.ClientID,
-		arg.Search,
+		arg.PrimaryPattern,
+		arg.RemainingPatterns,
 		arg.FilterInstances,
 		arg.Instances,
 		arg.HasCursor,

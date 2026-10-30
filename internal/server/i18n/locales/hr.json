@@ -82,6 +82,9 @@
   "logs.search": { "other": "Pretraži logove" },
   "logs.search_placeholder": { "other": "Pretraži logove…" },
   "logs.searching": { "other": "Pretraživanje" },
+  "logs.search_too_short": {
+    "other": "Unesite barem jedan pojam s tri uzastopna slova ili znamenke."
+  },
   "logs.run_search": { "other": "Pokreni pretragu" },
   "logs.clear_search": { "other": "Očisti pretragu" },
   "logs.filters": { "other": "Filtri" },

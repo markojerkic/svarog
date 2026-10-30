@@ -141,6 +141,9 @@ func TestReadLogs(t *testing.T) {
 		missing, err := logs.GetInstances(ctx, api, "marko")
 		require.NoError(t, err)
 		require.Empty(t, missing)
+		foreign, err := logs.GetInstances(ctx, uuid.NewString(), client)
+		require.NoError(t, err, "instance lookup with a mismatched project must complete safely")
+		require.Empty(t, foreign, "instance names must not leak when the client belongs to another project")
 	})
 
 	t.Run("log context uses the anchor instance", func(t *testing.T) {

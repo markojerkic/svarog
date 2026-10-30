@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/types"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
@@ -199,6 +200,13 @@ func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, pr
 	if pageSize <= 0 || pageSize > math.MaxInt32 {
 		return nil, fmt.Errorf("invalid log page size %d", pageSize)
 	}
+	parsed, err := logsearch.Parse(query)
+	if err != nil {
+		return nil, err
+	}
+	if len(parsed.Terms) == 0 {
+		return []types.StoredLog{}, nil
+	}
 	search := persistence.LogSearchQuery{
 		LogReadQuery: persistence.LogReadQuery{
 			ProjectID:       projectID,
@@ -206,7 +214,8 @@ func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, pr
 			FilterInstances: instances != nil,
 			PageSize:        int32(pageSize),
 		},
-		Search: query,
+		PrimaryPattern:    parsed.PrimaryPattern,
+		RemainingPatterns: parsed.RemainingPatterns,
 	}
 	if instances != nil {
 		search.Instances = *instances

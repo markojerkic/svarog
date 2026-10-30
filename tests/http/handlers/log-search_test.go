@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -151,6 +152,34 @@ func TestLogsPageLiveModes(t *testing.T) {
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), status), "the header must reflect the same live state as the connection")
 				}
 			})
+		}
+	}
+}
+
+func TestLogSearchValidation(t *testing.T) {
+	for _, route := range []string{"", "/search"} {
+		for _, hx := range []bool{false, true} {
+			for _, query := range []string{"id", "ab cd", "a-b-c", "%_", "id=1"} {
+				t.Run(fmt.Sprintf("%s/%s/htmx=%t", route, query, hx), func(t *testing.T) {
+					e := echo.New()
+					logs := &logSearchStub{}
+					handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+					req := httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+route+"?search="+url.QueryEscape(query), nil)
+					if hx {
+						req.Header.Set("HX-Request", "true")
+					}
+					rec := httptest.NewRecorder()
+					e.ServeHTTP(rec, req)
+					require.Equal(t, http.StatusBadRequest, rec.Code, "both search endpoints must reject queries without an indexable term")
+					require.Zero(t, logs.logCalls, "invalid search must not execute a potentially unbounded log query")
+					if route == "" && hx {
+						require.Equal(t, "none", rec.Header().Get("HX-Reswap"), "invalid search must preserve the current results")
+						require.Contains(t, rec.Header().Get("HX-Trigger"), "three consecutive", "invalid search must explain how to correct the query")
+					} else {
+						require.Contains(t, rec.Body.String(), "three consecutive", "direct and API requests must explain the search validation failure")
+					}
+				})
+			}
 		}
 	}
 }
