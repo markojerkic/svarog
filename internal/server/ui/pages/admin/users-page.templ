@@ -44,7 +44,8 @@ templ UsersListPage(props UsersListPageProps) {
 					hx-target=".table-wrapper"
 					hx-select=".table-wrapper"
 					hx-swap="outerHTML"
-					hx-trigger="input changed delay:300ms"
+					hx-sync="this:replace"
+					hx-on:submit="process(this.querySelector('input[name=search]'), true)"
 				>
 					<input type="hidden" name="size" value={ fmt.Sprint(props.Size) }/>
 					@input.Input(input.Props{
@@ -53,7 +54,17 @@ templ UsersListPage(props UsersListPageProps) {
 						Name:        "search",
 						Class:       "pl-9",
 						Placeholder: i18n.T(ctx, "users.search_placeholder"),
-						Attributes:  templ.Attributes{"aria-label": i18n.T(ctx, "users.search")},
+						Attributes: templ.Attributes{
+							"aria-label":  i18n.T(ctx, "users.search"),
+							"hx-get":      "/admin/users",
+							"hx-trigger":  "input changed delay:300ms",
+							"hx-target":   ".table-wrapper",
+							"hx-select":   ".table-wrapper",
+							"hx-swap":     "outerHTML",
+							"hx-push-url": "true",
+							"hx-include":  "#search-form",
+							"hx-sync":     "#search-form:replace",
+						},
 					})
 				</form>
 			</div>
