@@ -75,6 +75,10 @@ func (s *projectAccessProjectsStub) DeleteProject(context.Context, string) error
 	return s.deleteErr
 }
 
+func (s *projectAccessProjectsStub) GetProject(context.Context, string) (projects.Project, error) {
+	return projects.Project{}, nil
+}
+
 type projectAccessLogsStub struct {
 	db.LogService
 	calls int

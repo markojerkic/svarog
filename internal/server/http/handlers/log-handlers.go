@@ -1,14 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"log/slog"
 
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
@@ -30,9 +30,10 @@ type LogLine struct {
 }
 
 type LogsRouter struct {
-	logService   db.LogService
-	parentRouter *echo.Group
-	api          *echo.Group
+	logService      db.LogService
+	projectsService projects.ProjectsService
+	parentRouter    *echo.Group
+	api             *echo.Group
 }
 
 var DEFAULT_PAGE_SIZE = int64(300)
@@ -84,6 +85,23 @@ func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
 		cursor.ID = *params.CursorID
 	}
 	return cursor, nil
+}
+
+func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID string) string {
+	if self.projectsService == nil {
+		return ""
+	}
+	project, err := self.projectsService.GetProject(ctx, projectID)
+	if err != nil {
+		slog.Debug("log page client name unavailable", "error", err)
+		return ""
+	}
+	for _, client := range project.Clients {
+		if client.ID.String() == clientID {
+			return client.Name
+		}
+	}
+	return ""
 }
 
 func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
@@ -152,6 +170,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
+	props.ClientName = self.logClientName(c.Request().Context(), params.ProjectId, params.ClientId)
 	props.AvailableInstances, err = self.logService.GetInstances(c.Request().Context(), params.ProjectId, params.ClientId)
 	if err != nil {
 		return err
@@ -200,9 +219,10 @@ func NewLogsRouter(logService db.LogService, authService auth.AuthService, proje
 	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 
 	logsRouter := &LogsRouter{
-		logService:   logService,
-		parentRouter: e,
-		api:          logsApi,
+		logService:      logService,
+		projectsService: projectsService,
+		parentRouter:    e,
+		api:             logsApi,
 	}
 
 	logsRouter.api.GET("", logsRouter.logsByClientHandler)
