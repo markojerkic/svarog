@@ -64,7 +64,8 @@ templ SearchDialog(action, search string, instances *[]string) {
 				hx-swap="innerHTML"
 				hx-push-url="true"
 				hx-sync="body:replace"
-				hx-disable="find button[type='submit']"
+				hx-disable="find #log-search-input, find button[type='submit']"
+				hx-indicator:append="this"
 				class="flex items-center gap-4 px-4 sm:px-5"
 			>
 				if instances != nil {
@@ -73,20 +74,26 @@ templ SearchDialog(action, search string, instances *[]string) {
 					}
 				}
 				@icon.Search(icon.Props{Class: "size-5 shrink-0 text-muted-foreground"})
-				@input.Input(input.Props{
-					ID:          "log-search-input",
-					Name:        "search",
-					Type:        "search",
-					Value:       search,
-					Placeholder: i18n.T(ctx, "logs.search_placeholder"),
-					Class:       "h-16 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent",
-					Attributes: templ.Attributes{
-						"aria-label":   i18n.T(ctx, "logs.search"),
-						"autocomplete": "off",
-						"spellcheck":   "false",
-						"enterkeyhint": "search",
-					},
-				})
+				<div class="relative min-w-0 flex-1">
+					@input.Input(input.Props{
+						ID:          "log-search-input",
+						Name:        "search",
+						Type:        "search",
+						Value:       search,
+						Placeholder: i18n.T(ctx, "logs.search_placeholder"),
+						Class:       "h-16 rounded-none border-0 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100 md:text-base dark:bg-transparent dark:disabled:bg-transparent",
+						Attributes: templ.Attributes{
+							"aria-label":   i18n.T(ctx, "logs.search"),
+							"autocomplete": "off",
+							"spellcheck":   "false",
+							"enterkeyhint": "search",
+						},
+					})
+					<span class="htmx-indicator pointer-events-none absolute inset-y-0 right-0 flex items-center text-muted-foreground" role="status">
+						<span class="sr-only">{ i18n.T(ctx, "logs.searching") }</span>
+						@icon.LoaderCircle(icon.Props{Class: "size-4 animate-spin motion-reduce:animate-none", Attributes: templ.Attributes{"aria-hidden": "true"}})
+					</span>
+				</div>
 				@button.Button(button.Props{
 					Variant: button.VariantSecondary,
 					Size:    button.SizeIconSm,

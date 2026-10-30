@@ -81,6 +81,7 @@
   "logs.back_to_live": { "other": "Nastavi praćenje uživo" },
   "logs.search": { "other": "Pretraži logove" },
   "logs.search_placeholder": { "other": "Pretraži logove…" },
+  "logs.searching": { "other": "Pretraživanje" },
   "logs.run_search": { "other": "Pokreni pretragu" },
   "logs.clear_search": { "other": "Očisti pretragu" },
   "logs.filters": { "other": "Filtri" },

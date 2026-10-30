@@ -79,6 +79,7 @@
   "logs.back_to_live": { "other": "Back to live" },
   "logs.search": { "other": "Search logs" },
   "logs.search_placeholder": { "other": "Search logs…" },
+  "logs.searching": { "other": "Searching" },
   "logs.run_search": { "other": "Run search" },
   "logs.clear_search": { "other": "Clear search" },
   "logs.filters": { "other": "Filters" },

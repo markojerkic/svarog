@@ -173,6 +173,19 @@
   backdrop-filter: blur(1px);
 }
 
+/* The native search clear sits in this slot. Hide it while the request spinner is there. */
+#log-search-form.htmx-request #log-search-input {
+  padding-right: 1.75rem;
+}
+
+#log-search-form.htmx-request #log-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 @layer base {
   * {
     @apply border-border;
