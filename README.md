@@ -39,9 +39,12 @@ ships a watcher version that no longer depends on `braces`.
 Start the development environment with hot reload:
 
 ```bash
-task db                    # Start PostgreSQL and NATS in Docker
-task dev                   # Start server with templ hot reload
+task db                    # Start PostgreSQL and NATS in Docker (no schema changes)
+task dev                   # Start dependencies and server with hot reload
 ```
+
+Database migrations use [Goose](https://github.com/pressly/goose) and run automatically
+on server startup. SQL files live in `internal/persistence/postgres/migrations/`.
 
 ## Client Usage
 
@@ -137,8 +140,10 @@ services:
       - HTTP_SERVER_PORT=1323
       - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:1323
     depends_on:
-      - svarog-postgres
-      - svarog-nats
+      svarog-postgres:
+        condition: service_healthy
+      svarog-nats:
+        condition: service_started
 
   svarog-postgres:
     image: postgres:18.6-alpine
@@ -151,6 +156,11 @@ services:
       - 5432:5432
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U svarog -d svarog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
