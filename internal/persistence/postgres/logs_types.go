@@ -40,5 +40,6 @@ type LogReadQuery struct {
 
 type LogSearchQuery struct {
 	LogReadQuery
-	Search string
+	PrimaryPattern    string
+	RemainingPatterns []string
 }

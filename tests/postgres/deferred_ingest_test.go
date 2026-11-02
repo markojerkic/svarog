@@ -190,7 +190,9 @@ func ingestLine(env ingestEnv, i int, at time.Time) db.LogLineWithHost {
 
 func pushThroughAggregator(t *testing.T, ctx context.Context, env ingestEnv, lines []db.LogLineWithHost) {
 	t.Helper()
-	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// These tests verify lossless ingestion, not a machine-dependent throughput
+	// budget. Use the enclosing test's deadline for large indexed batches as well.
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ch := make(chan db.LogLineWithHost)
 	done := make(chan struct{})

@@ -1,4 +1,4 @@
-BEGIN;
+-- +goose Up
 
 CREATE TABLE users (
     id uuid PRIMARY KEY,
@@ -111,4 +111,13 @@ CREATE INDEX logs_archive_idx
 CREATE INDEX logs_search_idx
     ON logs USING gin(to_tsvector('simple'::regconfig, message));
 
-COMMIT;
+-- +goose Down
+DROP TABLE logs;
+DROP TABLE archives;
+DROP TABLE archive_policies;
+DROP TABLE sessions;
+DROP TABLE login_tokens;
+DROP TABLE user_projects;
+DROP TABLE clients;
+DROP TABLE projects;
+DROP TABLE users;

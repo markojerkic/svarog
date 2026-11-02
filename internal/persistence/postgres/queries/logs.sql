@@ -89,7 +89,8 @@ FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE c.project_id = sqlc.arg(project_id)
   AND l.client_id = sqlc.arg(client_id)
-  AND to_tsvector('simple', l.message) @@ plainto_tsquery('simple', sqlc.arg(search))
+  AND l.message ILIKE sqlc.arg(primary_pattern)::text ESCAPE E'\\'
+  AND l.message ILIKE ALL(sqlc.arg(remaining_patterns)::text[])
   AND (
     NOT sqlc.arg(filter_instances)::bool
     OR l.instance_name = ANY(sqlc.arg(instances)::text[])
@@ -147,9 +148,28 @@ WHERE l.id = sqlc.arg(id)
   AND c.project_id = sqlc.arg(project_id);
 
 -- name: ListInstances :many
-SELECT DISTINCT l.instance_name
-FROM logs l
-JOIN clients c ON c.id = l.client_id
-WHERE c.project_id = sqlc.arg(project_id)
-  AND l.client_id = sqlc.arg(client_id)
-ORDER BY l.instance_name;
+-- Seek to the next distinct instance using logs_client_instance_order_idx.
+-- Work scales with the number of instances rather than the number of log rows.
+WITH RECURSIVE scope AS (
+    SELECT c.id FROM clients c
+    WHERE c.id = sqlc.arg(client_id)
+      AND c.project_id = sqlc.arg(project_id)
+), names(instance_name) AS (
+    (
+        SELECT l.instance_name FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+        ORDER BY l.instance_name
+        LIMIT 1
+    )
+    UNION ALL
+    SELECT next_name.instance_name
+    FROM names previous
+    CROSS JOIN LATERAL (
+        SELECT l.instance_name FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+          AND l.instance_name > previous.instance_name
+        ORDER BY l.instance_name
+        LIMIT 1
+    ) next_name
+)
+SELECT instance_name FROM names ORDER BY instance_name;

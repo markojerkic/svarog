@@ -19,6 +19,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
@@ -82,6 +83,11 @@ func gracefulShutdown(deps serverDependencies) {
 func main() {
 	setupLogger()
 	env := loadEnv()
+	if err := migrations.Up(context.Background(), env.PostgresURL); err != nil {
+		log.Fatal("Couldn't apply PostgreSQL migrations", "error", err)
+	}
+	slog.Info("PostgreSQL migrations applied")
+
 	postgresCtx, postgresCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	postgresPool, err := pgxpool.New(postgresCtx, env.PostgresURL)
 	if err == nil {
@@ -129,7 +135,7 @@ func main() {
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 
 	if err := authService.CreateInitialAdminUser(context.Background()); err != nil {
-		log.Fatal("Couldn't initialize PostgreSQL admin user; apply database migrations first", "error", err)
+		log.Fatal("Couldn't initialize PostgreSQL admin user", "error", err)
 	}
 
 	logIngestChannel := make(chan db.LogLineWithHost, 1000)

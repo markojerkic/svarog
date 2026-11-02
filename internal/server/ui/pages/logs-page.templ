@@ -14,6 +14,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 import "github.com/markojerkic/svarog/internal/lib/auth"
+import "github.com/markojerkic/svarog/internal/lib/logsearch"
 import "github.com/markojerkic/svarog/internal/server/ui/components/archives"
 
 type LogsPageProps struct {
@@ -228,13 +229,15 @@ templ InstanceFilter(props LogsPageProps) {
 }
 
 templ LogPageLines(props LogsPageProps) {
+	// HTTP validation has already accepted the query; prepare it once per page.
+	{{ search, _ := logsearch.Parse(props.Search) }}
 	if props.LogPage.ForwardCursor != nil {
 		@LogPageLoader(props, props.LogPage.ForwardCursor, "forward", "logs.load_newer")
 	}
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{
 			LogLine:   log,
-			Search:    props.Search,
+			Search:    search,
 			IsContext: props.LogLineId != nil && *props.LogLineId == strconv.FormatInt(log.ID, 10),
 		})
 	}

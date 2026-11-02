@@ -66,7 +66,15 @@ document.addEventListener("htmx:before:response", (event) => {
     response.status >= 400
   ) {
     event.preventDefault();
-    showToast("Could not load logs. Try again.", "error");
+    // HTMX dispatches HX-Trigger in its finally handler, even when cancelled.
+    // Let the server's validation toast explain the error without a second toast.
+    let hasToast = false;
+    try {
+      hasToast = !!JSON.parse(response.headers.get("HX-Trigger") || "{}").toast;
+    } catch {}
+    if (!hasToast) {
+      showToast(window.svarogI18n("logs.load_failed", "Could not load logs. Try again."), "error");
+    }
   }
 });
 
@@ -78,6 +86,6 @@ document.addEventListener("htmx:error", (event) => {
     ) &&
     error.name !== "AbortError"
   ) {
-    showToast("Could not load logs. Try again.", "error");
+    showToast(window.svarogI18n("logs.load_failed", "Could not load logs. Try again."), "error");
   }
 });

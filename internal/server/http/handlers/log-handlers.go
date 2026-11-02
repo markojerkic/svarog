@@ -12,8 +12,10 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -131,6 +133,9 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 
 	slog.Debug("Get logs by client", "params", params)
 	params.Search = strings.TrimSpace(params.Search)
+	if _, err := logsearch.Parse(params.Search); err != nil {
+		return logSearchValidationError(c, false)
+	}
 	if params.Search != "" {
 		params.LogLineId = nil
 	}
@@ -187,6 +192,10 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 		slog.Error("Bindings for logs by client not correct", "error", err)
 		return c.JSON(400, i18n.T(c.Request().Context(), "errors.400_title"))
 	}
+	params.Search = strings.TrimSpace(params.Search)
+	if _, err := logsearch.Parse(params.Search); err != nil {
+		return logSearchValidationError(c, true)
+	}
 
 	nextCursor, err := params.cursor()
 	if err != nil {
@@ -213,6 +222,22 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 	}
 
 	return c.JSON(200, mappedLogs)
+}
+
+func logSearchValidationError(c *echo.Context, jsonResponse bool) error {
+	message := i18n.T(c.Request().Context(), "logs.search_too_short")
+	if jsonResponse {
+		return c.JSON(http.StatusBadRequest, message)
+	}
+	if htmx.IsHXRequest(c) {
+		htmx.AddErrorToast(c, message)
+		c.Response().Header().Set("HX-Reswap", "none")
+		return c.NoContent(http.StatusBadRequest)
+	}
+	return utils.Render(c, http.StatusBadRequest, pages.ErrorPage(pages.ErrorPageProps{
+		StatusCode: http.StatusBadRequest,
+		Message:    message,
+	}))
 }
 
 func NewLogsRouter(logService db.LogService, authService auth.AuthService, projectsService projects.ProjectsService, e *echo.Group) *LogsRouter {

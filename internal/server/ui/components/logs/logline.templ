@@ -4,35 +4,23 @@ import "strconv"
 import "github.com/markojerkic/svarog/internal/server/types"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
-import "regexp"
-import "strings"
+import "github.com/markojerkic/svarog/internal/lib/logsearch"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type LogLineProps struct {
 	LogLine   types.StoredLog
-	Search    string
+	Search    logsearch.Query
 	IsContext bool
 }
 
-var searchWords = regexp.MustCompile(`[\p{L}\p{N}]+`)
-
-templ LogLineText(text, search string) {
-	{{
-		terms := make(map[string]bool)
-		for _, word := range searchWords.FindAllString(search, -1) {
-			terms[strings.ToLower(word)] = true
-		}
-		cursor := 0
-	}}
-	if len(terms) > 0 {
-		for _, match := range searchWords.FindAllStringIndex(text, -1) {
-			if terms[strings.ToLower(text[match[0]:match[1]])] {
-				{ text[cursor:match[0]] }<mark class="rounded-xs bg-amber-200 text-amber-950 dark:bg-amber-400/30 dark:text-amber-100">{ text[match[0]:match[1]] }</mark>
-				{{ cursor = match[1] }}
-			}
+templ LogLineText(text string, search logsearch.Query) {
+	for _, part := range logsearch.Highlight(text, search.Terms) {
+		if part.Matched {
+			<mark class="rounded-xs bg-amber-200 text-amber-950 dark:bg-amber-400/30 dark:text-amber-100">{ part.Text }</mark>
+		} else {
+			{ part.Text }
 		}
 	}
-	{ text[cursor:] }
 }
 
 templ LogLine(props LogLineProps) {
