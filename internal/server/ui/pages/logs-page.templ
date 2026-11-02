@@ -49,10 +49,19 @@ templ LogsPage(props LogsPageProps) {
 				data-log-client-id={ props.ClientId }
 			>
 				@LogPageLines(props)
-				if props.Search != "" && len(props.LogPage.Logs) == 0 {
-					<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
-						{ i18n.T(ctx, "logs.no_results") }
-					</div>
+				if len(props.LogPage.Logs) == 0 {
+					if props.Search != "" {
+						<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
+							{ i18n.T(ctx, "logs.no_results") }
+						</div>
+					} else {
+						<div data-log-empty class="shrink-0 px-2 py-2 font-sans sm:px-3" role="status">
+							<p class="font-medium text-foreground/80">{ i18n.T(ctx, "logs.empty") }</p>
+							if props.IsLive() {
+								<p class="text-muted-foreground">{ i18n.T(ctx, "logs.empty_live_description") }</p>
+							}
+						</div>
+					}
 				}
 			</div>
 		</div>

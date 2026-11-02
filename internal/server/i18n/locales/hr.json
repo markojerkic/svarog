@@ -76,6 +76,8 @@
   "home.no_clients": { "other": "Ovaj projekt nema dodanih klijenata." },
   "home.explore_logs": { "other": "Pregledaj logove" },
   "logs.no_results": { "other": "Nema pronađenih logova. Pokušajte s drugom pretragom." },
+  "logs.empty": { "other": "Nema logova za prikaz." },
+  "logs.empty_live_description": { "other": "Novi logovi prikazat će se automatski." },
   "logs.not_live": { "other": "Praćenje uživo nije aktivno" },
   "logs.context": { "other": "Kontekst retka" },
   "logs.back_to_live": { "other": "Nastavi praćenje uživo" },

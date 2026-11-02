@@ -74,6 +74,8 @@
   "home.no_clients": { "other": "No clients configured for this project." },
   "home.explore_logs": { "other": "Explore logs" },
   "logs.no_results": { "other": "No logs found. Try a different search." },
+  "logs.empty": { "other": "No logs to display." },
+  "logs.empty_live_description": { "other": "New logs will appear automatically." },
   "logs.not_live": { "other": "Not live" },
   "logs.context": { "other": "Line context" },
   "logs.back_to_live": { "other": "Back to live" },
