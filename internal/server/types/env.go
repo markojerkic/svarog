@@ -1,11 +1,14 @@
 package types
 
+import "time"
+
 type ServerEnv struct {
-	PostgresURL    string `env:"POSTGRES_URL" envDefault:"postgres://svarog:svarog@localhost:5434/svarog?sslmode=disable"`
-	ServerDnsName  string `env:"SERVER_DNS_NAME"`
-	HttpServerPort int    `env:"HTTP_SERVER_PORT"`
-	SessionSecret  string `env:"SESSION_SECRET"`
-	ArchiveDir     string `env:"ARCHIVE_DIR"`
+	PostgresURL             string        `env:"POSTGRES_URL" envDefault:"postgres://svarog:svarog@localhost:5434/svarog?sslmode=disable"`
+	ServerDnsName           string        `env:"SERVER_DNS_NAME"`
+	HttpServerPort          int           `env:"HTTP_SERVER_PORT"`
+	SessionSecret           string        `env:"SESSION_SECRET"`
+	ArchiveDir              string        `env:"ARCHIVE_DIR"`
+	ArchiveScheduleInterval time.Duration `env:"ARCHIVE_SCHEDULE_INTERVAL" envDefault:"24h"`
 
 	ArchiveS3Bucket          string `env:"ARCHIVE_S3_BUCKET"`
 	ArchiveS3Endpoint        string `env:"ARCHIVE_S3_ENDPOINT"`

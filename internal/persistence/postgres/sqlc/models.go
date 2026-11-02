@@ -33,6 +33,7 @@ type ArchivePolicy struct {
 	ClientID          uuid.UUID
 	ArchiveAfterWeeks int32
 	UpdatedAt         time.Time
+	NextRunAt         time.Time
 }
 
 type Client struct {

@@ -16,18 +16,41 @@ import (
 // entire build, but does not keep a transaction open during file IO. All build
 // transactions must use this connection: losing it also loses ownership.
 func WithArchiveClientLock(ctx context.Context, pool *pgxpool.Pool, clientID uuid.UUID, fn func(*pgx.Conn) error) (locked bool, err error) {
+	return withSessionLock(ctx, pool, sessionLock{
+		name:    "archive client",
+		tryLock: func(ctx context.Context, q *sqlc.Queries) (bool, error) { return q.TryLockArchiveClient(ctx, clientID) },
+		unlock:  func(ctx context.Context, q *sqlc.Queries) (bool, error) { return q.UnlockArchiveClient(ctx, clientID) },
+	}, fn)
+}
+
+// WithArchiveSchedulerLock lets one server instance run a scheduler pass at a time.
+func WithArchiveSchedulerLock(ctx context.Context, pool *pgxpool.Pool, fn func(*pgx.Conn) error) (locked bool, err error) {
+	return withSessionLock(ctx, pool, sessionLock{
+		name:    "archive scheduler",
+		tryLock: func(ctx context.Context, q *sqlc.Queries) (bool, error) { return q.TryLockArchiveScheduler(ctx) },
+		unlock:  func(ctx context.Context, q *sqlc.Queries) (bool, error) { return q.UnlockArchiveScheduler(ctx) },
+	}, fn)
+}
+
+type sessionLock struct {
+	name    string
+	tryLock func(context.Context, *sqlc.Queries) (bool, error)
+	unlock  func(context.Context, *sqlc.Queries) (bool, error)
+}
+
+func withSessionLock(ctx context.Context, pool *pgxpool.Pool, lock sessionLock, fn func(*pgx.Conn) error) (locked bool, err error) {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
-		return false, fmt.Errorf("acquire archive connection: %w", err)
+		return false, fmt.Errorf("acquire %s connection: %w", lock.name, err)
 	}
 	defer conn.Release()
 	queries := sqlc.New(conn)
-	locked, err = queries.TryLockArchiveClient(ctx, clientID)
+	locked, err = lock.tryLock(ctx, queries)
 	if err != nil {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = conn.Conn().Close(closeCtx)
-		return false, fmt.Errorf("lock archive client: %w", err)
+		return false, fmt.Errorf("lock %s: %w", lock.name, err)
 	}
 	if !locked {
 		return false, nil
@@ -35,14 +58,14 @@ func WithArchiveClientLock(ctx context.Context, pool *pgxpool.Pool, clientID uui
 	defer func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		unlocked, unlockErr := queries.UnlockArchiveClient(cleanupCtx, clientID)
+		unlocked, unlockErr := lock.unlock(cleanupCtx, queries)
 		if unlockErr != nil || !unlocked {
 			// A session lock must never be returned to the pool.
 			_ = conn.Conn().Close(cleanupCtx)
 			if unlockErr == nil {
-				unlockErr = errors.New("archive client lock was not held")
+				unlockErr = fmt.Errorf("%s lock was not held", lock.name)
 			}
-			err = errors.Join(err, fmt.Errorf("unlock archive client: %w", unlockErr))
+			err = errors.Join(err, fmt.Errorf("unlock %s: %w", lock.name, unlockErr))
 		}
 	}()
 	return true, fn(conn.Conn())

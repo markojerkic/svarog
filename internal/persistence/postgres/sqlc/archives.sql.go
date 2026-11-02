@@ -329,6 +329,39 @@ func (q *Queries) ListArchiveLogs(ctx context.Context, arg ListArchiveLogsParams
 	return items, nil
 }
 
+const listDueArchivePolicies = `-- name: ListDueArchivePolicies :many
+SELECT p.client_id, c.project_id
+FROM archive_policies p
+JOIN clients c ON c.id = p.client_id
+WHERE p.next_run_at <= now()
+ORDER BY p.next_run_at, p.client_id
+`
+
+type ListDueArchivePoliciesRow struct {
+	ClientID  uuid.UUID
+	ProjectID uuid.UUID
+}
+
+func (q *Queries) ListDueArchivePolicies(ctx context.Context) ([]ListDueArchivePoliciesRow, error) {
+	rows, err := q.db.Query(ctx, listDueArchivePolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDueArchivePoliciesRow
+	for rows.Next() {
+		var i ListDueArchivePoliciesRow
+		if err := rows.Scan(&i.ClientID, &i.ProjectID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReadyArchives = `-- name: ListReadyArchives :many
 SELECT a.id, a.client_id, a.status, a.storage_backend, a.object_key, a.file_name, a.size_bytes, a.sha256, a.log_count, a.cutoff_at, a.claimed_at, a.from_at, a.to_at, a.created_at, a.updated_at
 FROM archives a
@@ -457,6 +490,22 @@ func (q *Queries) ReleaseArchiveLogs(ctx context.Context, arg ReleaseArchiveLogs
 	return err
 }
 
+const scheduleArchivePolicy = `-- name: ScheduleArchivePolicy :exec
+UPDATE archive_policies
+SET next_run_at = now() + $1::bigint * interval '1 second'
+WHERE client_id = $2
+`
+
+type ScheduleArchivePolicyParams struct {
+	DelaySeconds int64
+	ClientID     uuid.UUID
+}
+
+func (q *Queries) ScheduleArchivePolicy(ctx context.Context, arg ScheduleArchivePolicyParams) error {
+	_, err := q.db.Exec(ctx, scheduleArchivePolicy, arg.DelaySeconds, arg.ClientID)
+	return err
+}
+
 const setArchivePolicy = `-- name: SetArchivePolicy :execrows
 INSERT INTO archive_policies (client_id, archive_after_weeks)
 SELECT c.id, $1
@@ -464,7 +513,7 @@ FROM clients c
 WHERE c.id = $2
   AND c.project_id = $3
 ON CONFLICT (client_id) DO UPDATE
-SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now()
+SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now(), next_run_at = now()
 `
 
 type SetArchivePolicyParams struct {
@@ -492,12 +541,34 @@ func (q *Queries) TryLockArchiveClient(ctx context.Context, clientID uuid.UUID) 
 	return locked, err
 }
 
+const tryLockArchiveScheduler = `-- name: TryLockArchiveScheduler :one
+SELECT pg_try_advisory_lock(hashtextextended('svarog:archive:scheduler', 0)) AS locked
+`
+
+func (q *Queries) TryLockArchiveScheduler(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, tryLockArchiveScheduler)
+	var locked bool
+	err := row.Scan(&locked)
+	return locked, err
+}
+
 const unlockArchiveClient = `-- name: UnlockArchiveClient :one
 SELECT pg_advisory_unlock(hashtextextended('svarog:archive:' || $1::uuid::text, 0)) AS unlocked
 `
 
 func (q *Queries) UnlockArchiveClient(ctx context.Context, clientID uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, unlockArchiveClient, clientID)
+	var unlocked bool
+	err := row.Scan(&unlocked)
+	return unlocked, err
+}
+
+const unlockArchiveScheduler = `-- name: UnlockArchiveScheduler :one
+SELECT pg_advisory_unlock(hashtextextended('svarog:archive:scheduler', 0)) AS unlocked
+`
+
+func (q *Queries) UnlockArchiveScheduler(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, unlockArchiveScheduler)
 	var unlocked bool
 	err := row.Scan(&unlocked)
 	return unlocked, err

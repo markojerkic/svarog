@@ -5,7 +5,7 @@ FROM clients c
 WHERE c.id = sqlc.arg(client_id)
   AND c.project_id = sqlc.arg(project_id)
 ON CONFLICT (client_id) DO UPDATE
-SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now();
+SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now(), next_run_at = now();
 
 -- name: GetArchivePolicy :one
 SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks
@@ -26,6 +26,24 @@ SELECT pg_try_advisory_lock(hashtextextended('svarog:archive:' || sqlc.arg(clien
 
 -- name: UnlockArchiveClient :one
 SELECT pg_advisory_unlock(hashtextextended('svarog:archive:' || sqlc.arg(client_id)::uuid::text, 0)) AS unlocked;
+
+-- name: TryLockArchiveScheduler :one
+SELECT pg_try_advisory_lock(hashtextextended('svarog:archive:scheduler', 0)) AS locked;
+
+-- name: UnlockArchiveScheduler :one
+SELECT pg_advisory_unlock(hashtextextended('svarog:archive:scheduler', 0)) AS unlocked;
+
+-- name: ListDueArchivePolicies :many
+SELECT p.client_id, c.project_id
+FROM archive_policies p
+JOIN clients c ON c.id = p.client_id
+WHERE p.next_run_at <= now()
+ORDER BY p.next_run_at, p.client_id;
+
+-- name: ScheduleArchivePolicy :exec
+UPDATE archive_policies
+SET next_run_at = now() + sqlc.arg(delay_seconds)::bigint * interval '1 second'
+WHERE client_id = sqlc.arg(client_id);
 
 -- name: InsertBuildingArchive :one
 INSERT INTO archives (

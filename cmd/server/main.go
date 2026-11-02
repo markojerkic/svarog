@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -44,6 +45,9 @@ func loadEnv() types.ServerEnv {
 	if err := envParser.Parse(&env); err != nil {
 		log.Fatal("Error parsing env", "error", err)
 	}
+	if env.ArchiveScheduleInterval < 0 {
+		log.Fatal("ARCHIVE_SCHEDULE_INTERVAL must not be negative", "value", env.ArchiveScheduleInterval)
+	}
 
 	return env
 }
@@ -58,6 +62,7 @@ type serverDependencies struct {
 	natsConn      *natsconn.NatsConnection
 	postgresPool  *pgxpool.Pool
 	cancel        context.CancelFunc
+	background    *sync.WaitGroup
 }
 
 func gracefulShutdown(deps serverDependencies) {
@@ -73,6 +78,17 @@ func gracefulShutdown(deps serverDependencies) {
 	deps.ingestService.Stop()
 
 	deps.cancel()
+
+	stopped := make(chan struct{})
+	go func() {
+		deps.background.Wait()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-shutdownCtx.Done():
+		log.Error("Background jobs did not stop before the shutdown timeout")
+	}
 
 	deps.natsConn.Close()
 	deps.postgresPool.Close()
@@ -161,6 +177,12 @@ func main() {
 
 	go logServer.Run(ctx, logIngestChannel)
 	go ingestService.Run(ctx)
+	var background sync.WaitGroup
+	if archiveStore != nil {
+		background.Go(func() { archive.RunScheduler(ctx, archiver, env.ArchiveScheduleInterval) })
+	} else {
+		slog.Info("Archive storage not configured; archive scheduler not started")
+	}
 	go func() {
 		if err := httpServer.Start(); err != nil {
 			log.Info("HTTP server stopped", "error", err)
@@ -174,5 +196,6 @@ func main() {
 		natsConn:      natsConn,
 		postgresPool:  postgresPool,
 		cancel:        cancel,
+		background:    &background,
 	})
 }
