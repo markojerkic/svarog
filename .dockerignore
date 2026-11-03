@@ -9,7 +9,9 @@ deploy
 node_modules/
 **/assets/css/output.css
 .task
-.env.log-demo
+.git
+.env
+.env.*
 
 # Playwright
 test-results/

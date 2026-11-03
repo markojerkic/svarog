@@ -1,0 +1,87 @@
+name: Deploy server
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: svarog-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: forgejo.ref == 'refs/heads/master'
+    runs-on: svarog-deploy
+    container:
+      image: ghcr.io/catthehacker/ubuntu:act-24.04
+      volumes:
+        - /opt/svarog:/opt/svarog:ro
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOCKER_CONFIG: ${{ runner.temp }}/svarog-docker
+      COMMIT_SHA: ${{ forgejo.sha }}
+      FORGEJO_SERVER_URL: ${{ forgejo.server_url }}
+      FORGEJO_REPOSITORY: ${{ forgejo.repository }}
+    steps:
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@v7
+
+      - name: Prepare image and validate deployment configuration
+        id: image
+        run: |
+          set -euo pipefail
+          registry="${FORGEJO_SERVER_URL#*://}"
+          registry="${registry%%/*}"
+          repository="$(printf '%s' "$FORGEJO_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          image="${registry}/${repository}:sha-${COMMIT_SHA}"
+          printf 'registry=%s\nimage=%s\n' "$registry" "$image" >> "$GITHUB_OUTPUT"
+          docker info > /dev/null
+          docker compose version
+          test -s /opt/svarog/.env
+          test -s /opt/svarog/nats-server.conf
+          SVAROG_IMAGE="$image" docker compose \
+            --env-file /opt/svarog/.env -f docker-compose.prod.yml config --quiet
+
+      - name: Log in to Forgejo container registry
+        env:
+          REGISTRY: ${{ steps.image.outputs.registry }}
+          REGISTRY_USERNAME: ${{ vars.REGISTRY_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${REGISTRY_USERNAME:?Set the REGISTRY_USERNAME repository variable}"
+          : "${REGISTRY_TOKEN:?Set the REGISTRY_TOKEN repository secret}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY" \
+            --username "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Build and publish server
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker build --pull \
+            --file cmd/server/Dockerfile \
+            --label "org.opencontainers.image.revision=$COMMIT_SHA" \
+            --label "org.opencontainers.image.source=${FORGEJO_SERVER_URL}/${FORGEJO_REPOSITORY}" \
+            --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy latest master
+        env:
+          SVAROG_IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin master
+          if [ "$(git rev-parse FETCH_HEAD)" != "$COMMIT_SHA" ]; then
+            echo "A newer master commit is available; skipping this deployment."
+            exit 0
+          fi
+          bash .forgejo/scripts/deploy-server.sh
+
+      - name: Remove registry credentials
+        if: always()
+        run: rm -rf -- "$DOCKER_CONFIG"

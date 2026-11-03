@@ -65,10 +65,8 @@ tasks:
 
   docker:server:
     desc: Build the server Docker image
-    deps:
-      - docker:client
     cmds:
-      - docker build --progress=plain --build-arg SVAROG_VERSION={{.SVAROG_VERSION | default "latest"}} -t markojerkic/svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
+      - docker build --progress=plain -t markojerkic/svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
 
   docker:dev:
     desc: Run the docker dev environment
@@ -78,5 +76,6 @@ tasks:
   default:
     desc: Build the Docker images
     cmds:
+      - task docker:client
       - task docker:server
     silent: true

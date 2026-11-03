@@ -1,5 +1,3 @@
-ARG SVAROG_VERSION=latest
-
 ####################################################################################
 # Stage 1: Build the web assets
 ####################################################################################
@@ -13,11 +11,6 @@ FROM base-web AS install
 RUN mkdir -p /temp/dev
 COPY ./package.json ./bun.lock /temp/dev/
 RUN cd /temp/dev && bun install --frozen-lockfile
-
-# install with --production (exclude devDependencies)
-RUN mkdir -p /temp/prod
-COPY ./package.json ./bun.lock /temp/prod/
-RUN cd /temp/prod && bun install --frozen-lockfile --production --ignore-scripts
 
 # copy node_modules from temp directory
 # then copy all (non-ignored) project files into the image
@@ -47,14 +40,12 @@ COPY . .
 
 # Build the server
 RUN go tool shadcn-templ bundle
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go tool templ generate ./...
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0  go build -ldflags '-w -s' -o build/server ./cmd/server
+RUN go tool templ generate ./...
+RUN CGO_ENABLED=0 go build -ldflags '-w -s' -o build/server ./cmd/server
 
 ####################################################################################
 # Stage 3: Copy all needed files and run
 ####################################################################################
-
-FROM markojerkic/svarog-client:${SVAROG_VERSION} AS client
 
 FROM alpine:3.24.3
 
@@ -66,12 +57,15 @@ COPY --from=builder /app/build/server /app/build/server
 COPY ./internal/server/ui/assets/ /app/internal/server/ui/assets/
 COPY --from=builder /app/internal/server/ui/assets/js/ /app/internal/server/ui/assets/js/
 COPY --from=web-build /usr/src/app/internal/server/ui/assets/css/output.css /app/internal/server/ui/assets/css/output.css
-COPY --from=client /svarog/client /svarog/client
+
+# Named volumes inherit this directory's ownership on first use.
+RUN mkdir -p /var/lib/svarog/archives && chown 1000:1000 /var/lib/svarog/archives
 
 ENV DOCKER=true
+ENV HTTP_SERVER_PORT=1323
 
 # Expose the port the server will run on
-EXPOSE 50051
+EXPOSE 1323
 
 # Command to run the server
 USER 1000

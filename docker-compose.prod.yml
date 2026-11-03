@@ -1,0 +1,58 @@
+name: svarog-production
+
+services:
+  svarog:
+    image: ${SVAROG_IMAGE:?Set SVAROG_IMAGE to the server image to deploy}
+    restart: unless-stopped
+    stop_grace_period: 45s
+    ports:
+      - "${SVAROG_HTTP_BIND:-127.0.0.1}:${SVAROG_HTTP_PORT:-1323}:1323"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL to the existing PostgreSQL database}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      HTTP_SERVER_PORT: "1323"
+      NATS_ADDR: nats://nats:4222
+      NATS_PUBLIC_ADDR: ${NATS_PUBLIC_ADDR:?Set the client-facing NATS host and port}
+      NATS_ACCOUNT_SEED: ${NATS_ACCOUNT_SEED:?Set NATS_ACCOUNT_SEED}
+      NATS_SERVER_USER_JWT: ${NATS_SERVER_USER_JWT:?Set NATS_SERVER_USER_JWT}
+      NATS_SERVER_USER_SEED: ${NATS_SERVER_USER_SEED:?Set NATS_SERVER_USER_SEED}
+      ARCHIVE_DIR: /var/lib/svarog/archives
+      ARCHIVE_SCHEDULE_INTERVAL: ${ARCHIVE_SCHEDULE_INTERVAL:-24h}
+    volumes:
+      - archives:/var/lib/svarog/archives
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:1323/login"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+  nats:
+    image: nats:2.15.1-alpine
+    restart: unless-stopped
+    command: ["--config", "/etc/nats/nats-server.conf", "--http_port", "8222"]
+    ports:
+      - "${SVAROG_NATS_BIND:-0.0.0.0}:${SVAROG_NATS_PORT:-4222}:4222"
+    volumes:
+      - type: bind
+        source: /opt/svarog/nats-server.conf
+        target: /etc/nats/nats-server.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - nats-data:/data/jetstream
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 6
+
+volumes:
+  archives:
+  nats-data:
