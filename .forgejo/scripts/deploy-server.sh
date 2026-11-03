@@ -2,8 +2,17 @@
 set -euo pipefail
 
 : "${SVAROG_IMAGE:?Set SVAROG_IMAGE to the server image to deploy}"
+: "${SVAROG_DEPLOY_DIR:?Set SVAROG_DEPLOY_DIR to an absolute host path}"
 
-compose=(docker compose --env-file /opt/svarog/.env -f docker-compose.prod.yml)
+case "$SVAROG_DEPLOY_DIR" in
+  /*) ;;
+  *)
+    echo "SVAROG_DEPLOY_DIR must be an absolute host path." >&2
+    exit 1
+    ;;
+esac
+
+compose=(docker compose --env-file "$SVAROG_DEPLOY_DIR/.env" -f docker-compose.prod.yml)
 
 "${compose[@]}" config --quiet
 # Pull both images before touching running containers.

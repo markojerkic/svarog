@@ -40,7 +40,7 @@ services:
       - "${SVAROG_NATS_BIND:-0.0.0.0}:${SVAROG_NATS_PORT:-4222}:4222"
     volumes:
       - type: bind
-        source: /opt/svarog/nats-server.conf
+        source: ${SVAROG_DEPLOY_DIR:?Set SVAROG_DEPLOY_DIR to an absolute host path}/nats-server.conf
         target: /etc/nats/nats-server.conf
         read_only: true
         bind:

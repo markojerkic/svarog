@@ -9,6 +9,9 @@ concurrency:
   group: svarog-production
   cancel-in-progress: false
 
+env:
+  SVAROG_DEPLOY_DIR: ${{ secrets.SVAROG_DEPLOY_DIR }}
+
 jobs:
   deploy:
     if: forgejo.ref == 'refs/heads/master'
@@ -16,7 +19,7 @@ jobs:
     container:
       image: ghcr.io/catthehacker/ubuntu:act-24.04
       volumes:
-        - /opt/svarog:/opt/svarog:ro
+        - "${{ env.SVAROG_DEPLOY_DIR }}:${{ env.SVAROG_DEPLOY_DIR }}:ro"
     timeout-minutes: 30
     defaults:
       run:
@@ -34,6 +37,7 @@ jobs:
         id: image
         run: |
           set -euo pipefail
+          : "${SVAROG_DEPLOY_DIR:?Set the SVAROG_DEPLOY_DIR repository secret to an absolute host path}"
           registry="${FORGEJO_SERVER_URL#*://}"
           registry="${registry%%/*}"
           repository="$(printf '%s' "$FORGEJO_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
@@ -41,10 +45,10 @@ jobs:
           printf 'registry=%s\nimage=%s\n' "$registry" "$image" >> "$GITHUB_OUTPUT"
           docker info > /dev/null
           docker compose version
-          test -s /opt/svarog/.env
-          test -s /opt/svarog/nats-server.conf
+          test -s "$SVAROG_DEPLOY_DIR/.env"
+          test -s "$SVAROG_DEPLOY_DIR/nats-server.conf"
           SVAROG_IMAGE="$image" docker compose \
-            --env-file /opt/svarog/.env -f docker-compose.prod.yml config --quiet
+            --env-file "$SVAROG_DEPLOY_DIR/.env" -f docker-compose.prod.yml config --quiet
 
       - name: Log in to Forgejo container registry
         env:
