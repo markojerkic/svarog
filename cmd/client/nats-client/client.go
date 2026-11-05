@@ -2,7 +2,10 @@ package natsclient
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"log/slog"
@@ -39,13 +42,30 @@ func (n *NatsClient) Run() {
 			slog.Error("Failed to marshal log line", "err", err)
 			continue
 		}
-
-		if _, err := n.js.Publish(context.Background(), n.config.Topic, data); err != nil {
-			slog.Error("Failed to publish log line", "err", err)
-		}
+		n.publish(data)
 	}
 
 	slog.Debug("Log lines channel closed, all messages published")
+}
+
+func (n *NatsClient) publish(data []byte) {
+	delay := 250 * time.Millisecond
+	// Reuse the ID so a lost ack does not duplicate the line within the stream's duplicate window.
+	sum := sha256.Sum256(data)
+	id := hex.EncodeToString(sum[:])
+	for {
+		_, err := n.js.Publish(context.Background(), n.config.Topic, data, jetstream.WithMsgID(id))
+		if err == nil {
+			return
+		}
+		if errors.Is(err, nats.ErrMaxPayload) {
+			slog.Error("Could not publish log line; payload exceeds the server limit", "err", err)
+			return
+		}
+		slog.Error("Failed to publish log line, retrying", "err", err, "retry_in", delay.String())
+		time.Sleep(delay)
+		delay = min(delay*2, 5*time.Second)
+	}
 }
 
 func (n *NatsClient) Close() {
