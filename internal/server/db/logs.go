@@ -238,6 +238,8 @@ func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, pr
 	return mapLogRows(rows), nil
 }
 
+var errInvalidLogClientID = errors.New("invalid log client id")
+
 func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
 	if len(logs) == 0 {
 		return nil
@@ -246,7 +248,7 @@ func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.Store
 	for i, log := range logs {
 		clientID, err := uuid.Parse(log.Client.ClientId)
 		if err != nil || clientID == uuid.Nil || clientID.String() != log.Client.ClientId {
-			return fmt.Errorf("invalid log client id %q", log.Client.ClientId)
+			return fmt.Errorf("%w %q", errInvalidLogClientID, log.Client.ClientId)
 		}
 		input[i] = persistence.LogInsert{
 			ClientID:       clientID,
