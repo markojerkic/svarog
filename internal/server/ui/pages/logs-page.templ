@@ -32,11 +32,8 @@ type LogsPageProps struct {
 
 const LogColumnsCookie = "svarog_log_columns"
 
-// A missing cookie shows both columns. An empty cookie means the user hid both.
-func LogColumns(value string, present bool) (showTime, showInstance bool) {
-	if !present {
-		return true, true
-	}
+// Columns stay hidden unless the cookie lists them.
+func LogColumns(value string) (showTime, showInstance bool) {
 	for _, part := range strings.Split(value, ",") {
 		switch part {
 		case "time":

@@ -167,7 +167,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if cookieErr == nil {
 		cookieValue = cookie.Value
 	}
-	showTime, showInstance := pages.LogColumns(cookieValue, cookieErr == nil)
+	showTime, showInstance := pages.LogColumns(cookieValue)
 	props := pages.LogsPageProps{
 		LogPage:      logPage,
 		ClientId:     params.ClientId,

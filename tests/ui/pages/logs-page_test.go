@@ -19,19 +19,17 @@ func TestLogColumns(t *testing.T) {
 	for _, tc := range []struct {
 		name           string
 		value          string
-		present        bool
 		time, instance bool
 	}{
-		{"missing cookie shows both", "", false, true, true},
-		{"empty cookie hides both", "", true, false, false},
-		{"time only", "time", true, true, false},
-		{"instance only", "instance", true, false, true},
-		{"both", "instance,time", true, true, true},
+		{"missing cookie hides both", "", false, false},
+		{"time only", "time", true, false},
+		{"instance only", "instance", false, true},
+		{"both", "instance,time", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			showTime, showInstance := pages.LogColumns(tc.value, tc.present)
+			showTime, showInstance := pages.LogColumns(tc.value)
 			if showTime != tc.time || showInstance != tc.instance {
-				t.Fatalf("Column cookie %q present=%v must show time=%v instance=%v, got time=%v instance=%v", tc.value, tc.present, tc.time, tc.instance, showTime, showInstance)
+				t.Fatalf("Column cookie %q must show time=%v instance=%v, got time=%v instance=%v", tc.value, tc.time, tc.instance, showTime, showInstance)
 			}
 		})
 	}
