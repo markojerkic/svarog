@@ -93,6 +93,8 @@
   "logs.active_filters": { "other": "Filtri (1 aktivan)" },
   "logs.all_instances": { "other": "Sve instance" },
   "logs.instance": { "other": "Instanca" },
+  "logs.show_time": { "other": "Prikaži vrijeme" },
+  "logs.show_instance": { "other": "Prikaži instancu" },
   "logs.selected_instances": { "other": "Instanca: {{.Names}}" },
   "logs.clear_filters": { "other": "Očisti filtre" },
   "logs.filtered_by_instance": { "other": "Filtrirano po instanci:" },

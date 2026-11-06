@@ -8,10 +8,28 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
+	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 )
+
+func TestLogLineColumnsStayLocaleNeutral(t *testing.T) {
+	at := time.Date(2026, 1, 2, 15, 4, 5, 123000000, time.FixedZone("CET", 3600))
+	var output bytes.Buffer
+	err := logs.LogLine(logs.LogLineProps{LogLine: types.StoredLog{Timestamp: at}}).Render(context.Background(), &output)
+	if err != nil {
+		t.Fatalf("Log line must render: %v", err)
+	}
+	rendered := output.String()
+	if !strings.Contains(rendered, `datetime="2026-01-02T14:04:05.123Z"`) {
+		t.Fatal("Time column must carry a UTC timestamp so the browser can format the local zone")
+	}
+	if !regexp.MustCompile(`<time[^>]*data-log-time[^>]*>\s*</time>`).MatchString(rendered) {
+		t.Fatal("Shared log HTML must leave the clock empty, because live fragments have no user locale")
+	}
+}
 
 func TestLogLineTextHighlightsSearchWords(t *testing.T) {
 	mark := regexp.MustCompile(`<mark[^>]*>(.*?)</mark>`)

@@ -162,13 +162,21 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if logPage.Instances != nil {
 		params.Instances = logPage.Instances
 	}
+	cookieValue := ""
+	cookie, cookieErr := c.Cookie(pages.LogColumnsCookie)
+	if cookieErr == nil {
+		cookieValue = cookie.Value
+	}
+	showTime, showInstance := pages.LogColumns(cookieValue, cookieErr == nil)
 	props := pages.LogsPageProps{
-		LogPage:   logPage,
-		ClientId:  params.ClientId,
-		ProjectId: params.ProjectId,
-		Search:    params.Search,
-		Instances: params.Instances,
-		LogLineId: params.LogLineId,
+		LogPage:      logPage,
+		ClientId:     params.ClientId,
+		ProjectId:    params.ProjectId,
+		Search:       params.Search,
+		ShowTime:     showTime,
+		ShowInstance: showInstance,
+		Instances:    params.Instances,
+		LogLineId:    params.LogLineId,
 	}
 
 	isHx := c.Request().Header.Get("HX-Request") == "true"

@@ -91,6 +91,8 @@
   "logs.active_filters": { "other": "Filters (1 active)" },
   "logs.all_instances": { "other": "All instances" },
   "logs.instance": { "other": "Instance" },
+  "logs.show_time": { "other": "Show time" },
+  "logs.show_instance": { "other": "Show instance" },
   "logs.selected_instances": { "other": "Instance: {{.Names}}" },
   "logs.clear_filters": { "other": "Clear filters" },
   "logs.filtered_by_instance": { "other": "Filtered by instance:" },

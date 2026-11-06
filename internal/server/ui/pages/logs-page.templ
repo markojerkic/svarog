@@ -26,6 +26,26 @@ type LogsPageProps struct {
 	Search             string
 	LogLineId          *string
 	AvailableInstances []string
+	ShowTime           bool
+	ShowInstance       bool
+}
+
+const LogColumnsCookie = "svarog_log_columns"
+
+// A missing cookie shows both columns. An empty cookie means the user hid both.
+func LogColumns(value string, present bool) (showTime, showInstance bool) {
+	if !present {
+		return true, true
+	}
+	for _, part := range strings.Split(value, ",") {
+		switch part {
+		case "time":
+			showTime = true
+		case "instance":
+			showInstance = true
+		}
+	}
+	return showTime, showInstance
 }
 
 func (p LogsPageProps) IsLive() bool {
@@ -47,6 +67,8 @@ templ LogsPage(props LogsPageProps) {
 				id="log-scroll-container"
 				data-log-instances={ templ.JSONString(props.AvailableInstances) }
 				data-log-client-id={ props.ClientId }
+				data-show-time?={ props.ShowTime }
+				data-show-instance?={ props.ShowInstance }
 			>
 				@LogPageLines(props)
 				if len(props.LogPage.Logs) == 0 {
@@ -84,6 +106,22 @@ templ LogsPage(props LogsPageProps) {
 	</script>
 }
 
+templ logColumnToggle(column string, pressed bool, label string) {
+	@button.Button(button.Props{
+		Variant: button.VariantGhost,
+		Size:    button.SizeIconSm,
+		Class:   "aria-pressed:bg-accent aria-pressed:text-accent-foreground",
+		Attributes: templ.Attributes{
+			"data-log-column": column,
+			"aria-pressed":    strconv.FormatBool(pressed),
+			"aria-label":      label,
+			"title":           label,
+		},
+	}) {
+		{ children... }
+	}
+}
+
 templ LogsHeaderActions(props LogsPageProps) {
 	if props.LogLineId != nil {
 		<span class="whitespace-nowrap text-xs text-muted-foreground">{ i18n.T(ctx, "logs.context") }</span>
@@ -91,6 +129,12 @@ templ LogsHeaderActions(props LogsPageProps) {
 		<span class="hidden text-xs text-muted-foreground 2xl:inline">{ i18n.T(ctx, "logs.not_live") }</span>
 	}
 	@logs.SearchTrigger(props.Search)
+	@logColumnToggle("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
+		@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+	}
+	@logColumnToggle("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
+		@icon.Server(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+	}
 	if props.Search != "" {
 		@button.Button(button.Props{
 			Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", ""),

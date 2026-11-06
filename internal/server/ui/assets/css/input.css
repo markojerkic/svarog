@@ -154,6 +154,11 @@
   display: none;
 }
 
+#log-scroll-container:not([data-show-time]) [data-log-time],
+#log-scroll-container:not([data-show-instance]) [data-log-instance] {
+  display: none;
+}
+
 [data-log-anchor] {
   --log-context-bg: #eff6ff;
   --log-context-border: #93c5fd;
