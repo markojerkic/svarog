@@ -185,45 +185,52 @@ WHERE c.project_id = $1
   AND (
     NOT $5::bool
     OR (
-      $6::bool
-      AND $7::bool
-      AND $8::bool
+      l.occurred_at >= $6
+      AND l.occurred_at < $7
+    )
+  )
+  AND (
+    NOT $8::bool
+    OR (
+      $9::bool
+      AND $10::bool
+      AND $11::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          <= ($9, $10::bigint, $11::bigint)
+          <= ($12, $13::bigint, $14::bigint)
     )
     OR (
-      $6::bool
-      AND NOT $7::bool
-      AND NOT $8::bool
+      $9::bool
+      AND NOT $10::bool
+      AND NOT $11::bool
       AND (l.occurred_at, l.sequence_number)
-          < ($9, $10::bigint)
+          < ($12, $13::bigint)
     )
     OR (
-      $6::bool
-      AND NOT $7::bool
-      AND $8::bool
+      $9::bool
+      AND NOT $10::bool
+      AND $11::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          < ($9, $10::bigint, $11::bigint)
+          < ($12, $13::bigint, $14::bigint)
     )
     OR (
-      NOT $6::bool
-      AND NOT $8::bool
+      NOT $9::bool
+      AND NOT $11::bool
       AND (l.occurred_at, l.sequence_number)
-          > ($9, $10::bigint)
+          > ($12, $13::bigint)
     )
     OR (
-      NOT $6::bool
-      AND $8::bool
+      NOT $9::bool
+      AND $11::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          > ($9, $10::bigint, $11::bigint)
+          > ($12, $13::bigint, $14::bigint)
     )
   )
 ORDER BY
-  CASE WHEN $5::bool AND NOT $6::bool THEN l.occurred_at END ASC,
-  CASE WHEN $5::bool AND NOT $6::bool THEN l.sequence_number END ASC,
-  CASE WHEN $5::bool AND NOT $6::bool THEN l.id END ASC,
+  CASE WHEN $8::bool AND NOT $9::bool THEN l.occurred_at END ASC,
+  CASE WHEN $8::bool AND NOT $9::bool THEN l.sequence_number END ASC,
+  CASE WHEN $8::bool AND NOT $9::bool THEN l.id END ASC,
   l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $12
+LIMIT $15
 `
 
 type ListLogsParams struct {
@@ -231,6 +238,9 @@ type ListLogsParams struct {
 	ClientID        uuid.UUID
 	FilterInstances bool
 	Instances       []string
+	HasRange        bool
+	RangeFrom       time.Time
+	RangeTo         time.Time
 	HasCursor       bool
 	Backward        bool
 	Inclusive       bool
@@ -257,6 +267,9 @@ func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsR
 		arg.ClientID,
 		arg.FilterInstances,
 		arg.Instances,
+		arg.HasRange,
+		arg.RangeFrom,
+		arg.RangeTo,
 		arg.HasCursor,
 		arg.Backward,
 		arg.Inclusive,
@@ -308,45 +321,52 @@ WHERE c.project_id = $1
   AND (
     NOT $7::bool
     OR (
-      $8::bool
-      AND $9::bool
-      AND $10::bool
+      l.occurred_at >= $8
+      AND l.occurred_at < $9
+    )
+  )
+  AND (
+    NOT $10::bool
+    OR (
+      $11::bool
+      AND $12::bool
+      AND $13::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          <= ($11, $12::bigint, $13::bigint)
+          <= ($14, $15::bigint, $16::bigint)
     )
     OR (
-      $8::bool
-      AND NOT $9::bool
-      AND NOT $10::bool
+      $11::bool
+      AND NOT $12::bool
+      AND NOT $13::bool
       AND (l.occurred_at, l.sequence_number)
-          < ($11, $12::bigint)
+          < ($14, $15::bigint)
     )
     OR (
-      $8::bool
-      AND NOT $9::bool
-      AND $10::bool
+      $11::bool
+      AND NOT $12::bool
+      AND $13::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          < ($11, $12::bigint, $13::bigint)
+          < ($14, $15::bigint, $16::bigint)
     )
     OR (
-      NOT $8::bool
-      AND NOT $10::bool
+      NOT $11::bool
+      AND NOT $13::bool
       AND (l.occurred_at, l.sequence_number)
-          > ($11, $12::bigint)
+          > ($14, $15::bigint)
     )
     OR (
-      NOT $8::bool
-      AND $10::bool
+      NOT $11::bool
+      AND $13::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          > ($11, $12::bigint, $13::bigint)
+          > ($14, $15::bigint, $16::bigint)
     )
   )
 ORDER BY
-  CASE WHEN $7::bool AND NOT $8::bool THEN l.occurred_at END ASC,
-  CASE WHEN $7::bool AND NOT $8::bool THEN l.sequence_number END ASC,
-  CASE WHEN $7::bool AND NOT $8::bool THEN l.id END ASC,
+  CASE WHEN $10::bool AND NOT $11::bool THEN l.occurred_at END ASC,
+  CASE WHEN $10::bool AND NOT $11::bool THEN l.sequence_number END ASC,
+  CASE WHEN $10::bool AND NOT $11::bool THEN l.id END ASC,
   l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $14
+LIMIT $17
 `
 
 type SearchLogsParams struct {
@@ -356,6 +376,9 @@ type SearchLogsParams struct {
 	RemainingPatterns []string
 	FilterInstances   bool
 	Instances         []string
+	HasRange          bool
+	RangeFrom         time.Time
+	RangeTo           time.Time
 	HasCursor         bool
 	Backward          bool
 	Inclusive         bool
@@ -384,6 +407,9 @@ func (q *Queries) SearchLogs(ctx context.Context, arg SearchLogsParams) ([]Searc
 		arg.RemainingPatterns,
 		arg.FilterInstances,
 		arg.Instances,
+		arg.HasRange,
+		arg.RangeFrom,
+		arg.RangeTo,
 		arg.HasCursor,
 		arg.Backward,
 		arg.Inclusive,

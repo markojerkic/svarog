@@ -172,6 +172,19 @@ func TestReadLogs(t *testing.T) {
 		require.Equal(t, []string{"newest", "instance-api"}, messages(invalid.Logs))
 	})
 
+	t.Run("date range excludes logs outside the local day", func(t *testing.T) {
+		inside, err := db.ParseLogRange("2026-10-14", "2026-10-14", 0)
+		require.NoError(t, err, "the inserted day is a valid range")
+		page := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &inside})
+		require.Equal(t, []string{"newest", "instance-api", "tie-high", "tie-low", "older"}, messages(page.Logs), "a UTC day includes every log written on that day")
+		require.Contains(t, page.ToPath(api, client, nil, nil, "", ""), "from=2026-10-14", "pagination must keep the selected range")
+
+		outside, err := db.ParseLogRange("2026-10-15", "2026-10-15", 0)
+		require.NoError(t, err, "the following day is a valid range")
+		empty := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &outside})
+		require.Empty(t, empty.Logs, "logs from the previous UTC day stay outside the range")
+	})
+
 	t.Run("inactive client stays readable", func(t *testing.T) {
 		inactiveProject, err := projectService.CreateProject(ctx, "LogsInactive", []string{"api"})
 		require.NoError(t, err)

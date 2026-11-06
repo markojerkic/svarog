@@ -27,12 +27,21 @@ type LastCursor struct {
 	IsBackward     bool
 }
 
+type LogRange struct {
+	From     time.Time
+	To       time.Time
+	FromDate string
+	ToDate   string
+	Offset   int
+}
+
 type LogPage struct {
 	Logs           []types.StoredLog
 	Instances      *[]string
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
 	IsLastPage     bool
+	Range          *LogRange
 }
 
 func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor *LastCursor, direction, search string) string {
@@ -56,6 +65,11 @@ func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor
 	if search != "" {
 		query.Set("search", search)
 	}
+	if l.Range != nil {
+		query.Set("from", l.Range.FromDate)
+		query.Set("to", l.Range.ToDate)
+		query.Set("offset", strconv.Itoa(l.Range.Offset))
+	}
 	u.RawQuery = query.Encode()
 	return u.String()
 }
@@ -68,6 +82,7 @@ type LogPageRequest struct {
 	LogLineId *string
 	Cursor    *LastCursor
 	Search    string
+	Range     *LogRange
 }
 
 type LogService interface {
@@ -107,7 +122,7 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 		return LogPage{}, fmt.Errorf("invalid log page size %d", req.PageSize)
 	}
 	if req.Search != "" {
-		logs, err := self.SearchLogs(ctx, req.Search, req.ProjectId, req.ClientId, req.Instances, req.PageSize, req.Cursor)
+		logs, err := self.searchLogs(ctx, req.Search, req.ProjectId, req.ClientId, req.Instances, req.PageSize, req.Cursor, req.Range)
 		if err != nil {
 			return LogPage{}, err
 		}
@@ -147,6 +162,7 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 			query.CursorID = &id
 		}
 	}
+	applyLogRange(&query, req.Range)
 
 	rows, err := persistence.ListLogs(ctx, self.pool, query)
 	if err != nil {
@@ -169,6 +185,7 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 		CursorSequence:  anchor.SequenceNumber,
 		CursorID:        &anchor.ID,
 	}
+	applyLogRange(&query, req.Range)
 	older, err := persistence.ListLogs(ctx, self.pool, query)
 	if err != nil {
 		return LogPage{}, err
@@ -182,6 +199,7 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 		Logs:       mapLogRows(append(append(newer, anchor), older...)),
 		Instances:  req.Instances,
 		IsLastPage: len(newer) == 0,
+		Range:      req.Range,
 	}
 	if int64(len(older)) == req.PageSize {
 		page.BackwardCursor = logCursor(page.Logs[len(page.Logs)-1], true)
@@ -193,6 +211,10 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 }
 
 func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+	return self.searchLogs(ctx, query, projectId, clientId, instances, pageSize, lastCursor, nil)
+}
+
+func (self *PostgresLogService) searchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor, logRange *LogRange) ([]types.StoredLog, error) {
 	projectID, clientID, ok := parseLogScope(projectId, clientId)
 	if !ok {
 		return []types.StoredLog{}, nil
@@ -217,6 +239,7 @@ func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, pr
 		PrimaryPattern:    parsed.PrimaryPattern,
 		RemainingPatterns: parsed.RemainingPatterns,
 	}
+	applyLogRange(&search.LogReadQuery, logRange)
 	if instances != nil {
 		search.Instances = *instances
 	}
@@ -289,7 +312,45 @@ func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
 }
 
 func emptyLogPage(req LogPageRequest) LogPage {
-	return LogPage{Instances: req.Instances, IsLastPage: req.Cursor == nil}
+	return LogPage{Instances: req.Instances, IsLastPage: req.Cursor == nil, Range: req.Range}
+}
+
+func applyLogRange(query *persistence.LogReadQuery, logRange *LogRange) {
+	if logRange == nil {
+		return
+	}
+	query.HasRange = true
+	query.RangeFrom = logRange.From
+	query.RangeTo = logRange.To
+}
+
+// ParseLogRange turns inclusive local calendar dates into a half-open UTC
+// interval. offsetMin is JavaScript's getTimezoneOffset: minutes to add to
+// local time to get UTC.
+func ParseLogRange(fromDate, toDate string, offsetMin int) (LogRange, error) {
+	if offsetMin < -14*60 || offsetMin > 14*60 {
+		return LogRange{}, fmt.Errorf("invalid timezone offset")
+	}
+	fromDay, err := time.Parse("2006-01-02", fromDate)
+	if err != nil {
+		return LogRange{}, fmt.Errorf("invalid from date")
+	}
+	toDay, err := time.Parse("2006-01-02", toDate)
+	if err != nil {
+		return LogRange{}, fmt.Errorf("invalid to date")
+	}
+	if toDay.Before(fromDay) {
+		fromDay, toDay = toDay, fromDay
+		fromDate, toDate = toDate, fromDate
+	}
+	offset := time.Duration(offsetMin) * time.Minute
+	return LogRange{
+		From:     fromDay.Add(offset),
+		To:       toDay.AddDate(0, 0, 1).Add(offset),
+		FromDate: fromDate,
+		ToDate:   toDate,
+		Offset:   offsetMin,
+	}, nil
 }
 
 func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogRow, bool, error) {
@@ -343,6 +404,7 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,
 		IsLastPage:     req.Cursor == nil,
+		Range:          req.Range,
 	}
 }
 

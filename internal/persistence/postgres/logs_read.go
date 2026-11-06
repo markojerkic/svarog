@@ -34,6 +34,9 @@ func ListLogs(ctx context.Context, pool *pgxpool.Pool, query LogReadQuery) ([]Lo
 		CursorSequence:  query.CursorSequence,
 		CursorID:        cursorID,
 		HasCursorID:     hasCursorID,
+		HasRange:        query.HasRange,
+		RangeFrom:       query.RangeFrom,
+		RangeTo:         query.RangeTo,
 		PageSize:        query.PageSize,
 	})
 	if err != nil {
@@ -81,6 +84,9 @@ func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) (
 		CursorAt:          query.CursorAt,
 		CursorSequence:    query.CursorSequence,
 		CursorID:          cursorID,
+		HasRange:          query.HasRange,
+		RangeFrom:         query.RangeFrom,
+		RangeTo:           query.RangeTo,
 		PageSize:          query.PageSize,
 	})
 	if err != nil {

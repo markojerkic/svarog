@@ -5,11 +5,14 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/db"
 import "fmt"
+import "context"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "strings"
 import "net/url"
 import "slices"
 import "strconv"
+import "time"
+import "github.com/markojerkic/svarog/internal/server/ui/components/calendar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/server/i18n"
@@ -46,7 +49,7 @@ func LogColumns(value string) (showTime, showInstance bool) {
 }
 
 func (p LogsPageProps) IsLive() bool {
-	return p.Search == "" && p.Instances == nil && p.LogLineId == nil && p.LogPage.IsLastPage
+	return p.Search == "" && p.Instances == nil && p.LogLineId == nil && p.LogPage.IsLastPage && p.LogPage.Range == nil
 }
 
 templ LogsPage(props LogsPageProps) {
@@ -126,6 +129,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 		<span class="hidden text-xs text-muted-foreground 2xl:inline">{ i18n.T(ctx, "logs.not_live") }</span>
 	}
 	@logs.SearchTrigger(props.Search)
+	@LogRangeFilter(props)
 	@logColumnToggle("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
 		@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
 	}
@@ -162,6 +166,95 @@ templ LogsHeaderActions(props LogsPageProps) {
 	}
 	if auth.IsAdmin(ctx) {
 		@archives.Trigger(props.ProjectId, props.ClientId)
+	}
+}
+
+func formatLogDate(ctx context.Context, iso string) string {
+	parsed, err := time.Parse("2006-01-02", iso)
+	if err != nil {
+		return iso
+	}
+	if i18n.LanguageFrom(ctx) == i18n.Croatian {
+		return parsed.Format("2. 1. 2006.")
+	}
+	return parsed.Format("2 Jan 2006")
+}
+
+templ LogRangeFilter(props LogsPageProps) {
+	{{
+		label := i18n.T(ctx, "logs.date_range")
+		selected := calendar.DateRange{}
+		fromValue, toValue := "", ""
+		if props.LogPage.Range != nil {
+			from, fromErr := time.Parse("2006-01-02", props.LogPage.Range.FromDate)
+			to, toErr := time.Parse("2006-01-02", props.LogPage.Range.ToDate)
+			if fromErr == nil && toErr == nil {
+				selected = calendar.DateRange{From: from, To: to}
+			}
+			fromValue = props.LogPage.Range.FromDate
+			toValue = props.LogPage.Range.ToDate
+			label = formatLogDate(ctx, fromValue) + " – " + formatLogDate(ctx, toValue)
+		}
+		action := fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)
+		cleared := props.LogPage
+		cleared.Range = nil
+		clearPath := cleared.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", props.Search)
+	}}
+	@popover.Popover(popover.Props{ID: "log-range"}) {
+		@button.Button(button.Props{
+			Variant: button.VariantGhost,
+			Size:    button.SizeSm,
+			Class:   "gap-1.5",
+			Attributes: utils.MergeAttributes(popover.Trigger(ctx), templ.Attributes{
+				"aria-label": label,
+				"title":      i18n.T(ctx, "logs.date_range"),
+			}),
+		}) {
+			@icon.Calendar(icon.Props{Class: "size-3.5"})
+			<span class="hidden max-w-40 truncate lg:inline">{ label }</span>
+		}
+		@popover.Content(popover.ContentProps{Align: popover.AlignEnd, Class: "w-auto p-2"}) {
+			<form
+				id="log-range-form"
+				method="get"
+				action={ templ.SafeURL(action) }
+				hx-get={ action }
+				hx-target="body"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+				class="space-y-2"
+			>
+				if props.Search != "" {
+					<input type="hidden" name="search" value={ props.Search }/>
+				}
+				if props.Instances != nil {
+					for _, instance := range *props.Instances {
+						<input type="hidden" name="instance" value={ instance }/>
+					}
+				}
+				<input type="hidden" name="from" value={ fromValue }/>
+				<input type="hidden" name="to" value={ toValue }/>
+				<input type="hidden" name="offset" value="0"/>
+				@calendar.Calendar(calendar.Props{
+					ID:       "log-range-calendar",
+					Mode:     calendar.ModeRange,
+					Locale:   i18n.Locale(ctx),
+					Selected: selected,
+				})
+				<div class="flex items-center justify-end gap-2">
+					if props.LogPage.Range != nil {
+						<a href={ templ.SafeURL(clearPath) } class="text-sm text-muted-foreground hover:text-foreground" hx-target="body" hx-swap="innerHTML">{ i18n.T(ctx, "logs.clear_range") }</a>
+					}
+					@button.Button(button.Props{
+						Type:    button.TypeSubmit,
+						Variant: button.VariantDefault,
+						Size:    button.SizeSm,
+					}) {
+						{ i18n.T(ctx, "logs.apply_range") }
+					}
+				</div>
+			</form>
+		}
 	}
 }
 

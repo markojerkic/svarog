@@ -51,6 +51,9 @@ type LogsByClientBinding struct {
 	Instances            *[]string `query:"instance"`
 	LogLineId            *string   `query:"logLine"`
 	Search               string    `query:"search"`
+	From                 string    `query:"from"`
+	To                   string    `query:"to"`
+	Offset               *int      `query:"offset"`
 }
 
 func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
@@ -87,6 +90,28 @@ func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
 		cursor.ID = *params.CursorID
 	}
 	return cursor, nil
+}
+
+func (params LogsByClientBinding) logRange() (*db.LogRange, error) {
+	if params.From == "" && params.To == "" {
+		return nil, nil
+	}
+	from, to := params.From, params.To
+	if from == "" {
+		from = to
+	}
+	if to == "" {
+		to = from
+	}
+	offset := 0
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+	parsed, err := db.ParseLogRange(from, to, offset)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID string) string {
@@ -144,6 +169,10 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_cursor"))
 	}
+	logRange, err := params.logRange()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_range"))
+	}
 
 	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
 		ProjectId: params.ProjectId,
@@ -153,6 +182,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		LogLineId: params.LogLineId,
 		Cursor:    nextCursor,
 		Search:    params.Search,
+		Range:     logRange,
 	})
 
 	if err != nil {

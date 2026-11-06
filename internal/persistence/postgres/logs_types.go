@@ -36,6 +36,9 @@ type LogReadQuery struct {
 	CursorAt        time.Time
 	CursorSequence  int64
 	CursorID        *int64
+	HasRange        bool
+	RangeFrom       time.Time
+	RangeTo         time.Time
 }
 
 type LogSearchQuery struct {

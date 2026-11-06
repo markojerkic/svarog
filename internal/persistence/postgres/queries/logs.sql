@@ -40,6 +40,13 @@ WHERE c.project_id = sqlc.arg(project_id)
     OR l.instance_name = ANY(sqlc.arg(instances)::text[])
   )
   AND (
+    NOT sqlc.arg(has_range)::bool
+    OR (
+      l.occurred_at >= sqlc.arg(range_from)
+      AND l.occurred_at < sqlc.arg(range_to)
+    )
+  )
+  AND (
     NOT sqlc.arg(has_cursor)::bool
     OR (
       sqlc.arg(backward)::bool
@@ -94,6 +101,13 @@ WHERE c.project_id = sqlc.arg(project_id)
   AND (
     NOT sqlc.arg(filter_instances)::bool
     OR l.instance_name = ANY(sqlc.arg(instances)::text[])
+  )
+  AND (
+    NOT sqlc.arg(has_range)::bool
+    OR (
+      l.occurred_at >= sqlc.arg(range_from)
+      AND l.occurred_at < sqlc.arg(range_to)
+    )
   )
   AND (
     NOT sqlc.arg(has_cursor)::bool
