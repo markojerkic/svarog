@@ -2,6 +2,15 @@
 
 A modern log aggregation and monitoring system that collects logs from distributed clients via NATS messaging and provides a web interface for viewing and analyzing them in real-time.
 
+## Features
+
+- Real-time log streaming via WebSocket
+- Project-based log organization
+- Full-text search and filtering
+- Log archiving and retention policies
+- Authentication and access control
+- Responsive web interface with HTMX
+
 ## Architecture
 
 Svarog uses a NATS-based pub/sub architecture for reliable log ingestion:
@@ -29,12 +38,7 @@ The server generates these connection URLs through the web interface, making it 
 
 ## Development
 
-Use Go 1.27.3 or newer and Bun 1.4.3. Git hooks using lint-staged require
-Node.js 22.22.1 or newer. Install JS dependencies with `bun install --frozen-lockfile`.
-
-The `@parcel/watcher` override updates Tailwind CLI's pinned watcher to 2.6.0,
-removing its vulnerable `braces` dependency. Remove the override when Tailwind
-ships a watcher version that no longer depends on `braces`.
+Use Go 1.27.3 or newer and Bun 1.4.3.
 
 Start the development environment with hot reload:
 
@@ -44,14 +48,6 @@ task dev                   # Start dependencies and server with hot reload
 ```
 
 Database migrations use [Goose](https://github.com/pressly/goose) and run automatically
-on server startup. SQL files live in `internal/persistence/postgres/migrations/`.
-
-## Client Usage
-
-For a multi-application demo using `log-demo | svarog-client` with Docker Compose
-replicas, see [the log demo instructions](cmd/log-demo/README.md).
-
-The Svarog client reads logs from stdin and publishes them to NATS. Integrate it into your application by piping logs:
 
 ### Docker Integration
 
@@ -80,14 +76,14 @@ services:
   your-app:
     image: your-app:latest
     environment:
-      - SVAROG_CONN_STRING=svarog://nats-server:4222/logs.myproject.myapp?token=base64_encoded_token
+      - SVAROG_CONN_STRING=svarog://nats-server:4222/logs.myproject.myapp?token=generated_token
       - SVAROG_INSTANCE_ID=app-instance-01 # Optional: defaults to hostname, which in docker is the container name
 ```
 
 **Via command-line argument:**
 
 ```bash
-your-app | svarog-client "svarog://nats-server:4222/logs.myproject.myapp?token=base64_token"
+your-app | svarog-client "svarog://nats-server:4222/logs.myproject.myapp?token=generated_token"
 ```
 
 **Optional query parameters:**
@@ -165,21 +161,3 @@ services:
 volumes:
   postgres_data:
 ```
-
-## Getting Started
-
-1. **Deploy the server stack** using the docker-compose configuration above
-2. **Access the web interface** at http://localhost:1323
-3. **Create a project** for organizing your logs
-4. **Generate a connection URL** for your client application
-5. **Integrate the client** into your application using the provided URL
-6. **View logs** in real-time through the web interface
-
-## Features
-
-- Real-time log streaming via WebSocket
-- Project-based log organization
-- Full-text search and filtering
-- Log archiving and retention policies
-- Authentication and access control
-- Responsive web interface with HTMX
