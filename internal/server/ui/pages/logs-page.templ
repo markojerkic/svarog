@@ -236,10 +236,11 @@ templ LogRangeFilter(props LogsPageProps) {
 				<input type="hidden" name="to" value={ toValue }/>
 				<input type="hidden" name="offset" value="0"/>
 				@calendar.Calendar(calendar.Props{
-					ID:       "log-range-calendar",
-					Mode:     calendar.ModeRange,
-					Locale:   i18n.Locale(ctx),
-					Selected: selected,
+					ID:           "log-range-calendar",
+					Mode:         calendar.ModeRange,
+					Locale:       i18n.Locale(ctx),
+					Selected:     selected,
+					DefaultMonth: selected.From,
 				})
 				<div class="flex items-center justify-end gap-2">
 					if props.LogPage.Range != nil {

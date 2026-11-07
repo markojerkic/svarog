@@ -218,3 +218,31 @@ func TestLogInstanceFilters(t *testing.T) {
 		t.Fatal("Only the selected instance must be marked as current")
 	}
 }
+
+func TestLogRangeFilterOpensOnSelectedMonth(t *testing.T) {
+	props := pages.LogsPageProps{
+		ProjectId: "project",
+		ClientId:  "client",
+		LogPage:   db.LogPage{Range: &db.LogRange{FromDate: "2026-10-25", ToDate: "2026-10-28"}},
+	}
+	var output bytes.Buffer
+	if err := pages.LogRangeFilter(props).Render(context.Background(), &output); err != nil {
+		t.Fatalf("Date range filter must render successfully: %v", err)
+	}
+	rendered := output.String()
+	if !strings.Contains(rendered, `data-templ-default-month="2026-10-25"`) {
+		t.Fatal("The calendar must open on the first day of the selected range")
+	}
+	if !strings.Contains(rendered, "2026-10-28") {
+		t.Fatal("The calendar must keep the selected end date")
+	}
+
+	output.Reset()
+	props.LogPage.Range = nil
+	if err := pages.LogRangeFilter(props).Render(context.Background(), &output); err != nil {
+		t.Fatalf("Date range filter must render successfully: %v", err)
+	}
+	if strings.Contains(output.String(), "data-templ-default-month") {
+		t.Fatal("An empty date filter must leave the calendar month unset")
+	}
+}
