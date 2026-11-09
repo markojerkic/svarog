@@ -7,6 +7,11 @@
   "auth.username_placeholder": { "other": "Unesite korisničko ime" },
   "auth.password_placeholder": { "other": "Unesite lozinku" },
   "auth.sign_in": { "other": "Prijavite se" },
+  "auth.login_link_title": { "other": "Prijava" },
+  "auth.login_link_description": {
+    "other": "Pritisnite gumb za prijavu. Otvaranje ove stranice ne prijavljuje vas."
+  },
+  "auth.login_link_sign_in": { "other": "Prijavi se" },
   "auth.reset_title": { "other": "Promjena lozinke" },
   "auth.reset_action": { "other": "Promijeni lozinku" },
   "auth.reset_description": { "other": "Postavite novu lozinku za svoj račun" },
