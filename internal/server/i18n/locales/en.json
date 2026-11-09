@@ -7,6 +7,11 @@
   "auth.username_placeholder": { "other": "Enter your username" },
   "auth.password_placeholder": { "other": "Enter your password" },
   "auth.sign_in": { "other": "Sign in" },
+  "auth.login_link_title": { "other": "Sign in" },
+  "auth.login_link_description": {
+    "other": "Press the button to sign in. Opening this page does not sign you in."
+  },
+  "auth.login_link_sign_in": { "other": "Sign in" },
   "auth.reset_title": { "other": "Reset password" },
   "auth.reset_action": { "other": "Reset password" },
   "auth.reset_description": { "other": "Please set a new password for your account" },

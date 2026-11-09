@@ -1,0 +1,58 @@
+package auth
+
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/card"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+
+type LoginTokenPageProps struct {
+	Token string
+}
+
+templ LoginTokenPage(props ...LoginTokenPageProps) {
+	{{ var p LoginTokenPageProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	@pages.BaseLayout(pages.BaseProps{Title: i18n.T(ctx, "auth.login_link_title")}) {
+		<div class="fixed right-4 top-4 z-20">
+			@components.LanguageSwitcher()
+		</div>
+		<div class="flex min-h-svh flex-col items-center justify-center gap-6 overflow-auto bg-muted/40 p-6">
+			<a href="/" class="flex items-center gap-2 text-sm font-semibold">
+				<img src="/assets/logo.png" alt="" class="size-7"/>
+				Svarog
+			</a>
+			@card.Card(card.Props{Class: "w-full max-w-sm [--card-spacing:--spacing(6)]"}) {
+				@card.Header() {
+					@card.Title() {
+						<h1 class="text-xl font-semibold tracking-tight">{ i18n.T(ctx, "auth.login_link_title") }</h1>
+					}
+					@card.Description() {
+						{ i18n.T(ctx, "auth.login_link_description") }
+					}
+				}
+				@card.Content() {
+					<form
+						method="post"
+						action="/login/token"
+						hx-post="/login/token"
+						hx-swap="innerHTML"
+						hx-target="body"
+						hx-disable="input, button"
+						class="space-y-4"
+					>
+						<input type="hidden" name="token" value={ p.Token }/>
+						@button.Button(button.Props{
+							Type:  button.TypeSubmit,
+							Class: "w-full",
+						}) {
+							{ i18n.T(ctx, "auth.login_link_sign_in") }
+						}
+					</form>
+				}
+			}
+		</div>
+	}
+}

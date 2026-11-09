@@ -92,11 +92,31 @@ func (a *AuthRouter) loginWithToken(c *echo.Context) error {
 	err := a.authService.LoginWithToken(c, loginForm.Token)
 	if err != nil {
 		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.token_invalid"))
-		return htmx.Redirect(c, "/login")
+		return redirectAfterTokenLogin(c, "/login")
 	}
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "auth.logged_in"))
-	return htmx.Redirect(c, "/reset-password")
+	return redirectAfterTokenLogin(c, "/reset-password")
+}
+
+// A 307 would replay POST /login/token onto the next page. HTMX keeps the
+// existing toast plus HX-Redirect response.
+func redirectAfterTokenLogin(c *echo.Context, target string) error {
+	if htmx.IsHXRequest(c) {
+		return htmx.Redirect(c, target)
+	}
+	return c.Redirect(http.StatusSeeOther, target)
+}
+
+// Preview clients fetch the login link before the user opens it. Rendering a
+// confirmation form keeps that GET from spending the single-use token.
+func (a *AuthRouter) loginTokenPage(c *echo.Context) error {
+	header := c.Response().Header()
+	header.Set("Cache-Control", "private, no-store")
+	header.Set("Referrer-Policy", "no-referrer")
+	return utils.Render(c, http.StatusOK, authpages.LoginTokenPage(authpages.LoginTokenPageProps{
+		Token: c.QueryParam("token"),
+	}))
 }
 
 func (a *AuthRouter) loginPage(c *echo.Context) error {
@@ -363,11 +383,12 @@ func NewAuthRouter(authService auth.AuthService,
 
 	publicGroup.GET("/login", func(c *echo.Context) error {
 		if c.QueryParams().Has("token") {
-			return router.loginWithToken(c)
+			return router.loginTokenPage(c)
 		}
 		return router.loginPage(c)
 	})
 	publicGroup.POST("/login", router.login)
+	publicGroup.POST("/login/token", router.loginWithToken)
 
 	return router
 }
