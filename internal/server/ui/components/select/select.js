@@ -796,24 +796,37 @@
     }
   }
 
-  // Shows the selected item's label in the trigger (server only knows the
-  // value, the label lives in the item).
+  function initialize(trigger) {
+    const content = contentFor(trigger);
+    if (!isPositioner(content) || content._templNav) return;
+    startListNavigation(content, trigger);
+    // SelectPopup leaves aria-orientation out once it has a list.
+    popupFor(content).removeAttribute("aria-orientation");
+    wireGroups(content);
+    // Server-side open state (Base UI open or defaultOpen). A server open
+    // has no pointer, so it is programmatic.
+    if (
+      content.getAttribute("data-templ-open") === "true" ||
+      content.hasAttribute("data-templ-default-open")
+    ) {
+      open(content, trigger, "programmatic");
+    }
+  }
+
   window.templ.lifecycle.register(TRIGGER, {
     init(trigger) {
-      const content = contentFor(trigger);
-      if (!isPositioner(content)) return;
-      startListNavigation(content, trigger);
-      // SelectPopup leaves aria-orientation out once it has a list.
-      popupFor(content).removeAttribute("aria-orientation");
-      wireGroups(content);
-      // Server-side open state (Base UI open or defaultOpen). A server open
-      // has no pointer, so it is programmatic.
-      if (
-        content.getAttribute("data-templ-open") === "true" ||
-        content.hasAttribute("data-templ-default-open")
-      ) {
-        open(content, trigger, "programmatic");
-      }
+      // HTMX can retain the old popup reference until its swap settles.
+      // Initialize again when the trigger points to its replacement popup.
+      trigger._templSelectObserver = new MutationObserver(() => initialize(trigger));
+      trigger._templSelectObserver.observe(trigger, {
+        attributes: true,
+        attributeFilter: ["data-templ-controls"],
+      });
+      initialize(trigger);
+    },
+    destroy(trigger) {
+      trigger._templSelectObserver?.disconnect();
+      trigger._templSelectObserver = null;
     },
   });
   // A content unmounts with its portal owner: a portaled one is removed from

@@ -11,6 +11,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/textarea"
 import "github.com/markojerkic/svarog/internal/lib/projects"
 import "time"
 import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 type ConnectionStringFormProps struct {
 	ProjectID string
@@ -57,10 +58,15 @@ templ ConnectionStringForm(props ...ConnectionStringFormProps) {
 					}) {
 						@selectcomp.Value(selectcomp.ValueProps{Placeholder: i18n.T(ctx, "connection.select_client")})
 					}
-					@selectcomp.Content() {
-						for _, client := range p.Clients {
-							@selectcomp.Item(selectcomp.ItemProps{Value: client.ID.String()}) {
-								{ client.Name }
+					@selectcomp.Content(selectcomp.ContentProps{
+						AlignItemWithTrigger: utils.Ptr(false),
+						Align:                selectcomp.AlignStart,
+					}) {
+						@selectcomp.Group() {
+							for _, client := range p.Clients {
+								@selectcomp.Item(selectcomp.ItemProps{Value: client.ID.String()}) {
+									{ client.Name }
+								}
 							}
 						}
 					}

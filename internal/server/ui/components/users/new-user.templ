@@ -11,6 +11,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 import "github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 type NewUserFormProps struct {
 	FormID   string
@@ -135,12 +136,17 @@ templ NewUserForm(props ...NewUserFormProps) {
 					@selectcomp.Trigger(selectcomp.TriggerProps{ID: p.FormID + "-role", Class: "w-full"}) {
 						@selectcomp.Value(selectcomp.ValueProps{Placeholder: i18n.T(ctx, "users.select_role")})
 					}
-					@selectcomp.Content() {
-						@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.USER)}) {
-							{ i18n.T(ctx, "users.role_user") }
-						}
-						@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.ADMIN)}) {
-							{ i18n.T(ctx, "users.role_admin") }
+					@selectcomp.Content(selectcomp.ContentProps{
+						AlignItemWithTrigger: utils.Ptr(false),
+						Align:                selectcomp.AlignStart,
+					}) {
+						@selectcomp.Group() {
+							@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.USER)}) {
+								{ i18n.T(ctx, "users.role_user") }
+							}
+							@selectcomp.Item(selectcomp.ItemProps{Value: string(auth.ADMIN)}) {
+								{ i18n.T(ctx, "users.role_admin") }
+							}
 						}
 					}
 				}
