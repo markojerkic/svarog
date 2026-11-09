@@ -201,6 +201,17 @@
   "projects.delete_confirm_history": {
     "other": "Obrisati {{.Name}}? Projekt ima klijente. Logovi i arhive se brišu zajedno s njim."
   },
+  "projects.delete_final_title": { "other": "Trajno izbrisati projekt?" },
+  "projects.delete_final_description": {
+    "other": "Svi klijenti, logovi i arhive bit će trajno izbrisani. Ovu radnju nije moguće poništiti."
+  },
+  "projects.delete_name_hint": {
+    "other": "Za potvrdu upišite točan naziv projekta prikazan ispod."
+  },
+  "projects.delete_name_required": {
+    "other": "Brisanje je otkazano. Za brisanje projekta s klijentima upišite njegov točan trenutačni naziv. Ako je preimenovan, osvježite stranicu."
+  },
+  "projects.delete_permanently": { "other": "Trajno izbriši projekt" },
   "projects.archive_busy": { "other": "Arhiviranje je u tijeku. Pokušaj ponovno za minutu." },
   "projects.created": { "other": "Projekt je dodan." },
   "projects.updated": { "other": "Projekt je ažuriran." },

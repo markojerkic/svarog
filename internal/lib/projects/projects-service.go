@@ -35,7 +35,7 @@ type ProjectsService interface {
 	GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error)
 	GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error)
 	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
-	DeleteProject(ctx context.Context, id string) error
+	DeleteProject(ctx context.Context, id, confirmationName string) error
 	ProjectExists(ctx context.Context, projectID, clientID string) bool
 	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
 }
@@ -47,11 +47,12 @@ type PostgresProjectsService struct {
 }
 
 const (
-	ErrProjectNotFound    = "project not found"
-	ErrClientNotFound     = "client not found"
-	ErrProjectExists      = "project already exists"
-	ErrProjectHasClients  = "project has clients; deactivate clients to preserve history"
-	ErrProjectArchiveBusy = "project archive is in progress"
+	ErrProjectNotFound                   = "project not found"
+	ErrClientNotFound                    = "client not found"
+	ErrProjectExists                     = "project already exists"
+	ErrProjectHasClients                 = "project has clients; deactivate clients to preserve history"
+	ErrProjectArchiveBusy                = "project archive is in progress"
+	ErrProjectDeleteConfirmationRequired = "project deletion requires its exact current name"
 )
 
 var _ ProjectsService = (*PostgresProjectsService)(nil)
@@ -169,7 +170,7 @@ func (p *PostgresProjectsService) SearchProjects(ctx context.Context, request Se
 	return projects, err
 }
 
-func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id string) error {
+func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id, confirmationName string) error {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return errors.New(ErrProjectNotFound)
@@ -178,7 +179,7 @@ func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id string) 
 	if p.archives != nil {
 		backend = p.archives.Backend()
 	}
-	err = persistence.DeleteProjectWithHistory(ctx, p.pool, parsed, backend, func(ctx context.Context, objects []persistence.StoredArchive) error {
+	err = persistence.DeleteProjectWithHistory(ctx, p.pool, parsed, confirmationName, backend, func(ctx context.Context, objects []persistence.StoredArchive) error {
 		var cleanupErr error
 		for _, object := range objects {
 			if err := p.archives.Delete(ctx, object.Key); err != nil {
@@ -274,6 +275,9 @@ func projectDeleteError(err error) error {
 	}
 	if errors.Is(err, persistence.ErrProjectArchiveBusy) {
 		return errors.New(ErrProjectArchiveBusy)
+	}
+	if errors.Is(err, persistence.ErrProjectDeleteConfirmationRequired) {
+		return errors.New(ErrProjectDeleteConfirmationRequired)
 	}
 	return projectError(err)
 }

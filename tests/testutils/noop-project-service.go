@@ -21,7 +21,7 @@ func (n *NoopProjectService) CreateProject(ctx context.Context, name string, cli
 }
 
 // DeleteProject implements [projects.ProjectsService].
-func (n *NoopProjectService) DeleteProject(ctx context.Context, id string) error {
+func (n *NoopProjectService) DeleteProject(ctx context.Context, id, confirmationName string) error {
 	panic("unimplemented")
 }
 

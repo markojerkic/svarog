@@ -189,6 +189,15 @@
   "projects.delete_confirm_history": {
     "other": "Delete {{.Name}}? This project has clients. Logs and archives are deleted with it."
   },
+  "projects.delete_final_title": { "other": "Permanently delete project?" },
+  "projects.delete_final_description": {
+    "other": "All clients, logs and archives will be permanently deleted. This cannot be undone."
+  },
+  "projects.delete_name_hint": { "other": "To confirm, type the exact project name shown below." },
+  "projects.delete_name_required": {
+    "other": "Deletion was cancelled. Enter the exact current project name to delete a project with clients. Refresh the page if it was renamed."
+  },
+  "projects.delete_permanently": { "other": "Permanently delete project" },
   "projects.archive_busy": { "other": "Archiving is in progress. Try again in a minute." },
   "projects.created": { "other": "Project created" },
   "projects.updated": { "other": "Project updated" },

@@ -1,0 +1,58 @@
+package projectcomponents
+
+import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/dialog"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/label"
+
+templ DeleteProjectDialog() {
+	@dialog.Dialog(dialog.Props{ID: "delete-project-dialog"}) {
+		@dialog.Content(dialog.ContentProps{}) {
+			@dialog.Header() {
+				@dialog.Title() {
+					{ i18n.T(ctx, "projects.delete_final_title") }
+				}
+				@dialog.Description() {
+					{ i18n.T(ctx, "projects.delete_final_description") }
+				}
+			}
+			<form id="delete-project-confirmation-form" hx-boost="false" class="space-y-4">
+				<div class="space-y-2">
+					<p id="delete-project-name-hint" class="text-sm text-muted-foreground">{ i18n.T(ctx, "projects.delete_name_hint") }</p>
+					<p id="delete-project-expected-name" class="whitespace-pre-wrap break-words text-sm font-medium [overflow-wrap:anywhere]"></p>
+					@label.Label(label.Props{For: "delete-project-name"}) {
+						{ i18n.T(ctx, "projects.name") }
+					}
+					@input.Input(input.Props{
+						ID:       "delete-project-name",
+						Name:     "confirmationName",
+						Required: true,
+						Attributes: templ.Attributes{
+							"autocomplete":     "off",
+							"autocapitalize":   "off",
+							"spellcheck":       "false",
+							"aria-describedby": "delete-project-name-hint delete-project-expected-name",
+						},
+					})
+				</div>
+				@dialog.Footer() {
+					@button.Button(button.Props{
+						Variant:    button.VariantOutline,
+						Attributes: dialog.Close(ctx),
+					}) {
+						{ i18n.T(ctx, "common.cancel") }
+					}
+					@button.Button(button.Props{
+						ID:       "delete-project-button",
+						Type:     button.TypeSubmit,
+						Variant:  button.VariantDestructive,
+						Disabled: true,
+					}) {
+						{ i18n.T(ctx, "projects.delete_permanently") }
+					}
+				}
+			</form>
+		}
+	}
+}

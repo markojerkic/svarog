@@ -590,14 +590,19 @@ func (q *Queries) ListUserProjects(ctx context.Context, userID uuid.UUID) ([]Pro
 }
 
 const lockProject = `-- name: LockProject :one
-SELECT id FROM projects WHERE id = $1 FOR UPDATE
+SELECT id, name, created_at, updated_at FROM projects WHERE id = $1 FOR UPDATE
 `
 
-func (q *Queries) LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+func (q *Queries) LockProject(ctx context.Context, id uuid.UUID) (Project, error) {
 	row := q.db.QueryRow(ctx, lockProject, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const lockUserForProjectAssignment = `-- name: LockUserForProjectAssignment :one

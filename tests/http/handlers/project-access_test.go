@@ -71,7 +71,7 @@ func (s *projectAccessProjectsStub) GetProjectsByIds(_ context.Context, ids []st
 	return s.visible, nil
 }
 
-func (s *projectAccessProjectsStub) DeleteProject(context.Context, string) error {
+func (s *projectAccessProjectsStub) DeleteProject(context.Context, string, string) error {
 	return s.deleteErr
 }
 

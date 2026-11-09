@@ -117,7 +117,7 @@ func (p *ProjectsSuite) TestDeleteProject() {
 		t.Fatalf("Could not create project: %s", err)
 	}
 
-	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.String())
+	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.String(), "")
 	require.NoError(t, err, "deleting a project without clients should succeed")
 
 	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.String())
@@ -143,7 +143,7 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	}
 	require.NoError(t, queries.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userIDs[2], ProjectID: otherProject.ID}), "assign third user to the project that should remain")
 
-	require.NoError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), "delete the clientless project with user memberships")
+	require.NoError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String(), ""), "delete the clientless project with user memberships")
 	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
 	assert.EqualError(t, err, projects.ErrProjectNotFound, "project should not exist after deletion")
 
@@ -234,7 +234,20 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 
 	service := projects.NewPostgresProjectsService(p.PostgresPool)
 	service.SetArchiveStore(disk)
-	require.NoError(t, service.DeleteProject(ctx, project.ID.String()), "deleting a project must remove its clients, logs and archives")
+	for _, confirmation := range []string{"", "another-project", "DELETE-WITH-HISTORY"} {
+		require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), confirmation), projects.ErrProjectDeleteConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
+	}
+	renamed, err := service.UpdateProject(ctx, project.ID, "Živi projekt & arhive", nil)
+	require.NoError(t, err, "rename the project and deactivate all clients before confirming deletion")
+	require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), project.Name), projects.ErrProjectDeleteConfirmationRequired, "a stale name must not authorize deletion, even when every client is inactive")
+	var retainedLogs, retainedArchives int
+	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedLogs), "count logs after rejected deletion attempts")
+	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedArchives), "count archives after rejected deletion attempts")
+	require.Equal(t, 2, retainedLogs, "rejected deletion must preserve all remaining logs")
+	require.Equal(t, 1, retainedArchives, "rejected deletion must preserve archive metadata")
+	_, err = os.Stat(zipPath)
+	require.NoError(t, err, "rejected deletion must preserve the archive file")
+	require.NoError(t, service.DeleteProject(ctx, project.ID.String(), renamed.Name), "the exact current name must permit deletion of the project and all its retained history")
 
 	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
 	assert.EqualError(t, err, projects.ErrProjectNotFound, "the deleted project should no longer exist")

@@ -73,7 +73,7 @@ DELETE FROM user_projects WHERE user_id = $1 AND project_id = $2;
 DELETE FROM user_projects WHERE user_id = $1;
 
 -- name: LockProject :one
-SELECT id FROM projects WHERE id = $1 FOR UPDATE;
+SELECT * FROM projects WHERE id = $1 FOR UPDATE;
 
 -- name: LockUserForProjectAssignment :one
 SELECT id FROM users WHERE id = $1 FOR UPDATE;

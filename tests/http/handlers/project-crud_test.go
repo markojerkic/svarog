@@ -34,7 +34,7 @@ func (s *projectCRUDStub) CreateOrUpdateProject(context.Context, types.CreatePro
 	return s.saved, s.saveError
 }
 
-func (s *projectCRUDStub) DeleteProject(context.Context, string) error {
+func (s *projectCRUDStub) DeleteProject(context.Context, string, string) error {
 	s.writeCalls++
 	return nil
 }

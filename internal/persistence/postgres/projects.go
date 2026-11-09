@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// ErrProjectDeleteConfirmationRequired protects projects with retained clients.
+	ErrProjectDeleteConfirmationRequired = errors.New("project deletion requires its exact current name")
 	// ErrProjectArchiveBusy means an archive build holds the client lock.
 	ErrProjectArchiveBusy = errors.New("project archive is in progress")
 	// ErrArchiveStoreMissing means archive rows exist but no store can remove them.
@@ -89,8 +91,9 @@ func UpdateProjectWithClients(ctx context.Context, pool *pgxpool.Pool, input Pro
 // DeleteProjectWithHistory removes the project, every client, and their logs,
 // archive rows and policies. Archive files are deleted only after that commit,
 // while the per-client archive locks are still held. A busy lock leaves the
-// project unchanged.
-func DeleteProjectWithHistory(ctx context.Context, pool *pgxpool.Pool, projectID uuid.UUID, backend string, cleanup func(context.Context, []StoredArchive) error) error {
+// project unchanged. Projects with clients require their exact current name,
+// checked under the project lock so concurrent edits cannot bypass confirmation.
+func DeleteProjectWithHistory(ctx context.Context, pool *pgxpool.Pool, projectID uuid.UUID, confirmationName, backend string, cleanup func(context.Context, []StoredArchive) error) error {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire project delete connection: %w", err)
@@ -124,12 +127,16 @@ func DeleteProjectWithHistory(ctx context.Context, pool *pgxpool.Pool, projectID
 	}()
 
 	q := sqlc.New(tx)
-	if _, err := q.LockProject(ctx, projectID); err != nil {
+	project, err := q.LockProject(ctx, projectID)
+	if err != nil {
 		return err
 	}
 	clientIDs, err := q.ListProjectClientIDs(ctx, projectID)
 	if err != nil {
 		return err
+	}
+	if len(clientIDs) > 0 && confirmationName != project.Name {
+		return ErrProjectDeleteConfirmationRequired
 	}
 
 	for _, id := range clientIDs {

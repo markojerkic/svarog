@@ -102,6 +102,7 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 				</div>
 			</div>
 			@projectcomponents.ConnectionStringDialog()
+			@projectcomponents.DeleteProjectDialog()
 		</div>
 	}
 }
@@ -141,6 +142,15 @@ templ projectActions(project projects.Project) {
 		if project.HasRetainedClients {
 			confirm = i18n.Format(ctx, i18n.Message{ID: "projects.delete_confirm_history", Data: map[string]any{"Name": project.Name}})
 		}
+		deleteAttributes := templ.Attributes{
+			"hx-delete":  "/admin/projects/" + project.ID.String(),
+			"hx-confirm": confirm,
+			"hx-target":  fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
+			"hx-disable": "input, button, #new-project-dialog > button[type=submit]",
+		}
+		if project.HasRetainedClients {
+			deleteAttributes["data-confirm-project-name"] = project.Name
+		}
 	}}
 	@dropdownmenu.DropdownMenu() {
 		@button.Button(button.Props{
@@ -168,12 +178,7 @@ templ projectActions(project projects.Project) {
 					</span>
 				}
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
-					Attributes: templ.Attributes{
-						"hx-delete":  "/admin/projects/" + project.ID.String(),
-						"hx-confirm": confirm,
-						"hx-target":  fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
-						"hx-disable": "input, button, #new-project-dialog > button[type=submit]",
-					},
+					Attributes: deleteAttributes,
 				}) {
 					<span class="flex items-center">
 						@icon.Minus(icon.Props{Size: 16, Class: "mr-2"})

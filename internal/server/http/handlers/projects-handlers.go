@@ -307,9 +307,12 @@ func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 	if id == "" {
 		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "projects.id_required")}})
 	}
-	err = p.projectsService.DeleteProject(c.Request().Context(), id)
+	err = p.projectsService.DeleteProject(c.Request().Context(), id, c.QueryParam("confirmationName"))
 	if err != nil {
 		slog.Error("Error deleting project", "error", err)
+		if err.Error() == projects.ErrProjectDeleteConfirmationRequired {
+			return projectPageError(c, http.StatusConflict, i18n.T(c.Request().Context(), "projects.delete_name_required"))
+		}
 		if err.Error() == projects.ErrProjectHasClients {
 			message := i18n.T(c.Request().Context(), "projects.has_clients")
 			htmx.AddErrorToast(c, message)
