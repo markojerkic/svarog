@@ -2,9 +2,14 @@ package projects
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/assert"
@@ -189,17 +194,61 @@ func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
 	assert.True(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.ID.String()), "reactivated client should regain credentials and ingestion eligibility")
 }
 
-func (p *ProjectsSuite) TestDeleteProject_RejectsActiveAndInactiveClients() {
+func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	t := p.T()
 	ctx := context.Background()
-	project, err := p.ProjectsService.CreateProject(ctx, "cannot-delete-clients", []string{"client"})
-	require.NoError(t, err, "create project with a client for deletion restrictions")
-	assert.EqualError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), projects.ErrProjectHasClients, "project deletion must reject active clients")
-	_, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, nil)
-	require.NoError(t, err, "deactivate the client before retrying deletion")
-	assert.EqualError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String()), projects.ErrProjectHasClients, "project deletion must also reject retained inactive clients")
+	project, err := p.ProjectsService.CreateProject(ctx, "delete-with-history", []string{"api", "worker"})
+	require.NoError(t, err, "create a project with clients that must be removable")
+	require.Len(t, project.Clients, 2, "both clients should be active before deletion")
+	apiID, workerID := project.Clients[0].ID, project.Clients[1].ID
+	if project.Clients[0].Name != "api" {
+		apiID, workerID = workerID, apiID
+	}
+	kept, err := p.ProjectsService.CreateProject(ctx, "kept-project", []string{"kept"})
+	require.NoError(t, err, "create an unrelated project that deletion must not touch")
+
+	dir := t.TempDir()
+	disk := archive.NewDiskStore(dir)
+	archiver := archive.NewArchiveService(p.PostgresPool, disk)
+	scope := archive.Scope{ProjectID: project.ID, ClientID: apiID}
+	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
+	require.NoError(t, archiver.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable archiving so deletion has a ZIP to remove")
+	_, err = store.InsertLogs(ctx, p.PostgresPool, []store.LogInsert{
+		{ClientID: apiID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "archived"},
+		{ClientID: workerID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "inactive-client"},
+		{ClientID: apiID, InstanceName: "web", OccurredAt: time.Now().UTC(), SequenceNumber: 2, Message: "still-live"},
+	})
+	require.NoError(t, err, "insert logs that deletion must remove with the project")
+	created, err := archiver.Create(ctx, scope)
+	require.NoError(t, err, "archive the old api log before deleting the project")
+	require.Equal(t, archive.Created, created.Outcome, "the old log should become a completed archive")
+	zipPath := filepath.Join(dir, apiID.String(), created.Archive.ID.String()+".zip")
+	_, err = os.Stat(zipPath)
+	require.NoError(t, err, "the completed archive file should exist before project deletion")
+
+	_, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, []string{"api"})
+	require.NoError(t, err, "deactivate one client so deletion covers retained history")
+	loaded, err := p.ProjectsService.GetProject(ctx, project.ID.String())
+	require.NoError(t, err, "reload the project after deactivating a client")
+	assert.True(t, loaded.HasRetainedClients, "inactive clients still count as retained history")
+
+	service := projects.NewPostgresProjectsService(p.PostgresPool)
+	service.SetArchiveStore(disk)
+	require.NoError(t, service.DeleteProject(ctx, project.ID.String()), "deleting a project must remove its clients, logs and archives")
+
 	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
-	require.NoError(t, err, "rejected deletion must leave the project intact")
+	assert.EqualError(t, err, projects.ErrProjectNotFound, "the deleted project should no longer exist")
+	var clients, logs, archives int
+	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM clients WHERE project_id = $1", project.ID).Scan(&clients), "count leftover clients")
+	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&logs), "count leftover logs")
+	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&archives), "count leftover archive rows")
+	assert.Zero(t, clients, "active and inactive clients should be deleted with the project")
+	assert.Zero(t, logs, "live and archived log rows should be deleted with the project")
+	assert.Zero(t, archives, "archive rows should be deleted with the project")
+	_, err = os.Stat(zipPath)
+	assert.ErrorIs(t, err, os.ErrNotExist, "the ZIP should be removed only after the database delete commits")
+	_, err = p.ProjectsService.GetProject(ctx, kept.ID.String())
+	require.NoError(t, err, "deleting one project must leave an unrelated project in place")
 }
 
 func (p *ProjectsSuite) TestSearchProjects() {

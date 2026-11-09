@@ -72,8 +72,48 @@ DELETE FROM user_projects WHERE user_id = $1 AND project_id = $2;
 -- name: DeleteUserProjects :exec
 DELETE FROM user_projects WHERE user_id = $1;
 
+-- name: LockProject :one
+SELECT id FROM projects WHERE id = $1 FOR UPDATE;
+
 -- name: LockUserForProjectAssignment :one
 SELECT id FROM users WHERE id = $1 FOR UPDATE;
+
+-- name: ListProjectClientIDs :many
+SELECT id FROM clients WHERE project_id = $1 ORDER BY id;
+
+-- name: CountClientsByProject :many
+SELECT project_id, count(*)::bigint AS client_count
+FROM clients
+WHERE project_id = ANY(sqlc.arg(project_ids)::uuid[])
+GROUP BY project_id;
+
+-- name: ListProjectArchiveObjects :many
+SELECT a.storage_backend, a.object_key
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = $1
+ORDER BY a.id;
+
+-- name: DeleteProjectLogs :exec
+DELETE FROM logs l
+USING clients c
+WHERE l.client_id = c.id
+  AND c.project_id = $1;
+
+-- name: DeleteProjectArchives :exec
+DELETE FROM archives a
+USING clients c
+WHERE a.client_id = c.id
+  AND c.project_id = $1;
+
+-- name: DeleteProjectArchivePolicies :exec
+DELETE FROM archive_policies p
+USING clients c
+WHERE p.client_id = c.id
+  AND c.project_id = $1;
+
+-- name: DeleteProjectClients :exec
+DELETE FROM clients WHERE project_id = $1;
 
 -- name: ListUserProjects :many
 SELECT p.* FROM projects p JOIN user_projects up ON up.project_id = p.id

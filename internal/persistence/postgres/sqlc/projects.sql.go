@@ -68,6 +68,38 @@ func (q *Queries) AddUserToProject(ctx context.Context, arg AddUserToProjectPara
 	return err
 }
 
+const countClientsByProject = `-- name: CountClientsByProject :many
+SELECT project_id, count(*)::bigint AS client_count
+FROM clients
+WHERE project_id = ANY($1::uuid[])
+GROUP BY project_id
+`
+
+type CountClientsByProjectRow struct {
+	ProjectID   uuid.UUID
+	ClientCount int64
+}
+
+func (q *Queries) CountClientsByProject(ctx context.Context, projectIds []uuid.UUID) ([]CountClientsByProjectRow, error) {
+	rows, err := q.db.Query(ctx, countClientsByProject, projectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountClientsByProjectRow
+	for rows.Next() {
+		var i CountClientsByProjectRow
+		if err := rows.Scan(&i.ProjectID, &i.ClientCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countProjects = `-- name: CountProjects :one
 SELECT count(*) FROM projects
 WHERE strpos(lower(name), lower($1::text)) > 0
@@ -173,6 +205,51 @@ func (q *Queries) DeleteProject(ctx context.Context, id uuid.UUID) (uuid.UUID, e
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const deleteProjectArchivePolicies = `-- name: DeleteProjectArchivePolicies :exec
+DELETE FROM archive_policies p
+USING clients c
+WHERE p.client_id = c.id
+  AND c.project_id = $1
+`
+
+func (q *Queries) DeleteProjectArchivePolicies(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProjectArchivePolicies, projectID)
+	return err
+}
+
+const deleteProjectArchives = `-- name: DeleteProjectArchives :exec
+DELETE FROM archives a
+USING clients c
+WHERE a.client_id = c.id
+  AND c.project_id = $1
+`
+
+func (q *Queries) DeleteProjectArchives(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProjectArchives, projectID)
+	return err
+}
+
+const deleteProjectClients = `-- name: DeleteProjectClients :exec
+DELETE FROM clients WHERE project_id = $1
+`
+
+func (q *Queries) DeleteProjectClients(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProjectClients, projectID)
+	return err
+}
+
+const deleteProjectLogs = `-- name: DeleteProjectLogs :exec
+DELETE FROM logs l
+USING clients c
+WHERE l.client_id = c.id
+  AND c.project_id = $1
+`
+
+func (q *Queries) DeleteProjectLogs(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProjectLogs, projectID)
+	return err
 }
 
 const deleteUserProjects = `-- name: DeleteUserProjects :exec
@@ -356,6 +433,63 @@ func (q *Queries) ListAllProjects(ctx context.Context) ([]Project, error) {
 	return items, nil
 }
 
+const listProjectArchiveObjects = `-- name: ListProjectArchiveObjects :many
+SELECT a.storage_backend, a.object_key
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = $1
+ORDER BY a.id
+`
+
+type ListProjectArchiveObjectsRow struct {
+	StorageBackend string
+	ObjectKey      string
+}
+
+func (q *Queries) ListProjectArchiveObjects(ctx context.Context, projectID uuid.UUID) ([]ListProjectArchiveObjectsRow, error) {
+	rows, err := q.db.Query(ctx, listProjectArchiveObjects, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectArchiveObjectsRow
+	for rows.Next() {
+		var i ListProjectArchiveObjectsRow
+		if err := rows.Scan(&i.StorageBackend, &i.ObjectKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectClientIDs = `-- name: ListProjectClientIDs :many
+SELECT id FROM clients WHERE project_id = $1 ORDER BY id
+`
+
+func (q *Queries) ListProjectClientIDs(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listProjectClientIDs, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectClients = `-- name: ListProjectClients :many
 SELECT id, project_id, name, is_active, created_at, updated_at FROM clients WHERE project_id = $1 ORDER BY lower(name), id
 `
@@ -453,6 +587,17 @@ func (q *Queries) ListUserProjects(ctx context.Context, userID uuid.UUID) ([]Pro
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockProject = `-- name: LockProject :one
+SELECT id FROM projects WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProject, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const lockUserForProjectAssignment = `-- name: LockUserForProjectAssignment :one

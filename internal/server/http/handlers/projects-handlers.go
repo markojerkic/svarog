@@ -316,6 +316,12 @@ func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 			c.Response().Header().Set("HX-Reswap", "none")
 			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
 		}
+		if err.Error() == projects.ErrProjectArchiveBusy {
+			message := i18n.T(c.Request().Context(), "projects.archive_busy")
+			htmx.AddErrorToast(c, message)
+			c.Response().Header().Set("HX-Reswap", "none")
+			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
+		}
 		if err.Error() == projects.ErrProjectNotFound {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}

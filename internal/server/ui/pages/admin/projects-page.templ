@@ -136,6 +136,12 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 }
 
 templ projectActions(project projects.Project) {
+	{{
+		confirm := i18n.T(ctx, "projects.delete_confirm")
+		if project.HasRetainedClients {
+			confirm = i18n.Format(ctx, i18n.Message{ID: "projects.delete_confirm_history", Data: map[string]any{"Name": project.Name}})
+		}
+	}}
 	@dropdownmenu.DropdownMenu() {
 		@button.Button(button.Props{
 			Variant:    button.VariantGhost,
@@ -164,7 +170,7 @@ templ projectActions(project projects.Project) {
 				@dropdownmenu.Item(dropdownmenu.ItemProps{
 					Attributes: templ.Attributes{
 						"hx-delete":  "/admin/projects/" + project.ID.String(),
-						"hx-confirm": i18n.T(ctx, "projects.delete_confirm"),
+						"hx-confirm": confirm,
 						"hx-target":  fmt.Sprintf("tr[data-project-id='%s']", project.ID.String()),
 						"hx-disable": "input, button, #new-project-dialog > button[type=submit]",
 					},

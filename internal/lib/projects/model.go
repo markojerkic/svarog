@@ -6,10 +6,11 @@ import (
 )
 
 type Project struct {
-	ID               uuid.UUID `json:"id"`
-	Name             string    `json:"name"`
-	Clients          []Client  `json:"clients"`
-	TotalStorageSize float64   `json:"totalStorageSize"`
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	Clients            []Client  `json:"clients"`
+	HasRetainedClients bool      `json:"hasRetainedClients"`
+	TotalStorageSize   float64   `json:"totalStorageSize"`
 }
 
 type Client struct {

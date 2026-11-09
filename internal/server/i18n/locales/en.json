@@ -181,6 +181,10 @@
   "projects.edit": { "other": "Edit project" },
   "projects.delete": { "other": "Delete project" },
   "projects.delete_confirm": { "other": "Are you sure you want to delete this project?" },
+  "projects.delete_confirm_history": {
+    "other": "Delete {{.Name}}? This project has clients. Logs and archives are deleted with it."
+  },
+  "projects.archive_busy": { "other": "Archiving is in progress. Try again in a minute." },
   "projects.created": { "other": "Project created" },
   "projects.updated": { "other": "Project updated" },
   "projects.deleted": { "other": "Project deleted" },

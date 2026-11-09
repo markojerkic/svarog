@@ -193,6 +193,10 @@
   "projects.edit": { "other": "Uredi projekt" },
   "projects.delete": { "other": "Izbriši projekt" },
   "projects.delete_confirm": { "other": "Želite li izbrisati ovaj projekt?" },
+  "projects.delete_confirm_history": {
+    "other": "Obrisati {{.Name}}? Projekt ima klijente. Logovi i arhive se brišu zajedno s njim."
+  },
+  "projects.archive_busy": { "other": "Arhiviranje je u tijeku. Pokušaj ponovno za minutu." },
   "projects.created": { "other": "Projekt je dodan." },
   "projects.updated": { "other": "Projekt je ažuriran." },
   "projects.deleted": { "other": "Projekt je izbrisan." },

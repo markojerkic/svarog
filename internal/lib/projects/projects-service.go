@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -11,6 +12,13 @@ import (
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
+
+// ArchiveContentDeleter removes archive files after their rows are gone.
+// Delete is idempotent for missing content and must target only this backend.
+type ArchiveContentDeleter interface {
+	Backend() string
+	Delete(ctx context.Context, key string) error
+}
 
 type SearchProjectsRequest struct {
 	Search string `json:"search" query:"search"`
@@ -33,21 +41,29 @@ type ProjectsService interface {
 }
 
 type PostgresProjectsService struct {
-	pool    *pgxpool.Pool
-	queries *sqlc.Queries
+	pool     *pgxpool.Pool
+	queries  *sqlc.Queries
+	archives ArchiveContentDeleter
 }
 
 const (
-	ErrProjectNotFound   = "project not found"
-	ErrClientNotFound    = "client not found"
-	ErrProjectExists     = "project already exists"
-	ErrProjectHasClients = "project has clients; deactivate clients to preserve history"
+	ErrProjectNotFound    = "project not found"
+	ErrClientNotFound     = "client not found"
+	ErrProjectExists      = "project already exists"
+	ErrProjectHasClients  = "project has clients; deactivate clients to preserve history"
+	ErrProjectArchiveBusy = "project archive is in progress"
 )
 
 var _ ProjectsService = (*PostgresProjectsService)(nil)
 
 func NewPostgresProjectsService(pool *pgxpool.Pool) *PostgresProjectsService {
 	return &PostgresProjectsService{pool: pool, queries: sqlc.New(pool)}
+}
+
+// SetArchiveStore wires the store that holds ZIP content. Without it, a project
+// that has archive rows cannot be deleted, because the files would be left behind.
+func (p *PostgresProjectsService) SetArchiveStore(store ArchiveContentDeleter) {
+	p.archives = store
 }
 
 func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (Project, error) {
@@ -158,8 +174,24 @@ func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id string) 
 	if err != nil {
 		return errors.New(ErrProjectNotFound)
 	}
-	_, err = p.queries.DeleteProject(ctx, parsed)
-	return projectError(err)
+	backend := ""
+	if p.archives != nil {
+		backend = p.archives.Backend()
+	}
+	err = persistence.DeleteProjectWithHistory(ctx, p.pool, parsed, backend, func(ctx context.Context, objects []persistence.StoredArchive) error {
+		var cleanupErr error
+		for _, object := range objects {
+			if err := p.archives.Delete(ctx, object.Key); err != nil {
+				cleanupErr = errors.Join(cleanupErr, err)
+			}
+		}
+		return cleanupErr
+	})
+	if errors.Is(err, persistence.ErrArchiveContentCleanup) {
+		slog.Error("project deleted but archive files remain", "project", id, "error", err)
+		return nil
+	}
+	return projectDeleteError(err)
 }
 
 func (p *PostgresProjectsService) ProjectExists(ctx context.Context, projectID, clientID string) bool {
@@ -223,7 +255,27 @@ func (p *PostgresProjectsService) projectsWithClients(ctx context.Context, rows 
 		i := index[client.ProjectID]
 		projects[i].Clients = append(projects[i].Clients, Client{ID: client.ID, Name: client.Name})
 	}
+	counts, err := p.queries.CountClientsByProject(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, count := range counts {
+		projects[index[count.ProjectID]].HasRetainedClients = count.ClientCount > 0
+	}
 	return projects, nil
+}
+
+func projectDeleteError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errors.New(ErrProjectNotFound)
+	}
+	if errors.Is(err, persistence.ErrProjectArchiveBusy) {
+		return errors.New(ErrProjectArchiveBusy)
+	}
+	return projectError(err)
 }
 
 func projectError(err error) error {
