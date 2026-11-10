@@ -2,17 +2,18 @@ FROM golang:1.27.3-alpine AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
-COPY cmd ./cmd
-COPY internal ./internal
-RUN CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/log-demo ./cmd/log-demo
-# The existing client's transitive imports include generated UI types.
-RUN go tool templ generate ./...
-RUN CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/svarog-client ./cmd/client
+COPY cmd/log-demo ./cmd/log-demo
+COPY cmd/client ./cmd/client
+COPY internal/lib/util ./internal/lib/util
+COPY internal/rpc ./internal/rpc
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/ ./cmd/log-demo ./cmd/client
 
 FROM alpine:3.24.3
 WORKDIR /app
-COPY --from=builder /out/ /usr/local/bin/
+COPY --from=builder /out/log-demo /usr/local/bin/log-demo
+COPY --from=builder /out/client /usr/local/bin/svarog-client
 COPY cmd/log-demo/messages.txt ./messages.txt
 ENV DEMO_MESSAGES_FILE=/app/messages.txt
 USER 1000:1000

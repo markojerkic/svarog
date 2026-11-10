@@ -40,7 +40,11 @@ func readStdin(output chan *rpc.LogLine, instanceId string) {
 }
 
 func setupLogger(debug bool) {
-	util.SetupLogger(util.LoggerOptions{Debug: debug})
+	level := log.InfoLevel
+	if debug {
+		level = log.DebugLevel
+	}
+	util.SetupLogger(level)
 }
 
 func getConnString() string {
