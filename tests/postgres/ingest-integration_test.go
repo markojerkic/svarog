@@ -14,7 +14,7 @@ import (
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/ingest"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -53,9 +53,9 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	require.NoError(t, err, "connect to JetStream and create log stream")
 	t.Cleanup(conn.Close)
 
-	renderer := websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn))
-	t.Cleanup(renderer.Close)
-	logService := db.NewLogService(pool, renderer)
+	liveLogs := live.New(conn.Conn)
+	t.Cleanup(liveLogs.Close)
+	logService := db.NewLogService(pool, liveLogs)
 	logServer := db.NewLogServer(logService)
 	channel := make(chan db.LogLineWithHost, 100)
 	ingestService := ingest.NewIngestService(channel, conn, pool)

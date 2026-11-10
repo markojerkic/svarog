@@ -49,7 +49,22 @@ func LogColumns(value string) (showTime, showInstance bool) {
 }
 
 func (p LogsPageProps) IsLive() bool {
-	return p.Search == "" && p.Instances == nil && p.LogLineId == nil && p.LogPage.IsLastPage && p.LogPage.Range == nil
+	return p.Search == "" && p.LogLineId == nil && p.LogPage.IsLastPage && p.LogPage.Range == nil
+}
+
+func (p LogsPageProps) LivePath() string {
+	return (&db.LogPage{}).ToPath(p.ProjectId, p.ClientId, p.Instances, nil, "", "")
+}
+
+func (p LogsPageProps) WebSocketPath() string {
+	query := url.Values{}
+	if p.Instances != nil {
+		for _, instance := range *p.Instances {
+			query.Add("instance", instance)
+		}
+	}
+	u := url.URL{Path: fmt.Sprintf("/ws/%s/%s", p.ProjectId, p.ClientId), RawQuery: query.Encode()}
+	return u.String()
 }
 
 templ LogsPage(props LogsPageProps) {
@@ -65,7 +80,7 @@ templ LogsPage(props LogsPageProps) {
 			if props.IsLive() {
 				<div id="log-live-notice" hidden class="shrink-0 rounded-lg border bg-muted p-3 text-sm" role="status">
 					<p>{ i18n.T(ctx, "logs.live_incomplete") }</p>
-					<a class="underline underline-offset-4" href={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.refresh_live") }</a>
+					<a class="underline underline-offset-4" href={ templ.SafeURL(props.LivePath()) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.refresh_live") }</a>
 				</div>
 				<template id="log-live-older-loader">
 					@LogPageLoader(props, &db.LastCursor{IsBackward: true}, "backward", "logs.load_older")
@@ -161,11 +176,11 @@ templ LogsHeaderActions(props LogsPageProps) {
 		}) {
 			@icon.X(icon.Props{Class: "size-3.5"})
 		}
-		@LogInstanceFilters(props)
 	}
+	@LogInstanceFilters(props)
 	if !props.IsLive() {
 		@button.Button(button.Props{
-			Href:       fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+			Href:       props.LivePath(),
 			Variant:    button.VariantGhost,
 			Size:       button.SizeSm,
 			Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "logs.back_to_live"), "title": i18n.T(ctx, "logs.back_to_live"), "hx-sync": "body:replace"},
@@ -270,15 +285,11 @@ templ LogRangeFilter(props LogsPageProps) {
 }
 
 func logInstanceFilterPath(props LogsPageProps, instance *string) string {
-	query := url.Values{"search": {props.Search}}
+	var instances *[]string
 	if instance != nil {
-		query.Set("instance", *instance)
+		instances = &[]string{*instance}
 	}
-	u := url.URL{
-		Path:     fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
-		RawQuery: query.Encode(),
-	}
-	return u.String()
+	return props.LogPage.ToPath(props.ProjectId, props.ClientId, instances, nil, "", props.Search)
 }
 
 templ LogInstanceFilters(props LogsPageProps) {
@@ -366,7 +377,7 @@ templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
 		<span class="text-sm text-muted-foreground">{ i18n.T(ctx, "logs.filtered_by_instance") }</span>
 		@badge.Badge(badge.Props{
-			Href:    fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId),
+			Href:    logInstanceFilterPath(props, nil),
 			Variant: badge.VariantDefault,
 			Class:   "cursor-pointer gap-1.5",
 			Attributes: templ.Attributes{
@@ -400,7 +411,7 @@ templ LogPageLines(props LogsPageProps) {
 	}
 	if props.IsLive() {
 		<div
-			hx-ws:connect={ fmt.Sprintf("/ws/%s/%s", props.ProjectId, props.ClientId) }
+			hx-ws:connect={ props.WebSocketPath() }
 			hx-config="ws: {pauseOnBackground: false, reconnect: false}"
 			data-log-stream
 		></div>

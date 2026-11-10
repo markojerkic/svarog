@@ -15,7 +15,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"github.com/markojerkic/svarog/internal/server/live"
 )
 
 type HttpServer struct {
@@ -25,7 +25,7 @@ type HttpServer struct {
 	projectsService       projects.ProjectsService
 	archiver              archive.Archiver
 	natsCredentialService *serverauth.NatsCredentialService
-	watchHub              *websocket.WatchHub
+	liveLogs              *live.Logs
 
 	serverPort int
 	server     *stdhttp.Server
@@ -38,7 +38,7 @@ type HttpServerOptions struct {
 	ProjectsService       projects.ProjectsService
 	Archiver              archive.Archiver
 	NatsCredentialService *serverauth.NatsCredentialService
-	WatchHub              *websocket.WatchHub
+	LiveLogs              *live.Logs
 
 	ServerPort int
 }
@@ -68,7 +68,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewLogsRouter(self.logService, self.authService, self.projectsService, privateApi)
 	handlers.NewArchiveRouter(self.archiver, self.authService, self.projectsService, privateApi)
 	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
-	handlers.NewWsConnectionRouter(self.watchHub, self.authService, self.projectsService, privateApi)
+	handlers.NewWsConnectionRouter(self.liveLogs, self.authService, self.projectsService, privateApi)
 
 	e.Static("/assets", "internal/server/ui/assets", customMiddleware.AssetsCacheMiddleware)
 
@@ -95,7 +95,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		projectsService:       options.ProjectsService,
 		archiver:              options.Archiver,
 		natsCredentialService: options.NatsCredentialService,
-		watchHub:              options.WatchHub,
+		liveLogs:              options.LiveLogs,
 	}
 
 	return server

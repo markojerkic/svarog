@@ -17,13 +17,14 @@ type JetStreamConfig struct {
 }
 
 type NatsConnectionConfig struct {
-	NatsAddr        string
-	User            string // For user/password auth
-	Password        string // For user/password auth
-	JWT             string // For JWT auth (alternative to user/password)
-	Seed            string // For JWT auth (alternative to user/password)
-	EnableJetStream bool
-	JetStreamConfig JetStreamConfig
+	NatsAddr               string
+	User                   string // For user/password auth
+	Password               string // For user/password auth
+	JWT                    string // For JWT auth (alternative to user/password)
+	Seed                   string // For JWT auth (alternative to user/password)
+	EnableJetStream        bool
+	DisableReconnectBuffer bool // live events must not replay from a stale local buffer
+	JetStreamConfig        JetStreamConfig
 }
 
 type NatsConnection struct {
@@ -53,6 +54,9 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 			slog.Info("NATS reconnected")
 		}),
 	)
+	if cfg.DisableReconnectBuffer {
+		opts = append(opts, nats.ReconnectBufSize(-1))
+	}
 
 	nc, err := nats.Connect(cfg.NatsAddr, opts...)
 	if err != nil {

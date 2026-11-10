@@ -113,6 +113,9 @@
     "other": "Praćenje uživo je zaustavljeno kako bi ovaj prikaz ostao stabilan. Dio logova možda nedostaje. Osvježite prikaz za najnovije logove."
   },
   "logs.refresh_live": { "other": "Osvježi praćenje uživo" },
+  "logs.invalid_instances": {
+    "other": "Odabrano je previše instanci ili su njihova imena preduga."
+  },
   "logs.load_newer": { "other": "Učitaj novije logove" },
   "logs.line_actions": { "other": "Radnje nad retkom loga" },
   "logs.copy_line": { "other": "Kopiraj redak loga" },

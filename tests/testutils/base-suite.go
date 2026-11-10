@@ -14,8 +14,8 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
 )
@@ -36,8 +36,7 @@ type BaseSuite struct {
 	ProjectsService  projects.ProjectsService
 
 	// WebSocket
-	WatchHub      *websocket.WatchHub
-	WsLogRenderer *websocket.WsLogLineRenderer
+	LiveLogs *live.Logs
 
 	// Config
 	config BaseSuiteConfig
@@ -136,9 +135,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 	s.NatsConn = natsConn
 
-	// Create WatchHub and WsLogLineRenderer
-	s.WatchHub = websocket.NewWatchHub(natsConn.Conn)
-	s.WsLogRenderer = websocket.NewWsLogLineRenderer(s.WatchHub)
+	s.LiveLogs = live.New(natsConn.Conn)
 
 	return nil
 }
@@ -147,8 +144,8 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 func (s *BaseSuite) TearDownSuite() {
 	ctx := context.Background()
 
-	if s.WsLogRenderer != nil {
-		s.WsLogRenderer.Close()
+	if s.LiveLogs != nil {
+		s.LiveLogs.Close()
 	}
 	if s.NatsConn != nil {
 		s.NatsConn.Close()

@@ -16,8 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
+	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 type LastCursor struct {
@@ -93,8 +93,8 @@ type LogService interface {
 }
 
 type PostgresLogService struct {
-	pool          *pgxpool.Pool
-	wsLogRenderer *websocket.WsLogLineRenderer
+	pool     *pgxpool.Pool
+	liveLogs *live.Logs
 }
 
 var _ LogService = &PostgresLogService{}
@@ -289,16 +289,16 @@ func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.Store
 	for i := range logs {
 		logs[i].ID = ids[i]
 	}
-	if self.wsLogRenderer != nil {
-		self.wsLogRenderer.RenderBatch(ctx, logs)
+	if self.liveLogs != nil {
+		self.liveLogs.AfterCommit(ctx, logs)
 	}
 	return nil
 }
 
-func NewLogService(pool *pgxpool.Pool, wsLogRenderer *websocket.WsLogLineRenderer) *PostgresLogService {
+func NewLogService(pool *pgxpool.Pool, liveLogs *live.Logs) *PostgresLogService {
 	return &PostgresLogService{
-		pool:          pool,
-		wsLogRenderer: wsLogRenderer,
+		pool:     pool,
+		liveLogs: liveLogs,
 	}
 }
 

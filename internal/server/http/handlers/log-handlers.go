@@ -18,6 +18,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
+	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -158,6 +159,16 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 
 	slog.Debug("Get logs by client", "params", params)
 	params.Search = strings.TrimSpace(params.Search)
+	if params.Instances != nil {
+		selector, err := live.NewSelector(*params.Instances)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_instances"))
+		}
+		params.Instances = &selector.Instances
+		if len(selector.Instances) == 0 {
+			params.Instances = nil
+		}
+	}
 	if _, err := logsearch.Parse(params.Search); err != nil {
 		return logSearchValidationError(c, false)
 	}

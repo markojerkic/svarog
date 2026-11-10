@@ -45,6 +45,7 @@ func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.Lo
 	return db.LogPage{
 		Logs:       []types.StoredLog{{LogLine: "matching connection refused"}},
 		IsLastPage: req.Cursor == nil,
+		Range:      req.Range,
 	}, nil
 }
 
@@ -113,7 +114,10 @@ func TestLogsPageLiveModes(t *testing.T) {
 			{"live", "", true},
 			{"blank search", "?search=+++", true},
 			{"search", "?search=error", false},
-			{"instance", "?instance=api-1", false},
+			{"instance", "?instance=api-1", true},
+			{"multiple instances", "?instance=api-1&instance=api-2", true},
+			{"unnamed instance", "?instance=", true},
+			{"range", "?from=2026-11-01&to=2026-11-02&instance=api-1", false},
 			{"anchor", "?logLine=42", false},
 			{"cursor", "?cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", false},
 		} {
@@ -134,7 +138,16 @@ func TestLogsPageLiveModes(t *testing.T) {
 				rec := httptest.NewRecorder()
 				e.ServeHTTP(rec, req)
 				require.Equal(t, http.StatusOK, rec.Code, "every log mode must render successfully")
-				require.Equal(t, tc.live, strings.Contains(rec.Body.String(), "hx-ws:connect="), "only the latest unfiltered, unanchored view may mount a live connection")
+				require.Equal(t, tc.live, strings.Contains(rec.Body.String(), "hx-ws:connect="), "only the latest view without search, range or anchor may mount a live connection, including selected instances")
+				if tc.live {
+					connection := regexp.MustCompile(`hx-ws:connect="([^"]+)"`).FindStringSubmatch(rec.Body.String())
+					require.Len(t, connection, 2, "a live page must contain one encoded connection URL")
+					wsURL, err := url.Parse(html.UnescapeString(connection[1]))
+					require.NoError(t, err, "the WebSocket URL must be valid")
+					expected, err := url.Parse(tc.query)
+					require.NoError(t, err, "the instance query fixture must be valid")
+					require.Equal(t, expected.Query()["instance"], wsURL.Query()["instance"], "the WebSocket selection must exactly match the HTTP view, including an empty instance name")
+				}
 				if requestType == "partial" && logs.request.Cursor != nil {
 					require.Zero(t, logs.instanceCalls, "pagination must reuse the mounted view's instance colors without reloading the list")
 					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")

@@ -9,16 +9,18 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"github.com/markojerkic/svarog/internal/server/i18n"
+	"github.com/markojerkic/svarog/internal/server/live"
 )
 
 type WsRouter struct {
-	wsHub        *websocket.WatchHub
+	liveLogs     *live.Logs
 	parentRouter *echo.Group
 	api          *echo.Group
 }
@@ -26,7 +28,7 @@ type WsRouter struct {
 type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
-	lines        *websocket.LogSubscription
+	lines        *live.Session
 	ctx          context.Context
 	cancel       context.CancelFunc
 	closeOnce    sync.Once
@@ -51,7 +53,7 @@ func (self *WsConnection) writePipe() {
 	for {
 		renderedLogLine, err := self.lines.Next(self.ctx)
 		if err != nil {
-			if errors.Is(err, websocket.ErrLiveResync) {
+			if errors.Is(err, live.ErrLiveResync) {
 				self.wsConnection.WriteControl(gorillaWs.CloseMessage,
 					gorillaWs.FormatCloseMessage(gorillaWs.CloseTryAgainLater, "live view requires refresh"),
 					time.Now().Add(wsWriteTimeout))
@@ -111,12 +113,21 @@ var wsUpgrader = gorillaWs.Upgrader{
 func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	clientId := c.Param("clientId")
 	projectId := c.Param("projectId")
+	selector, err := live.NewSelector(c.QueryParams()["instance"])
+	if err != nil {
+		return c.String(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_instances"))
+	}
+	projectID, projectErr := uuid.Parse(projectId)
+	clientID, clientErr := uuid.Parse(clientId)
+	if projectErr != nil || clientErr != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
 
 	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		return err
 	}
-	subscription, err := self.wsHub.Subscribe(projectId, clientId)
+	subscription, err := self.liveLogs.Open(c.Request().Context(), live.Scope{ProjectID: projectID, ClientID: clientID}, selector)
 	if err != nil {
 		conn.Close()
 		slog.Error("Could not subscribe to live logs", "error", err)
@@ -139,10 +150,10 @@ func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	return nil
 }
 
-func NewWsConnectionRouter(hub *websocket.WatchHub, authService auth.AuthService, projectsService projects.ProjectsService, parentRouter *echo.Group) *WsRouter {
+func NewWsConnectionRouter(liveLogs *live.Logs, authService auth.AuthService, projectsService projects.ProjectsService, parentRouter *echo.Group) *WsRouter {
 	api := parentRouter.Group("/ws", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 	router := &WsRouter{
-		wsHub:        hub,
+		liveLogs:     liveLogs,
 		parentRouter: parentRouter,
 		api:          api,
 	}

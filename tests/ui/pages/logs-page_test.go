@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -108,8 +109,9 @@ func TestLogsPageLiveState(t *testing.T) {
 	}{
 		{name: "live", isLastPage: true, live: true},
 		{name: "search", search: "connection refused", isLastPage: true},
-		{name: "instance", instances: &[]string{"api-1"}, isLastPage: true},
-		{name: "empty instance selection", instances: &[]string{}, isLastPage: true},
+		{name: "instance", instances: &[]string{"api-1"}, isLastPage: true, live: true},
+		{name: "empty instance selection", instances: &[]string{}, isLastPage: true, live: true},
+		{name: "filtered search", search: "connection refused", instances: &[]string{"api-1", "api 2"}, isLastPage: true},
 		{name: "anchor", logLineId: &anchor, isLastPage: true},
 		{name: "pagination"},
 	} {
@@ -123,31 +125,42 @@ func TestLogsPageLiveState(t *testing.T) {
 			if err := pages.LogsPage(props).Render(context.Background(), &output); err != nil {
 				t.Fatalf("Logs page must render successfully: %v", err)
 			}
-			html := output.String()
-			if strings.Contains(html, `hx-ws:connect=`) != tc.live {
-				t.Error("Only the latest unfiltered, unanchored log view may mount a live connection")
+			rendered := output.String()
+			if strings.Contains(rendered, `hx-ws:connect=`) != tc.live {
+				t.Error("Only the latest view without search or anchor may mount a live connection, including selected instances")
 			}
 			for _, fragment := range []string{`data-log-page`, `root:#log-scroll-container`, `hx-sync="body:abort"`, `hx-push-url="false"`, `Load older logs`} {
-				if !strings.Contains(html, fragment) {
+				if !strings.Contains(rendered, fragment) {
 					t.Errorf("Every log mode must render pagination with %s", fragment)
 				}
 			}
-			for _, fragment := range []string{`No logs found.`, `data-templ-controls="log-instance-filters"`} {
-				if strings.Contains(html, fragment) != (tc.search != "") {
-					t.Errorf("Only search results must render %s", fragment)
-				}
+			if strings.Contains(rendered, `No logs found.`) != (tc.search != "") {
+				t.Error("Only an empty search must render the no-results message")
+			}
+			if !strings.Contains(rendered, `data-templ-controls="log-instance-filters"`) {
+				t.Error("Instance selection must be available in live and historical views")
 			}
 			status := "Not live"
 			if tc.logLineId != nil {
 				status = "Line context"
 			}
 			for _, fragment := range []string{`aria-label="Back to live"`, status} {
-				if strings.Contains(html, fragment) != !tc.live {
+				if strings.Contains(rendered, fragment) != !tc.live {
 					t.Errorf("Every non-live view must render %s", fragment)
 				}
 			}
-			if !tc.live && !regexp.MustCompile(`<a[^>]*href="/logs/project/client"[^>]*aria-label="Back to live"`).MatchString(html) {
-				t.Error("Back to live must navigate to the client without search, filters, anchor or cursor parameters")
+			if !tc.live {
+				link := regexp.MustCompile(`<a[^>]*href="([^"]*)"[^>]*aria-label="Back to live"`).FindStringSubmatch(rendered)
+				if len(link) != 2 {
+					t.Fatal("Every historical view must provide a link back to live logs")
+				}
+				u, err := url.Parse(html.UnescapeString(link[1]))
+				if err != nil || u.Path != "/logs/project/client" || u.Query().Has("search") || u.Query().Has("logLine") || u.Query().Has("cursorId") {
+					t.Fatal("Back to live must retain the client while clearing historical search, anchor and cursor")
+				}
+				if tc.instances != nil && !slices.Equal(u.Query()["instance"], *tc.instances) {
+					t.Error("Back to live must retain the selected instances")
+				}
 			}
 		})
 	}

@@ -24,8 +24,8 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
+	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
-	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
 )
 
 func loadEnv() types.ServerEnv {
@@ -56,7 +56,8 @@ type serverDependencies struct {
 	httpServer    *http.HttpServer
 	ingestService *ingest.IngestService
 	natsConn      *natsconn.NatsConnection
-	wsRenderer    *websocket.WsLogLineRenderer
+	liveLogs      *live.Logs
+	liveConn      *natsconn.NatsConnection
 	postgresPool  *pgxpool.Pool
 	cancel        context.CancelFunc
 	background    *sync.WaitGroup
@@ -87,7 +88,8 @@ func gracefulShutdown(deps serverDependencies) {
 		log.Error("Background jobs did not stop before the shutdown timeout")
 	}
 
-	deps.wsRenderer.Close()
+	deps.liveLogs.Close()
+	deps.liveConn.Close()
 	deps.natsConn.Close()
 	deps.postgresPool.Close()
 
@@ -145,11 +147,19 @@ func main() {
 		log.Fatal("Failed to connect to NATS", "error", err)
 	}
 
-	watchHub := websocket.NewWatchHub(natsConn.Conn)
-	wsLoglineRenderer := websocket.NewWsLogLineRenderer(watchHub)
+	liveConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
+		NatsAddr:               env.NatsAddr,
+		JWT:                    env.NatsServerUserJWT,
+		Seed:                   env.NatsServerUserSeed,
+		DisableReconnectBuffer: true,
+	})
+	if err != nil {
+		log.Fatal("Failed to connect live logs to NATS", "error", err)
+	}
+	liveLogs := live.New(liveConn.Conn)
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
-	logsService := db.NewLogService(postgresPool, wsLoglineRenderer)
+	logsService := db.NewLogService(postgresPool, liveLogs)
 	logServer := db.NewLogServer(logsService)
 
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
@@ -170,7 +180,7 @@ func main() {
 			ProjectsService:       projectsService,
 			Archiver:              archiver,
 			NatsCredentialService: natsCredService,
-			WatchHub:              watchHub,
+			LiveLogs:              liveLogs,
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -198,7 +208,8 @@ func main() {
 		httpServer:    httpServer,
 		ingestService: ingestService,
 		natsConn:      natsConn,
-		wsRenderer:    wsLoglineRenderer,
+		liveLogs:      liveLogs,
+		liveConn:      liveConn,
 		postgresPool:  postgresPool,
 		cancel:        cancel,
 		background:    &background,
