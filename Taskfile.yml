@@ -2,6 +2,20 @@
 
 version: "3"
 
+vars:
+  # task dev PORT=1400 wins. Otherwise the same port the server reads:
+  # process env, then .env.local, then .env.
+  ENV_PORT:
+    sh: |
+      if [ -n "${HTTP_SERVER_PORT:-}" ]; then printf '%s\n' "$HTTP_SERVER_PORT"; exit 0; fi
+      for f in .env.local .env; do
+        [ -f "$f" ] || continue
+        val=$(awk -F= '/^HTTP_SERVER_PORT=/ { gsub(/[ \r]/, "", $2); print $2; exit }' "$f")
+        if [ -n "$val" ]; then printf '%s\n' "$val"; exit 0; fi
+      done
+  PORT: '{{.PORT | default .ENV_PORT | default "1323"}}'
+  PROXY_PORT: '{{.PROXY_PORT | default "7331"}}'
+
 tasks:
   sqlc:
     desc: Generate PostgreSQL queries
@@ -37,20 +51,38 @@ tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
-      - go tool templ generate --watch --proxy="http://localhost:1323" --cmd="go run ./cmd/server" --open-browser=false
+      - echo "Dev server http://localhost:{{.PROXY_PORT}} (app :{{.PORT}})"
+      - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --proxyport={{.PROXY_PORT}} --cmd="go run ./cmd/server" --open-browser=false
+    env:
+      HTTP_SERVER_PORT: "{{.PORT}}"
+      SHADCN_TEMPL_DEV: "true"
 
   ui:scripts:
     desc: Watch shadcn-templ component scripts and rebuild their bundle
     cmds:
       - go tool shadcn-templ bundle --watch
 
+  reload-assets:
+    desc: Reload the browser when CSS or app JS changes
+    cmds:
+      - bun scripts/dev-reload.ts
+    env:
+      PROXY_PORT: "{{.PROXY_PORT}}"
+
   dev:
     desc: Start development server with hot reload
     deps:
       - db
     cmds:
+      - task --parallel templ tailwind ui:scripts reload-assets PORT={{.PORT}} PROXY_PORT={{.PROXY_PORT}}
+
+  build:
+    desc: Build minified assets and the server binary
+    cmds:
+      - bun run tw:build
       - go tool shadcn-templ bundle
-      - task --parallel templ tailwind ui:scripts
+      - go tool templ generate ./...
+      - CGO_ENABLED=0 go build -ldflags '-w -s' -o {{.OUT | default "/tmp/svarog-server"}} ./cmd/server
 
   clean-tmp:
     desc: Clean Go temporary build files from /tmp

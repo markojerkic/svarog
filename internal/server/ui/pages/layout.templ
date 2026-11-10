@@ -10,7 +10,6 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/ui/components/toast"
-import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
@@ -30,28 +29,28 @@ templ BaseLayout(props BaseProps) {
 					Svarog
 				}
 			</title>
-			<link href={ "/assets/css/output.css?v=" + utils.ScriptVersion } rel="stylesheet"/>
+			<link href="/assets/css/output.css" rel="stylesheet"/>
 			<link rel="icon" href="/assets/logo.png" type="image/png"/>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/htmx.min.js" integrity="sha384-BvJpBiO8Kh31EqtJe5DRIeWrHWnCGkwytKs9NKFi86Hhw96dEqdEMzZDeK9iEGTc" crossorigin="anonymous"></script>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@4.0.0/dist/ext/hx-ws.min.js" integrity="sha384-8iDMDuKIquXLgObstxvwGlWD1bY/ALMH7k9rbC070qmZrRvJ0BGO+8xG+Ul+J0bP" crossorigin="anonymous"></script>
-			<script defer src={ utils.ScriptURL("/assets/js/session-cache.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/i18n.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/htmx-error-swap.js") }></script>
+			<script defer src="/assets/js/session-cache.js"></script>
+			<script defer src="/assets/js/i18n.js"></script>
+			<script defer src="/assets/js/htmx-error-swap.js"></script>
 			<script defer src="/assets/js/copy-result-string.js"></script>
-			<script defer src={ utils.ScriptURL("/assets/js/close-dialog.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/confirm.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/log-line-swapping.js") }></script>
+			<script defer src="/assets/js/close-dialog.js"></script>
+			<script defer src="/assets/js/confirm.js"></script>
+			<script defer src="/assets/js/log-line-swapping.js"></script>
 			<script defer src="/assets/js/datepicker.js"></script>
 			<script defer src="/assets/js/project-search.js"></script>
 			@components.Scripts()
-			<script type="module" src={ utils.ScriptURL("/assets/js/log-instance-colors.js") }></script>
-			<script type="module" src={ utils.ScriptURL("/assets/js/log-columns.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/log-range.js") }></script>
+			<script type="module" src="/assets/js/log-instance-colors.js"></script>
+			<script type="module" src="/assets/js/log-columns.js"></script>
+			<script defer src="/assets/js/log-range.js"></script>
 			@tagsinput.Script()
-			<script defer src={ utils.ScriptURL("/assets/js/toast-handler.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/log-search.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/log-menu.js") }></script>
-			<script defer src={ utils.ScriptURL("/assets/js/archive-settings.js") }></script>
+			<script defer src="/assets/js/toast-handler.js"></script>
+			<script defer src="/assets/js/log-search.js"></script>
+			<script defer src="/assets/js/log-menu.js"></script>
+			<script defer src="/assets/js/archive-settings.js"></script>
 		</head>
 		<body
 			class="bg-background text-foreground min-h-svh"

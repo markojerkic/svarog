@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/a-h/templ"
 
@@ -234,22 +233,4 @@ func DirectionAttributes(ctx context.Context) templ.Attributes {
 // Example: RandomID() → "id-1a2b3c"
 func RandomID() string {
 	return fmt.Sprintf("id-%s", rand.Text())
-}
-
-// ScriptVersion is a timestamp generated at app start for cache busting.
-// Used in component script tags to append ?v=<timestamp> to script URLs.
-var ScriptVersion = fmt.Sprintf("%d", time.Now().Unix())
-
-// ScriptURL generates cache-busted script URLs.
-// Override this to use custom cache busting (CDN, content hashing, etc.)
-//
-// Example override in your app:
-//
-//	func init() {
-//	    utils.ScriptURL = func(path string) string {
-//	        return myAssetManifest.GetURL(path)
-//	    }
-//	}
-var ScriptURL = func(path string) string {
-	return path + "?v=" + ScriptVersion
 }

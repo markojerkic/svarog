@@ -70,7 +70,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
 	handlers.NewWsConnectionRouter(self.watchHub, self.authService, self.projectsService, privateApi)
 
-	e.Static("/assets", "internal/server/ui/assets")
+	e.Static("/assets", "internal/server/ui/assets", customMiddleware.AssetsCacheMiddleware)
 
 	self.server = &stdhttp.Server{
 		Addr:    fmt.Sprintf(":%d", self.serverPort),

@@ -4,7 +4,6 @@ package utils
 import (
 	"crypto/rand"
 	"fmt"
-	"time"
 
 	"github.com/a-h/templ"
 
@@ -53,7 +52,3 @@ func MergeAttributes(attrs ...templ.Attributes) templ.Attributes {
 func RandomID() string {
 	return fmt.Sprintf("id-%s", rand.Text())
 }
-
-// ScriptVersion is a timestamp generated at app start for cache busting.
-// Used in Script() templates to append ?v=<timestamp> to script URLs.
-var ScriptVersion = fmt.Sprintf("%d", time.Now().Unix())

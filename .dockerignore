@@ -20,3 +20,4 @@ tests/**/*.spec.js
 # Help files
 README.md
 *.yml
+!Taskfile.yml

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "tw": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --watch",
-    "tw:build": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css",
+    "tw:build": "./node_modules/@tailwindcss/cli/dist/index.mjs -i internal/server/ui/assets/css/input.css -o internal/server/ui/assets/css/output.css --minify",
     "playwright:setup": "playwright install chromium",
     "test": "playwright test ./tests",
     "prepare": "husky"
