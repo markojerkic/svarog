@@ -12,6 +12,7 @@ node_modules/
 .git
 .env
 .env.*
+deploy.sh
 
 # Playwright
 test-results/

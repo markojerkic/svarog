@@ -15,6 +15,7 @@ services:
       - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
       - HTTP_SERVER_PORT=1323
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - NATS_PUBLIC_ADDR=localhost:4222
       - NATS_ADDR=nats://nats:4222
       - NATS_ACCOUNT_SEED=${NATS_ACCOUNT_SEED}

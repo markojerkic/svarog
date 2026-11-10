@@ -3,6 +3,7 @@ package types
 import "time"
 
 type ServerEnv struct {
+	LogLevel                string        `env:"LOG_LEVEL" envDefault:"info"`
 	PostgresURL             string        `env:"POSTGRES_URL" envDefault:"postgres://svarog:svarog@localhost:5434/svarog?sslmode=disable"`
 	ServerDnsName           string        `env:"SERVER_DNS_NAME"`
 	HttpServerPort          int           `env:"HTTP_SERVER_PORT"`

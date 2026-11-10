@@ -13,6 +13,7 @@ services:
       POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL to the existing PostgreSQL database}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
       HTTP_SERVER_PORT: "1323"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       NATS_ADDR: nats://nats:4222
       NATS_PUBLIC_ADDR: ${NATS_PUBLIC_ADDR:?Set the client-facing NATS host and port}
       NATS_ACCOUNT_SEED: ${NATS_ACCOUNT_SEED:?Set NATS_ACCOUNT_SEED}

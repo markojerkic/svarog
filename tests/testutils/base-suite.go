@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	envParser "github.com/caarlos0/env/v11"
+	"github.com/charmbracelet/log"
 	"github.com/jackc/pgx/v5/pgxpool"
 	dotenv "github.com/joho/godotenv"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
@@ -81,7 +82,7 @@ func (s *BaseSuite) SetupSuite() {
 		s.config = DefaultBaseSuiteConfig()
 	}
 
-	util.SetupLogger()
+	util.SetupLogger(log.DebugLevel)
 
 	s.PostgresPool = NewPostgresPool(s.T(), ctx)
 	s.ProjectsService = projects.NewPostgresProjectsService(s.PostgresPool)

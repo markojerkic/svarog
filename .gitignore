@@ -12,6 +12,7 @@ node_modules/
 .task
 .env.log-demo
 .env.local
+deploy.sh
 
 # Playwright
 test-results/

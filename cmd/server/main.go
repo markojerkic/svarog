@@ -52,10 +52,6 @@ func loadEnv() types.ServerEnv {
 	return env
 }
 
-func setupLogger() {
-	util.SetupLogger()
-}
-
 type serverDependencies struct {
 	httpServer    *http.HttpServer
 	ingestService *ingest.IngestService
@@ -97,8 +93,13 @@ func gracefulShutdown(deps serverDependencies) {
 }
 
 func main() {
-	setupLogger()
 	env := loadEnv()
+	level, err := util.ParseLogLevel(env.LogLevel)
+	if err != nil {
+		log.Fatal("Invalid log level", "error", err)
+	}
+	util.SetupLogger(level)
+
 	if err := migrations.Up(context.Background(), env.PostgresURL); err != nil {
 		log.Fatal("Couldn't apply PostgreSQL migrations", "error", err)
 	}
