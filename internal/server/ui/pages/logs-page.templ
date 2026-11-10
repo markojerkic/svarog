@@ -412,7 +412,7 @@ templ LogPageLines(props LogsPageProps) {
 	if props.IsLive() {
 		<div
 			hx-ws:connect={ props.WebSocketPath() }
-			hx-config="ws: {pauseOnBackground: false, reconnect: false}"
+			hx-config="ws.pauseOnBackground:false ws.reconnect:false"
 			data-log-stream
 		></div>
 	}
