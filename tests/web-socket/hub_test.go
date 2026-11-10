@@ -1,9 +1,18 @@
 package websocket
 
 import (
+	"context"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/server/types"
+	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -11,254 +20,114 @@ func TestWatchHubSuite(t *testing.T) {
 	suite.Run(t, new(WatchHubSuite))
 }
 
-func (s *WatchHubSuite) TestSubscribeAndReceive() {
+func (s *WatchHubSuite) subscribe(projectID, clientID string) *websocket.LogSubscription {
+	s.T().Helper()
+	sub, err := s.watchHub.Subscribe(projectID, clientID)
+	require.NoError(s.T(), err, "the viewer should subscribe to its log scope")
+	s.T().Cleanup(sub.Close)
+	return sub
+}
+
+func receiveLog(t *testing.T, sub *websocket.LogSubscription) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	message, err := sub.Next(ctx)
+	require.NoError(t, err, "a subscribed viewer should receive its published batch")
+	return string(message)
+}
+
+func (s *WatchHubSuite) TestScopeIsolationAndFanout() {
 	t := s.T()
-	projectId := "test-project"
-	clientId := "test-client"
+	first := s.subscribe("project-1", "client-1")
+	second := s.subscribe("project-1", "client-1")
+	otherClient := s.subscribe("project-1", "client-2")
+	otherProject := s.subscribe("project-2", "client-1")
 
-	// Create a channel to receive messages
-	messages := make(chan []byte, 10)
-
-	// Subscribe to the client
-	sub, err := s.watchHub.Subscribe(projectId, clientId, messages)
-	if err != nil {
-		t.Fatalf("Failed to subscribe: %v", err)
-	}
-	defer sub.Unsubscribe()
-
-	// Send a log line
-	testMessage := []byte("test log line")
-	err = s.watchHub.SendLogLine(projectId, clientId, testMessage)
-	if err != nil {
-		t.Fatalf("Failed to send log line: %v", err)
-	}
-
-	// Wait for the message
-	select {
-	case received := <-messages:
-		if string(received) != string(testMessage) {
-			t.Errorf("Expected message %q, got %q", testMessage, received)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for message")
+	require.NoError(t, s.watchHub.SendLogLine("project-1", "client-1", []byte("shared")), "publishing should succeed")
+	require.Equal(t, "shared", receiveLog(t, first), "the first viewer should receive the shared fragment")
+	require.Equal(t, "shared", receiveLog(t, second), "the second viewer should receive the same fragment")
+	for _, sub := range []*websocket.LogSubscription{otherClient, otherProject} {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		_, err := sub.Next(ctx)
+		cancel()
+		require.ErrorIs(t, err, context.DeadlineExceeded, "another client or project must not receive the fragment")
 	}
 }
 
-func (s *WatchHubSuite) TestSubscribeToDifferentClients() {
+func (s *WatchHubSuite) TestSlowViewerAndConcurrentClose() {
 	t := s.T()
-	projectId := "test-project"
-	client1 := "client-1"
-	client2 := "client-2"
-
-	// Create channels for each client
-	messages1 := make(chan []byte, 10)
-	messages2 := make(chan []byte, 10)
-
-	// Subscribe to both clients
-	sub1, err := s.watchHub.Subscribe(projectId, client1, messages1)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to client1: %v", err)
+	slow := s.subscribe("pressure", "slow")
+	healthy := s.subscribe("pressure", "healthy")
+	large := []byte(strings.Repeat("x", 600*1024))
+	for range 3 {
+		require.NoError(t, s.watchHub.SendLogLine("pressure", "slow", large), "large frames below the broker limit should publish")
 	}
-	defer sub1.Unsubscribe()
-
-	sub2, err := s.watchHub.Subscribe(projectId, client2, messages2)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to client2: %v", err)
-	}
-	defer sub2.Unsubscribe()
-
-	// Send messages to each client
-	msg1 := []byte("message for client 1")
-	msg2 := []byte("message for client 2")
-
-	err = s.watchHub.SendLogLine(projectId, client1, msg1)
-	if err != nil {
-		t.Fatalf("Failed to send to client1: %v", err)
-	}
-
-	err = s.watchHub.SendLogLine(projectId, client2, msg2)
-	if err != nil {
-		t.Fatalf("Failed to send to client2: %v", err)
-	}
-
-	// Verify client1 receives only its message
-	select {
-	case received := <-messages1:
-		if string(received) != string(msg1) {
-			t.Errorf("Client1 expected %q, got %q", msg1, received)
+	require.NoError(t, s.watchHub.SendLogLine("pressure", "healthy", []byte("still live")), "other viewers should remain writable")
+	require.Equal(t, "still live", receiveLog(t, healthy), "a slow viewer must not stall another viewer")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		_, err := slow.Next(ctx)
+		if err != nil {
+			require.ErrorIs(t, err, websocket.ErrLiveResync, "a viewer that exceeded its byte budget must require refresh, not silently lose rows")
+			break
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for client1 message")
 	}
 
-	// Verify client2 receives only its message
-	select {
-	case received := <-messages2:
-		if string(received) != string(msg2) {
-			t.Errorf("Client2 expected %q, got %q", msg2, received)
+	closing := s.subscribe("pressure", "closing")
+	var publishers sync.WaitGroup
+	publishers.Add(1)
+	go func() {
+		defer publishers.Done()
+		for range 500 {
+			s.watchHub.SendLogLine("pressure", "closing", []byte("in flight"))
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for client2 message")
-	}
-
-	// Verify no cross-talk (client1 shouldn't receive client2's message)
-	select {
-	case received := <-messages1:
-		t.Errorf("Client1 received unexpected message: %q", received)
-	case <-time.After(100 * time.Millisecond):
-		// Expected - no additional messages
-	}
+	}()
+	closing.Close()
+	closing.Close()
+	publishers.Wait()
+	_, err := closing.Next(ctx)
+	require.ErrorIs(t, err, context.Canceled, "closing with in-flight callbacks must be safe and idempotent")
 }
 
-func (s *WatchHubSuite) TestUnsubscribe() {
+func (s *WatchHubSuite) TestCommittedBatchesAreBoundedAndScoped() {
 	t := s.T()
-	projectId := "test-project"
-	clientId := "unsubscribe-client"
-
-	messages := make(chan []byte, 10)
-
-	sub, err := s.watchHub.Subscribe(projectId, clientId, messages)
-	if err != nil {
-		t.Fatalf("Failed to subscribe: %v", err)
-	}
-
-	// Send first message
-	msg1 := []byte("first message")
-	err = s.watchHub.SendLogLine(projectId, clientId, msg1)
-	if err != nil {
-		t.Fatalf("Failed to send first message: %v", err)
-	}
-
-	// Verify we receive it
-	select {
-	case received := <-messages:
-		if string(received) != string(msg1) {
-			t.Errorf("Expected %q, got %q", msg1, received)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for first message")
-	}
-
-	// Unsubscribe
-	err = sub.Unsubscribe()
-	if err != nil {
-		t.Fatalf("Failed to unsubscribe: %v", err)
-	}
-
-	// Send second message
-	msg2 := []byte("second message")
-	err = s.watchHub.SendLogLine(projectId, clientId, msg2)
-	if err != nil {
-		t.Fatalf("Failed to send second message: %v", err)
-	}
-
-	// Should not receive the second message
-	select {
-	case received := <-messages:
-		t.Errorf("Should not have received message after unsubscribe: %q", received)
-	case <-time.After(100 * time.Millisecond):
-		// Expected - no message after unsubscribe
-	}
-}
-
-func (s *WatchHubSuite) TestMultipleSubscribersToSameClient() {
-	t := s.T()
-	projectId := "test-project"
-	clientId := "shared-client"
-
-	// Two subscribers to the same client
-	messages1 := make(chan []byte, 10)
-	messages2 := make(chan []byte, 10)
-
-	sub1, err := s.watchHub.Subscribe(projectId, clientId, messages1)
-	if err != nil {
-		t.Fatalf("Failed to subscribe sub1: %v", err)
-	}
-	defer sub1.Unsubscribe()
-
-	sub2, err := s.watchHub.Subscribe(projectId, clientId, messages2)
-	if err != nil {
-		t.Fatalf("Failed to subscribe sub2: %v", err)
-	}
-	defer sub2.Unsubscribe()
-
-	// Send a message
-	msg := []byte("broadcast message")
-	err = s.watchHub.SendLogLine(projectId, clientId, msg)
-	if err != nil {
-		t.Fatalf("Failed to send message: %v", err)
-	}
-
-	// Both subscribers should receive the message
-	received1 := false
-	received2 := false
-
-	for i := 0; i < 2; i++ {
-		select {
-		case r := <-messages1:
-			if string(r) != string(msg) {
-				t.Errorf("Sub1 expected %q, got %q", msg, r)
-			}
-			received1 = true
-		case r := <-messages2:
-			if string(r) != string(msg) {
-				t.Errorf("Sub2 expected %q, got %q", msg, r)
-			}
-			received2 = true
-		case <-time.After(2 * time.Second):
-			t.Fatalf("Timeout waiting for messages (received1=%v, received2=%v)", received1, received2)
+	first := s.subscribe("render", "first")
+	second := s.subscribe("render", "second")
+	at := time.Now().Truncate(time.Microsecond).Add(123 * time.Nanosecond)
+	rows := make([]types.StoredLog, 206)
+	for i := range rows {
+		rows[i] = types.StoredLog{
+			ID: int64(i + 1), Timestamp: at, SequenceNumber: i,
+			LogLine: fmt.Sprintf("row-%d <script> %s", i, strings.Repeat("x", 1024)),
+			Client:  types.StoredClient{ProjectId: "render", ClientId: "first", InstanceId: "host"},
 		}
 	}
-
-	if !received1 || !received2 {
-		t.Errorf("Not all subscribers received the message: received1=%v, received2=%v", received1, received2)
-	}
-}
-
-func (s *WatchHubSuite) TestDifferentProjects() {
-	t := s.T()
-	project1 := "project-1"
-	project2 := "project-2"
-	clientId := "same-client-id"
-
-	// Same client ID but different projects
-	messages1 := make(chan []byte, 10)
-	messages2 := make(chan []byte, 10)
-
-	sub1, err := s.watchHub.Subscribe(project1, clientId, messages1)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to project1: %v", err)
-	}
-	defer sub1.Unsubscribe()
-
-	sub2, err := s.watchHub.Subscribe(project2, clientId, messages2)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to project2: %v", err)
-	}
-	defer sub2.Unsubscribe()
-
-	// Send to project1 only
-	msg1 := []byte("project1 message")
-	err = s.watchHub.SendLogLine(project1, clientId, msg1)
-	if err != nil {
-		t.Fatalf("Failed to send to project1: %v", err)
-	}
-
-	// Verify only project1 subscriber receives it
-	select {
-	case received := <-messages1:
-		if string(received) != string(msg1) {
-			t.Errorf("Project1 expected %q, got %q", msg1, received)
+	rows[len(rows)-1].Client.ClientId = "second"
+	s.WsLogRenderer.RenderBatch(context.Background(), rows)
+	ids := make(map[string]bool)
+	idPattern := regexp.MustCompile(`<pre[^>]*data-log-id="(\d+)"`)
+	frames := 0
+	for len(ids) < 205 {
+		frame := receiveLog(t, first)
+		frames++
+		require.LessOrEqual(t, len(frame), 128*1024, "a rendered batch must respect its encoded byte limit")
+		require.LessOrEqual(t, strings.Count(frame, "<pre"), 100, "a batch must contain at most 100 rows")
+		require.Equal(t, 1, strings.Count(frame, "hx-swap-oob="), "rows in a batch should share one OOB wrapper")
+		require.NotContains(t, frame, "<script>", "log messages must stay HTML escaped inside batch fragments")
+		require.Contains(t, frame, `data-timestamp="`+strconv.FormatInt(at.Truncate(time.Microsecond).UnixNano(), 10)+`"`, "live timestamps should have the same precision as stored logs")
+		for _, match := range idPattern.FindAllStringSubmatch(frame, -1) {
+			require.False(t, ids[match[1]], "each committed row must be rendered only once")
+			ids[match[1]] = true
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for project1 message")
 	}
+	require.Greater(t, frames, 1, "a large committed batch should be split into several bounded messages")
+	require.False(t, ids["206"], "another client's row must not leak into the first client's batch")
+	require.Contains(t, receiveLog(t, second), `data-log-id="206"`, "the second client should receive its own row")
 
-	// Project2 should not receive it
-	select {
-	case received := <-messages2:
-		t.Errorf("Project2 should not have received message: %q", received)
-	case <-time.After(100 * time.Millisecond):
-		// Expected
-	}
+	oversized := rows[0]
+	oversized.LogLine = strings.Repeat("<", 64*1024)
+	s.WsLogRenderer.RenderBatch(context.Background(), []types.StoredLog{oversized})
+	require.Contains(t, receiveLog(t, first), "data-log-resync", "a row that exceeds the encoded payload limit must visibly invalidate the view instead of silently disappearing")
 }

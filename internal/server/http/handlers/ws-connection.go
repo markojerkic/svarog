@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"log/slog"
 
@@ -12,7 +15,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	websocket "github.com/markojerkic/svarog/internal/server/web-socket"
-	"github.com/nats-io/nats.go"
 )
 
 type WsRouter struct {
@@ -24,50 +26,76 @@ type WsRouter struct {
 type WsConnection struct {
 	clientId     string
 	wsConnection *gorillaWs.Conn
-	wsHub        *websocket.WatchHub
-	lines        chan []byte
-	natsSub      *nats.Subscription
+	lines        *websocket.LogSubscription
+	ctx          context.Context
+	cancel       context.CancelFunc
 	closeOnce    sync.Once
 }
 
-type WsMessageType string
-
 const (
-	NewLine      WsMessageType = "newLine"
-	SetInstances WsMessageType = "setInstances"
-	Ping         WsMessageType = "ping"
-	Pong         WsMessageType = "pong"
+	wsWriteTimeout = 10 * time.Second
+	wsPongTimeout  = 60 * time.Second
+	wsPingInterval = 30 * time.Second
 )
 
 func (self *WsConnection) closeSubscription() {
 	self.closeOnce.Do(func() {
-		self.natsSub.Unsubscribe()
-		self.natsSub.Drain()
-		close(self.lines)
+		self.cancel()
+		self.lines.Close()
+		self.wsConnection.Close()
 	})
-	self.wsConnection.Close()
 }
 
-func (self *WsConnection) writePipe(wsWaitGroup *sync.WaitGroup) {
-	defer wsWaitGroup.Done()
-	for renderedLogLine := range self.lines {
-		err := self.wsConnection.WriteMessage(gorillaWs.TextMessage, renderedLogLine)
+func (self *WsConnection) writePipe() {
+	defer self.closeSubscription()
+	for {
+		renderedLogLine, err := self.lines.Next(self.ctx)
 		if err != nil {
-			slog.Error("Error writing WS message", "error", err)
-			self.closeSubscription()
+			if errors.Is(err, websocket.ErrLiveResync) {
+				self.wsConnection.WriteControl(gorillaWs.CloseMessage,
+					gorillaWs.FormatCloseMessage(gorillaWs.CloseTryAgainLater, "live view requires refresh"),
+					time.Now().Add(wsWriteTimeout))
+			}
+			return
+		}
+		self.wsConnection.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
+		err = self.wsConnection.WriteMessage(gorillaWs.TextMessage, renderedLogLine)
+		if err != nil {
+			slog.Debug("Could not write live log batch", "error", err, "clientId", self.clientId)
 			return
 		}
 	}
 }
 
-func (self *WsConnection) readPipe(wsWaitGroup *sync.WaitGroup) {
-	defer wsWaitGroup.Done()
+func (self *WsConnection) readPipe() {
+	defer self.closeSubscription()
+	self.wsConnection.SetReadLimit(1024)
+	self.wsConnection.SetReadDeadline(time.Now().Add(wsPongTimeout))
+	self.wsConnection.SetPongHandler(func(string) error {
+		return self.wsConnection.SetReadDeadline(time.Now().Add(wsPongTimeout))
+	})
 	for {
 		_, _, err := self.wsConnection.ReadMessage()
 		if err != nil {
 			slog.Debug("WebSocket read error (client likely disconnected)", "error", err, "clientId", self.clientId)
-			self.closeSubscription()
 			return
+		}
+	}
+}
+
+func (self *WsConnection) heartbeat() {
+	defer self.closeSubscription()
+	ticker := time.NewTicker(wsPingInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-self.ctx.Done():
+			return
+		case <-ticker.C:
+			// Gorilla permits WriteControl concurrently with the data writer.
+			if err := self.wsConnection.WriteControl(gorillaWs.PingMessage, nil, time.Now().Add(wsWriteTimeout)); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -84,36 +112,29 @@ func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	clientId := c.Param("clientId")
 	projectId := c.Param("projectId")
 
-	lines := make(chan []byte, 100)
-	subscription, err := self.wsHub.Subscribe(projectId, clientId, lines)
-	if err != nil {
-		return err
-	}
-
 	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		return err
 	}
+	subscription, err := self.wsHub.Subscribe(projectId, clientId)
+	if err != nil {
+		conn.Close()
+		slog.Error("Could not subscribe to live logs", "error", err)
+		return nil // the HTTP connection has already been upgraded
+	}
+	ctx, cancel := context.WithCancel(context.Background())
 
 	wsConnection := &WsConnection{
 		clientId:     clientId,
 		wsConnection: conn,
-		wsHub:        self.wsHub,
-		lines:        lines,
-		natsSub:      subscription,
+		lines:        subscription,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 
-	wsWaitGroup := &sync.WaitGroup{}
-	wsWaitGroup.Add(2)
-
-	go wsConnection.writePipe(wsWaitGroup)
-	go wsConnection.readPipe(wsWaitGroup)
-
-	go func() {
-		// wait until read and write pipes are done and then close the subscription
-		wsWaitGroup.Wait()
-		wsConnection.closeSubscription()
-	}()
+	go wsConnection.writePipe()
+	go wsConnection.readPipe()
+	go wsConnection.heartbeat()
 
 	return nil
 }

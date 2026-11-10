@@ -56,6 +56,7 @@ type serverDependencies struct {
 	httpServer    *http.HttpServer
 	ingestService *ingest.IngestService
 	natsConn      *natsconn.NatsConnection
+	wsRenderer    *websocket.WsLogLineRenderer
 	postgresPool  *pgxpool.Pool
 	cancel        context.CancelFunc
 	background    *sync.WaitGroup
@@ -86,6 +87,7 @@ func gracefulShutdown(deps serverDependencies) {
 		log.Error("Background jobs did not stop before the shutdown timeout")
 	}
 
+	deps.wsRenderer.Close()
 	deps.natsConn.Close()
 	deps.postgresPool.Close()
 
@@ -196,6 +198,7 @@ func main() {
 		httpServer:    httpServer,
 		ingestService: ingestService,
 		natsConn:      natsConn,
+		wsRenderer:    wsLoglineRenderer,
 		postgresPool:  postgresPool,
 		cancel:        cancel,
 		background:    &background,

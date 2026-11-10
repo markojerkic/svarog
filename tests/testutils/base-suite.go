@@ -147,6 +147,9 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 func (s *BaseSuite) TearDownSuite() {
 	ctx := context.Background()
 
+	if s.WsLogRenderer != nil {
+		s.WsLogRenderer.Close()
+	}
 	if s.NatsConn != nil {
 		s.NatsConn.Close()
 	}

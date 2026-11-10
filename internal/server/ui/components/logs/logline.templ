@@ -29,6 +29,7 @@ templ LogLine(props LogLineProps) {
 		class="group flex min-w-full w-max items-center border-l-4 pl-3 text-foreground hover:bg-muted/50"
 		data-timestamp={ props.LogLine.Timestamp.UnixNano() }
 		data-sequence={ props.LogLine.SequenceNumber }
+		data-log-id={ strconv.FormatInt(props.LogLine.ID, 10) }
 		data-instance-id={ props.LogLine.Client.InstanceId }
 		if props.IsContext {
 			data-log-anchor="true"
@@ -63,9 +64,12 @@ templ LogLine(props LogLineProps) {
 	</pre>
 }
 
-templ OobSwapLogLine(props LogLineProps) {
+// Fragments must come from LogLine rendering, never directly from log messages.
+templ OobSwapLogLines(renderedRows []string) {
 	<div hx-swap-oob="afterbegin:#log-scroll-container">
-		@LogLine(props)
+		for _, row := range renderedRows {
+			@templ.Raw(row)
+		}
 	</div>
 }
 

@@ -107,6 +107,10 @@
   "logs.filtered_by_instance": { "other": "Filtered by instance:" },
   "logs.clear_instance_filter": { "other": "Clear instance filter" },
   "logs.load_older": { "other": "Load older logs" },
+  "logs.live_incomplete": {
+    "other": "Live updates stopped to keep this view stable. Some logs may be missing. Refresh to load the latest logs."
+  },
+  "logs.refresh_live": { "other": "Refresh live logs" },
   "logs.load_newer": { "other": "Load newer logs" },
   "logs.line_actions": { "other": "Log line actions" },
   "logs.copy_line": { "other": "Copy log line" },

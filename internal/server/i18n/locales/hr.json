@@ -109,6 +109,10 @@
   "logs.filtered_by_instance": { "other": "Filtrirano po instanci:" },
   "logs.clear_instance_filter": { "other": "Ukloni filtar instance" },
   "logs.load_older": { "other": "Učitaj starije logove" },
+  "logs.live_incomplete": {
+    "other": "Praćenje uživo je zaustavljeno kako bi ovaj prikaz ostao stabilan. Dio logova možda nedostaje. Osvježite prikaz za najnovije logove."
+  },
+  "logs.refresh_live": { "other": "Osvježi praćenje uživo" },
   "logs.load_newer": { "other": "Učitaj novije logove" },
   "logs.line_actions": { "other": "Radnje nad retkom loga" },
   "logs.copy_line": { "other": "Kopiraj redak loga" },

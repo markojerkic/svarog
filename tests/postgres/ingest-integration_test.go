@@ -53,8 +53,9 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	require.NoError(t, err, "connect to JetStream and create log stream")
 	t.Cleanup(conn.Close)
 
-	logService := db.NewLogService(pool,
-		websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn)))
+	renderer := websocket.NewWsLogLineRenderer(websocket.NewWatchHub(conn.Conn))
+	t.Cleanup(renderer.Close)
+	logService := db.NewLogService(pool, renderer)
 	logServer := db.NewLogServer(logService)
 	channel := make(chan db.LogLineWithHost, 100)
 	ingestService := ingest.NewIngestService(channel, conn, pool)
