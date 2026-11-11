@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +72,7 @@ func TestInsertIngestLogs(t *testing.T) {
 	subject := "logs." + project.ID.String() + "." + clientID.String()
 	line := func(message string) store.IngestLogInsert {
 		return store.IngestLogInsert{
-			EventKey: rpc.MessageKey(subject, []byte(message)),
+			EventKey: logevent.MessageKey(subject, []byte(message)),
 			Log:      store.LogInsert{ClientID: clientID, InstanceName: "web", OccurredAt: time.Now().UTC(), Message: message},
 		}
 	}

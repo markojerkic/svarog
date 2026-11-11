@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/archive"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
@@ -179,7 +179,7 @@ func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 
 func ingestLine(env ingestEnv, i int, at time.Time) db.IngestLog {
 	return db.IngestLog{
-		EventKey: rpc.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
+		EventKey: logevent.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
 		Log: types.StoredLog{
 			LogLine: fmt.Sprintf("Log line %d", i), Timestamp: at, SequenceNumber: i,
 			Client: types.StoredClient{ProjectId: env.projectID, ClientId: env.clientID.String(), InstanceId: "web"},

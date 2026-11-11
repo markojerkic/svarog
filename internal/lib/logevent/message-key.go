@@ -1,4 +1,4 @@
-package rpc
+package logevent
 
 import "crypto/sha256"
 

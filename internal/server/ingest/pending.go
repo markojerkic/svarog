@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -51,7 +52,7 @@ func (s *Service) decode(ctx context.Context, msg jetstream.Msg) (db.IngestLog, 
 	if err := json.Unmarshal(msg.Data(), &line); err != nil {
 		return empty, rejectPayload, nil
 	}
-	if err := line.Validate(); err != nil {
+	if err := logevent.Validate(line); err != nil {
 		return empty, rejectFields, nil
 	}
 	active, err := s.active(ctx, projectID, clientID)
@@ -62,7 +63,7 @@ func (s *Service) decode(ctx context.Context, msg jetstream.Msg) (db.IngestLog, 
 		return empty, rejectInactive, nil
 	}
 	return db.IngestLog{
-		EventKey: rpc.MessageKey(msg.Subject(), msg.Data()),
+		EventKey: logevent.MessageKey(msg.Subject(), msg.Data()),
 		Log: types.StoredLog{
 			LogLine: line.Message, Timestamp: line.Timestamp, SequenceNumber: line.Sequence,
 			Client: types.StoredClient{ProjectId: projectID.String(), ClientId: clientID.String(), InstanceId: line.InstanceId},

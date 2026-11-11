@@ -1,0 +1,18 @@
+package logevent_test
+
+import (
+	"testing"
+
+	"github.com/markojerkic/svarog/internal/lib/logevent"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMessageKey(t *testing.T) {
+	subject := "logs.project.client"
+	payload := []byte(`{"message":"same text","timestamp":"2026-11-11T10:00:00.000000001Z","sequence":42,"instanceId":"web"}`)
+	key := logevent.MessageKey(subject, payload)
+	require.Equal(t, key, logevent.MessageKey(subject, append([]byte(nil), payload...)), "a retried original payload keeps the same identity")
+	require.NotEqual(t, key, logevent.MessageKey("logs.project.other-client", payload), "identical payloads from different clients must not collide in the shared stream")
+	next := []byte(`{"message":"same text","timestamp":"2026-11-11T10:00:00.000000002Z","sequence":42,"instanceId":"web"}`)
+	require.NotEqual(t, key, logevent.MessageKey(subject, next), "event identity preserves nanoseconds before PostgreSQL timestamp rounding")
+}

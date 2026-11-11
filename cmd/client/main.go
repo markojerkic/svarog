@@ -10,6 +10,7 @@ import (
 	"github.com/markojerkic/svarog/cmd/client/config"
 	natsclient "github.com/markojerkic/svarog/cmd/client/nats-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/rpc"
 )
@@ -73,7 +74,7 @@ func main() {
 	setupLogger(config.Debug)
 
 	instanceId := getInstanceId()
-	if err := rpc.ValidateInstanceID(instanceId); err != nil {
+	if err := logevent.ValidateInstanceID(instanceId); err != nil {
 		log.Fatal("Invalid instance ID", "error", err)
 	}
 	slog.Debug("Instance ID", "id", instanceId)

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	maxViewerMessages    = 100
 	maxViewerBytes       = 1 << 20
 	maxTransitionBatches = 8192
-	maxInstanceBytes     = 1024
+	maxInstanceBytes     = logevent.MaxInstanceIDBytes
 )
 
 var (

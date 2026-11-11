@@ -10,6 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/markojerkic/svarog/cmd/client/config"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -49,7 +50,7 @@ func (n *NatsClient) Run() {
 func (n *NatsClient) publish(data []byte) {
 	delay := 250 * time.Millisecond
 	// Reuse the ID so a lost ack does not duplicate the line within the stream's duplicate window.
-	sum := rpc.MessageKey(n.config.Topic, data)
+	sum := logevent.MessageKey(n.config.Topic, data)
 	id := hex.EncodeToString(sum[:])
 	for {
 		_, err := n.js.Publish(context.Background(), n.config.Topic, data, jetstream.WithMsgID(id))
