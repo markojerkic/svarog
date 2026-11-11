@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY go.mod go.sum ./
 COPY cmd/client ./cmd/client
+COPY internal/lib/logevent ./internal/lib/logevent
 COPY internal/lib/util ./internal/lib/util
 COPY internal/rpc ./internal/rpc
 

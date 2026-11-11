@@ -4,6 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 COPY cmd/log-demo ./cmd/log-demo
 COPY cmd/client ./cmd/client
+COPY internal/lib/logevent ./internal/lib/logevent
 COPY internal/lib/util ./internal/lib/util
 COPY internal/rpc ./internal/rpc
 RUN --mount=type=cache,target=/go/pkg/mod \
