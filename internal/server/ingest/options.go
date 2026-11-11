@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/server/db"
 )
@@ -28,11 +29,17 @@ const (
 	streamName      = "LOGS"
 	consumerName    = "log-processor"
 	logSubject      = "logs.>"
-	maxMessageBytes = 1 << 20
+	maxMessageBytes = logevent.MaxMessageBytes
 	maxBatchBytes   = 4 << 20
 	maxBatchRows    = 1000
 	fetchRows       = 32
 	fetchWait       = 250 * time.Millisecond
-	batchWait       = 2 * time.Second
-	dbWait          = 10 * time.Second
+	// A partial batch is committed instead of issuing a pull shorter than this.
+	minFetchWait  = 50 * time.Millisecond
+	batchWait     = 2 * time.Second
+	dbWait        = 10 * time.Second
+	fetchRetryMin = 250 * time.Millisecond
+	fetchRetryMax = 5 * time.Second
+	// Every this many consecutive pull failures, confirm that the durable still exists.
+	inspectFetchFailures = 3
 )

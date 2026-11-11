@@ -3,7 +3,6 @@ package natsclient
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -36,10 +35,13 @@ func (n *NatsClient) Run() {
 	n.connectNats()
 
 	for logLine := range n.logLines {
-		data, err := json.Marshal(logLine)
+		data, truncated, err := logevent.EncodePayload(*logLine)
 		if err != nil {
-			slog.Error("Failed to marshal log line", "err", err)
+			slog.Error("Failed to encode log line", "err", err)
 			continue
+		}
+		if truncated {
+			slog.Warn("Encoded log line exceeded the payload limit and was truncated", "limit", logevent.MaxPayloadBytes)
 		}
 		n.publish(data)
 	}
@@ -47,6 +49,10 @@ func (n *NatsClient) Run() {
 	slog.Debug("Log lines channel closed, all messages published")
 }
 
+// jsErrMessageTooLarge is JetStream's stream max_msg_size rejection; a retry cannot succeed.
+const jsErrMessageTooLarge jetstream.ErrorCode = 10054
+
+// publish retries the exact encoded bytes, so the ID always identifies the stored event.
 func (n *NatsClient) publish(data []byte) {
 	delay := 250 * time.Millisecond
 	// Reuse the ID so a lost ack does not duplicate the line within the stream's duplicate window.
@@ -57,7 +63,8 @@ func (n *NatsClient) publish(data []byte) {
 		if err == nil {
 			return
 		}
-		if errors.Is(err, nats.ErrMaxPayload) {
+		var apiErr *jetstream.APIError
+		if errors.Is(err, nats.ErrMaxPayload) || (errors.As(err, &apiErr) && apiErr.ErrorCode == jsErrMessageTooLarge) {
 			slog.Error("Could not publish log line; payload exceeds the server limit", "err", err)
 			return
 		}

@@ -2,8 +2,11 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -250,40 +253,84 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		require.Equal(t, 1, count, "server-side identity prevents duplicates across replicas and publisher headers")
 	})
 
-	t.Run("uncertain commit retries without duplicate rows or live events", func(t *testing.T) {
+	t.Run("a lost commit result stops live views and retries without duplicates", func(t *testing.T) {
 		env := newIngestFixture(t)
 		liveConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{NatsAddr: env.conn.Conn.ConnectedUrl(), DisableReconnectBuffer: true})
 		require.NoError(t, err, "open a dedicated live publication connection")
 		t.Cleanup(liveConn.Close)
 		liveLogs := live.New(liveConn.Conn)
 		t.Cleanup(liveLogs.Close)
-		writer := db.NewLogService(env.pool, liveLogs)
-		sub, err := env.conn.Conn.SubscribeSync("committed." + env.subject + ".>")
-		require.NoError(t, err, "observe committed live events")
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
-		require.NoError(t, env.conn.Conn.Flush(), "establish live event interest before commit")
-		var attempts atomic.Int32
+		viewer, err := liveLogs.Open(env.ctx, env.scope, live.Selector{})
+		require.NoError(t, err, "open a live view before the event is committed")
+		t.Cleanup(viewer.Close)
+
+		var arm atomic.Bool
+		config := env.pool.Config()
+		config.MaxConns, config.MinConns, config.MinIdleConns = 1, 0, 0
+		config.ShouldPing = func(context.Context, pgxpool.ShouldPingParams) bool { return false }
+		dial := config.ConnConfig.DialFunc
+		config.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := dial(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			return &lostCompletionConn{Conn: conn, arm: &arm}, nil
+		}
+		writerPool, err := pgxpool.NewWithConfig(env.ctx, config)
+		require.NoError(t, err, "create the writer's single-connection pool")
+		t.Cleanup(writerPool.Close)
+		require.NoError(t, writerPool.Ping(env.ctx), "open the writer connection before its result is lost")
+		arm.Store(true)
+
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) error {
-			if err := writer.CommitLogs(ctx, input); err != nil {
-				return err
-			}
-			if attempts.Add(1) == 1 {
-				return context.DeadlineExceeded
-			}
-			return nil
-		})
+		opts.Writer = db.NewLogService(writerPool, liveLogs)
 		runIngest(t, env.ctx, opts)
-		publishIngestEvent(t, env, "commit succeeded but caller lost its result")
+		publishIngestEvent(t, env, "committed but its result was lost")
+		nextCtx, cancel := context.WithTimeout(env.ctx, 15*time.Second)
+		defer cancel()
+		_, err = viewer.Next(nextCtx)
+		require.ErrorIs(t, err, live.ErrLiveResync, "a possibly committed but unpublished row stops the live view instead of leaving a silent gap")
 		waitIngestEmpty(t, env)
-		require.Equal(t, int32(2), attempts.Load(), "an unknown commit outcome is retried with the same identity")
+		require.False(t, arm.Load(), "the writer lost the result of a statement PostgreSQL had committed")
 		var count int
-		require.NoError(t, env.pool.QueryRow(env.ctx, "SELECT count(*) FROM logs").Scan(&count), "count logs after uncertain-commit recovery")
-		require.Equal(t, 1, count, "an uncertain commit cannot duplicate a retained log")
-		_, err = sub.NextMsg(time.Second)
-		require.NoError(t, err, "the new committed row is published to live viewers")
-		_, err = sub.NextMsg(200 * time.Millisecond)
-		require.ErrorIs(t, err, nats.ErrTimeout, "the duplicate retry does not emit another live row")
+		require.NoError(t, env.pool.QueryRow(env.ctx, "SELECT count(*) FROM logs").Scan(&count), "count logs through a separate connection")
+		require.Equal(t, 1, count, "the retry recognizes the committed event instead of duplicating it")
+	})
+
+	t.Run("broker restart pauses ingest without losing deliveries", func(t *testing.T) {
+		env := followBrokerRestarts(t, newIngestFixture(t))
+		running := runIngest(t, env.ctx, env.options)
+		stopped := func() bool {
+			select {
+			case <-running.done:
+				return true
+			default:
+				return false
+			}
+		}
+		publishIngestEvent(t, env, "before restart")
+		waitIngestEmpty(t, env)
+		require.Never(t, stopped, 500*time.Millisecond, 20*time.Millisecond, "an idle ingest keeps polling after committing a partial batch")
+
+		stopTimeout := 10 * time.Second
+		require.NoError(t, env.container.Stop(env.ctx, &stopTimeout), "stop the isolated broker while ingest waits for logs")
+		require.Eventually(t, func() bool { return !env.conn.Conn.IsConnected() }, 15*time.Second, 20*time.Millisecond, "ingest observes the broker outage")
+		require.Never(t, stopped, time.Second, 20*time.Millisecond, "a broker outage pauses ingest instead of stopping the server")
+		require.NoError(t, env.container.Start(env.ctx), "restart the same broker with its persisted stream and durable")
+		require.Eventually(t, env.conn.Conn.IsConnected, 30*time.Second, 50*time.Millisecond, "ingest reconnects to the restarted broker")
+
+		payload, err := json.Marshal(rpc.LogLine{Timestamp: time.Now().UTC(), Message: "after restart", InstanceId: "web", Sequence: 43})
+		require.NoError(t, err, "encode an event for the restarted broker")
+		// A retried publish can store a second copy; event identity still yields one row.
+		require.Eventually(t, func() bool {
+			_, err := env.conn.JetStream.Publish(env.ctx, env.subject, payload)
+			return err == nil
+		}, 15*time.Second, 100*time.Millisecond, "the restarted broker accepts new logs")
+		waitIngestEmpty(t, env)
+		require.False(t, stopped(), "ingest keeps running after the broker returns")
+		var count int
+		require.NoError(t, env.pool.QueryRow(env.ctx, "SELECT count(*) FROM logs").Scan(&count), "count logs committed around the restart")
+		require.Equal(t, 2, count, "events before and after the broker restart are each stored once")
 	})
 
 	t.Run("isolates a bad row but retains valid data on systemic SQL failure", func(t *testing.T) {
@@ -444,12 +491,14 @@ func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []db.IngestLog) 
 }
 
 type ingestFixture struct {
-	ctx     context.Context
-	pool    *pgxpool.Pool
-	conn    *natsconn.NatsConnection
-	writer  *db.PostgresLogService
-	options ingest.Options
-	subject string
+	ctx       context.Context
+	pool      *pgxpool.Pool
+	container *natscontainer.NATSContainer
+	conn      *natsconn.NatsConnection
+	writer    *db.PostgresLogService
+	options   ingest.Options
+	subject   string
+	scope     live.Scope
 }
 
 func newIngestFixture(t *testing.T) ingestFixture {
@@ -470,7 +519,93 @@ func newIngestFixture(t *testing.T) ingestFixture {
 	require.NoError(t, err, "connect without implicitly changing stream configuration")
 	t.Cleanup(conn.Close)
 	writer := db.NewLogService(pool, nil)
-	return ingestFixture{ctx: ctx, pool: pool, conn: conn, writer: writer, options: ingest.Options{Connection: conn, Pool: pool, Writer: writer}, subject: "logs." + project.ID.String() + "." + project.Clients[0].ID.String()}
+	return ingestFixture{
+		ctx: ctx, pool: pool, container: container, conn: conn, writer: writer,
+		options: ingest.Options{Connection: conn, Pool: pool, Writer: writer},
+		subject: "logs." + project.ID.String() + "." + project.Clients[0].ID.String(),
+		scope:   live.Scope{ProjectID: project.ID, ClientID: project.Clients[0].ID},
+	}
+}
+
+// followBrokerRestarts replaces the fixture connection with one that redials
+// the fixture's own container, whose host port can change after a restart.
+func followBrokerRestarts(t *testing.T, env ingestFixture) ingestFixture {
+	t.Helper()
+	url, err := env.container.ConnectionString(env.ctx)
+	require.NoError(t, err, "resolve the isolated broker address")
+	nc, err := nats.Connect(url, nats.SetCustomDialer(containerDialer{ctx: env.ctx, container: env.container}),
+		nats.MaxReconnects(-1), nats.ReconnectWait(100*time.Millisecond))
+	require.NoError(t, err, "connect through the restart-following dialer")
+	t.Cleanup(nc.Close)
+	js, err := jetstream.New(nc)
+	require.NoError(t, err, "open JetStream on the restart-following connection")
+	env.conn = &natsconn.NatsConnection{Conn: nc, JetStream: js}
+	env.options.Connection = env.conn
+	return env
+}
+
+type containerDialer struct {
+	ctx       context.Context
+	container *natscontainer.NATSContainer
+}
+
+func (d containerDialer) Dial(network, _ string) (net.Conn, error) {
+	address, err := d.container.PortEndpoint(d.ctx, "4222/tcp", "")
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(d.ctx, 2*time.Second)
+	defer cancel()
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, network, address)
+}
+
+// lostCompletionConn fails a PostgreSQL connection after a statement has
+// committed but before pgx reads its result. Once armed, it drops the
+// ReadyForQuery that follows the next CommandComplete; PostgreSQL sends it
+// only after the implicit transaction commits.
+type lostCompletionConn struct {
+	net.Conn
+	arm      *atomic.Bool
+	pending  []byte
+	ready    []byte
+	complete bool
+	lost     bool
+}
+
+// pgx serializes reads, so the framing state needs no lock.
+func (c *lostCompletionConn) Read(p []byte) (int, error) {
+	for len(c.ready) == 0 {
+		if c.lost {
+			return 0, io.EOF
+		}
+		buf := make([]byte, 32<<10)
+		n, err := c.Conn.Read(buf)
+		c.pending = append(c.pending, buf[:n]...)
+		for len(c.pending) >= 5 && !c.lost {
+			size := 1 + int(binary.BigEndian.Uint32(c.pending[1:5]))
+			if len(c.pending) < size {
+				break
+			}
+			frame := c.pending[:size]
+			c.pending = c.pending[size:]
+			switch {
+			case frame[0] == 'C' && c.arm.Load():
+				c.complete = true
+			case frame[0] == 'Z' && c.complete && c.arm.CompareAndSwap(true, false):
+				c.lost = true
+				_ = c.Conn.Close()
+				continue
+			}
+			c.ready = append(c.ready, frame...)
+		}
+		if err != nil && len(c.ready) == 0 && !c.lost {
+			return 0, err
+		}
+	}
+	n := copy(p, c.ready)
+	c.ready = c.ready[n:]
+	return n, nil
 }
 
 type runningIngest struct {

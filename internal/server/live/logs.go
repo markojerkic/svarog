@@ -107,6 +107,13 @@ func (l *Logs) AfterCommit(ctx context.Context, rows []types.StoredLog) {
 	l.invalidateRows(rows)
 }
 
+// AfterUncertainCommit is for a write whose outcome is unknown. The rows may be
+// committed without publication, and a retry will not publish existing rows,
+// so matching views must stop visibly instead of silently missing them.
+func (l *Logs) AfterUncertainCommit(rows []types.StoredLog) {
+	l.invalidateRows(rows)
+}
+
 // Open waits for broker readiness. ctx bounds opening, not the lifetime of
 // the returned Session; its owner must Close it. Scope must already be authorized.
 func (l *Logs) Open(ctx context.Context, scope Scope, selector Selector) (*Session, error) {

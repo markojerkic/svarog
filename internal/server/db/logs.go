@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
@@ -286,6 +287,13 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 	inserted, err := persistence.InsertIngestLogs(ctx, self.pool, input)
 	if err != nil {
 		slog.Error("Error saving logs", "error", err)
+		if self.liveLogs != nil && uncertainCommit(err) {
+			rows := make([]types.StoredLog, len(logs))
+			for i := range logs {
+				rows[i] = logs[i].Log
+			}
+			self.liveLogs.AfterUncertainCommit(rows)
+		}
 		return err
 	}
 	newRows := make([]types.StoredLog, 0, len(inserted))
@@ -298,6 +306,16 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 		self.liveLogs.AfterCommit(ctx, newRows)
 	}
 	return nil
+}
+
+// uncertainCommit reports whether a failed write may still have committed. A
+// backend error rolls the statement back, a connect error and pgx's
+// SafeToRetry errors happen before the statement reaches the server; any other
+// failure, such as a lost connection or canceled read, leaves the outcome unknown.
+func uncertainCommit(err error) bool {
+	var pgError *pgconn.PgError
+	var connectError *pgconn.ConnectError
+	return !errors.As(err, &pgError) && !errors.As(err, &connectError) && !pgconn.SafeToRetry(err)
 }
 
 func NewLogService(pool *pgxpool.Pool, liveLogs *live.Logs) *PostgresLogService {
