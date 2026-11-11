@@ -73,9 +73,12 @@ func main() {
 	setupLogger(config.Debug)
 
 	instanceId := getInstanceId()
+	if err := rpc.ValidateInstanceID(instanceId); err != nil {
+		log.Fatal("Invalid instance ID", "error", err)
+	}
 	slog.Debug("Instance ID", "id", instanceId)
 
-	processedLines := make(chan *rpc.LogLine, 1024*1024)
+	processedLines := make(chan *rpc.LogLine, 16)
 	natsClient := natsclient.NewNatsClient(config, processedLines)
 
 	var wg sync.WaitGroup

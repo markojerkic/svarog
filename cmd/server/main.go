@@ -54,7 +54,7 @@ func loadEnv() types.ServerEnv {
 
 type serverDependencies struct {
 	httpServer    *http.HttpServer
-	ingestService *ingest.IngestService
+	ingestService *ingest.Service
 	natsConn      *natsconn.NatsConnection
 	liveLogs      *live.Logs
 	liveConn      *natsconn.NatsConnection
@@ -69,24 +69,20 @@ func gracefulShutdown(deps serverDependencies) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
-	if err := deps.httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Error("HTTP server shutdown error", "error", err)
-	}
-
-	deps.ingestService.Stop()
-
-	deps.cancel()
-
-	stopped := make(chan struct{})
+	httpStopped := make(chan struct{})
 	go func() {
-		deps.background.Wait()
-		close(stopped)
+		defer close(httpStopped)
+		if err := deps.httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Error("HTTP server shutdown error", "error", err)
+		}
 	}()
-	select {
-	case <-stopped:
-	case <-shutdownCtx.Done():
-		log.Error("Background jobs did not stop before the shutdown timeout")
+	if err := deps.ingestService.Shutdown(shutdownCtx); err != nil {
+		log.Error("Ingest shutdown error", "error", err)
 	}
+	<-httpStopped
+	deps.cancel()
+	// Canceled jobs must exit before closing their borrowed DB/NATS resources.
+	deps.background.Wait()
 
 	deps.liveLogs.Close()
 	deps.liveConn.Close()
@@ -138,10 +134,6 @@ func main() {
 		JWT:             env.NatsServerUserJWT,
 		Seed:            env.NatsServerUserSeed,
 		EnableJetStream: true,
-		JetStreamConfig: natsconn.JetStreamConfig{
-			Name:     "LOGS",
-			Subjects: []string{"logs.>"},
-		},
 	})
 	if err != nil {
 		log.Fatal("Failed to connect to NATS", "error", err)
@@ -160,7 +152,6 @@ func main() {
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
 	logsService := db.NewLogService(postgresPool, liveLogs)
-	logServer := db.NewLogServer(logsService)
 
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 
@@ -168,8 +159,16 @@ func main() {
 		log.Fatal("Couldn't initialize PostgreSQL admin user", "error", err)
 	}
 
-	logIngestChannel := make(chan db.LogLineWithHost, 1000)
-	ingestService := ingest.NewIngestService(logIngestChannel, natsConn, postgresPool)
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ingestService, err := ingest.Open(startupCtx, ingest.Options{
+		Connection: natsConn, Pool: postgresPool, Writer: logsService,
+		StreamMaxBytes: env.IngestStreamMaxBytes, AckWait: env.IngestAckWait,
+		AllowRetentionMigration: env.IngestAllowRetentionMigration,
+	})
+	startupCancel()
+	if err != nil {
+		log.Fatal("Failed to prepare durable log ingestion", "error", err)
+	}
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
@@ -188,22 +187,29 @@ func main() {
 	// Signal handling for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
-	go logServer.Run(ctx, logIngestChannel)
-	go ingestService.Run(ctx)
+	ingestDone := make(chan error, 1)
+	go func() { ingestDone <- ingestService.Run(ctx) }()
 	var background sync.WaitGroup
 	if archiveStore != nil {
 		background.Go(func() { archive.RunScheduler(ctx, archiver, env.ArchiveScheduleInterval) })
 	} else {
 		slog.Info("Archive storage not configured; archive scheduler not started")
 	}
-	go func() {
-		if err := httpServer.Start(); err != nil {
-			log.Info("HTTP server stopped", "error", err)
-		}
-	}()
+	httpDone := make(chan error, 1)
+	go func() { httpDone <- httpServer.Start() }()
 
-	<-quit
+	failed := false
+	select {
+	case <-quit:
+	case err := <-ingestDone:
+		failed = true
+		log.Error("Ingest stopped unexpectedly", "error", err)
+	case err := <-httpDone:
+		failed = true
+		log.Error("HTTP server stopped unexpectedly", "error", err)
+	}
 	gracefulShutdown(serverDependencies{
 		httpServer:    httpServer,
 		ingestService: ingestService,
@@ -214,4 +220,7 @@ func main() {
 		cancel:        cancel,
 		background:    &background,
 	})
+	if failed {
+		os.Exit(1)
+	}
 }

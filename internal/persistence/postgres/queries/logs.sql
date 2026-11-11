@@ -28,6 +28,37 @@ FROM input
 JOIN inserted ON inserted.id = input.id
 ORDER BY input.ordinality;
 
+-- name: InsertIngestLogs :many
+WITH input AS (
+    SELECT c.client_id, i.instance_name, o.occurred_at,
+           s.sequence_number, m.message, k.event_key, c.ordinality
+    FROM unnest(sqlc.arg(client_ids)::uuid[]) WITH ORDINALITY AS c(client_id, ordinality)
+    JOIN unnest(sqlc.arg(instance_names)::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
+    JOIN unnest(sqlc.arg(occurred_at)::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
+    JOIN unnest(sqlc.arg(sequence_numbers)::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
+    JOIN unnest(sqlc.arg(messages)::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
+    JOIN unnest(sqlc.arg(event_keys)::bytea[]) WITH ORDINALITY AS k(event_key, ordinality) USING (ordinality)
+), unique_input AS (
+    SELECT DISTINCT ON (client_id, event_key) *
+    FROM input
+    ORDER BY client_id, event_key, ordinality
+), new_input AS (
+    SELECT nextval(pg_get_serial_sequence('logs', 'id')) AS id, i.*
+    FROM unique_input i
+), inserted AS (
+    INSERT INTO logs (
+        id, client_id, instance_name, occurred_at, sequence_number, message, event_key
+    ) OVERRIDING SYSTEM VALUE
+    SELECT id, client_id, instance_name, occurred_at, sequence_number, message, event_key
+    FROM new_input
+    ORDER BY client_id, event_key
+    ON CONFLICT (client_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
+    RETURNING id
+)
+SELECT n.ordinality::bigint AS ordinal, inserted.id
+FROM new_input n JOIN inserted ON inserted.id = n.id
+ORDER BY n.ordinality;
+
 -- name: ListLogs :many
 SELECT l.id, l.client_id, c.project_id, l.instance_name,
        l.occurred_at, l.sequence_number, l.message

@@ -27,8 +27,7 @@ type HttpServer struct {
 	natsCredentialService *serverauth.NatsCredentialService
 	liveLogs              *live.Logs
 
-	serverPort int
-	server     *stdhttp.Server
+	server *stdhttp.Server
 }
 
 type HttpServerOptions struct {
@@ -72,16 +71,16 @@ func (self *HttpServer) Start() error {
 
 	e.Static("/assets", "internal/server/ui/assets", customMiddleware.AssetsCacheMiddleware)
 
-	self.server = &stdhttp.Server{
-		Addr:    fmt.Sprintf(":%d", self.serverPort),
-		Handler: e,
-	}
+	self.server.Handler = e
 	return self.server.ListenAndServe()
 }
 
 func (self *HttpServer) Shutdown(ctx context.Context) error {
 	if self.server != nil {
-		return self.server.Shutdown(ctx)
+		if err := self.server.Shutdown(ctx); err != nil {
+			_ = self.server.Close()
+			return err
+		}
 	}
 	return nil
 }
@@ -90,7 +89,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
 		logService:            options.LogService,
 		sessionStore:          options.SessionStore,
-		serverPort:            options.ServerPort,
+		server:                &stdhttp.Server{Addr: fmt.Sprintf(":%d", options.ServerPort)},
 		authService:           options.AuthService,
 		projectsService:       options.ProjectsService,
 		archiver:              options.Archiver,

@@ -25,19 +25,19 @@ func TestMassImport(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	lines := make([]db.LogLineWithHost, count)
+	lines := make([]db.IngestLog, count)
 	for i := range lines {
 		lines[i] = ingestLine(env, i, base.Add(time.Duration(i)*time.Millisecond))
 	}
-	pushThroughAggregator(t, ctx, env, lines)
+	commitIngestLines(t, ctx, env, lines)
 
 	got := pageNewestFirst(t, ctx, env, 300)
-	require.Len(t, got, count, "every aggregated line is readable")
+	require.Len(t, got, count, "every committed line is readable")
 	requireNewestFirst(t, got)
 	for i, log := range got {
 		require.Equal(t, fmt.Sprintf("Log line %d", count-1-i), log.LogLine, "newest-first messages have no gaps")
 		require.Equal(t, count-1-i, log.SequenceNumber, "each message retains its sequence")
-		require.Equal(t, "web", log.Client.InstanceId, "aggregator persists the hostname as the instance")
+		require.Equal(t, "web", log.Client.InstanceId, "ingest persists the hostname as the instance")
 	}
 }
 
@@ -47,14 +47,14 @@ func TestOutOfOrderInsert(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	lines := make([]db.LogLineWithHost, 0, count)
+	lines := make([]db.IngestLog, 0, count)
 	for i := 0; i < count; i += 2 {
 		lines = append(lines, ingestLine(env, i, at))
 	}
 	for i := 1; i < count; i += 2 {
 		lines = append(lines, ingestLine(env, i, at))
 	}
-	pushThroughAggregator(t, ctx, env, lines)
+	commitIngestLines(t, ctx, env, lines)
 
 	got := pageNewestFirst(t, ctx, env, 300)
 	require.Len(t, got, count, "both arrival waves are stored")
@@ -177,43 +177,20 @@ func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 	}
 }
 
-func ingestLine(env ingestEnv, i int, at time.Time) db.LogLineWithHost {
-	return db.LogLineWithHost{
-		LogLine: &rpc.LogLine{
-			Message: fmt.Sprintf("Log line %d", i), Timestamp: at, Sequence: i,
+func ingestLine(env ingestEnv, i int, at time.Time) db.IngestLog {
+	return db.IngestLog{
+		EventKey: rpc.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
+		Log: types.StoredLog{
+			LogLine: fmt.Sprintf("Log line %d", i), Timestamp: at, SequenceNumber: i,
+			Client: types.StoredClient{ProjectId: env.projectID, ClientId: env.clientID.String(), InstanceId: "web"},
 		},
-		ProjectId: env.projectID,
-		ClientId:  env.clientID.String(),
-		Hostname:  "web",
 	}
 }
 
-func pushThroughAggregator(t *testing.T, ctx context.Context, env ingestEnv, lines []db.LogLineWithHost) {
+func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines []db.IngestLog) {
 	t.Helper()
-	// These tests verify lossless ingestion, not a machine-dependent throughput
-	// budget. Use the enclosing test's deadline for large indexed batches as well.
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	ch := make(chan db.LogLineWithHost)
-	done := make(chan struct{})
-	server := db.NewLogServer(env.logs)
-	go func() {
-		server.Run(runCtx, ch)
-		close(done)
-	}()
-	for _, line := range lines {
-		select {
-		case ch <- line:
-		case <-runCtx.Done():
-			close(ch)
-			t.Fatal("aggregator must accept all input before the timeout")
-		}
-	}
-	close(ch)
-	select {
-	case <-done:
-	case <-runCtx.Done():
-		t.Fatal("aggregator must flush all queued logs before the timeout")
+	for offset := 0; offset < len(lines); offset += 1000 {
+		require.NoError(t, env.logs.CommitLogs(ctx, lines[offset:min(offset+1000, len(lines))]), "commit all lines through the ingest writer")
 	}
 }
 

@@ -53,6 +53,79 @@ func (q *Queries) GetLogAnchor(ctx context.Context, arg GetLogAnchorParams) (Get
 	return i, err
 }
 
+const insertIngestLogs = `-- name: InsertIngestLogs :many
+WITH input AS (
+    SELECT c.client_id, i.instance_name, o.occurred_at,
+           s.sequence_number, m.message, k.event_key, c.ordinality
+    FROM unnest($1::uuid[]) WITH ORDINALITY AS c(client_id, ordinality)
+    JOIN unnest($2::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
+    JOIN unnest($3::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
+    JOIN unnest($4::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
+    JOIN unnest($5::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
+    JOIN unnest($6::bytea[]) WITH ORDINALITY AS k(event_key, ordinality) USING (ordinality)
+), unique_input AS (
+    SELECT DISTINCT ON (client_id, event_key) client_id, instance_name, occurred_at, sequence_number, message, event_key, ordinality
+    FROM input
+    ORDER BY client_id, event_key, ordinality
+), new_input AS (
+    SELECT nextval(pg_get_serial_sequence('logs', 'id')) AS id, i.client_id, i.instance_name, i.occurred_at, i.sequence_number, i.message, i.event_key, i.ordinality
+    FROM unique_input i
+), inserted AS (
+    INSERT INTO logs (
+        id, client_id, instance_name, occurred_at, sequence_number, message, event_key
+    ) OVERRIDING SYSTEM VALUE
+    SELECT id, client_id, instance_name, occurred_at, sequence_number, message, event_key
+    FROM new_input
+    ORDER BY client_id, event_key
+    ON CONFLICT (client_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
+    RETURNING id
+)
+SELECT n.ordinality::bigint AS ordinal, inserted.id
+FROM new_input n JOIN inserted ON inserted.id = n.id
+ORDER BY n.ordinality
+`
+
+type InsertIngestLogsParams struct {
+	ClientIds       []uuid.UUID
+	InstanceNames   []string
+	OccurredAt      []time.Time
+	SequenceNumbers []int64
+	Messages        []string
+	EventKeys       [][]byte
+}
+
+type InsertIngestLogsRow struct {
+	Ordinal int64
+	ID      int64
+}
+
+func (q *Queries) InsertIngestLogs(ctx context.Context, arg InsertIngestLogsParams) ([]InsertIngestLogsRow, error) {
+	rows, err := q.db.Query(ctx, insertIngestLogs,
+		arg.ClientIds,
+		arg.InstanceNames,
+		arg.OccurredAt,
+		arg.SequenceNumbers,
+		arg.Messages,
+		arg.EventKeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InsertIngestLogsRow
+	for rows.Next() {
+		var i InsertIngestLogsRow
+		if err := rows.Scan(&i.Ordinal, &i.ID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertLogs = `-- name: InsertLogs :many
 WITH input AS (
     SELECT

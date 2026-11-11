@@ -14,6 +14,8 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/suite"
@@ -125,15 +127,16 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 		JWT:             s.config.NatsJwt,
 		Seed:            s.config.NatsSeed,
 		EnableJetStream: true,
-		JetStreamConfig: natsconn.JetStreamConfig{
-			Name:     "LOGS",
-			Subjects: []string{"logs.>"},
-		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create NATS connection: %w", err)
 	}
 	s.NatsConn = natsConn
+	if _, err := ingest.Open(ctx, ingest.Options{
+		Connection: natsConn, Pool: s.PostgresPool, Writer: db.NewLogService(s.PostgresPool, nil),
+	}); err != nil {
+		return fmt.Errorf("prepare test log stream: %w", err)
+	}
 
 	s.LiveLogs = live.New(natsConn.Conn)
 

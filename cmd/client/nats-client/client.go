@@ -2,7 +2,6 @@ package natsclient
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -50,7 +49,7 @@ func (n *NatsClient) Run() {
 func (n *NatsClient) publish(data []byte) {
 	delay := 250 * time.Millisecond
 	// Reuse the ID so a lost ack does not duplicate the line within the stream's duplicate window.
-	sum := sha256.Sum256(data)
+	sum := rpc.MessageKey(n.config.Topic, data)
 	id := hex.EncodeToString(sum[:])
 	for {
 		_, err := n.js.Publish(context.Background(), n.config.Topic, data, jetstream.WithMsgID(id))

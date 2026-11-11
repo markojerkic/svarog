@@ -54,6 +54,7 @@ type Log struct {
 	SequenceNumber int64
 	Message        string
 	ArchiveID      *uuid.UUID
+	EventKey       []byte
 }
 
 type LoginToken struct {

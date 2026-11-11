@@ -86,7 +86,6 @@ type LogPageRequest struct {
 }
 
 type LogService interface {
-	SaveLogs(ctx context.Context, logs []types.StoredLog) error
 	GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error)
 	GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error)
 	SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
@@ -261,36 +260,42 @@ func (self *PostgresLogService) searchLogs(ctx context.Context, query string, pr
 	return mapLogRows(rows), nil
 }
 
-var errInvalidLogClientID = errors.New("invalid log client id")
+var ErrInvalidLogClientID = errors.New("invalid log client id")
 
-func (self *PostgresLogService) SaveLogs(ctx context.Context, logs []types.StoredLog) error {
+// CommitLogs returns nil after inserting new events or recognizing an existing
+// event key. Live delivery is best effort and must never turn a commit into a retry.
+func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-	input := make([]persistence.LogInsert, len(logs))
-	for i, log := range logs {
+	input := make([]persistence.IngestLogInsert, len(logs))
+	for i, event := range logs {
+		log := event.Log
 		clientID, err := uuid.Parse(log.Client.ClientId)
 		if err != nil || clientID == uuid.Nil || clientID.String() != log.Client.ClientId {
-			return fmt.Errorf("%w %q", errInvalidLogClientID, log.Client.ClientId)
+			return fmt.Errorf("%w %q", ErrInvalidLogClientID, log.Client.ClientId)
 		}
-		input[i] = persistence.LogInsert{
+		input[i] = persistence.IngestLogInsert{EventKey: event.EventKey, Log: persistence.LogInsert{
 			ClientID:       clientID,
 			InstanceName:   log.Client.InstanceId,
 			OccurredAt:     log.Timestamp,
 			SequenceNumber: int64(log.SequenceNumber),
 			Message:        log.LogLine,
-		}
+		}}
 	}
-	ids, err := persistence.InsertLogs(ctx, self.pool, input)
+	inserted, err := persistence.InsertIngestLogs(ctx, self.pool, input)
 	if err != nil {
 		slog.Error("Error saving logs", "error", err)
 		return err
 	}
-	for i := range logs {
-		logs[i].ID = ids[i]
+	newRows := make([]types.StoredLog, 0, len(inserted))
+	for _, row := range inserted {
+		log := logs[row.Ordinal-1].Log
+		log.ID = row.ID
+		newRows = append(newRows, log)
 	}
 	if self.liveLogs != nil {
-		self.liveLogs.AfterCommit(ctx, logs)
+		self.liveLogs.AfterCommit(ctx, newRows)
 	}
 	return nil
 }
