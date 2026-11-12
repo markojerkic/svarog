@@ -4,7 +4,7 @@ import (
 	"log"
 	"log/slog"
 
-	"github.com/markojerkic/svarog/svaroglog"
+	"github.com/markojerkic/svarog/internal/lib/svaroglog"
 )
 
 func main() {
