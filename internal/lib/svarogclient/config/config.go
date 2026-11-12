@@ -19,7 +19,8 @@ type ClientConfig struct {
 func NewClientConfig(connString string) (ClientConfig, error) {
 	url, err := url.Parse(connString)
 	if err != nil {
-		panic(fmt.Errorf("Failed to parse connection string: %w", err))
+		// url.Parse errors can include the complete URL, including its token.
+		return ClientConfig{}, fmt.Errorf("invalid connection URL")
 	}
 
 	tokenB64 := url.Query().Get("token")

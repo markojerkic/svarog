@@ -1,4 +1,4 @@
-// Package svaroglog adapts standard Go logging to the shared client prototype.
+// Package svaroglog adapts standard Go logging to the shared client.
 package svaroglog
 
 import (

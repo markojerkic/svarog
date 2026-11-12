@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/markojerkic/svarog/cmd/client/config"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"

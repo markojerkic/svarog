@@ -2,92 +2,74 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"errors"
+	"fmt"
 	"os"
-	"sync"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/charmbracelet/log"
-	"github.com/markojerkic/svarog/cmd/client/config"
-	natsclient "github.com/markojerkic/svarog/cmd/client/nats-client"
 	"github.com/markojerkic/svarog/cmd/client/reader"
-	"github.com/markojerkic/svarog/internal/lib/logevent"
-	"github.com/markojerkic/svarog/internal/lib/util"
-	"github.com/markojerkic/svarog/internal/rpc"
+	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 )
 
-func getInstanceId() string {
-	instanceId := os.Getenv("SVAROG_INSTANCE_ID")
-	if instanceId != "" {
-		return instanceId
+func getConnString() (string, error) {
+	if len(os.Args) > 2 {
+		return "", errors.New("usage: svarog-client [connection URL]")
 	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Warn("Failed to get hostname, using 'unknown'", "error", err)
-		return "unknown"
-	}
-
-	return hostname
-}
-
-func readStdin(output chan *rpc.LogLine, instanceId string) {
-	r := reader.NewReader(os.Stdin, output, instanceId)
-
-	waitGroup := &sync.WaitGroup{}
-	waitGroup.Add(1)
-	go r.Run(context.Background(), waitGroup)
-
-	waitGroup.Wait()
-}
-
-func setupLogger(debug bool) {
-	level := log.InfoLevel
-	if debug {
-		level = log.DebugLevel
-	}
-	util.SetupLogger(level)
-}
-
-func getConnString() string {
 	var connString string
 	if len(os.Args) == 2 {
 		connString = os.Args[1]
-	} else if len(os.Args) == 1 {
+	} else {
 		connString = os.Getenv("SVAROG_CONN_STRING")
 	}
-
 	if connString == "" {
-		log.Fatal("Connection string not provided", "add as the first argument or set env var SVAROG_CONN_STRING")
+		return "", errors.New("provide a connection URL as the first argument or set SVAROG_CONN_STRING")
+	}
+	return connString, nil
+}
+
+func run() error {
+	connString, err := getConnString()
+	if err != nil {
+		return err
+	}
+	client, err := svarogclient.New(svarogclient.Options{ConnectionString: connString})
+	if err != nil {
+		return err
 	}
 
-	return connString
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	readDone := make(chan error, 1)
+	go func() {
+		readDone <- reader.NewReader(os.Stdin, client.Enqueue).Run(ctx)
+	}()
+	var readErr error
+	readStopped := false
+	select {
+	case readErr = <-readDone:
+		readStopped = true
+	case <-ctx.Done():
+		// This process owns stdin; closing it releases a pending read.
+		_ = os.Stdin.Close()
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	shutdownErr := client.Shutdown(shutdownCtx)
+	if !readStopped {
+		readErr = <-readDone
+	}
+	if ctx.Err() != nil && (errors.Is(readErr, context.Canceled) || errors.Is(readErr, svarogclient.ErrClosed)) {
+		readErr = nil
+	}
+	return errors.Join(readErr, shutdownErr)
 }
 
 func main() {
-	connString := getConnString()
-
-	config, err := config.NewClientConfig(connString)
-	if err != nil {
-		log.Fatal("Failed to parse connection string", "err", err)
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
-
-	setupLogger(config.Debug)
-
-	instanceId := getInstanceId()
-	if err := logevent.ValidateInstanceID(instanceId); err != nil {
-		log.Fatal("Invalid instance ID", "error", err)
-	}
-	slog.Debug("Instance ID", "id", instanceId)
-
-	processedLines := make(chan *rpc.LogLine, 16)
-	natsClient := natsclient.NewNatsClient(config, processedLines)
-
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		natsClient.Run()
-	})
-
-	readStdin(processedLines, instanceId)
-	close(processedLines) // Signal NATS client to drain and exit
-	wg.Wait()
 }
