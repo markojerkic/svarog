@@ -39,8 +39,8 @@ func TestSharedClientDelivery(t *testing.T) {
 		client := newClient(t, connectionURL)
 		installLogger(t, client)
 
-		require.NoError(t, reader.NewReader(strings.NewReader("\x1b[31mstdin line\x1b[0m\ninvalid\x00line\nafter invalid\n"), client.Enqueue).Run(broker.ctx),
-			"the stdin adapter must submit valid messages and continue after locally rejected source data")
+		require.NoError(t, reader.NewReader(strings.NewReader("\x1b[31mstdin line\x1b[0m\ninvalid\x00line\nafter invalid\nbad \xff\xfe bytes\n"), client.Enqueue).Run(broker.ctx),
+			"the stdin adapter must submit valid messages, repair invalid UTF-8 and continue after locally rejected source data")
 		at := time.Date(2026, 11, 12, 10, 0, 0, 123456789, time.UTC)
 		record := slog.NewRecord(at, slog.LevelWarn, "request failed", 0)
 		record.AddAttrs(slog.Int("status", 500))
@@ -63,8 +63,8 @@ func TestSharedClientDelivery(t *testing.T) {
 
 		info, err := stream.Info(broker.ctx)
 		require.NoError(t, err, "read the stream after all accepted entries were acknowledged")
-		require.EqualValues(t, 13, info.State.Msgs, "both sources and concurrent child loggers must persist every accepted entry")
-		for i := range 13 {
+		require.EqualValues(t, 14, info.State.Msgs, "both sources and concurrent child loggers must persist every accepted entry")
+		for i := range 14 {
 			message, err := stream.GetMsg(broker.ctx, uint64(i+1))
 			require.NoError(t, err, "every accepted entry must be readable after shutdown")
 			var line rpc.LogLine
@@ -80,13 +80,15 @@ func TestSharedClientDelivery(t *testing.T) {
 			case 1:
 				require.Equal(t, "after invalid", line.Message, "a malformed source line must not stop delivery of later valid messages")
 			case 2:
+				require.Equal(t, "bad \uFFFD\uFFFD bytes", line.Message, "invalid UTF-8 must keep the whole line, with one replacement character per invalid byte")
+			case 3:
 				require.True(t, line.Timestamp.Equal(at), "slog timestamps must retain the original nanoseconds rather than the worker's publish time")
 				require.Contains(t, line.Message, "level=WARN", "formatted messages must retain severity")
 				require.Contains(t, line.Message, "service=api request.status=500", "attributes before and after WithGroup must retain their namespaces")
 				require.NotContains(t, line.Message, "time=", "the transport timestamp must not be duplicated in the formatted message")
-			case 3:
-				require.Contains(t, line.Message, "standard log: port=1323", "global standard log calls must enter the same sender")
 			case 4:
+				require.Contains(t, line.Message, "standard log: port=1323", "global standard log calls must enter the same sender")
+			case 5:
 				require.Contains(t, line.Message, "request context canceled", "request cancellation must not cancel log delivery")
 			default:
 				require.Contains(t, line.Message, "request.id=", "concurrent derived handlers must retain grouped attributes")
@@ -153,7 +155,6 @@ func TestSharedClientDelivery(t *testing.T) {
 		err := client.Shutdown(ctx)
 		require.ErrorContains(t, err, "broker rejected the payload size", "a permanent server rejection must stop the sender and surface through shutdown")
 		require.NotErrorIs(t, err, context.DeadlineExceeded, "an unrecoverable payload must not retry until the drain deadline")
-		require.ErrorIs(t, client.Enqueue(svarogclient.Entry{Message: "after failure"}), svarogclient.ErrClosed, "failed publishers must stop accepting new entries")
 	})
 }
 

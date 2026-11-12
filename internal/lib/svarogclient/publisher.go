@@ -65,6 +65,8 @@ func (c *Client) connect() (*nats.Conn, jetstream.JetStream, error) {
 		nats.UserCredentialBytes([]byte(c.config.Creds)),
 		nats.Timeout(connectTimeout),
 		nats.SetCustomDialer(&contextDialer{ctx: c.ctx}),
+		// nats.go's own lookup cannot be canceled; DialContext resolves instead.
+		nats.SkipHostLookup(),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		// Only the bounded queue and its current payload own retryable data.

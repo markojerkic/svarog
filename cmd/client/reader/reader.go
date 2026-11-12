@@ -52,8 +52,8 @@ func (r *Reader) Run(ctx context.Context) error {
 		line = ansiRegex.ReplaceAllString(line, "")
 		if err := r.enqueue(svarogclient.Entry{Message: line, Timestamp: time.Now()}); err != nil {
 			if errors.Is(err, svarogclient.ErrInvalidEntry) {
-				// Invalid source data was previously rejected by ingest. Keep
-				// reading valid lines after the client's local rejection too.
+				// Ingest already rejected lines with NUL characters; the client
+				// now rejects them locally. Keep reading later valid lines.
 				continue
 			}
 			return fmt.Errorf("enqueue log line: %w", err)

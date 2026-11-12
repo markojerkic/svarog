@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
@@ -25,8 +26,10 @@ var (
 )
 
 type Entry struct {
+	// Message must not contain NUL. Each invalid UTF-8 byte becomes U+FFFD.
 	Message string
-	// A zero timestamp uses time.Now before waiting for queue space.
+	// A zero timestamp is set to time.Now once the entry obtains admission,
+	// which can be later than the Enqueue call while producers wait.
 	Timestamp time.Time
 }
 
@@ -125,6 +128,11 @@ func (c *Client) Enqueue(entry Entry) error {
 }
 
 func (c *Client) accept(entry Entry) (bool, error) {
+	if !utf8.ValidString(entry.Message) {
+		// Match encoding/json's earlier repair: one U+FFFD per invalid byte,
+		// rather than rejecting the whole line.
+		entry.Message = string([]rune(entry.Message))
+	}
 	// Sequence assignment, encoding and queue insertion share one ordering point.
 	c.admission.Lock()
 	defer c.admission.Unlock()

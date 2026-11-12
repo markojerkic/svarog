@@ -40,7 +40,6 @@ func run() error {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	readDone := make(chan error, 1)
 	go func() {
 		readDone <- reader.NewReader(os.Stdin, client.Enqueue).Run(ctx)
@@ -51,7 +50,12 @@ func run() error {
 	case readErr = <-readDone:
 		readStopped = true
 	case <-ctx.Done():
-		// This process owns stdin; closing it releases a pending read.
+	}
+	signaled := ctx.Err() != nil
+	stop()
+	if signaled {
+		// Best effort: Close does not interrupt a read already blocked on an
+		// inherited blocking descriptor.
 		_ = os.Stdin.Close()
 	}
 
@@ -59,9 +63,14 @@ func run() error {
 	defer cancel()
 	shutdownErr := client.Shutdown(shutdownCtx)
 	if !readStopped {
-		readErr = <-readDone
+		// Do not wait for a reader blocked in read(2); process exit ends it.
+		select {
+		case readErr = <-readDone:
+		default:
+		}
 	}
-	if ctx.Err() != nil && (errors.Is(readErr, context.Canceled) || errors.Is(readErr, svarogclient.ErrClosed)) {
+	if signaled && (errors.Is(readErr, context.Canceled) || errors.Is(readErr, svarogclient.ErrClosed)) {
+		// Publisher failures still surface through shutdownErr.
 		readErr = nil
 	}
 	return errors.Join(readErr, shutdownErr)
