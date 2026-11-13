@@ -12,51 +12,36 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 	"github.com/markojerkic/svarog/internal/lib/svaroglog"
 )
 
-func run() error {
+func run() (result error) {
 	interval, err := time.ParseDuration(envOr("DEMO_INTERVAL", "1s"))
 	if err != nil || interval <= 0 {
 		return errors.New("DEMO_INTERVAL must be a positive duration, for example 1s or 250ms")
 	}
-	connectionString := os.Getenv("SVAROG_CONN_STRING")
-	if connectionString == "" {
-		return errors.New("set SVAROG_CONN_STRING to a generated Svarog connection URL")
-	}
 	appName := envOr("DEMO_APP_NAME", "demo-native")
-	// Host-networked replicas can share a hostname; give each run its own instance.
+
 	instanceID := envOr("SVAROG_INSTANCE_ID", appName+"-"+uuid.NewString())
-	client, err := svarogclient.New(svarogclient.Options{
-		ConnectionString: connectionString,
-		InstanceID:       instanceID,
-	})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	stopOnCancel := context.AfterFunc(ctx, stop)
+	defer stopOnCancel()
+	closeLogging, err := svaroglog.Setup(ctx,
+		svaroglog.WithInstanceID(instanceID),
+		svaroglog.WithLevel(slog.LevelDebug),
+	)
 	if err != nil {
 		return err
 	}
-	svaroglog.Setup(client, svaroglog.Options{
-		Level:   slog.LevelDebug,
-		Console: slog.NewTextHandler(os.Stdout, nil),
-	})
+	defer func() {
+		result = errors.Join(result, closeLogging())
+	}()
 	slog.SetDefault(slog.Default().With("app", appName, "integration", "native"))
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	producerDone := make(chan struct{})
-	go func() {
-		defer close(producerDone)
-		generateLogs(ctx, interval)
-	}()
-
-	<-ctx.Done()
-	// A second signal during the drain should exit immediately.
-	stop()
-	// Drain independently of the producer: a log call may be blocked on a full queue.
-	drainCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = client.Shutdown(drainCtx)
-	<-producerDone
-	return err
+	generateLogs(ctx, interval)
+	return nil
 }
 
 func generateLogs(ctx context.Context, interval time.Duration) {

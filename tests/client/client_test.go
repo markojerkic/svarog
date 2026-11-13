@@ -158,6 +158,126 @@ func TestSharedClientDelivery(t *testing.T) {
 	})
 }
 
+func TestLoggingSetupLifecycle(t *testing.T) {
+	preserveLogger(t)
+	broker := newClientBroker(t)
+
+	t.Run("environment setup drains and restores derived global loggers", func(t *testing.T) {
+		connectionURL, stream, _ := broker.stream(t, jetstream.StreamConfig{})
+		t.Setenv("SVAROG_CONN_STRING", connectionURL)
+		previous := slog.New(slog.NewTextHandler(io.Discard, nil))
+		slog.SetDefault(previous)
+		log.SetFlags(log.Lshortfile)
+		log.SetPrefix("previous: ")
+		output, flags, prefix := log.Writer(), log.Flags(), log.Prefix()
+		slog.SetLogLoggerLevel(slog.LevelWarn)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		closeLogging, err := svaroglog.Setup(ctx, svaroglog.WithInstanceID("setup-instance"), svaroglog.WithLevel(slog.LevelDebug), svaroglog.WithConsole(nil))
+		require.NoError(t, err, "environment configuration must be sufficient to install the logging integration")
+		t.Cleanup(func() { _ = closeLogging() })
+
+		installed := slog.Default()
+		_, err = svaroglog.Setup(ctx)
+		require.ErrorIs(t, err, svaroglog.ErrAlreadyConfigured, "a second global setup must not start another publisher")
+		require.Same(t, installed, slog.Default(), "a rejected setup must leave the active logger untouched")
+		slog.SetDefault(slog.Default().With("service", "api").WithGroup("request"))
+		slog.Debug("structured entry", "id", 42)
+		log.Printf("standard entry")
+		cancel()
+		require.Eventually(t, func() bool {
+			return slog.Default() == previous
+		}, 5*time.Second, 10*time.Millisecond, "context cancellation must independently drain and restore even a derived global logger")
+		require.NoError(t, closeLogging(), "the already-canceled lifetime must not be reused as the drain deadline")
+		require.NoError(t, closeLogging(), "repeated cleanup must preserve successful completion")
+		require.Equal(t, output, log.Writer(), "cleanup must restore the previous standard log destination")
+		require.Equal(t, flags, log.Flags(), "cleanup must restore the previous standard log flags")
+		require.Equal(t, prefix, log.Prefix(), "cleanup must restore the previous standard log prefix")
+		require.Equal(t, slog.LevelWarn, slog.SetLogLoggerLevel(slog.LevelInfo), "cleanup must restore the previous standard log bridge level")
+
+		info, err := stream.Info(broker.ctx)
+		require.NoError(t, err, "read the acknowledged logs after automatic shutdown")
+		require.EqualValues(t, 2, info.State.Msgs, "global slog and standard log must each publish through the owned client")
+		for sequence := uint64(1); sequence <= 2; sequence++ {
+			message, err := stream.GetMsg(broker.ctx, sequence)
+			require.NoError(t, err, "each accepted log must be available after the automatic drain")
+			var line rpc.LogLine
+			require.NoError(t, json.Unmarshal(message.Data, &line), "setup must preserve the existing wire payload")
+			require.Equal(t, "setup-instance", line.InstanceId, "the setup instance option must configure the shared publisher")
+			require.Contains(t, line.Message, "service=api", "both logging APIs must preserve derived global attributes")
+		}
+	})
+
+	t.Run("lifetime cancellation releases a full queue without waiting for caller cleanup", func(t *testing.T) {
+		connectionURL, _, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		t.Setenv("SVAROG_CONN_STRING", "invalid-environment-url")
+		subscription, err := broker.nc.SubscribeSync(subject)
+		require.NoError(t, err, "observe when the unavailable acknowledgement starts blocking publication")
+		defer subscription.Unsubscribe()
+		require.NoError(t, broker.nc.Flush(), "observe the first message before filling the queue")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		closeLogging, err := svaroglog.Setup(ctx, svaroglog.WithConnectionString(connectionURL), svaroglog.WithConsole(nil), svaroglog.WithDrainTimeout(100*time.Millisecond))
+		require.NoError(t, err, "an explicit connection URL must override the environment without waiting for broker acknowledgements")
+		t.Cleanup(func() { _ = closeLogging() })
+		logger := slog.Default()
+		logger.Info("in flight")
+		_, err = subscription.NextMsg(5 * time.Second)
+		require.NoError(t, err, "the first accepted message must reach the broker before the queue fills")
+		for range 16 {
+			logger.Info("queued")
+		}
+		blocked := make(chan struct{})
+		go func() {
+			logger.Info("waiting for admission")
+			close(blocked)
+		}()
+		select {
+		case <-blocked:
+			t.Fatal("logging must apply backpressure while acknowledgements are unavailable and the queue is full")
+		case <-time.After(100 * time.Millisecond):
+		}
+		cancel()
+		select {
+		case <-blocked:
+		case <-time.After(time.Second):
+			t.Fatal("lifetime cancellation must release the application without requiring that application to call cleanup first")
+		}
+		results := make(chan error, 4)
+		for range 4 {
+			go func() { results <- closeLogging() }()
+		}
+		for range 4 {
+			select {
+			case err := <-results:
+				require.ErrorIs(t, err, context.DeadlineExceeded, "concurrent cleanup must all observe the bounded failed drain, not lifetime cancellation")
+			case <-time.After(time.Second):
+				t.Fatal("concurrent cleanup must join automatic shutdown within its deadline")
+			}
+		}
+		require.ErrorIs(t, closeLogging(), context.DeadlineExceeded, "later cleanup must retain the same failed drain result")
+	})
+
+	t.Run("cleanup does not overwrite an independently replaced global logger", func(t *testing.T) {
+		connectionURL, _, _ := broker.stream(t, jetstream.StreamConfig{})
+		closeLogging, err := svaroglog.Setup(context.Background(), svaroglog.WithConnectionString(connectionURL), svaroglog.WithConsole(nil))
+		require.NoError(t, err, "a completed setup must release ownership for a subsequent installation")
+		t.Cleanup(func() { _ = closeLogging() })
+		replacement := slog.New(slog.NewTextHandler(io.Discard, nil))
+		slog.SetDefault(replacement)
+		log.SetFlags(log.Lmsgprefix)
+		log.SetPrefix("replacement: ")
+		output := log.Writer()
+		slog.SetLogLoggerLevel(slog.LevelError)
+		require.NoError(t, closeLogging(), "an idle owned publisher must close without affecting its replacement")
+		require.Same(t, replacement, slog.Default(), "cleanup must leave the application's newer global logger installed")
+		require.Equal(t, output, log.Writer(), "cleanup must preserve the newer standard log bridge")
+		require.Equal(t, log.Lmsgprefix, log.Flags(), "cleanup must preserve the replacement logger's flags")
+		require.Equal(t, "replacement: ", log.Prefix(), "cleanup must preserve the replacement logger's prefix")
+		require.Equal(t, slog.LevelError, slog.SetLogLoggerLevel(slog.LevelInfo), "cleanup must preserve the replacement logger's bridge level")
+	})
+}
+
 func TestClientShutdownInterruptsHandshakeAndBlockedAdmission(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err, "listen as a peer that accepts TCP but never completes the NATS handshake")
@@ -277,6 +397,12 @@ func shutdownClient(t *testing.T, client *svarogclient.Client) {
 
 func installLogger(t *testing.T, client *svarogclient.Client) {
 	t.Helper()
+	preserveLogger(t)
+	slog.SetDefault(slog.New(svaroglog.NewHandler(client, svaroglog.Options{Level: slog.LevelDebug})))
+}
+
+func preserveLogger(t *testing.T) {
+	t.Helper()
 	previous := slog.Default()
 	output, flags, prefix := log.Writer(), log.Flags(), log.Prefix()
 	level := slog.SetLogLoggerLevel(slog.LevelInfo)
@@ -287,7 +413,6 @@ func installLogger(t *testing.T, client *svarogclient.Client) {
 		log.SetFlags(flags)
 		log.SetPrefix(prefix)
 	})
-	svaroglog.Setup(client, svaroglog.Options{Level: slog.LevelDebug})
 }
 
 func clientToken(t *testing.T) string {

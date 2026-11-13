@@ -20,14 +20,8 @@ type Options struct {
 	Console slog.Handler
 }
 
-// Setup installs the handler for global slog and log calls.
-// The caller owns the client and must call its Shutdown method.
-func Setup(client *svarogclient.Client, options Options) {
-	slog.SetDefault(slog.New(NewHandler(client, options)))
-	slog.SetLogLoggerLevel(slog.LevelInfo)
-}
-
 // NewHandler creates a handler without changing the global logger.
+// The caller owns the client and must call its Shutdown method.
 func NewHandler(client *svarogclient.Client, options Options) slog.Handler {
 	output := &bytes.Buffer{}
 	h := &interceptor{

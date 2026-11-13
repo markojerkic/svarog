@@ -52,36 +52,37 @@ Database migrations use [Goose](https://github.com/pressly/goose) and run automa
 ### Log demo applications
 
 Copy `.env.log-demo.example` to `.env.log-demo` and fill in the generated client
-connection URLs. Start the demo applications against an existing Svarog server:
+connection URLs, then run against an existing Svarog server:
 
 ```bash
 docker compose -f docker-compose.log-demo.yml up -d --build
 ```
 
-- `demo-api`, `demo-worker` and `demo-payments` pipe their output through the CLI.
-- `demo-native` uses the internal Go logging library directly, without a CLI or
-  pipe. Its source is `cmd/log-interceptor-demo/main.go`: logging is configured
-  once, and the application uses ordinary `slog` and standard `log` calls.
+`demo-native` uses the Go library; the other demos pipe logs through the CLI.
+Set `NATIVE_CONN_STRING` for a separate client, or leave it empty to use
+`API_CONN_STRING`. Set `DEMO_INTERVAL` to change the generation rate.
 
-`demo-native` uses `API_CONN_STRING` by default. Set `NATIVE_CONN_STRING` to a
-separate client's URL to show it as its own client in Svarog. `NATIVE_REPLICAS`
-defaults to one; every process start gets a unique `demo-native-<UUID>` instance.
-`DEMO_INTERVAL` controls the generation rate for all demo applications.
+### Native Go logging
 
-The native demo cycles through INFO, grouped WARN, ERROR, DEBUG and `log.Printf`
-messages. DEBUG goes only to Svarog; the console starts at INFO. Level and
-attributes are preserved in the log message text, not separate database fields.
-On SIGINT/SIGTERM the demo stops producing and drains accepted logs to broker
-acknowledgements for up to five seconds, even if a producer was blocked by a full
-queue. That does not wait for PostgreSQL persistence.
+Set `SVAROG_CONN_STRING` and configure global `slog` and `log` once:
 
-To build and start only the native demo:
+```go
+func run(ctx context.Context) (result error) {
+    closeLogging, err := svaroglog.Setup(ctx)
+    if err != nil {
+        return err
+    }
+    defer func() {
+        result = errors.Join(result, closeLogging())
+    }()
 
-```bash
-docker compose -f docker-compose.log-demo.yml up -d --build demo-native
+    return runApplication(ctx) // use ordinary slog / log calls
+}
 ```
 
-These Go packages remain internal to this repository; this is not a published SDK.
+Cancel `ctx` when stopping; cleanup waits up to five seconds for broker
+acknowledgements. Defaults: INFO to Svarog and stderr. The package is internal;
+see [the demo](cmd/log-interceptor-demo/main.go) for a complete example.
 
 ### Docker Integration
 
