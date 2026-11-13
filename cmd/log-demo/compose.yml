@@ -1,17 +1,20 @@
-x-generator: &generator
-  image: svarog-log-demo:local
-  build:
-    context: .
-    dockerfile: cmd/log-demo/Dockerfile
+x-runtime: &runtime
   init: true
   network_mode: ${DEMO_NETWORK_MODE:-host}
-  volumes:
-    - ./cmd/log-demo/messages.txt:/app/messages.txt:ro
   logging:
     driver: local
     options:
       max-size: 10m
       max-file: "2"
+
+x-generator: &generator
+  <<: *runtime
+  image: svarog-log-demo:local
+  build:
+    context: .
+    dockerfile: cmd/log-demo/Dockerfile
+  volumes:
+    - ./cmd/log-demo/messages.txt:/app/messages.txt:ro
 
 x-environment: &environment
   DEMO_INTERVAL: ${DEMO_INTERVAL:-1s}
@@ -44,3 +47,18 @@ services:
       DEMO_APP_NAME: demo-payments
     deploy:
       replicas: ${PAYMENTS_REPLICAS:-2}
+
+  demo-native:
+    <<: *runtime
+    image: svarog-log-native-demo:local
+    build:
+      context: .
+      dockerfile: cmd/log-interceptor-demo/Dockerfile
+    # The application drains for up to five seconds after SIGTERM.
+    stop_grace_period: 10s
+    environment:
+      SVAROG_CONN_STRING: ${NATIVE_CONN_STRING:-${API_CONN_STRING:?Popuni API_CONN_STRING ili NATIVE_CONN_STRING u .env.log-demo}}
+      DEMO_APP_NAME: demo-native
+      DEMO_INTERVAL: ${DEMO_INTERVAL:-1s}
+    deploy:
+      replicas: ${NATIVE_REPLICAS:-1}
