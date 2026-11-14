@@ -101,9 +101,20 @@ tasks:
       - docker build --progress=plain -t markojerkic/svarog:{{.SVAROG_VERSION | default "latest"}} -f cmd/server/Dockerfile .
 
   docker:log-demo:
-    desc: Build the log demo ingest Docker image
+    desc: Build the log demo Docker images in parallel
+    deps:
+      - docker:log-demo-cli
+      - docker:log-demo-native
+
+  docker:log-demo-cli:
+    desc: Build the CLI log demo Docker image
     cmds:
       - docker build --progress=plain -t markojerkic/svarog-log-demo:{{.SVAROG_VERSION | default "latest"}} -f cmd/log-demo/Dockerfile .
+
+  docker:log-demo-native:
+    desc: Build the native log demo Docker image
+    cmds:
+      - docker build --progress=plain -t markojerkic/svarog-log-demo-native:{{.SVAROG_VERSION | default "latest"}} -f cmd/log-interceptor-demo/Dockerfile .
 
   docker:dev:
     desc: Run the docker dev environment
