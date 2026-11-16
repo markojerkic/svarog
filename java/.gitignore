@@ -1,1 +1,8 @@
 **/target/
+
+# Eclipse / m2e
+.project
+.classpath
+.settings/
+.factorypath
+bin/

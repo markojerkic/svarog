@@ -19,4 +19,5 @@ timestamp=2026-11-16T10:00:00.123456789Z message="Hello from Java"
 ```
 
 This is only an input/output prototype. It does not connect to NATS, publish to
-Svarog or send protocol acknowledgements. Java integration is not implemented yet.
+Svarog or send protocol acknowledgements. The [Java demo](../../java/README.md)
+can start it and forward SLF4J events to its stdin.

@@ -1,5 +1,7 @@
 <configuration>
-  <appender name="LIBRARY" class="dev.jerkic.svarog.logback.DemoAppender"/>
+  <appender name="LIBRARY" class="dev.jerkic.svarog.logback.DemoAppender">
+    <helperPath>${SVAROG_BRIDGE_PATH:-}</helperPath>
+  </appender>
 
   <root level="INFO">
     <appender-ref ref="LIBRARY"/>

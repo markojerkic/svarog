@@ -16,5 +16,9 @@
       <artifactId>logback-classic</artifactId>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+    </dependency>
   </dependencies>
 </project>
