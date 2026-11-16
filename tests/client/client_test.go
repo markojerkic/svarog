@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -11,6 +12,9 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -93,6 +97,62 @@ func TestSharedClientDelivery(t *testing.T) {
 			default:
 				require.Contains(t, line.Message, "request.id=", "concurrent derived handlers must retain grouped attributes")
 			}
+		}
+	})
+
+	t.Run("bridge preserves source records and drains on EOF or failure", func(t *testing.T) {
+		binary := filepath.Join(t.TempDir(), "svarog-bridge")
+		build := exec.CommandContext(broker.ctx, "go", "build", "-o", binary, "./cmd/svarog-bridge")
+		build.Dir = filepath.Join("..", "..")
+		output, err := build.CombinedOutput()
+		require.NoError(t, err, "build the real bridge executable: %s", output)
+
+		at := time.Date(2026, 11, 16, 10, 0, 0, 123456789, time.UTC)
+		message := "Java \"message\" čćž\nsecond line"
+		payload, err := json.Marshal(map[string]any{"message": message, "timestamp": at})
+		require.NoError(t, err, "encode a Java-style input record with its original timestamp")
+
+		for _, test := range []struct {
+			name          string
+			suffix        string
+			noAck         bool
+			expectedError string
+		}{
+			{name: "EOF confirms accepted records"},
+			{name: "invalid JSON still drains earlier records", suffix: "not-json\n", expectedError: "decode log entry"},
+			{name: "missing timestamp is not replaced", suffix: "{\"message\":\"missing timestamp\"}\n", expectedError: "timestamp is required"},
+			{name: "unconfirmed publication fails the drain", noAck: true, expectedError: "shutdown interrupted"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				connectionURL, stream, _ := broker.stream(t, jetstream.StreamConfig{NoAck: test.noAck})
+				command := exec.CommandContext(broker.ctx, binary)
+				command.Env = append(os.Environ(),
+					"SVAROG_CONN_STRING="+connectionURL,
+					"SVAROG_INSTANCE_ID=java-bridge",
+				)
+				command.Stdin = strings.NewReader(string(payload) + "\n" + test.suffix)
+				var stdout, stderr bytes.Buffer
+				command.Stdout, command.Stderr = &stdout, &stderr
+				err := command.Run()
+				if test.expectedError == "" {
+					require.NoError(t, err, "EOF must drain accepted records before a successful exit: %s", stderr.String())
+				} else {
+					require.Error(t, err, "input or drain failures must produce an unsuccessful process exit")
+					require.Contains(t, stderr.String(), test.expectedError, "diagnostics must explain the input or drain failure")
+				}
+				require.Empty(t, stdout.String(), "the helper must not echo logs or pretend to send IPC acknowledgements")
+
+				info, err := stream.Info(broker.ctx)
+				require.NoError(t, err, "inspect the real broker after the helper has exited")
+				require.EqualValues(t, 1, info.State.Msgs, "accepted records must survive input failure, without inventing a timestamp for rejected input")
+				stored, err := stream.GetMsg(broker.ctx, 1)
+				require.NoError(t, err, "read the accepted source record from JetStream")
+				var line rpc.LogLine
+				require.NoError(t, json.Unmarshal(stored.Data, &line), "the bridge must publish the existing RPC format")
+				require.Equal(t, message, line.Message, "source Unicode, quotes and embedded newlines must survive publication")
+				require.True(t, at.Equal(line.Timestamp), "the bridge must preserve the source timestamp, including nanoseconds")
+				require.Equal(t, "java-bridge", line.InstanceId, "the shared client must resolve the instance from the inherited environment")
+			})
 		}
 	})
 
