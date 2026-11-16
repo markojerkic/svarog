@@ -9,7 +9,7 @@ type ServerEnv struct {
 	HttpServerPort                int           `env:"HTTP_SERVER_PORT"`
 	SessionSecret                 string        `env:"SESSION_SECRET"`
 	ArchiveDir                    string        `env:"ARCHIVE_DIR"`
-	ArchiveScheduleInterval       time.Duration `env:"ARCHIVE_SCHEDULE_INTERVAL" envDefault:"24h"`
+	ArchiveSchedulerEnabled       bool          `env:"ARCHIVE_SCHEDULER_ENABLED" envDefault:"true"`
 	IngestStreamMaxBytes          int64         `env:"INGEST_STREAM_MAX_BYTES" envDefault:"0"`
 	IngestAckWait                 time.Duration `env:"INGEST_ACK_WAIT" envDefault:"60s"`
 	IngestAllowRetentionMigration bool          `env:"INGEST_ALLOW_RETENTION_MIGRATION" envDefault:"false"`

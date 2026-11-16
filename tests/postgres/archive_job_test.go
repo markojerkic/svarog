@@ -51,9 +51,11 @@ func TestCreateArchiveForClient(t *testing.T) {
 	})
 	require.NoError(t, err, "insert logs around the archive cutoff")
 
+	scheduledAt := nextArchiveRun(t, ctx, pool, apiID)
 	result, err := service.Create(ctx, scope)
 	require.NoError(t, err, "archive logs older than the policy cutoff")
 	require.Equal(t, archive.Created, result.Outcome, "successful creation returns a completed archive")
+	require.Equal(t, scheduledAt, nextArchiveRun(t, ctx, pool, apiID), "manual archiving bypasses the future automatic deadline without moving it")
 	require.NotNil(t, result.Archive, "created results include archive metadata")
 	record := result.Archive
 	require.Equal(t, int64(3), record.LogCount, "archive counts only the client's old logs")

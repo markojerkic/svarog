@@ -20,7 +20,7 @@ services:
       NATS_SERVER_USER_JWT: ${NATS_SERVER_USER_JWT:?Set NATS_SERVER_USER_JWT}
       NATS_SERVER_USER_SEED: ${NATS_SERVER_USER_SEED:?Set NATS_SERVER_USER_SEED}
       ARCHIVE_DIR: /var/lib/svarog/archives
-      ARCHIVE_SCHEDULE_INTERVAL: ${ARCHIVE_SCHEDULE_INTERVAL:-24h}
+      ARCHIVE_SCHEDULER_ENABLED: ${ARCHIVE_SCHEDULER_ENABLED:-true}
     volumes:
       - archives:/var/lib/svarog/archives
     depends_on:

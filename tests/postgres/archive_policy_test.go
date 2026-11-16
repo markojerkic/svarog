@@ -31,12 +31,23 @@ func TestArchivePolicies(t *testing.T) {
 	})
 
 	t.Run("set creates updates and repeats", func(t *testing.T) {
+		var previousWeeks int
+		var previousNext time.Time
 		for _, weeks := range []int{10, 20, 20} {
 			want := archive.Policy{Enabled: true, ArchiveAfterWeeks: weeks}
+			savedAt := time.Now()
 			require.NoError(t, service.SetPolicy(ctx, scope, want), "set replaces the desired policy idempotently")
 			got, err := service.GetPolicy(ctx, scope)
 			require.NoError(t, err, "read the saved policy")
 			require.Equal(t, want, got, "the policy reflects the latest desired state")
+			next := nextArchiveRun(t, ctx, pool, scope.ClientID)
+			if weeks == previousWeeks {
+				require.Equal(t, previousNext, next, "saving an unchanged policy preserves its automatic schedule exactly")
+			} else {
+				interval := time.Duration(weeks) * 7 * 24 * time.Hour
+				require.WithinDuration(t, savedAt.Add(interval), next, 5*time.Second, "enabling or changing a policy schedules the first automatic run one full interval later")
+			}
+			previousWeeks, previousNext = weeks, next
 		}
 	})
 

@@ -45,10 +45,6 @@ func loadEnv() types.ServerEnv {
 	if err := envParser.Parse(&env); err != nil {
 		log.Fatal("Error parsing env", "error", err)
 	}
-	if env.ArchiveScheduleInterval < 0 {
-		log.Fatal("ARCHIVE_SCHEDULE_INTERVAL must not be negative", "value", env.ArchiveScheduleInterval)
-	}
-
 	return env
 }
 
@@ -192,10 +188,12 @@ func main() {
 	ingestDone := make(chan error, 1)
 	go func() { ingestDone <- ingestService.Run(ctx) }()
 	var background sync.WaitGroup
-	if archiveStore != nil {
-		background.Go(func() { archive.RunScheduler(ctx, archiver, env.ArchiveScheduleInterval) })
-	} else {
+	if archiveStore == nil {
 		slog.Info("Archive storage not configured; archive scheduler not started")
+	} else if !env.ArchiveSchedulerEnabled {
+		slog.Info("Archive scheduler disabled")
+	} else {
+		background.Go(func() { archive.RunScheduler(ctx, archiver) })
 	}
 	httpDone := make(chan error, 1)
 	go func() { httpDone <- httpServer.Start() }()

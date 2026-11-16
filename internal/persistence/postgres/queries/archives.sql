@@ -1,11 +1,18 @@
 -- name: SetArchivePolicy :execrows
-INSERT INTO archive_policies (client_id, archive_after_weeks)
-SELECT c.id, sqlc.arg(archive_after_weeks)
+INSERT INTO archive_policies (client_id, archive_after_weeks, next_run_at)
+SELECT c.id, sqlc.arg(archive_after_weeks)::integer,
+       now() + sqlc.arg(archive_after_weeks)::integer * interval '168 hours'
 FROM clients c
 WHERE c.id = sqlc.arg(client_id)
   AND c.project_id = sqlc.arg(project_id)
 ON CONFLICT (client_id) DO UPDATE
-SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now(), next_run_at = now();
+SET archive_after_weeks = EXCLUDED.archive_after_weeks,
+    updated_at = now(),
+    next_run_at = CASE
+        WHEN archive_policies.archive_after_weeks <> EXCLUDED.archive_after_weeks
+        THEN EXCLUDED.next_run_at
+        ELSE archive_policies.next_run_at
+    END;
 
 -- name: GetArchivePolicy :one
 SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks
@@ -42,8 +49,16 @@ ORDER BY p.next_run_at, p.client_id;
 
 -- name: ScheduleArchivePolicy :exec
 UPDATE archive_policies
+SET next_run_at = now() + archive_after_weeks * interval '168 hours'
+WHERE client_id = sqlc.arg(client_id)
+  AND next_run_at = sqlc.arg(expected_run_at)::timestamptz;
+
+-- name: RetryArchivePolicy :one
+UPDATE archive_policies
 SET next_run_at = now() + sqlc.arg(delay_seconds)::bigint * interval '1 second'
-WHERE client_id = sqlc.arg(client_id);
+WHERE client_id = sqlc.arg(client_id)
+  AND next_run_at <= now()
+RETURNING next_run_at;
 
 -- name: InsertBuildingArchive :one
 INSERT INTO archives (

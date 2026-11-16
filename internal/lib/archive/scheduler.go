@@ -18,15 +18,11 @@ const (
 	schedulerRetryDelay = 15 * time.Minute
 )
 
-func RunScheduler(ctx context.Context, service *Service, interval time.Duration) {
-	if interval <= 0 {
-		slog.Info("Archive scheduler disabled")
-		return
-	}
+func RunScheduler(ctx context.Context, service *Service) {
 	ticker := time.NewTicker(schedulerPoll)
 	defer ticker.Stop()
 	for {
-		if _, _, err := service.RunDue(ctx, interval); err != nil && ctx.Err() == nil {
+		if _, _, err := service.RunDue(ctx); err != nil && ctx.Err() == nil {
 			slog.Error("Archive scheduler pass failed", "error", err)
 		}
 		select {
@@ -38,10 +34,10 @@ func RunScheduler(ctx context.Context, service *Service, interval time.Duration)
 }
 
 // RunDue archives every due client while holding the scheduler lock, then
-// schedules each one interval later. locked is false when another instance is
-// running a pass. Per-client failures are logged and retried sooner than the
-// interval instead of failing the pass.
-func (a *Service) RunDue(ctx context.Context, interval time.Duration) (processed int, locked bool, err error) {
+// schedules each one its policy's number of weeks later. locked is false when
+// another instance is running a pass. Per-client failures are logged and retried
+// after 15 minutes instead of waiting for the next full policy interval.
+func (a *Service) RunDue(ctx context.Context) (processed int, locked bool, err error) {
 	if a.store == nil {
 		return 0, false, nil
 	}
@@ -56,7 +52,14 @@ func (a *Service) RunDue(ctx context.Context, interval time.Duration) (processed
 			}
 			scope := Scope{ProjectID: row.ProjectID, ClientID: row.ClientID}
 			// A crash mid-build retries after the delay rather than on every tick.
-			a.schedule(ctx, scope.ClientID, schedulerRetryDelay)
+			retryAt, err := a.scheduleRetry(ctx, scope.ClientID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				// The policy was disabled or rescheduled since the due list was read.
+				continue
+			}
+			if err != nil {
+				return err
+			}
 			processed++
 			result, err := a.Create(ctx, scope)
 			switch {
@@ -70,7 +73,7 @@ func (a *Service) RunDue(ctx context.Context, interval time.Duration) (processed
 				if result.Outcome == Created {
 					slog.Info("Scheduled archive created", "clientId", scope.ClientID, "logs", result.Archive.LogCount)
 				}
-				a.schedule(ctx, scope.ClientID, interval)
+				a.schedule(ctx, scope.ClientID, retryAt)
 			}
 		}
 		return nil
@@ -78,11 +81,24 @@ func (a *Service) RunDue(ctx context.Context, interval time.Duration) (processed
 	return processed, locked, err
 }
 
-func (a *Service) schedule(ctx context.Context, clientID uuid.UUID, delay time.Duration) {
+func (a *Service) scheduleRetry(ctx context.Context, clientID uuid.UUID) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	next, err := sqlc.New(a.pool).RetryArchivePolicy(ctx, sqlc.RetryArchivePolicyParams{
+		ClientID: clientID, DelaySeconds: int64(schedulerRetryDelay / time.Second),
+	})
+	if err != nil {
+		return time.Time{}, fmt.Errorf("schedule archive retry for %s: %w", clientID, err)
+	}
+	return next, nil
+}
+
+func (a *Service) schedule(ctx context.Context, clientID uuid.UUID, expectedRunAt time.Time) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	// A policy edit during the build owns its new deadline; do not overwrite it.
 	if err := sqlc.New(a.pool).ScheduleArchivePolicy(ctx, sqlc.ScheduleArchivePolicyParams{
-		ClientID: clientID, DelaySeconds: int64(delay / time.Second),
+		ClientID: clientID, ExpectedRunAt: expectedRunAt,
 	}); err != nil {
 		slog.Error("Couldn't schedule archive policy", "clientId", clientID, "error", err)
 	}

@@ -490,30 +490,58 @@ func (q *Queries) ReleaseArchiveLogs(ctx context.Context, arg ReleaseArchiveLogs
 	return err
 }
 
-const scheduleArchivePolicy = `-- name: ScheduleArchivePolicy :exec
+const retryArchivePolicy = `-- name: RetryArchivePolicy :one
 UPDATE archive_policies
 SET next_run_at = now() + $1::bigint * interval '1 second'
 WHERE client_id = $2
+  AND next_run_at <= now()
+RETURNING next_run_at
 `
 
-type ScheduleArchivePolicyParams struct {
+type RetryArchivePolicyParams struct {
 	DelaySeconds int64
 	ClientID     uuid.UUID
 }
 
+func (q *Queries) RetryArchivePolicy(ctx context.Context, arg RetryArchivePolicyParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, retryArchivePolicy, arg.DelaySeconds, arg.ClientID)
+	var next_run_at time.Time
+	err := row.Scan(&next_run_at)
+	return next_run_at, err
+}
+
+const scheduleArchivePolicy = `-- name: ScheduleArchivePolicy :exec
+UPDATE archive_policies
+SET next_run_at = now() + archive_after_weeks * interval '168 hours'
+WHERE client_id = $1
+  AND next_run_at = $2::timestamptz
+`
+
+type ScheduleArchivePolicyParams struct {
+	ClientID      uuid.UUID
+	ExpectedRunAt time.Time
+}
+
 func (q *Queries) ScheduleArchivePolicy(ctx context.Context, arg ScheduleArchivePolicyParams) error {
-	_, err := q.db.Exec(ctx, scheduleArchivePolicy, arg.DelaySeconds, arg.ClientID)
+	_, err := q.db.Exec(ctx, scheduleArchivePolicy, arg.ClientID, arg.ExpectedRunAt)
 	return err
 }
 
 const setArchivePolicy = `-- name: SetArchivePolicy :execrows
-INSERT INTO archive_policies (client_id, archive_after_weeks)
-SELECT c.id, $1
+INSERT INTO archive_policies (client_id, archive_after_weeks, next_run_at)
+SELECT c.id, $1::integer,
+       now() + $1::integer * interval '168 hours'
 FROM clients c
 WHERE c.id = $2
   AND c.project_id = $3
 ON CONFLICT (client_id) DO UPDATE
-SET archive_after_weeks = EXCLUDED.archive_after_weeks, updated_at = now(), next_run_at = now()
+SET archive_after_weeks = EXCLUDED.archive_after_weeks,
+    updated_at = now(),
+    next_run_at = CASE
+        WHEN archive_policies.archive_after_weeks <> EXCLUDED.archive_after_weeks
+        THEN EXCLUDED.next_run_at
+        ELSE archive_policies.next_run_at
+    END
 `
 
 type SetArchivePolicyParams struct {
