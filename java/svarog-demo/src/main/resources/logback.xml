@@ -1,0 +1,7 @@
+<configuration>
+  <appender name="LIBRARY" class="dev.jerkic.svarog.logback.DemoAppender"/>
+
+  <root level="INFO">
+    <appender-ref ref="LIBRARY"/>
+  </root>
+</configuration>
