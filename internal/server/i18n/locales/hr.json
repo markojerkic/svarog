@@ -176,8 +176,8 @@
   "archives.created_list_failed": {
     "other": "Arhiva je izrađena, ali popis nije moguće osvježiti. Ponovno otvorite panel arhiviranja."
   },
-  "archives.completed": { "other": "Dovršene arhive" },
-  "archives.empty": { "other": "Nema dovršenih arhiva." },
+  "archives.completed": { "other": "Kreirane arhive" },
+  "archives.empty": { "other": "Nema kreiranih arhiva." },
   "archives.summary": {
     "one": "{{.Count}} log · {{.Size}}",
     "few": "{{.Count}} loga · {{.Size}}",
