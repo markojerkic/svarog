@@ -130,7 +130,12 @@ public final class DemoAppender extends UnsynchronizedAppenderBase<ILoggingEvent
                 interrupted = true;
             }
         }
-        closeHelper();
+        // awaitReady closed stdout; the forced exit status is expected, not an error.
+        try {
+            helper.getOutputStream().close();
+        } catch (IOException e) {
+            addError("Failed to close Go helper input", e);
+        }
         helper = null;
         if (interrupted) {
             Thread.currentThread().interrupt();
