@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -107,6 +108,16 @@ func TestSharedClientDelivery(t *testing.T) {
 		output, err := build.CombinedOutput()
 		require.NoError(t, err, "build the real bridge executable: %s", output)
 
+		for _, connectionURL := range []string{"", "not-a-svarog-url"} {
+			command := exec.CommandContext(broker.ctx, binary)
+			command.Env = append(os.Environ(), "SVAROG_CONN_STRING="+connectionURL)
+			var stdout, stderr bytes.Buffer
+			command.Stdout, command.Stderr = &stdout, &stderr
+			require.Error(t, command.Run(), "invalid local configuration must fail startup")
+			require.Empty(t, stdout.String(), "invalid local configuration must never announce readiness")
+			require.NotEmpty(t, stderr.String(), "startup failure must explain the configuration error on stderr")
+		}
+
 		at := time.Date(2026, 11, 16, 10, 0, 0, 123456789, time.UTC)
 		message := "Java \"message\" čćž\nsecond line"
 		payload, err := json.Marshal(map[string]any{"message": message, "timestamp": at})
@@ -125,22 +136,44 @@ func TestSharedClientDelivery(t *testing.T) {
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				connectionURL, stream, _ := broker.stream(t, jetstream.StreamConfig{NoAck: test.noAck})
-				command := exec.CommandContext(broker.ctx, binary)
+				ctx, cancel := context.WithTimeout(broker.ctx, 15*time.Second)
+				defer cancel()
+				command := exec.CommandContext(ctx, binary)
 				command.Env = append(os.Environ(),
 					"SVAROG_CONN_STRING="+connectionURL,
 					"SVAROG_INSTANCE_ID=java-bridge",
 				)
-				command.Stdin = strings.NewReader(string(payload) + "\n" + test.suffix)
-				var stdout, stderr bytes.Buffer
-				command.Stdout, command.Stderr = &stdout, &stderr
-				err := command.Run()
+				input, err := command.StdinPipe()
+				require.NoError(t, err, "open the bridge input without sending any logs yet")
+				output, err := command.StdoutPipe()
+				require.NoError(t, err, "read the startup response separately from log input")
+				var stderr bytes.Buffer
+				command.Stderr = &stderr
+				require.NoError(t, command.Start(), "start the real bridge before sending logs")
+				t.Cleanup(func() {
+					_ = input.Close()
+					cancel()
+					if command.ProcessState == nil {
+						_ = command.Wait()
+					}
+				})
+				stdout := bufio.NewReader(output)
+				ready, err := stdout.ReadString('\n')
+				require.NoError(t, err, "readiness must arrive before the first log or EOF")
+				require.Equal(t, "{\"v\":1,\"op\":\"ready\"}\n", ready, "readiness must identify the supported local startup protocol")
+				_, err = io.WriteString(input, string(payload)+"\n"+test.suffix)
+				require.NoError(t, err, "send source records only after the helper announces readiness")
+				require.NoError(t, input.Close(), "EOF must initiate the publisher drain")
+				remaining, err := io.ReadAll(stdout)
+				require.NoError(t, err, "read the rest of stdout before waiting for the helper")
+				err = command.Wait()
 				if test.expectedError == "" {
 					require.NoError(t, err, "EOF must drain accepted records before a successful exit: %s", stderr.String())
 				} else {
 					require.Error(t, err, "input or drain failures must produce an unsuccessful process exit")
 					require.Contains(t, stderr.String(), test.expectedError, "diagnostics must explain the input or drain failure")
 				}
-				require.Empty(t, stdout.String(), "the helper must not echo logs or pretend to send IPC acknowledgements")
+				require.Empty(t, remaining, "the helper must emit exactly one ready response and no per-log acknowledgements")
 
 				info, err := stream.Info(broker.ctx)
 				require.NoError(t, err, "inspect the real broker after the helper has exited")

@@ -18,25 +18,3 @@ export SVAROG_INSTANCE_ID='java-demo' # Optional.
 SVAROG_BRIDGE_PATH=/tmp/opencode/svarog-bridge \
   ./java/mvnw -f java/svarog-demo/pom.xml exec:java
 ```
-
-The helper inherits `SVAROG_CONN_STRING` and `SVAROG_INSTANCE_ID` from the Java
-process. It forwards the message and original logging timestamp through the
-shared Go publisher to NATS JetStream. Messages are no longer printed locally:
-look for `Hello from svarog-demo!` in Svarog after ingestion.
-
-Flow: SLF4J → Logback → `DemoAppender` → JSON over stdin → Go helper →
-`svarogclient` → NATS JetStream.
-
-The demo explicitly stops its Logback context in `finally`, which stops the
-appender, closes stdin (EOF), and waits for the helper to exit before Maven closes
-the application classloader. The helper gives the shared publisher up to four
-seconds to obtain broker acknowledgements. This is not a PostgreSQL persistence
-confirmation. Helper stderr is inherited; stdout is discarded.
-`SVAROG_BRIDGE_PATH` must point to the built executable, not a `go run` command.
-
-This is still a synchronous prototype: no IPC acknowledgements, automatic restart
-or handling of stalled pipe writes. Publication retries and bounded buffering are
-provided by the shared Go publisher. Helper failures are reported locally by the
-appender, not returned by SLF4J logging calls or reflected in Maven's build status.
-The appender's five-second exit wait starts after stdin is closed; it is not a
-total shutdown deadline.

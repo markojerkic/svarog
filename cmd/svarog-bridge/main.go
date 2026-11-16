@@ -32,6 +32,11 @@ func run() (result error) {
 		result = errors.Join(result, client.Shutdown(ctx))
 	}()
 
+	// This confirms local configuration only; the publisher connects lazily.
+	if _, err := fmt.Fprintln(os.Stdout, `{"v":1,"op":"ready"}`); err != nil {
+		return fmt.Errorf("write ready response: %w", err)
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 4096), 4*1024*1024)
 
