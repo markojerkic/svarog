@@ -67,7 +67,7 @@ func newArchiveTestServer(t *testing.T, archiver archive.Archiver) *echo.Echo {
 			return next(c)
 		}
 	})
-	handlers.NewArchiveRouter(archiver, archiveAccessAuth{}, archiveAccessProjects{}, root)
+	handlers.NewArchiveRouter(archiver, true, archiveAccessAuth{}, archiveAccessProjects{}, root)
 	return e
 }
 

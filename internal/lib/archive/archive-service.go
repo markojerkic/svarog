@@ -172,7 +172,7 @@ func (a *Service) Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (D
 }
 
 func getPolicy(ctx context.Context, db sqlc.DBTX, scope Scope) (Policy, error) {
-	weeks, err := sqlc.New(db).GetArchivePolicy(ctx, sqlc.GetArchivePolicyParams{
+	record, err := sqlc.New(db).GetArchivePolicy(ctx, sqlc.GetArchivePolicyParams{
 		ProjectID: scope.ProjectID, ClientID: scope.ClientID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -181,7 +181,11 @@ func getPolicy(ctx context.Context, db sqlc.DBTX, scope Scope) (Policy, error) {
 	if err != nil {
 		return Policy{}, fmt.Errorf("get archive policy: %w", err)
 	}
-	return Policy{Enabled: weeks > 0, ArchiveAfterWeeks: int(weeks)}, nil
+	return Policy{
+		Enabled:           record.ArchiveAfterWeeks > 0,
+		ArchiveAfterWeeks: int(record.ArchiveAfterWeeks),
+		NextRunAt:         record.NextRunAt.Time,
+	}, nil
 }
 
 func (a *Service) create(ctx context.Context, conn *pgx.Conn, scope Scope, policy Policy) (result CreateResult, err error) {

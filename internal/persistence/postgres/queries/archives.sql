@@ -15,7 +15,8 @@ SET archive_after_weeks = EXCLUDED.archive_after_weeks,
     END;
 
 -- name: GetArchivePolicy :one
-SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks
+SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks,
+       p.next_run_at
 FROM clients c
 LEFT JOIN archive_policies p ON p.client_id = c.id
 WHERE c.id = sqlc.arg(client_id)

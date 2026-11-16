@@ -168,14 +168,15 @@ func main() {
 
 	httpServer := http.NewServer(
 		http.HttpServerOptions{
-			ServerPort:            env.HttpServerPort,
-			SessionStore:          sessionStore,
-			LogService:            logsService,
-			AuthService:           authService,
-			ProjectsService:       projectsService,
-			Archiver:              archiver,
-			NatsCredentialService: natsCredService,
-			LiveLogs:              liveLogs,
+			ServerPort:              env.HttpServerPort,
+			SessionStore:            sessionStore,
+			LogService:              logsService,
+			AuthService:             authService,
+			ProjectsService:         projectsService,
+			Archiver:                archiver,
+			ArchiveSchedulerEnabled: env.ArchiveSchedulerEnabled && archiveStore != nil,
+			NatsCredentialService:   natsCredService,
+			LiveLogs:                liveLogs,
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())

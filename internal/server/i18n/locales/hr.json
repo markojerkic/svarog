@@ -132,6 +132,10 @@
   "archives.rule_off": { "other": "Isključeno" },
   "archives.rule_off_hint": { "other": "Nema aktivnog pravila." },
   "archives.rule_on": { "other": "Uključeno za sve instance." },
+  "archives.next_run": { "other": "Sljedeće automatsko arhiviranje: {{.Date}}" },
+  "archives.schedule_disabled": {
+    "other": "Automatsko arhiviranje isključeno je na poslužitelju."
+  },
   "archives.rule_age": {
     "one": "Starije od {{.Count}} tjedna",
     "few": "Starije od {{.Count}} tjedna",

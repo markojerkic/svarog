@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const claimArchiveLogs = `-- name: ClaimArchiveLogs :execrows
@@ -92,7 +93,8 @@ func (q *Queries) DeleteBuildingArchive(ctx context.Context, arg DeleteBuildingA
 }
 
 const getArchivePolicy = `-- name: GetArchivePolicy :one
-SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks
+SELECT COALESCE(p.archive_after_weeks, 0)::integer AS archive_after_weeks,
+       p.next_run_at
 FROM clients c
 LEFT JOIN archive_policies p ON p.client_id = c.id
 WHERE c.id = $1
@@ -104,11 +106,16 @@ type GetArchivePolicyParams struct {
 	ProjectID uuid.UUID
 }
 
-func (q *Queries) GetArchivePolicy(ctx context.Context, arg GetArchivePolicyParams) (int32, error) {
+type GetArchivePolicyRow struct {
+	ArchiveAfterWeeks int32
+	NextRunAt         pgtype.Timestamptz
+}
+
+func (q *Queries) GetArchivePolicy(ctx context.Context, arg GetArchivePolicyParams) (GetArchivePolicyRow, error) {
 	row := q.db.QueryRow(ctx, getArchivePolicy, arg.ClientID, arg.ProjectID)
-	var archive_after_weeks int32
-	err := row.Scan(&archive_after_weeks)
-	return archive_after_weeks, err
+	var i GetArchivePolicyRow
+	err := row.Scan(&i.ArchiveAfterWeeks, &i.NextRunAt)
+	return i, err
 }
 
 const getBuildingArchive = `-- name: GetBuildingArchive :one

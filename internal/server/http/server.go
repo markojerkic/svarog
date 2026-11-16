@@ -19,25 +19,27 @@ import (
 )
 
 type HttpServer struct {
-	logService            db.LogService
-	sessionStore          sessions.Store
-	authService           auth.AuthService
-	projectsService       projects.ProjectsService
-	archiver              archive.Archiver
-	natsCredentialService *serverauth.NatsCredentialService
-	liveLogs              *live.Logs
+	logService              db.LogService
+	sessionStore            sessions.Store
+	authService             auth.AuthService
+	projectsService         projects.ProjectsService
+	archiver                archive.Archiver
+	archiveSchedulerEnabled bool
+	natsCredentialService   *serverauth.NatsCredentialService
+	liveLogs                *live.Logs
 
 	server *stdhttp.Server
 }
 
 type HttpServerOptions struct {
-	LogService            db.LogService
-	SessionStore          sessions.Store
-	AuthService           auth.AuthService
-	ProjectsService       projects.ProjectsService
-	Archiver              archive.Archiver
-	NatsCredentialService *serverauth.NatsCredentialService
-	LiveLogs              *live.Logs
+	LogService              db.LogService
+	SessionStore            sessions.Store
+	AuthService             auth.AuthService
+	ProjectsService         projects.ProjectsService
+	Archiver                archive.Archiver
+	ArchiveSchedulerEnabled bool
+	NatsCredentialService   *serverauth.NatsCredentialService
+	LiveLogs                *live.Logs
 
 	ServerPort int
 }
@@ -65,7 +67,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
 	handlers.NewLogsRouter(self.logService, self.authService, self.projectsService, privateApi)
-	handlers.NewArchiveRouter(self.archiver, self.authService, self.projectsService, privateApi)
+	handlers.NewArchiveRouter(self.archiver, self.archiveSchedulerEnabled, self.authService, self.projectsService, privateApi)
 	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
 	handlers.NewWsConnectionRouter(self.liveLogs, self.authService, self.projectsService, privateApi)
 
@@ -87,14 +89,15 @@ func (self *HttpServer) Shutdown(ctx context.Context) error {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logService:            options.LogService,
-		sessionStore:          options.SessionStore,
-		server:                &stdhttp.Server{Addr: fmt.Sprintf(":%d", options.ServerPort)},
-		authService:           options.AuthService,
-		projectsService:       options.ProjectsService,
-		archiver:              options.Archiver,
-		natsCredentialService: options.NatsCredentialService,
-		liveLogs:              options.LiveLogs,
+		logService:              options.LogService,
+		sessionStore:            options.SessionStore,
+		server:                  &stdhttp.Server{Addr: fmt.Sprintf(":%d", options.ServerPort)},
+		authService:             options.AuthService,
+		projectsService:         options.ProjectsService,
+		archiver:                options.Archiver,
+		archiveSchedulerEnabled: options.ArchiveSchedulerEnabled,
+		natsCredentialService:   options.NatsCredentialService,
+		liveLogs:                options.LiveLogs,
 	}
 
 	return server

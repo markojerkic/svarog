@@ -45,9 +45,10 @@ templ SettingsSheet() {
 }
 
 type SettingsFormProps struct {
-	ProjectID string
-	ClientID  string
-	Policy    archive.Policy
+	ProjectID        string
+	ClientID         string
+	Policy           archive.Policy
+	SchedulerEnabled bool
 }
 
 templ ViewSwitch(projectID, clientID, active string) {
@@ -105,13 +106,27 @@ templ Rule(props SettingsFormProps) {
 				{ i18n.T(ctx, "archives.rule_off_hint") }
 			}
 		</p>
+		@nextRun(props)
 	</div>
+}
+
+templ nextRun(props SettingsFormProps) {
+	if props.Policy.Enabled {
+		if !props.SchedulerEnabled {
+			<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.schedule_disabled") }</p>
+		} else if !props.Policy.NextRunAt.IsZero() {
+			<p class="text-xs text-muted-foreground">
+				{ i18n.Format(ctx, i18n.Message{ID: "archives.next_run", Data: map[string]any{"Date": formatArchiveTime(ctx, props.Policy.NextRunAt)}}) }
+			</p>
+		}
+	}
 }
 
 templ SettingsEditor(props SettingsFormProps) {
 	<div id="log-archive-view" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-6">
 		@ViewSwitch(props.ProjectID, props.ClientID, "settings")
 		@SettingsForm(props)
+		@nextRun(props)
 	</div>
 }
 
@@ -200,10 +215,12 @@ templ RunControl(props SettingsFormProps) {
 			},
 		}) {
 			<span class="svarog-indicator-container" aria-hidden="true">
-				<span data-fallback>@icon.Archive(icon.Props{Class: "size-3.5"})
-</span>
-				<span>@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})
-</span>
+				<span data-fallback>
+					@icon.Archive(icon.Props{Class: "size-3.5"})
+				</span>
+				<span>
+					@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})
+				</span>
 			</span>
 			<span class="svarog-indicator" data-fallback>{ i18n.T(ctx, "archives.run") }</span>
 			<span class="svarog-indicator" role="status">{ i18n.T(ctx, "archives.running") }</span>

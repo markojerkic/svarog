@@ -25,7 +25,8 @@ import (
 )
 
 type ArchiveRouter struct {
-	archiver archive.Archiver
+	archiver         archive.Archiver
+	schedulerEnabled bool
 }
 
 type archiveSettingsForm struct {
@@ -37,11 +38,12 @@ type archiveSettingsForm struct {
 
 func NewArchiveRouter(
 	archiver archive.Archiver,
+	schedulerEnabled bool,
 	authService auth.AuthService,
 	projectsService projects.ProjectsService,
 	e *echo.Group,
 ) *ArchiveRouter {
-	router := &ArchiveRouter{archiver: archiver}
+	router := &ArchiveRouter{archiver: archiver, schedulerEnabled: schedulerEnabled}
 	group := e.Group(
 		"/logs/:projectId/:clientId/archives",
 		middleware.RequiresProjectAccessMiddleware(authService, projectsService),
@@ -71,9 +73,10 @@ func (a *ArchiveRouter) getPanel(c *echo.Context) error {
 	}
 	return utils.Render(c, http.StatusOK, archivecomponents.Panel(archivecomponents.PanelProps{
 		Settings: archivecomponents.SettingsFormProps{
-			ProjectID: scope.ProjectID.String(),
-			ClientID:  scope.ClientID.String(),
-			Policy:    policy,
+			ProjectID:        scope.ProjectID.String(),
+			ClientID:         scope.ClientID.String(),
+			Policy:           policy,
+			SchedulerEnabled: a.schedulerEnabled,
 		},
 		Page: page,
 	}))
@@ -171,9 +174,10 @@ func (a *ArchiveRouter) getSettings(c *echo.Context) error {
 		return archiveError(c, err, i18n.T(c.Request().Context(), "archives.load_failed"))
 	}
 	return utils.Render(c, http.StatusOK, archivecomponents.SettingsEditor(archivecomponents.SettingsFormProps{
-		ProjectID: scope.ProjectID.String(),
-		ClientID:  scope.ClientID.String(),
-		Policy:    policy,
+		ProjectID:        scope.ProjectID.String(),
+		ClientID:         scope.ClientID.String(),
+		Policy:           policy,
+		SchedulerEnabled: a.schedulerEnabled,
 	}))
 }
 
@@ -199,11 +203,16 @@ func (a *ArchiveRouter) saveSettings(c *echo.Context) error {
 	if err := a.archiver.SetPolicy(c.Request().Context(), scope, policy); err != nil {
 		return archiveError(c, err, i18n.T(c.Request().Context(), "archives.save_failed"))
 	}
+	policy, err = a.archiver.GetPolicy(c.Request().Context(), scope)
+	if err != nil {
+		return archiveError(c, err, i18n.T(c.Request().Context(), "archives.load_failed"))
+	}
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "archives.saved"))
 	return utils.Render(c, http.StatusOK, archivecomponents.SettingsEditor(archivecomponents.SettingsFormProps{
-		ProjectID: scope.ProjectID.String(),
-		ClientID:  scope.ClientID.String(),
-		Policy:    policy,
+		ProjectID:        scope.ProjectID.String(),
+		ClientID:         scope.ClientID.String(),
+		Policy:           policy,
+		SchedulerEnabled: a.schedulerEnabled,
 	}))
 }
 

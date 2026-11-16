@@ -130,6 +130,10 @@
   "archives.rule_off": { "other": "Disabled" },
   "archives.rule_off_hint": { "other": "No active rule." },
   "archives.rule_on": { "other": "Enabled for all instances." },
+  "archives.next_run": { "other": "Next automatic archiving: {{.Date}}" },
+  "archives.schedule_disabled": {
+    "other": "Automatic archiving is disabled on the server."
+  },
   "archives.rule_age": {
     "one": "Older than {{.Count}} week",
     "other": "Older than {{.Count}} weeks"

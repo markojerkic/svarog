@@ -42,7 +42,8 @@ const MaxArchiveAfterWeeks = int((1<<63 - 1) / (7 * 24 * time.Hour))
 
 type Policy struct {
 	Enabled           bool
-	ArchiveAfterWeeks int // age cutoff and automatic interval; 1..MaxArchiveAfterWeeks when enabled
+	ArchiveAfterWeeks int       // age cutoff and automatic interval; 1..MaxArchiveAfterWeeks when enabled
+	NextRunAt         time.Time // read-only persisted schedule; zero when disabled, ignored by SetPolicy
 }
 
 // Archive describes a completed ZIP without exposing its storage location.

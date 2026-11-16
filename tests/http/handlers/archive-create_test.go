@@ -155,7 +155,7 @@ func TestArchiveManualCreationRequiresAuthorizedAdmin(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			stub := &archiveCreateHTTPStub{}
 			server := echo.New()
-			handlers.NewArchiveRouter(stub,
+			handlers.NewArchiveRouter(stub, true,
 				&projectAccessAuthStub{allowed: test.allowed},
 				&projectAccessProjectsStub{belongs: test.belongs},
 				loggedInGroup(server, test.user))

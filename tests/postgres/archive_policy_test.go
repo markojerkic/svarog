@@ -37,10 +37,11 @@ func TestArchivePolicies(t *testing.T) {
 			want := archive.Policy{Enabled: true, ArchiveAfterWeeks: weeks}
 			savedAt := time.Now()
 			require.NoError(t, service.SetPolicy(ctx, scope, want), "set replaces the desired policy idempotently")
+			next := nextArchiveRun(t, ctx, pool, scope.ClientID)
+			want.NextRunAt = next
 			got, err := service.GetPolicy(ctx, scope)
 			require.NoError(t, err, "read the saved policy")
 			require.Equal(t, want, got, "the policy reflects the latest desired state")
-			next := nextArchiveRun(t, ctx, pool, scope.ClientID)
 			if weeks == previousWeeks {
 				require.Equal(t, previousNext, next, "saving an unchanged policy preserves its automatic schedule exactly")
 			} else {
@@ -54,6 +55,7 @@ func TestArchivePolicies(t *testing.T) {
 	t.Run("scope validation covers every operation", func(t *testing.T) {
 		want := archive.Policy{Enabled: true, ArchiveAfterWeeks: 20}
 		require.NoError(t, service.SetPolicy(ctx, scope, want), "set the initial policy for scope validation independently")
+		want.NextRunAt = nextArchiveRun(t, ctx, pool, scope.ClientID)
 		for _, invalid := range []archive.Scope{
 			{ProjectID: other.ID, ClientID: scope.ClientID},
 			{ProjectID: project.ID, ClientID: uuid.New()},
@@ -98,6 +100,7 @@ func TestArchivePolicies(t *testing.T) {
 		inactive := archive.Scope{ProjectID: other.ID, ClientID: clientByName(t, other, "api")}
 		want := archive.Policy{Enabled: true, ArchiveAfterWeeks: 6}
 		require.NoError(t, service.SetPolicy(ctx, inactive, want), "enable archiving before deactivation")
+		want.NextRunAt = nextArchiveRun(t, ctx, pool, inactive.ClientID)
 		_, err := projectsService.UpdateProject(ctx, other.ID, other.Name, nil)
 		require.NoError(t, err, "deactivate the client without removing history")
 		got, err := service.GetPolicy(ctx, inactive)
