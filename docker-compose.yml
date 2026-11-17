@@ -3,7 +3,7 @@ include:
 
 services:
   svarog:
-    image: markojerkic/svarog:latest
+    image: ghcr.io/markojerkic/svarog:${SVAROG_VERSION:-local}
     container_name: svarog
     build:
       context: .
