@@ -1,51 +1,80 @@
-const palette = [
-  "#3b82f6", // blue
-  "#d97706", // orange
-  "#a855f7", // purple
-  "#0d9488", // teal
-  "#db2777", // pink
-  "#65a30d", // lime
-  "#ef4444", // red
-  "#64748b", // slate
-];
-const observers = new WeakMap();
-
-function paletteFor(clientId) {
-  // A client-specific hash gives a reproducible ordering without storing a seed.
-  return palette
-    .map((color) => {
-      let rank = 2166136261;
-      for (const char of `${clientId}:${color}`) {
-        rank = Math.imul(rank ^ char.charCodeAt(0), 16777619);
-      }
-      return { color, rank: rank >>> 0 };
-    })
-    .sort((a, b) => a.rank - b.rank)
-    .map(({ color }) => color);
+function hash(value) {
+  let rank = 2166136261;
+  for (const char of String(value)) {
+    rank = Math.imul(rank ^ char.charCodeAt(0), 16777619);
+  }
+  return rank >>> 0;
 }
+
+// Mid lightness and chroma stay readable on the white card and on the dark card.
+function paint(hue) {
+  const wrapped = ((hue % 360) + 360) % 360;
+  return `oklch(0.6 0.16 ${wrapped.toFixed(1)})`;
+}
+
+// The next live instance sits in the middle of the largest open arc.
+function widestHue(hues) {
+  const sorted = [...hues].sort((a, b) => a - b);
+  let bestGap = -1;
+  let best = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const start = sorted[i];
+    const end = sorted[(i + 1) % sorted.length];
+    const gap = (end - start + 360) % 360 || 360;
+    if (gap > bestGap) {
+      bestGap = gap;
+      best = (start + gap / 2) % 360;
+    }
+  }
+  return best;
+}
+
+const observers = new WeakMap();
 
 window.templ.lifecycle.register("#log-scroll-container", {
   init(container) {
-    const clientPalette = paletteFor(container.dataset.logClientId || "");
-    const colors = new Map();
-    function colorFor(instance) {
-      if (!colors.has(instance)) {
-        colors.set(instance, clientPalette[colors.size % clientPalette.length]);
+    // The full client list is the set being colored. Even steps around the
+    // wheel keep every pair apart; a short palette folded by list index made
+    // unrelated names identical and put warm hues next to each other.
+    const offset = hash(container.dataset.logClientId || "") % 360;
+    let names = [];
+    try {
+      const parsed = JSON.parse(container.dataset.logInstances || "[]");
+      if (Array.isArray(parsed)) names = parsed;
+    } catch {
+      names = [];
+    }
+    const seen = new Set();
+    const unique = [];
+    for (const name of names) {
+      if (typeof name === "string" && !seen.has(name)) {
+        seen.add(name);
+        unique.push(name);
       }
-      return colors.get(instance);
     }
-    // The complete client list keeps filtering and pagination from shifting colors.
-    for (const instance of JSON.parse(container.dataset.logInstances || "[]") || []) {
-      colorFor(instance);
+    const hues = new Map();
+    const step = unique.length > 0 ? 360 / unique.length : 0;
+    const taken = unique.map((name, index) => {
+      const hue = (offset + index * step) % 360;
+      hues.set(name, hue);
+      return hue;
+    });
+    function colorFor(instance) {
+      if (!hues.has(instance)) {
+        const hue = taken.length === 0 ? (offset + hash(instance)) % 360 : widestHue(taken);
+        hues.set(instance, hue);
+        taken.push(hue);
+      }
+      return paint(hues.get(instance));
     }
-    function paint(row) {
+    function paintRow(row) {
       if (row instanceof Element && row.matches("pre[data-instance-id]")) {
         row.style.borderLeftColor = colorFor(row.dataset.instanceId);
       }
     }
-    container.querySelectorAll("pre[data-instance-id]").forEach(paint);
+    container.querySelectorAll("pre[data-instance-id]").forEach(paintRow);
     const observer = new MutationObserver((records) => {
-      for (const record of records) record.addedNodes.forEach(paint);
+      for (const record of records) record.addedNodes.forEach(paintRow);
     });
     observer.observe(container, { childList: true });
     observers.set(container, observer);
