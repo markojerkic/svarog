@@ -84,6 +84,11 @@ tasks:
       - go tool templ generate ./...
       - CGO_ENABLED=0 go build -ldflags '-w -s' -o {{.OUT | default "/tmp/svarog-server"}} ./cmd/server
 
+  build:client:
+    desc: Build Linux CLI archives for amd64 and arm64 with checksums
+    cmds:
+      - bash scripts/build-client-binaries.sh "{{.OUT | default "build/client"}}"
+
   clean-tmp:
     desc: Clean Go temporary build files from /tmp
     cmds:
