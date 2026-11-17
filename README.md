@@ -1,198 +1,148 @@
 # Svarog
 
-A modern log aggregation and monitoring system that collects logs from distributed clients via NATS messaging and provides a web interface for viewing and analyzing them in real-time.
+Svarog collects application logs over NATS, stores them in PostgreSQL and shows
+them in a web UI.
 
-## Features
+- Projects with clients, each sending logs from one or more named instances.
+- Live tailing, substring search, date ranges and context around a log line.
+- Scheduled and manual ZIP archiving per client, on disk or in S3-compatible storage.
+- User accounts with per-project access.
 
-- Real-time log streaming via WebSocket
-- Project-based log organization
-- Full-text search and filtering
-- Log archiving and retention policies
-- Authentication and access control
-- Responsive web interface with HTMX
+Applications pipe their output into the Svarog client, which publishes it to
+NATS JetStream; the server stores it in PostgreSQL and streams new lines to the UI.
 
-## Architecture
+## Server
 
-Svarog uses a NATS-based pub/sub architecture for reliable log ingestion:
+[docker-compose.prod.yml](docker-compose.prod.yml) runs the server and an
+authenticated NATS server. PostgreSQL is not included and must already exist.
+`POSTGRES_URL` must be a direct connection, not a transaction-pooling proxy, and
+its user must be able to create the `pg_trgm` extension unless it already exists.
 
-- **Clients** pipe their application logs to the Svarog client, which publishes them to a NATS server
-- **NATS** acts as the message broker, ensuring reliable delivery and decoupling clients from the server
-- **Server** subscribes to NATS topics, stores logs in PostgreSQL, and serves them via HTTP/WebSocket.
-- **Web UI** provides real-time log viewing with filtering, search, and project management
+### NATS credentials
 
-### Connection Model
-
-Clients connect using a generated connection URL that contains all necessary configuration:
-
-```
-svarog://nats-server:port/logs.project.client?token=authentication_token
-```
-
-This URL format provides:
-
-- **NATS server address** (`nats-server:port`)
-- **Topic hierarchy** (`logs.project.client`) for organizing logs by project and client
-- **Authentication token** for secure access
-
-The server generates these connection URLs through the web interface, making it easy to integrate new clients with a simple copy/paste workflow.
-
-## Development
-
-Use Go 1.27.3 or newer and Bun 1.4.3.
-
-Start the development environment with hot reload:
+From a checkout of this repository, run:
 
 ```bash
-task db                    # Start PostgreSQL and NATS in Docker (no schema changes)
-task dev                   # Start dependencies and server with hot reload
+go run ./cmd/nats-setup
 ```
 
-Database migrations use [Goose](https://github.com/pressly/goose) and run automatically
+It prints values for `.env` and a configuration to save as
+`$SVAROG_DEPLOY_DIR/nats-server.conf`. Append JetStream storage to that file:
 
-### Log demo applications
-
-Copy `.env.log-demo.example` to `.env.log-demo` and fill in the generated client
-connection URLs, then run against an existing Svarog server:
-
-```bash
-docker compose -f docker-compose.log-demo.yml up -d --build
-```
-
-`demo-native` uses the Go library; the other demos pipe logs through the CLI.
-Set `NATIVE_CONN_STRING` for a separate client, or leave it empty to use
-`API_CONN_STRING`. Set `DEMO_INTERVAL` to change the generation rate.
-
-### Native Go logging
-
-Set `SVAROG_CONN_STRING` and configure global `slog` and `log` once:
-
-```go
-func run(ctx context.Context) (result error) {
-    closeLogging, err := svaroglog.Setup(ctx)
-    if err != nil {
-        return err
-    }
-    defer func() {
-        result = errors.Join(result, closeLogging())
-    }()
-
-    return runApplication(ctx) // use ordinary slog / log calls
+```conf
+jetstream {
+  store_dir: /data/jetstream
 }
-```
-
-Cancel `ctx` when stopping; cleanup waits up to five seconds for broker
-acknowledgements. Defaults: INFO to Svarog and stderr. The package is internal;
-see [the demo](cmd/log-interceptor-demo/main.go) for a complete example.
-
-### Docker Integration
-
-```Dockerfile
-FROM markojerkic/svarog-client:latest AS svarog
-
-FROM alpine:3.24.3
-
-COPY ./your-app .
-COPY --from=markojerkic/svarog-client:latest /svarog/client /svarog/client
-
-# Pipe application output to Svarog client
-CMD ["sh", "-c", "./your-app | /svarog/client"]
 ```
 
 ### Configuration
 
-Configure the client using the connection URL generated from the Svarog web interface. The URL can be provided either as a command-line argument or via the `SVAROG_CONN_STRING` environment variable.
+Create `.env`:
 
-**Via environment variable:**
-
-```yaml
-# docker-compose.yml
-version: "3"
-services:
-  your-app:
-    image: your-app:latest
-    environment:
-      - SVAROG_CONN_STRING=svarog://nats-server:4222/logs.myproject.myapp?token=generated_token
-      - SVAROG_INSTANCE_ID=app-instance-01 # Optional: defaults to hostname, which in docker is the container name
+```dotenv
+SVAROG_IMAGE=ghcr.io/markojerkic/svarog:latest
+# Absolute host directory containing nats-server.conf
+SVAROG_DEPLOY_DIR=/absolute/path/to/svarog
+# host.docker.internal is the Docker host; PostgreSQL must accept connections from containers
+POSTGRES_URL=postgres://svarog:password@host.docker.internal:5432/svarog
+SESSION_SECRET=replace-with-a-long-random-secret
+# Host and port clients use to reach NATS; written into connection URLs
+NATS_PUBLIC_ADDR=logs.example.com:4222
+# Printed by nats-setup
+NATS_ACCOUNT_SEED=...
+NATS_SERVER_USER_JWT=...
+NATS_SERVER_USER_SEED=...
 ```
 
-**Via command-line argument:**
+Optional settings:
+
+| Variable                    | Default     | Purpose                            |
+| --------------------------- | ----------- | ---------------------------------- |
+| `SVAROG_HTTP_BIND`          | `127.0.0.1` | Host address of the web UI         |
+| `SVAROG_HTTP_PORT`          | `1323`      | Host port of the web UI            |
+| `SVAROG_NATS_BIND`          | `0.0.0.0`   | Host address for NATS clients      |
+| `SVAROG_NATS_PORT`          | `4222`      | Host port for NATS clients         |
+| `LOG_LEVEL`                 | `info`      | Server log level                   |
+| `ARCHIVE_SCHEDULER_ENABLED` | `true`      | Run archive policies automatically |
+
+Other [ServerEnv](internal/server/types/env.go) settings, such as `ARCHIVE_S3_*`
+for S3 archive storage, must be added explicitly to the `svarog` service's
+`environment`; values in `.env` alone do not reach the container.
+
+Start the server:
 
 ```bash
-your-app | svarog-client "svarog://nats-server:4222/logs.myproject.myapp?token=generated_token"
+docker compose --env-file .env -f docker-compose.prod.yml up -d --pull always
 ```
 
-**Optional query parameters:**
+Migrations run on startup. A fresh database gets the user `admin` /
+`ADMINADMIN`, who must change the password at first login.
 
-- `debug=true` - Enable debug logging from the client
+The web UI listens on `127.0.0.1` by default. A reverse proxy in front of it
+must forward WebSocket upgrades for live logs and, when it terminates TLS, send
+`X-Forwarded-Proto: https` so session cookies are marked secure.
 
-**Environment variables:**
+## Client
 
-- `SVAROG_CONN_STRING` - The complete connection URL (if not provided as argument)
-- `SVAROG_INSTANCE_ID` - Custom instance identifier (defaults to hostname)
+In the web UI, create a project and a client, then copy the client's connection URL:
 
-### Command Line Usage
+```text
+svarog://<NATS_PUBLIC_ADDR>/logs.<project-uuid>.<client-uuid>?token=<credentials>
+```
+
+The token contains NATS credentials, so treat the URL as a secret. The client
+prints each line it sends to standard output; append `&debug=true` to the URL
+for verbose diagnostics on stderr.
+
+| Variable             | Description                                                               |
+| -------------------- | ------------------------------------------------------------------------- |
+| `SVAROG_CONN_STRING` | Connection URL, unless it is passed as the first argument                 |
+| `SVAROG_INSTANCE_ID` | Optional instance name; defaults to the hostname (container ID in Docker) |
+
+The client image contains a static `linux/amd64` binary at `/svarog/client`:
+
+```Dockerfile
+FROM ghcr.io/markojerkic/svarog-client:latest AS svarog
+
+FROM alpine:3.24.3
+COPY --from=svarog /svarog/client /usr/local/bin/svarog-client
+COPY ./your-app /app/your-app
+
+CMD ["sh", "-o", "pipefail", "-c", "/app/your-app 2>&1 | svarog-client"]
+```
+
+To let the client drain on `docker stop`, run the container with an init
+process, as the [CLI log demo](cmd/log-demo/compose.yml) does (`init: true`,
+`TINI_KILL_PROCESS_GROUP=1`).
+
+Outside Docker, build the CLI from a checkout of this repository:
 
 ```bash
-# Using environment variable
-export SVAROG_CONN_STRING="svarog://nats:4222/logs.proj.app?token=xyz"
-tail -f /var/log/app.log | svarog-client
-
-# Using command-line argument
-tail -f /var/log/app.log | svarog-client "svarog://nats:4222/logs.proj.app?token=xyz"
-
-# With debug enabled in URL
-tail -f /var/log/app.log | svarog-client "svarog://nats:4222/logs.proj.app?token=xyz&debug=true"
+go build -o svarog-client ./cmd/client
+tail -F /var/log/app.log | ./svarog-client "$SVAROG_CONN_STRING"
 ```
 
-## Server Deployment
+## Development
 
-Deploy the complete Svarog stack with NATS, PostgreSQL, and the web server:
+Requires Go 1.27.3+, Bun 1.4.3, Task and Docker. `task dev` uses the
+repository's development `.env` and `nats-server.conf`; do not reuse their
+credentials in production.
 
-```yaml
-# docker-compose.yml
-version: "3"
-services:
-  svarog-nats:
-    image: nats:2.15.1-alpine
-    container_name: svarog-nats
-    ports:
-      - 4222:4222
-      - 8222:8222 # HTTP monitoring
-    command: ["-js"] # Enable JetStream for persistence
-
-  svarog-server:
-    image: markojerkic/svarog:latest
-    container_name: svarog-server
-    ports:
-      - 1323:1323 # HTTP/WebSocket interface
-    environment:
-      - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
-      - NATS_URL=nats://svarog-nats:4222
-      - HTTP_SERVER_PORT=1323
-      - HTTP_SERVER_ALLOWED_ORIGINS=http://localhost:1323
-    depends_on:
-      svarog-postgres:
-        condition: service_healthy
-      svarog-nats:
-        condition: service_started
-
-  svarog-postgres:
-    image: postgres:18.6-alpine
-    container_name: svarog-postgres
-    environment:
-      POSTGRES_DB: svarog
-      POSTGRES_USER: svarog
-      POSTGRES_PASSWORD: svarog
-    ports:
-      - 5432:5432
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U svarog -d svarog"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
+```bash
+bun install --frozen-lockfile
+task dev   # PostgreSQL, NATS and the server with hot reload on http://localhost:7331
+task       # Build server and client images tagged :local
 ```
+
+To generate demo logs, paste client connection URLs into `.env.log-demo`:
+
+```bash
+cp .env.log-demo.example .env.log-demo   # then fill in the connection URLs
+docker compose -f docker-compose.log-demo.yml up -d --build
+```
+
+Integration examples:
+
+- [Go `slog` and `log`](cmd/log-interceptor-demo/main.go) through the internal
+  `svaroglog` package, which other Go modules cannot import.
+- [Java Logback](java/README.md) through a Go helper process.
