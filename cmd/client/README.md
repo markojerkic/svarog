@@ -1,7 +1,7 @@
 # Svarog CLI binaries
 
 Download `svarog-client` from the
-[latest CLI release](https://github.com/markojerkic/svarog/releases/tag/latest).
+[latest release](https://github.com/markojerkic/svarog/releases/tag/latest).
 Running the downloaded binary does not require Docker or Go.
 
 ## Download and run
@@ -24,7 +24,7 @@ From the repository root, using the Go version specified in `go.mod`:
 task build:client
 ```
 
-The task calls `scripts/build-client-binaries.sh` and writes:
+The task calls `scripts/build-binaries.sh` and writes:
 
 ```text
 build/client/
@@ -40,9 +40,10 @@ library.
 ## Publication
 
 `.github/workflows/publish-binaries.yml` runs on pushes to `master` and can also be
-started manually for `master`. It creates one GitHub Release tagged `latest`;
-later successful builds replace its three assets and move the tag to the build's
-commit. Existing historical releases are not deleted.
+started manually for `master`. Client and bridge archives share one GitHub
+Release tagged `latest` and one `checksums.txt`. Later successful builds replace
+the assets and move the tag to the build's commit. Existing historical releases
+are not deleted.
 
 Release updates are serialized so two builds cannot replace assets at the same
 time. Authentication uses the built-in `GITHUB_TOKEN` with `contents: write`;

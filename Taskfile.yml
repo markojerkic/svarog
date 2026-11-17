@@ -87,7 +87,17 @@ tasks:
   build:client:
     desc: Build Linux CLI archives for amd64 and arm64 with checksums
     cmds:
-      - bash scripts/build-client-binaries.sh "{{.OUT | default "build/client"}}"
+      - bash scripts/build-binaries.sh "{{.OUT | default "build/client"}}" client
+
+  build:bridge:
+    desc: Build Linux bridge archives for amd64 and arm64 with checksums
+    cmds:
+      - bash scripts/build-binaries.sh "{{.OUT | default "build/bridge"}}" svarog-bridge
+
+  build:binaries:
+    desc: Build Linux client and bridge archives with shared checksums
+    cmds:
+      - bash scripts/build-binaries.sh "{{.OUT | default "build/binaries"}}"
 
   clean-tmp:
     desc: Clean Go temporary build files from /tmp

@@ -1,4 +1,4 @@
-name: Publish CLI binaries
+name: Publish binaries
 
 on:
   push:
@@ -35,22 +35,24 @@ jobs:
       - name: Generate templates
         run: go tool templ generate ./...
 
-      - name: Build CLI archives
-        run: bash scripts/build-client-binaries.sh
+      - name: Build client and bridge archives
+        run: bash scripts/build-binaries.sh
 
-      - name: Publish latest CLI release
+      - name: Publish latest binaries release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          notes="$RUNNER_TEMP/client-release-notes.md"
-          printf 'Rolling CLI build from commit [%s](%s/%s/commit/%s).\n\nLinux amd64 and arm64 archives.\n' \
+          notes="$RUNNER_TEMP/binaries-release-notes.md"
+          printf 'Rolling binaries build from commit [%s](%s/%s/commit/%s).\n\nClient and bridge archives for Linux amd64 and arm64.\n' \
             "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > "$notes"
           assets=(
-            build/client/svarog-client_linux_amd64.tar.gz
-            build/client/svarog-client_linux_arm64.tar.gz
-            build/client/checksums.txt
+            build/binaries/svarog-client_linux_amd64.tar.gz
+            build/binaries/svarog-client_linux_arm64.tar.gz
+            build/binaries/svarog-bridge_linux_amd64.tar.gz
+            build/binaries/svarog-bridge_linux_arm64.tar.gz
+            build/binaries/checksums.txt
           )
           if gh release view latest > /dev/null 2>&1; then
             gh release upload latest "${assets[@]}" --clobber
@@ -58,9 +60,9 @@ jobs:
               -f sha="$GITHUB_SHA" -F force=true --silent
             gh release edit latest \
               --target "$GITHUB_SHA" \
-              --title "Latest CLI build" --notes-file "$notes" --latest
+              --title "Latest binaries" --notes-file "$notes" --latest
           else
             gh release create latest "${assets[@]}" \
               --target "$GITHUB_SHA" \
-              --title "Latest CLI build" --notes-file "$notes" --latest
+              --title "Latest binaries" --notes-file "$notes" --latest
           fi
