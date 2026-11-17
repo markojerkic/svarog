@@ -1,6 +1,8 @@
 package dev.jerkic.svarog.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -144,7 +146,11 @@ public final class DemoAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
     @Override
     protected void append(ILoggingEvent event) {
-        String message = event.getFormattedMessage();
+        String message = event.getLevel() + " " + event.getLoggerName() + " - " + event.getFormattedMessage();
+        IThrowableProxy throwable = event.getThrowableProxy();
+        if (throwable != null) {
+            message += "\n" + ThrowableProxyUtil.asString(throwable);
+        }
         String timestamp = event.getInstant().toString();
         JsonGenerator output = writer;
         if (output == null) {

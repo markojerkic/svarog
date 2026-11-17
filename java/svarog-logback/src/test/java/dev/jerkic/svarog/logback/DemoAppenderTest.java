@@ -4,14 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggingEvent;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,14 +70,45 @@ class DemoAppenderTest {
         appender.start();
         assertEquals(pid, helperPid(), "repeated start must reuse the already-ready helper");
         LoggingEvent event = new LoggingEvent();
+        event.setLevel(Level.INFO);
+        event.setLoggerName("example.Worker");
         event.setMessage("accepted after ready");
         event.setInstant(Instant.parse("2026-11-16T10:00:00.123456789Z"));
         appender.doAppend(event);
+
+        IllegalStateException failure = new IllegalStateException("save failed", new IOException("database offline"));
+        failure.addSuppressed(new IOException("cleanup failed"));
+        LoggingEvent error = new LoggingEvent(getClass().getName(), context.getLogger("example.Worker"),
+            Level.ERROR, "Failed request {}", failure, new Object[] {"abc\"č\nxyz"});
+        error.setInstant(event.getInstant());
+        appender.doAppend(error);
         appender.stop();
         appender.stop();
 
-        assertEquals("{\"message\":\"accepted after ready\",\"timestamp\":\"2026-11-16T10:00:00.123456789Z\"}\n",
-            Files.readString(received), "an admitted event must reach the helper before EOF shutdown");
+        List<String> records = Files.readAllLines(received);
+        assertEquals(2, records.size(), "a multiline exception must remain one JSON record alongside the normal event");
+        assertEquals("{\"message\":\"INFO example.Worker - accepted after ready\",\"timestamp\":\"2026-11-16T10:00:00.123456789Z\"}",
+            records.get(0), "normal logs must retain severity, logger, source message and original timestamp");
+        try (JsonParser parser = new JsonFactory().createParser(records.get(1))) {
+            assertEquals(JsonToken.START_OBJECT, parser.nextToken(), "the error must remain valid JSON");
+            assertEquals("message", parser.nextFieldName(), "the existing message field must carry all logging details");
+            assertEquals(JsonToken.VALUE_STRING, parser.nextToken(), "error details must be a single string");
+            String message = parser.getText();
+            assertTrue(message.startsWith("ERROR example.Worker - Failed request abc\"č\nxyz\n"),
+                "error records must preserve severity, logger, substituted arguments and Unicode");
+            assertTrue(message.contains("java.lang.IllegalStateException: save failed"),
+                "the original exception type and message must survive logging");
+            assertTrue(message.contains("at " + getClass().getName() + "."),
+                "exception stack frames must reach the helper rather than only an exception summary");
+            assertTrue(message.contains("Caused by: java.io.IOException: database offline"),
+                "nested exception causes must not be lost");
+            assertTrue(message.contains("Suppressed: java.io.IOException: cleanup failed"),
+                "suppressed exceptions must not be lost");
+            assertEquals("timestamp", parser.nextFieldName(), "error timestamps must keep the existing protocol field");
+            assertEquals(event.getInstant().toString(), parser.nextTextValue(), "error records must retain source nanoseconds");
+            assertEquals(JsonToken.END_OBJECT, parser.nextToken(), "metadata must not introduce extra protocol fields");
+            assertEquals(null, parser.nextToken(), "an error must not introduce another JSON record");
+        }
         assertHelperExited();
     }
 
