@@ -1,0 +1,78 @@
+name: Publish Docker images
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare image names
+        id: images
+        run: |
+          set -euo pipefail
+          repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'server-image=%s\nclient-image=%s\n' \
+            "${REGISTRY}/${repository}:sha-${GITHUB_SHA}" \
+            "${REGISTRY}/${repository}-client:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        env:
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY" \
+            --username "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Build server image
+        env:
+          IMAGE: ${{ steps.images.outputs.server-image }}
+        run: |
+          set -euo pipefail
+          docker build --pull \
+            --file cmd/server/Dockerfile \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "$IMAGE" .
+
+      - name: Build client image
+        env:
+          IMAGE: ${{ steps.images.outputs.client-image }}
+        run: |
+          set -euo pipefail
+          docker build --pull \
+            --file cmd/client/Dockerfile \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "$IMAGE" .
+
+      - name: Publish images
+        env:
+          SERVER_IMAGE: ${{ steps.images.outputs.server-image }}
+          CLIENT_IMAGE: ${{ steps.images.outputs.client-image }}
+        run: |
+          set -euo pipefail
+          docker push "$SERVER_IMAGE"
+          docker push "$CLIENT_IMAGE"
+
+      - name: Log out of GitHub Container Registry
+        if: always()
+        run: docker logout "$REGISTRY"
