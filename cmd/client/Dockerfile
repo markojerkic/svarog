@@ -13,8 +13,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o build/client ./cmd/client
 
-FROM scratch
+FROM scratch AS runtime
 
 WORKDIR /svarog
 
+# Release builds use the extracted Linux amd64 archive as their build context.
+FROM runtime AS release
+COPY svarog-client /svarog/client
+
+FROM runtime
 COPY --from=builder /app/build/client /svarog/client

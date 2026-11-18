@@ -86,12 +86,6 @@
 
   <profiles>
     <profile>
-      <id>spring-boot-demo</id>
-      <modules>
-        <module>svarog-spring-boot-demo</module>
-      </modules>
-    </profile>
-    <profile>
       <id>central-release</id>
       <build>
         <plugins>

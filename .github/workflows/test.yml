@@ -7,41 +7,24 @@ on:
     branches: ["master"]
 
 jobs:
-  go-lint:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ["1.27.3"]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v7
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-
-      - name: Run Go lint
-        run: gofmt -l .
-
   go-test:
     runs-on: ubuntu-latest
-    needs: go-lint
-    strategy:
-      matrix:
-        go-version: ["1.27.3"]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Setup Go ${{ matrix.go-version }}
+      - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
+          go-version-file: go.mod
+
+      - name: Check Go formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [[ -n "$unformatted" ]]; then
+            printf 'Run gofmt on:\n%s\n' "$unformatted"
+            exit 1
+          fi
 
       - name: Run Go tests
         run: |
@@ -66,7 +49,10 @@ jobs:
           cache: maven
 
       - name: Build and test Java modules
-        run: ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml -Pspring-boot-demo verify
+        run: ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml verify
+
+      - name: Build Spring Boot demo with the published starter
+        run: ./java/mvnw --batch-mode --no-transfer-progress -f java/svarog-spring-boot-demo/pom.xml verify
 
   playwright-test:
     runs-on: ubuntu-latest
