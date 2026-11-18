@@ -5,8 +5,8 @@ COPY go.mod go.sum ./
 COPY cmd/log-interceptor-demo ./cmd/log-interceptor-demo
 COPY internal/lib/logevent ./internal/lib/logevent
 COPY internal/lib/svarogclient ./internal/lib/svarogclient
-COPY internal/lib/svaroglog ./internal/lib/svaroglog
 COPY internal/rpc ./internal/rpc
+COPY svaroglog ./svaroglog
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/log-interceptor-demo ./cmd/log-interceptor-demo

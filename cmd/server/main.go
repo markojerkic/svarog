@@ -22,7 +22,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/svarogclient"
-	"github.com/markojerkic/svarog/internal/lib/svaroglog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -30,6 +29,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/svaroglog"
 )
 
 func loadEnv() types.ServerEnv {

@@ -1,3 +1,4 @@
+// Package svaroglog forwards Go application logs to Svarog.
 package svaroglog
 
 import (
@@ -20,13 +21,13 @@ var (
 	setupActive bool
 )
 
-// Setup configures global slog and standard log using SVAROG_CONN_STRING or an
-// explicit WithConnectionString option. Defaults are INFO, an INFO text console
+// Setup configures global [slog] and standard [log] using SVAROG_CONN_STRING or an
+// explicit [WithConnectionString] option. Defaults are INFO, an INFO text console
 // on stderr, and a five-second drain. It does not install signal handlers.
 //
 // Canceling lifetime starts shutdown independently of blocked logging calls.
-// closeLogging also starts shutdown, waits for its result, and is safe to call
-// repeatedly or concurrently. Call it before exiting to observe drain errors.
+// The returned cleanup also starts shutdown, waits for its result, and is safe to
+// call repeatedly or concurrently. Call it before exiting to observe drain errors.
 // Drain uses a fresh context and confirms broker ACKs, not database persistence.
 //
 // Only one Setup may be active. Cleanup restores the previous global logging
@@ -76,7 +77,7 @@ func Setup(lifetime context.Context, options ...Option) (func() error, error) {
 	previous := slog.Default()
 	output, flags, prefix := log.Writer(), log.Flags(), log.Prefix()
 	handler := &setupHandler{
-		Handler: NewHandler(client, Options{Level: config.level, Console: config.console}),
+		Handler: svarogclient.NewHandler(client, svarogclient.HandlerOptions{Level: config.level, Console: config.console}),
 		client:  client,
 	}
 	slog.SetDefault(slog.New(handler))

@@ -22,11 +22,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/cmd/client/reader"
-	"github.com/markojerkic/svarog/internal/lib/logevent"
-	"github.com/markojerkic/svarog/internal/lib/svarogclient"
-	"github.com/markojerkic/svarog/internal/lib/svaroglog"
-	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -34,6 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	natscontainer "github.com/testcontainers/testcontainers-go/modules/nats"
+
+	"github.com/markojerkic/svarog/cmd/client/reader"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
+	"github.com/markojerkic/svarog/internal/lib/svarogclient"
+	"github.com/markojerkic/svarog/internal/rpc"
+	"github.com/markojerkic/svarog/svaroglog"
 )
 
 func TestPackagedJavaBridge(t *testing.T) {
@@ -73,7 +74,7 @@ func TestSharedClientDelivery(t *testing.T) {
 		at := time.Date(2026, 11, 12, 10, 0, 0, 123456789, time.UTC)
 		record := slog.NewRecord(at, slog.LevelWarn, "request failed", 0)
 		record.AddAttrs(slog.Int("status", 500))
-		handler := svaroglog.NewHandler(client, svaroglog.Options{}).
+		handler := svarogclient.NewHandler(client, svarogclient.HandlerOptions{}).
 			WithAttrs([]slog.Attr{slog.String("service", "api")}).WithGroup("request")
 		require.NoError(t, handler.Handle(context.Background(), record), "the slog adapter must accept a structured record")
 		log.Printf("standard log: port=%d", 1323)
@@ -553,7 +554,7 @@ func shutdownClient(t *testing.T, client *svarogclient.Client) {
 func installLogger(t *testing.T, client *svarogclient.Client) {
 	t.Helper()
 	preserveLogger(t)
-	slog.SetDefault(slog.New(svaroglog.NewHandler(client, svaroglog.Options{Level: slog.LevelDebug})))
+	slog.SetDefault(slog.New(svarogclient.NewHandler(client, svarogclient.HandlerOptions{Level: slog.LevelDebug})))
 }
 
 func preserveLogger(t *testing.T) {

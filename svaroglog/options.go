@@ -27,7 +27,8 @@ func WithConnectionString(value string) Option {
 }
 
 // WithDropQueueCapacity enables best-effort forwarding: records exceeding the
-// slot or byte limit still go to the console. Zero restores blocking delivery.
+// slot or byte limit are not forwarded but still go to the console if enabled.
+// Capacity must be between 0 and 65536; zero (the default) uses a blocking queue.
 func WithDropQueueCapacity(capacity int) Option {
 	return func(config *setupConfig) error {
 		config.dropQueueCapacity = capacity

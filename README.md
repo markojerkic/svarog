@@ -77,8 +77,8 @@ stack uses `.env`; the demo stack uses `.env.log-demo`.
 | `SERVER_DNS_NAME`                                                         | Unset                                | Parsed but currently unused by the server.                                                                                                                                                                                                     |
 | **Server and client logging**                                             |                                      |                                                                                                                                                                                                                                                |
 | `LOG_LEVEL`                                                               | `info`                               | Minimum severity for server logs: `debug`, `info`, `warn` or `error`.                                                                                                                                                                          |
-| `SVAROG_CONN_STRING`                                                      | Unset                                | **Server:** forward its own logs to this client URL; unset means console only. **CLI:** use this URL unless one is passed as the first argument. **Java bridge:** required.                                                                    |
-| `SVAROG_INSTANCE_ID`                                                      | Hostname                             | Instance name attached to forwarded logs, both for the server and for the client.                                                                                                                                                              |
+| `SVAROG_CONN_STRING`                                                      | Unset                                | **Server:** forward its own logs to this client URL; unset means console only. **CLI:** use this URL unless one is passed as the first argument. **Go library:** default URL. **Java bridge:** required.                                       |
+| `SVAROG_INSTANCE_ID`                                                      | Hostname                             | Instance name attached to forwarded logs. The Go library can override it with `WithInstanceID`.                                                                                                                                                |
 | `SVAROG_LOG_QUEUE_CAPACITY`                                               | `1024`                               | Maximum records waiting per server process (1–65536; invalid values use the default). The queue also caps encoded data at 16 MiB, excluding the record being sent. If either limit would be exceeded, the new record goes only to the console. |
 | `SVAROG_BRIDGE_PATH`                                                      | Bundled executable                   | Absolute path to an alternative bridge executable for [Java Logback](java/README.md).                                                                                                                                                          |
 | `SVAROG_LOGGING_ENABLED`                                                  | `false`                              | Enable log forwarding with the Svarog Spring Boot starter.                                                                                                                                                                                     |
@@ -161,6 +161,54 @@ go build -o svarog-client ./cmd/client
 tail -F /var/log/app.log | ./svarog-client "$SVAROG_CONN_STRING"
 ```
 
+### Go library
+
+Import `github.com/markojerkic/svarog/svaroglog` to send logs directly from a Go
+application without running the CLI. It requires Go 1.27.3 or newer.
+
+```bash
+go get github.com/markojerkic/svarog/svaroglog
+```
+
+Set `SVAROG_CONN_STRING` to the client URL from the web UI and call `Setup`
+once at startup to forward existing `log/slog` and `log` calls:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "log/slog"
+
+    "github.com/markojerkic/svarog/svaroglog"
+)
+
+func main() {
+    closeLogging, err := svaroglog.Setup(context.Background())
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    slog.Info("Order created", "order_id", 42)
+    log.Print("Health check passed")
+
+    if err := closeLogging(); err != nil {
+        log.Printf("Could not flush logs: %v", err)
+    }
+}
+```
+
+By default, INFO and higher levels are also written to stderr. Use `WithLevel`
+to set the forwarding level and `WithConsole` to change or disable local output.
+
+The default queue blocks when full. Use `WithDropQueueCapacity(1024)` to keep
+logging without waiting for queue space; records that do not fit are dropped
+from forwarding but still reach the configured console. Call `closeLogging`
+during shutdown to wait for JetStream acknowledgements (not database writes)
+and check for drain errors. Canceling the context passed to `Setup` also starts
+shutdown.
+
 ## Development
 
 Requires Go 1.27.3+, Bun 1.4.3, Task and Docker. `task dev` uses the
@@ -182,8 +230,8 @@ docker compose -f docker-compose.log-demo.yml up -d --build
 
 Integration examples:
 
-- [Go `slog` and `log`](cmd/log-interceptor-demo/main.go) through the internal
-  `svaroglog` package, which other Go modules cannot import.
+- [Go `slog` and `log`](cmd/log-interceptor-demo/main.go) through the public
+  [`svaroglog` package](#go-library).
 - [Java Logback](java/README.md) through the [Go bridge](cmd/svarog-bridge/README.md).
 
 ## License

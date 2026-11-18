@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/internal/lib/svaroglog"
+
+	"github.com/markojerkic/svarog/svaroglog"
 )
 
 func run() (result error) {

@@ -1,5 +1,4 @@
-// Package svaroglog adapts standard Go logging to the shared client.
-package svaroglog
+package svarogclient
 
 import (
 	"bytes"
@@ -8,11 +7,9 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 )
 
-type Options struct {
+type HandlerOptions struct {
 	// Level is the minimum level sent to the client; nil means INFO.
 	Level slog.Leveler
 	// Console optionally receives logs too. Nil disables local console output.
@@ -22,7 +19,7 @@ type Options struct {
 
 // NewHandler creates a handler without changing the global logger.
 // The caller owns the client and must call its Shutdown method.
-func NewHandler(client *svarogclient.Client, options Options) slog.Handler {
+func NewHandler(client *Client, options HandlerOptions) slog.Handler {
 	output := &bytes.Buffer{}
 	h := &interceptor{
 		client:    client,
@@ -37,7 +34,7 @@ func NewHandler(client *svarogclient.Client, options Options) slog.Handler {
 }
 
 type interceptor struct {
-	client    *svarogclient.Client
+	client    *Client
 	output    *bytes.Buffer
 	mu        *sync.Mutex
 	formatter slog.Handler
@@ -52,7 +49,7 @@ func (h *interceptor) Handle(ctx context.Context, record slog.Record) error {
 	if err != nil {
 		return err
 	}
-	return h.client.Enqueue(svarogclient.Entry{
+	return h.client.Enqueue(Entry{
 		Message:   message,
 		Timestamp: record.Time,
 	})
