@@ -1,7 +1,12 @@
 <configuration>
-  <appender name="LIBRARY" class="dev.jerkic.svarog.logback.DemoAppender"/>
+  <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener"/>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder><pattern>%d{HH:mm:ss} %-5level %logger - %msg%n</pattern></encoder>
+  </appender>
+  <appender name="SVAROG" class="dev.jerkic.svarog.logback.SvarogAppender"/>
 
   <root level="INFO">
-    <appender-ref ref="LIBRARY"/>
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="SVAROG"/>
   </root>
 </configuration>

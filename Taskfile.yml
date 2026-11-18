@@ -99,6 +99,12 @@ tasks:
     cmds:
       - bash scripts/build-binaries.sh "{{.OUT | default "build/binaries"}}"
 
+  build:java:
+    desc: Build and smoke-test the Logback release JAR with bundled Linux bridges
+    cmds:
+      - bash scripts/build-binaries.sh "{{.OUT | default "build/java"}}" svarog-bridge
+      - bash scripts/package-logback.sh "{{.OUT | default "build/java"}}"
+
   clean-tmp:
     desc: Clean Go temporary build files from /tmp
     cmds:

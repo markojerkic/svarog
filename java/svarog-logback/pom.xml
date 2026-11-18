@@ -10,10 +10,14 @@
 
   <artifactId>svarog-logback</artifactId>
 
+  <properties>
+    <svarog.bridge.resources>${project.build.directory}/generated-resources/bridge</svarog.bridge.resources>
+  </properties>
+
   <build>
     <resources>
       <resource>
-        <directory>${project.build.directory}/generated-resources/bridge</directory>
+        <directory>${svarog.bridge.resources}</directory>
         <targetPath>dev/jerkic/svarog/logback/native</targetPath>
       </resource>
     </resources>

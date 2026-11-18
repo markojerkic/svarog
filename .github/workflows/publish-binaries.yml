@@ -46,21 +46,7 @@ jobs:
         run: bash scripts/build-binaries.sh
 
       - name: Build Logback JAR with bundled bridges
-        run: |
-          set -euo pipefail
-          resources=java/svarog-logback/target/generated-resources/bridge
-          mkdir -p "$resources"
-          for arch in amd64 arm64; do
-            tar -xOf "build/binaries/svarog-bridge_linux_${arch}.tar.gz" svarog-bridge \
-              > "$resources/svarog-bridge-linux-$arch"
-          done
-          ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml verify
-          cp java/svarog-logback/target/svarog-logback-*.jar build/binaries/svarog-logback.jar
-          for arch in amd64 arm64; do
-            unzip -p build/binaries/svarog-logback.jar "dev/jerkic/svarog/logback/native/svarog-bridge-linux-$arch" \
-              | cmp - "$resources/svarog-bridge-linux-$arch"
-          done
-          (cd build/binaries && sha256sum svarog-logback.jar >> checksums.txt)
+        run: bash scripts/package-logback.sh
 
       - name: Publish latest binaries release
         env:

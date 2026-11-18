@@ -20,8 +20,9 @@ hostname.
 
 The bridge writes `{"v":1,"op":"ready"}` to stdout before reading entries.
 The published [Logback JAR](../../java/README.md) already bundles the bridge.
-Set `SVAROG_BRIDGE_PATH` to the downloaded executable's absolute path only if
-you want to override the bundled bridge.
+In Java applications, configure `dev.jerkic.svarog.logback.SvarogAppender`.
+Set `SVAROG_BRIDGE_PATH` to the downloaded executable's absolute path if you
+want to override the bundled bridge or are using a JAR built without one.
 
 ## Build locally
 

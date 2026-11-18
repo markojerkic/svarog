@@ -2,6 +2,7 @@ package dev.jerkic.svarog.logback;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -29,18 +30,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @EnabledOnOs(OS.LINUX)
-class DemoAppenderTest {
+class SvarogAppenderTest {
     @TempDir
     Path directory;
 
     private LoggerContext context;
-    private DemoAppender appender;
+    private SvarogAppender appender;
 
     @BeforeEach
     void setUp() {
         context = new LoggerContext();
         context.start();
-        appender = new DemoAppender();
+        appender = new SvarogAppender();
         appender.setContext(context);
     }
 
@@ -79,11 +80,7 @@ class DemoAppenderTest {
         long pid = helperPid();
         appender.start();
         assertEquals(pid, helperPid(), "repeated start must reuse the already-ready helper");
-        LoggingEvent event = new LoggingEvent();
-        event.setLevel(Level.INFO);
-        event.setLoggerName("example.Worker");
-        event.setMessage("accepted after ready");
-        event.setInstant(Instant.parse("2026-11-16T10:00:00.123456789Z"));
+        LoggingEvent event = event("accepted after ready");
         appender.doAppend(event);
 
         IllegalStateException failure = new IllegalStateException("save failed", new IOException("database offline"));
@@ -119,6 +116,70 @@ class DemoAppenderTest {
             assertEquals(JsonToken.END_OBJECT, parser.nextToken(), "metadata must not introduce extra protocol fields");
             assertEquals(null, parser.nextToken(), "an error must not introduce another JSON record");
         }
+        assertHelperExited();
+        appender.start();
+        assertTrue(appender.isStarted(), "the same appender must start a new bridge after stop");
+        assertTrue(pid != helperPid(), "restarting must not reuse the stopped process");
+        appender.stop();
+        assertHelperExited();
+    }
+
+    @Test
+    void remainsResponsiveAndStopsWhenTheBridgeNeverReads() throws Exception {
+        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
+        appender.start();
+        assertTrue(appender.isStarted());
+
+        LoggingEvent event = event("x".repeat(1024 * 1024));
+        assertTimeoutPreemptively(Duration.ofSeconds(4), () -> {
+            for (int i = 0; i < 12; i++) {
+                appender.doAppend(event);
+            }
+        }, "a full pipe and queue must not block callers");
+        assertTrue(context.getStatusManager().getCopyOfStatusList().stream()
+            .anyMatch(status -> status.getMessage().contains("bridge queue full")));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(8), appender::stop);
+        assertHelperExited();
+    }
+
+    @Test
+    void interruptedStopStillTerminatesTheBridge() throws Exception {
+        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
+        appender.start();
+        assertTrue(appender.isStarted());
+
+        assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+            Thread.currentThread().interrupt();
+            try {
+                appender.stop();
+                assertTrue(Thread.currentThread().isInterrupted());
+            } finally {
+                Thread.interrupted();
+            }
+        });
+        assertHelperExited();
+    }
+
+    @Test
+    void rejectsInvalidAndOversizedRecordsWithoutStoppingTheBridge() throws Exception {
+        Path received = directory.resolve("received");
+        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\n"
+            + "while IFS= read -r line; do printf '%s\\n' \"$line\" >> '" + received + "'; done\n");
+        appender.start();
+        assertTrue(appender.isStarted());
+
+        appender.doAppend(event("contains \0 NUL"));
+        appender.doAppend(event("\u0001".repeat(BridgeFrame.MAX_BYTES / 6)));
+        LoggingEvent invalidTime = event("unrepresentable timestamp");
+        invalidTime.setInstant(Instant.MIN);
+        appender.doAppend(invalidTime);
+        appender.doAppend(event("still delivered"));
+        appender.stop();
+
+        assertEquals(List.of(
+            "{\"message\":\"INFO example.Worker - still delivered\",\"timestamp\":\"2026-11-16T10:00:00.123456789Z\"}"),
+            Files.readAllLines(received));
         assertHelperExited();
     }
 
@@ -174,7 +235,16 @@ class DemoAppenderTest {
         Path script = directory.resolve("helper");
         Files.writeString(script, "#!/bin/sh\nprintf '%s' \"$$\" > '" + directory.resolve("pid") + "'\n" + body);
         Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwx------"));
-        appender.setHelperPath(script.toString());
+        appender.setBridgePath(script.toString());
+    }
+
+    private static LoggingEvent event(String message) {
+        LoggingEvent event = new LoggingEvent();
+        event.setLevel(Level.INFO);
+        event.setLoggerName("example.Worker");
+        event.setMessage(message);
+        event.setInstant(Instant.parse("2026-11-16T10:00:00.123456789Z"));
+        return event;
     }
 
     private long helperPid() throws IOException {

@@ -36,6 +36,30 @@ import (
 	natscontainer "github.com/testcontainers/testcontainers-go/modules/nats"
 )
 
+func TestPackagedJavaBridge(t *testing.T) {
+	classpath := os.Getenv("SVAROG_JAVA_SMOKE_CLASSPATH")
+	if classpath == "" {
+		t.Skip("requires the packaged Logback JAR and its dependencies")
+	}
+	java := "java"
+	if home := os.Getenv("JAVA_HOME"); home != "" {
+		java = filepath.Join(home, "bin", "java")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, java, "-cp", classpath, "java/smoke/PackagedBridge.java")
+	command.Dir = filepath.Join("..", "..")
+	// Readiness only validates local configuration. Without any log records this
+	// test does not need a broker or send the generated credentials over the network.
+	command.Env = append(os.Environ(),
+		"SVAROG_BRIDGE_PATH=",
+		"SVAROG_INSTANCE_ID=packaged-java-smoke",
+		"SVAROG_CONN_STRING=svarog://127.0.0.1:1/logs.smoke?token="+url.QueryEscape(clientToken(t)),
+	)
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, "smoke-test the bundled bridge outside the Maven test classpath: %s", output)
+}
+
 func TestSharedClientDelivery(t *testing.T) {
 	broker := newClientBroker(t)
 
