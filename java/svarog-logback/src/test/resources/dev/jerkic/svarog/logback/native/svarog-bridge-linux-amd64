@@ -1,0 +1,3 @@
+#!/bin/sh
+printf '%s\n' '{"v":1,"op":"ready"}'
+while IFS= read -r line; do :; done

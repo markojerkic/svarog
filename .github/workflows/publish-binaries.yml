@@ -32,11 +32,35 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Setup Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
       - name: Generate templates
         run: go tool templ generate ./...
 
       - name: Build client and bridge archives
         run: bash scripts/build-binaries.sh
+
+      - name: Build Logback JAR with bundled bridges
+        run: |
+          set -euo pipefail
+          resources=java/svarog-logback/target/generated-resources/bridge
+          mkdir -p "$resources"
+          for arch in amd64 arm64; do
+            tar -xOf "build/binaries/svarog-bridge_linux_${arch}.tar.gz" svarog-bridge \
+              > "$resources/svarog-bridge-linux-$arch"
+          done
+          ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml verify
+          cp java/svarog-logback/target/svarog-logback-*.jar build/binaries/svarog-logback.jar
+          for arch in amd64 arm64; do
+            unzip -p build/binaries/svarog-logback.jar "dev/jerkic/svarog/logback/native/svarog-bridge-linux-$arch" \
+              | cmp - "$resources/svarog-bridge-linux-$arch"
+          done
+          (cd build/binaries && sha256sum svarog-logback.jar >> checksums.txt)
 
       - name: Publish latest binaries release
         env:
@@ -45,13 +69,14 @@ jobs:
         run: |
           set -euo pipefail
           notes="$RUNNER_TEMP/binaries-release-notes.md"
-          printf 'Rolling binaries build from commit [%s](%s/%s/commit/%s).\n\nClient and bridge archives for Linux amd64 and arm64.\n' \
+          printf 'Rolling binaries build from commit [%s](%s/%s/commit/%s).\n\nClient and bridge archives for Linux amd64 and arm64, plus the Logback JAR with both bridges bundled.\n' \
             "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > "$notes"
           assets=(
             build/binaries/svarog-client_linux_amd64.tar.gz
             build/binaries/svarog-client_linux_arm64.tar.gz
             build/binaries/svarog-bridge_linux_amd64.tar.gz
             build/binaries/svarog-bridge_linux_arm64.tar.gz
+            build/binaries/svarog-logback.jar
             build/binaries/checksums.txt
           )
           if gh release view latest > /dev/null 2>&1; then

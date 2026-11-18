@@ -10,6 +10,15 @@
 
   <artifactId>svarog-logback</artifactId>
 
+  <build>
+    <resources>
+      <resource>
+        <directory>${project.build.directory}/generated-resources/bridge</directory>
+        <targetPath>dev/jerkic/svarog/logback/native</targetPath>
+      </resource>
+    </resources>
+  </build>
+
   <dependencies>
     <dependency>
       <groupId>ch.qos.logback</groupId>

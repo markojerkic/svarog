@@ -19,8 +19,9 @@ with `arm64` in the download URL. `SVAROG_INSTANCE_ID` optionally overrides the
 hostname.
 
 The bridge writes `{"v":1,"op":"ready"}` to stdout before reading entries.
-For the Java integration, set `SVAROG_BRIDGE_PATH` to the downloaded executable's
-absolute path.
+The published [Logback JAR](../../java/README.md) already bundles the bridge.
+Set `SVAROG_BRIDGE_PATH` to the downloaded executable's absolute path only if
+you want to override the bundled bridge.
 
 ## Build locally
 

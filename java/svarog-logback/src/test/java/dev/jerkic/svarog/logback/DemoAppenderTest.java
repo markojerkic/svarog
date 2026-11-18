@@ -3,6 +3,7 @@ package dev.jerkic.svarog.logback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -56,6 +57,15 @@ class DemoAppenderTest {
                 process.onExit().get(5, TimeUnit.SECONDS);
             }
         }
+    }
+
+    @Test
+    @EnabledOnOs(value = OS.LINUX, architectures = {"amd64", "x86_64"})
+    void startsBundledBridgeWithoutAnOverride() {
+        String override = System.getenv("SVAROG_BRIDGE_PATH");
+        assumeTrue(override == null || override.isBlank());
+        appender.start();
+        assertTrue(appender.isStarted(), "the bundled bridge must be extracted and executable");
     }
 
     @Test

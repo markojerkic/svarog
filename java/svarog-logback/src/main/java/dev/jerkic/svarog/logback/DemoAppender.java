@@ -10,7 +10,11 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.concurrent.TimeUnit;
 
 public final class DemoAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
@@ -30,12 +34,23 @@ public final class DemoAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         if (helper != null || isStarted()) {
             return;
         }
-        if (helperPath == null || helperPath.isBlank()) {
-            addError("Go helper path is required");
-            return;
-        }
+        Path bundledExecutable = null;
         try {
-            helper = new ProcessBuilder(helperPath)
+            String executable = helperPath;
+            if (executable == null || executable.isBlank()) {
+                executable = System.getenv("SVAROG_BRIDGE_PATH");
+            }
+            if (executable == null || executable.isBlank()) {
+                try (InputStream binary = openBundledBridge()) {
+                    bundledExecutable = Files.createTempFile("svarog-bridge-", "",
+                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+                    try (OutputStream output = Files.newOutputStream(bundledExecutable)) {
+                        binary.transferTo(output);
+                    }
+                }
+                executable = bundledExecutable.toString();
+            }
+            helper = new ProcessBuilder(executable)
                 .redirectError(Redirect.INHERIT)
                 .redirectOutput(Redirect.PIPE)
                 .start();
@@ -50,7 +65,35 @@ public final class DemoAppender extends UnsynchronizedAppenderBase<ILoggingEvent
             addError("Interrupted while waiting for Go helper ready", e);
             abortStartup();
             Thread.currentThread().interrupt();
+        } finally {
+            // Linux can unlink the executable while the helper is running.
+            if (bundledExecutable != null) {
+                try {
+                    Files.deleteIfExists(bundledExecutable);
+                } catch (IOException e) {
+                    addWarn("Failed to delete extracted Go bridge", e);
+                }
+            }
         }
+    }
+
+    private InputStream openBundledBridge() throws IOException {
+        String os = System.getProperty("os.name");
+        String arch = System.getProperty("os.arch");
+        if ("Linux".equalsIgnoreCase(os)) {
+            String resourceArch = switch (arch) {
+                case "amd64", "x86_64" -> "amd64";
+                case "aarch64", "arm64" -> "arm64";
+                default -> null;
+            };
+            if (resourceArch != null) {
+                InputStream binary = DemoAppender.class.getResourceAsStream("native/svarog-bridge-linux-" + resourceArch);
+                if (binary != null) {
+                    return binary;
+                }
+            }
+        }
+        throw new IOException("No bundled Go bridge for " + os + "/" + arch + "; set SVAROG_BRIDGE_PATH");
     }
 
     private void awaitReady() throws IOException, InterruptedException {
