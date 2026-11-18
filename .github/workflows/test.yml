@@ -68,6 +68,9 @@ jobs:
       - name: Build and test Java modules
         run: ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml verify
 
+      - name: Build Spring Boot demo against the published appender
+        run: ./java/mvnw --batch-mode --no-transfer-progress -f java/svarog-spring-boot-demo/pom.xml verify
+
   playwright-test:
     runs-on: ubuntu-latest
     steps:

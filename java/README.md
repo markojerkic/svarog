@@ -14,7 +14,7 @@ application's Logback dependency.
 <dependency>
   <groupId>dev.jerkic</groupId>
   <artifactId>svarog-logback</artifactId>
-  <version>0.1.0</version>
+  <version>0.0.1</version>
 </dependency>
 ```
 
