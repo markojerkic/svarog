@@ -82,12 +82,14 @@ func TestActivePostgresMembership(t *testing.T) {
 	}
 
 	t.Run("all user reads include actual memberships", func(t *testing.T) {
+		stored := user
+		stored.InitialLoginToken = ""
 		byID, err := service.GetUserByID(ctx, user.ID.String())
 		require.NoError(t, err, "load member by ID for edit form")
-		require.Equal(t, user, byID, "ID lookup includes persisted project memberships")
+		require.Equal(t, stored, byID, "ID lookup includes persisted project memberships and omits the one-time invitation")
 		byUsername, err := service.GetUserByUsername(ctx, user.Username)
 		require.NoError(t, err, "load member by username")
-		require.Equal(t, user, byUsername, "username lookup includes persisted project memberships")
+		require.Equal(t, stored, byUsername, "username lookup includes persisted project memberships and omits the one-time invitation")
 		page, count, err := service.GetUserPage(ctx, types.GetUserPageInput{Size: 10, Search: "member"})
 		require.NoError(t, err, "list membership-aware users")
 		require.EqualValues(t, 1, count, "searched user page counts the member")
