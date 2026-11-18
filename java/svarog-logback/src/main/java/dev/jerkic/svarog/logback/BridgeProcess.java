@@ -28,8 +28,9 @@ final class BridgeProcess extends ContextAwareBase {
     private final Thread worker;
     private final Path extracted;
     private final ArrayDeque<byte[]> queue = new ArrayDeque<>();
-    private volatile boolean accepting = true;
+    private volatile boolean accepting;
     private volatile boolean aborting;
+    private volatile boolean exitExpected;
     private int queuedBytes;
     private long dropped;
     private long nextDropWarning;
@@ -106,6 +107,7 @@ final class BridgeProcess extends ContextAwareBase {
                 }
             }
         }
+        accepting = true;
         handle.onExit().thenRun(this::childExited);
         worker.start();
     }
@@ -231,10 +233,10 @@ final class BridgeProcess extends ContextAwareBase {
                 output.write(frame);
                 output.flush();
             }
+            exitExpected = true;
             output.close(); // EOF tells the bridge to drain the Go publisher.
         } catch (IOException | InterruptedException e) {
-            closeAdmission(true);
-            handle.destroyForcibly();
+            terminateChild();
             if (!aborting) {
                 addError("Svarog bridge write failed; queued records were not delivered", e);
             }
@@ -245,20 +247,21 @@ final class BridgeProcess extends ContextAwareBase {
     }
 
     private void childExited() {
-        if (closeAdmission(true)) {
+        // Closing admission only starts a drain. The worker may still have frames to send.
+        boolean unexpected = !exitExpected;
+        closeAdmission(true);
+        if (unexpected) {
             addError("Svarog bridge exited unexpectedly; delivery is not confirmed");
         }
     }
 
-    private synchronized boolean closeAdmission(boolean discard) {
-        boolean wasAccepting = accepting;
+    private synchronized void closeAdmission(boolean discard) {
         accepting = false;
         if (discard) {
             queue.clear();
             queuedBytes = 0;
         }
         notifyAll();
-        return wasAccepting;
     }
 
     void stop() {
@@ -288,9 +291,7 @@ final class BridgeProcess extends ContextAwareBase {
 
     void abort() {
         aborting = true;
-        closeAdmission(true);
-        // Process.destroyForcibly() also closes streams and can wait for a blocked writer.
-        handle.destroyForcibly();
+        terminateChild();
         long deadline = System.nanoTime() + ABORT_NANOS;
         boolean interrupted = Thread.interrupted();
         try {
@@ -309,6 +310,13 @@ final class BridgeProcess extends ContextAwareBase {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private void terminateChild() {
+        exitExpected = true;
+        closeAdmission(true);
+        // Process.destroyForcibly() also closes streams and can wait for a blocked writer.
+        handle.destroyForcibly();
     }
 
     private boolean awaitTermination(long deadline) throws InterruptedException {

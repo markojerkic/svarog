@@ -19,6 +19,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,6 +146,47 @@ class SvarogAppenderTest {
     }
 
     @Test
+    void admitsOnlyAfterReadyAndReportsChildExitDuringDrain() throws Exception {
+        Path exit = directory.resolve("exit");
+        Path read = directory.resolve("read");
+        CountDownLatch reported = new CountDownLatch(1);
+        context.getStatusManager().add(status -> {
+            if (status.getMessage().contains("bridge exited unexpectedly")) {
+                reported.countDown();
+            }
+        });
+        // Keep the pipe open after the helper exits so the writer cannot diagnose the loss via EPIPE.
+        String path = helper("exec 3<&0\n"
+            + "(while [ ! -f '" + read + "' ]; do sleep .01; done; exec cat >/dev/null) <&3 &\n"
+            + "printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\n"
+            + "while [ ! -f '" + exit + "' ]; do sleep .01; done\n");
+        BridgeProcess bridge = BridgeProcess.launch(path, context);
+        CompletableFuture<Void> stopped;
+        try {
+            byte[] record = BridgeFrame.encode("queued", Instant.now());
+            assertFalse(bridge.tryOffer(record), "a bridge still starting must reject late calls from the previous run");
+            bridge.start();
+            assertTrue(bridge.tryOffer(BridgeFrame.encode("x".repeat(2 * 1024 * 1024), Instant.now())));
+            assertTrue(bridge.tryOffer(record));
+
+            stopped = CompletableFuture.runAsync(bridge::stop);
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                while (bridge.isAccepting()) {
+                    Thread.sleep(10);
+                }
+            });
+            Files.createFile(exit);
+            assertTrue(reported.await(3, TimeUnit.SECONDS),
+                "a zero exit before the worker drains the queue must be reported");
+        } finally {
+            Files.writeString(exit, "");
+            Files.writeString(read, "");
+        }
+        stopped.get(8, TimeUnit.SECONDS);
+        assertHelperExited();
+    }
+
+    @Test
     void interruptedStopStillTerminatesTheBridge() throws Exception {
         helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
         appender.start();
@@ -231,11 +274,12 @@ class SvarogAppenderTest {
         assertHelperExited();
     }
 
-    private void helper(String body) throws IOException {
+    private String helper(String body) throws IOException {
         Path script = directory.resolve("helper");
         Files.writeString(script, "#!/bin/sh\nprintf '%s' \"$$\" > '" + directory.resolve("pid") + "'\n" + body);
         Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwx------"));
         appender.setBridgePath(script.toString());
+        return script.toString();
     }
 
     private static LoggingEvent event(String message) {
