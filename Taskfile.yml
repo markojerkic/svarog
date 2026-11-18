@@ -130,7 +130,7 @@ tasks:
   docker:log-demo-cli:
     desc: Build the CLI log demo Docker image
     cmds:
-      - docker build --progress=plain -t markojerkic/svarog-log-demo:{{.SVAROG_VERSION | default "latest"}} -f cmd/log-demo/Dockerfile .
+      - docker build --pull --platform linux/amd64 --progress=plain -t markojerkic/svarog-log-demo:{{.SVAROG_VERSION | default "latest"}} cmd/log-demo
 
   docker:log-demo-native:
     desc: Build the native log demo Docker image

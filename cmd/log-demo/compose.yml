@@ -9,10 +9,12 @@ x-runtime: &runtime
 
 x-generator: &generator
   <<: *runtime
+  platform: linux/amd64
   image: svarog-log-demo:local
+  pull_policy: build
   build:
-    context: .
-    dockerfile: cmd/log-demo/Dockerfile
+    context: ./cmd/log-demo
+    pull: true
   volumes:
     - ./cmd/log-demo/messages.txt:/app/messages.txt:ro
 

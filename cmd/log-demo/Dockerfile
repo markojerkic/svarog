@@ -1,21 +1,17 @@
+FROM ghcr.io/markojerkic/svarog-client:latest AS svarog
+
 FROM golang:1.27.3-alpine AS builder
 
 WORKDIR /src
-COPY go.mod go.sum ./
-COPY cmd/log-demo ./cmd/log-demo
-COPY cmd/client ./cmd/client
-COPY internal/lib/logevent ./internal/lib/logevent
-COPY internal/lib/svarogclient ./internal/lib/svarogclient
-COPY internal/rpc ./internal/rpc
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/ ./cmd/log-demo ./cmd/client
+COPY main.go ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags='-w -s' -o /out/log-demo main.go
 
 FROM alpine:3.24.3
 WORKDIR /app
 COPY --from=builder /out/log-demo /usr/local/bin/log-demo
-COPY --from=builder /out/client /usr/local/bin/svarog-client
-COPY cmd/log-demo/messages.txt ./messages.txt
+COPY --from=svarog /svarog/client /usr/local/bin/svarog-client
+COPY messages.txt ./messages.txt
 ENV DEMO_MESSAGES_FILE=/app/messages.txt
 USER 1000:1000
 
