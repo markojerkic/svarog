@@ -185,7 +185,7 @@ jobs:
         with:
           name: maven-central
           path: build/java
-      - name: Publish automatically to Maven Central
+      - name: Submit bundle for automatic Maven Central publishing
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
