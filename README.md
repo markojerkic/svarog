@@ -146,3 +146,7 @@ Integration examples:
 - [Go `slog` and `log`](cmd/log-interceptor-demo/main.go) through the internal
   `svaroglog` package, which other Go modules cannot import.
 - [Java Logback](java/README.md) through the [Go bridge](cmd/svarog-bridge/README.md).
+
+## License
+
+Svarog is licensed under the [Apache License 2.0](LICENSE).

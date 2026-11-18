@@ -9,16 +9,33 @@
   </parent>
 
   <artifactId>svarog-logback</artifactId>
+  <name>Svarog Logback appender</name>
+  <description>Forwards Logback events to Svarog using the bundled Go bridge</description>
 
   <properties>
     <svarog.bridge.resources>${project.build.directory}/generated-resources/bridge</svarog.bridge.resources>
   </properties>
 
   <build>
+    <finalName>svarog-logback</finalName>
     <resources>
       <resource>
         <directory>${svarog.bridge.resources}</directory>
         <targetPath>dev/jerkic/svarog/logback/native</targetPath>
+        <includes>
+          <include>svarog-bridge-linux-*</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>${svarog.bridge.resources}/licenses</directory>
+        <targetPath>META-INF/bridge-licenses</targetPath>
+      </resource>
+      <resource>
+        <directory>${project.basedir}/../..</directory>
+        <targetPath>META-INF</targetPath>
+        <includes>
+          <include>LICENSE</include>
+        </includes>
       </resource>
     </resources>
   </build>
@@ -39,4 +56,43 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <profile>
+      <id>central-release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.4.0</version>
+            <configuration>
+              <excludes>
+                <exclude>**/svarog-bridge-linux-*</exclude>
+              </excludes>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.12.0</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

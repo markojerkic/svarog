@@ -4,12 +4,28 @@ Add `svarog-logback` to a Java 17+ application that already uses SLF4J 2 and
 Logback 1.5. The appender forwards logs to Svarog over the same Go bridge used
 by the [standalone command](../cmd/svarog-bridge/README.md).
 
-## Use the release JAR
+## Install from Maven Central
+
+Add this dependency to your application's `pom.xml`. No token or additional
+repository is needed. Maven resolves Jackson transitively; keep your
+application's Logback dependency.
+
+```xml
+<dependency>
+  <groupId>dev.jerkic</groupId>
+  <artifactId>svarog-logback</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+## Install the release JAR manually
 
 Download [`svarog-logback.jar`](https://github.com/markojerkic/svarog/releases/download/latest/svarog-logback.jar)
 and add it to your runtime classpath along with `com.fasterxml.jackson.core:jackson-core:2.23.0`
 and your application's `logback-classic`. The JAR bundles the Go bridge for
 Linux amd64 and arm64; it does not bundle Logback or Jackson.
+
+## Configure the appender
 
 Set `SVAROG_CONN_STRING` to the client connection URL generated in the Svarog
 UI. Keep the URL out of `logback.xml` and out of version control. Optionally set
@@ -61,8 +77,8 @@ or database persistence.
 
 From the repository root, `task build:java` builds `build/java/svarog-logback.jar`
 with both Linux bridges and smoke-tests the packaged appender without a broker.
-The CI release uses the same packaging script. This requires the repository's
-Go toolchain and JDK 17+; Maven is provided by the wrapper.
+This requires the repository's Go toolchain and JDK 17+; Maven is provided by
+the wrapper.
 
 A plain Maven build installs the library under `dev.jerkic:svarog-logback`
 at the version in `java/pom.xml` and needs an external bridge. To run the sample:

@@ -1,0 +1,67 @@
+name: Publish to Maven Central
+
+on:
+  push:
+    tags: ['java-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Set Maven release version from tag
+        run: |
+          version="${GITHUB_REF_NAME#java-v}"
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Expected a Java release tag in the form java-vX.Y.Z" >&2
+            exit 1
+          fi
+          ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.25.2:set \
+            "-DnewVersion=$version" -DgenerateBackupPoms=false
+
+      - name: Build bundled bridges
+        run: |
+          go tool templ generate ./...
+          bash scripts/build-binaries.sh build/java svarog-bridge
+
+      - name: Build, sign and smoke-test the Maven bundle
+        env:
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          : "${MAVEN_GPG_KEY:?Missing GPG private key}" "${MAVEN_GPG_PASSPHRASE:?Missing GPG passphrase}"
+          bash scripts/package-logback.sh build/java -Pcentral-release -pl :svarog-logback -am deploy
+
+      - name: Upload to Sonatype for manual publication
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        run: |
+          : "${MAVEN_CENTRAL_USERNAME:?Missing Sonatype token username}" "${MAVEN_CENTRAL_TOKEN:?Missing Sonatype token password}"
+          auth=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_TOKEN" | base64 -w0)
+          deployment=$(printf 'Authorization: Bearer %s\n' "$auth" |
+            curl --fail-with-body --silent --show-error --max-time 120 --header @- \
+              --form 'bundle=@java/target/central-publishing/central-bundle.zip;type=application/octet-stream' \
+              'https://central.sonatype.com/api/v1/publisher/upload?publishingType=USER_MANAGED')
+          printf 'Sonatype deployment: %s\nApprove after validation: https://central.sonatype.com/publishing/deployments\n' "$deployment"
