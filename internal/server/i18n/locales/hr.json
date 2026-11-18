@@ -125,7 +125,8 @@
   "logs.invalid_range": { "other": "Neispravan raspon datuma" },
   "logs.clear_filters": { "other": "Očisti filtre" },
   "logs.filtered_by_instance": { "other": "Filtrirano po instanci:" },
-  "logs.clear_instance_filter": { "other": "Ukloni filtar instance" },
+  "logs.remove_instance_filter": { "other": "Ukloni filtar instance: {{.Name}}" },
+  "logs.clear_instance_filters": { "other": "Ukloni sve filtre instanci" },
   "logs.load_older": { "other": "Učitaj starije logove" },
   "logs.live_incomplete": {
     "other": "Praćenje uživo je zaustavljeno kako bi ovaj prikaz ostao stabilan. Dio logova možda nedostaje. Osvježite prikaz za najnovije logove."

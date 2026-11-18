@@ -123,7 +123,8 @@
   "logs.invalid_range": { "other": "Invalid date range" },
   "logs.clear_filters": { "other": "Clear filters" },
   "logs.filtered_by_instance": { "other": "Filtered by instance:" },
-  "logs.clear_instance_filter": { "other": "Clear instance filter" },
+  "logs.remove_instance_filter": { "other": "Remove instance filter: {{.Name}}" },
+  "logs.clear_instance_filters": { "other": "Clear all instance filters" },
   "logs.load_older": { "other": "Load older logs" },
   "logs.live_incomplete": {
     "other": "Live updates stopped to keep this view stable. Some logs may be missing. Refresh to load the latest logs."

@@ -173,9 +173,37 @@ func TestClearInstanceFilterReplacesCompleteView(t *testing.T) {
 	if err := pages.InstanceFilter(props).Render(context.Background(), &output); err != nil {
 		t.Fatalf("Instance filter must render successfully: %v", err)
 	}
-	for _, fragment := range []string{`href="/logs/project/client"`, `aria-label="Clear instance filter"`, `hx-target="body"`, `hx-swap="innerHTML"`, `hx-sync="body:replace"`} {
+	for _, fragment := range []string{`href="/logs/project/client"`, `aria-label="Remove instance filter: api-1"`, `hx-target="body"`, `hx-swap="innerHTML"`, `hx-sync="body:replace"`} {
 		if !strings.Contains(output.String(), fragment) {
 			t.Errorf("Clearing the instance filter must update both the header and logs using %s", fragment)
+		}
+	}
+}
+
+func TestRemoveOneInstancePreservesOtherFilters(t *testing.T) {
+	instances := []string{"api & backup", "", "worker"}
+	props := pages.LogsPageProps{
+		ProjectId: "project", ClientId: "client", Instances: &instances, Search: "payment timeout",
+		LogPage: db.LogPage{Range: &db.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60}},
+	}
+	var output bytes.Buffer
+	if err := pages.InstanceFilter(props).Render(context.Background(), &output); err != nil {
+		t.Fatal(err)
+	}
+	links := regexp.MustCompile(`<a href="([^"]+)"`).FindAllStringSubmatch(output.String(), -1)
+	want := [][]string{{"", "worker"}, {"api & backup", "worker"}, {"api & backup", ""}, nil}
+	if len(links) != len(want) {
+		t.Fatalf("Expected one link per instance and one to clear all, got %d", len(links))
+	}
+	for index, link := range links {
+		target, err := url.Parse(html.UnescapeString(link[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := target.Query()
+		if !slices.Equal(query["instance"], want[index]) || query.Get("search") != props.Search ||
+			query.Get("from") != "2026-11-01" || query.Get("to") != "2026-11-03" || query.Get("offset") != "-60" {
+			t.Errorf("Unexpected filters for link %d: %v", index, query)
 		}
 	}
 }

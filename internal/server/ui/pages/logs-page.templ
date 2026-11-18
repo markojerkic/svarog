@@ -461,26 +461,38 @@ templ LogInstanceFilters(props LogsPageProps) {
 templ InstanceFilter(props LogsPageProps) {
 	<div class="flex shrink-0 flex-wrap items-center gap-2">
 		<span class="text-sm text-muted-foreground">{ i18n.T(ctx, "logs.filtered_by_instance") }</span>
-		@badge.Badge(badge.Props{
-			Href:    clearLogInstancesPath(props),
-			Variant: badge.VariantDefault,
-			Class:   "cursor-pointer gap-1.5",
-			Attributes: templ.Attributes{
-				"aria-label": i18n.T(ctx, "logs.clear_instance_filter"),
-				"hx-target":  "body",
-				"hx-swap":    "innerHTML",
-				"hx-sync":    "body:replace",
-			},
-		}) {
-			<span class="max-w-[65vw] truncate" title={ strings.Join(*props.Instances, ", ") }>
-				for index, instance := range *props.Instances {
-					if index > 0 {
-						{ ", " }
-					}
-					{ logInstanceLabel(ctx, instance) }
-				}
-			</span>
-			@icon.X(icon.Props{Size: 12})
+		for index, instance := range *props.Instances {
+			{{
+				label := logInstanceLabel(ctx, instance)
+				remaining := slices.Delete(slices.Clone(*props.Instances), index, index+1)
+				removeLabel := i18n.Format(ctx, i18n.Message{ID: "logs.remove_instance_filter", Data: map[string]any{"Name": label}})
+			}}
+			@badge.Badge(badge.Props{
+				Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, &remaining, nil, "", props.Search),
+				Variant: badge.VariantDefault,
+				Class:   "cursor-pointer gap-1.5",
+				Attributes: templ.Attributes{
+					"aria-label":               removeLabel,
+					"title":                    removeLabel,
+					"data-log-instance-filter": true,
+					"hx-target":                "body",
+					"hx-swap":                  "innerHTML",
+					"hx-sync":                  "body:replace",
+				},
+			}) {
+				<span class="max-w-[65vw] truncate">{ label }</span>
+				@icon.X(icon.Props{Size: 12})
+			}
+		}
+		if len(*props.Instances) > 1 {
+			<a
+				href={ templ.SafeURL(clearLogInstancesPath(props)) }
+				class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+				data-log-instance-filter
+				hx-target="body"
+				hx-swap="innerHTML"
+				hx-sync="body:replace"
+			>{ i18n.T(ctx, "logs.clear_instance_filters") }</a>
 		}
 	</div>
 }
