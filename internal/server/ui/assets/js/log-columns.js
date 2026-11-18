@@ -45,7 +45,9 @@ document.addEventListener("click", (event) => {
   if (!container) return;
   const column = button.dataset.logColumn;
   const enabled = container.toggleAttribute(`data-show-${column}`);
-  button.setAttribute("aria-pressed", String(enabled));
+  document.querySelectorAll(`[data-log-column="${column}"]`).forEach((el) => {
+    el.setAttribute("aria-pressed", String(enabled));
+  });
   const columns = ["time", "instance"].filter((name) =>
     container.hasAttribute(`data-show-${name}`),
   );

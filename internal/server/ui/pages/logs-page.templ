@@ -153,21 +153,39 @@ templ logColumnToggle(column string, pressed bool, label string) {
 	}
 }
 
+templ logColumnMenuItem(column string, pressed bool, label string) {
+	@button.Button(button.Props{
+		Variant: button.VariantGhost,
+		Size:    button.SizeSm,
+		Class:   "w-full justify-start gap-2 aria-pressed:bg-accent aria-pressed:text-accent-foreground",
+		Attributes: templ.Attributes{
+			"data-log-column": column,
+			"aria-pressed":    strconv.FormatBool(pressed),
+		},
+	}) {
+		{ children... }
+		{ label }
+	}
+}
+
 templ LogsHeaderActions(props LogsPageProps) {
 	if props.LogLineId != nil {
-		<span class="whitespace-nowrap text-xs text-muted-foreground">{ i18n.T(ctx, "logs.context") }</span>
+		<span class="whitespace-nowrap text-xs text-muted-foreground max-md:sr-only">{ i18n.T(ctx, "logs.context") }</span>
 		if props.ReturnSearch != "" {
 			@button.Button(button.Props{
 				Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, props.ReturnInstances, nil, "", props.ReturnSearch),
 				Variant: button.VariantOutline, Size: button.SizeSm,
-				Attributes: templ.Attributes{"hx-sync": "body:replace"},
+				Attributes: templ.Attributes{
+					"hx-sync":    "body:replace",
+					"aria-label": i18n.T(ctx, "logs.back_to_results"),
+				},
 			}) {
 				@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
-				{ i18n.T(ctx, "logs.back_to_results") }
+				<span class="max-md:sr-only">{ i18n.T(ctx, "logs.back_to_results") }</span>
 			}
 		}
 	} else if !props.IsLive() {
-		<span class="text-xs text-muted-foreground" title={ i18n.T(ctx, "logs.not_live") }>
+		<span class="shrink-0 whitespace-nowrap text-xs text-muted-foreground max-md:max-w-24 max-md:truncate" title={ i18n.T(ctx, "logs.not_live") }>
 			if props.Search != "" {
 				{ i18n.T(ctx, "logs.search_results") }
 			} else {
@@ -177,7 +195,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 	} else {
 		<span
 			id="log-live-status"
-			class="text-xs text-muted-foreground"
+			class="shrink-0 whitespace-nowrap text-xs text-muted-foreground"
 			role="status"
 			data-live-label={ i18n.T(ctx, "logs.live") }
 			data-stale-label={ i18n.T(ctx, "logs.live_interrupted") }
@@ -185,20 +203,18 @@ templ LogsHeaderActions(props LogsPageProps) {
 		>{ i18n.T(ctx, "logs.connecting") }</span>
 		@button.Button(button.Props{
 			Variant: button.VariantGhost, Size: button.SizeSm,
-			Attributes: templ.Attributes{"data-log-pause": true},
+			Class: "max-md:px-2",
+			Attributes: templ.Attributes{
+				"data-log-pause": true,
+				"aria-label":     i18n.T(ctx, "logs.pause"),
+			},
 		}) {
 			@icon.Pause(icon.Props{Class: "size-3.5"})
-			{ i18n.T(ctx, "logs.pause") }
+			<span class="max-md:sr-only">{ i18n.T(ctx, "logs.pause") }</span>
 		}
 	}
 	@logs.SearchTrigger(props.Search)
 	@LogRangeFilter(props)
-	@logColumnToggle("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
-		@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
-	}
-	@logColumnToggle("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
-		@icon.Server(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
-	}
 	if props.Search != "" {
 		@button.Button(button.Props{
 			Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", ""),
@@ -215,7 +231,18 @@ templ LogsHeaderActions(props LogsPageProps) {
 			@icon.X(icon.Props{Class: "size-3.5"})
 		}
 	}
-	@LogInstanceFilters(props)
+	<div class="contents max-md:hidden">
+		@logColumnToggle("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
+			@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+		}
+		@logColumnToggle("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
+			@icon.Server(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+		}
+		@LogInstanceFilters(props)
+		if auth.IsAdmin(ctx) {
+			@archives.Trigger(props.ProjectId, props.ClientId)
+		}
+	</div>
 	if !props.IsLive() {
 		@button.Button(button.Props{
 			Href:       props.LivePath(),
@@ -227,9 +254,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 			<span class="hidden xl:inline">{ i18n.T(ctx, "logs.back_to_live") }</span>
 		}
 	}
-	if auth.IsAdmin(ctx) {
-		@archives.Trigger(props.ProjectId, props.ClientId)
-	}
+	@mobileLogTools(props)
 }
 
 func formatLogDate(ctx context.Context, iso string) string {
@@ -272,14 +297,14 @@ templ LogRangeFilter(props LogsPageProps) {
 		@button.Button(button.Props{
 			Variant: button.VariantGhost,
 			Size:    button.SizeSm,
-			Class:   "gap-1.5",
+			Class:   "gap-1.5 max-md:px-2",
 			Attributes: utils.MergeAttributes(popover.Trigger(ctx), templ.Attributes{
 				"aria-label": label,
 				"title":      i18n.T(ctx, "logs.date_range"),
 			}),
 		}) {
 			@icon.Calendar(icon.Props{Class: "size-3.5"})
-			<span class="max-w-[min(72vw,24rem)] truncate">{ label }</span>
+			<span class="max-w-[min(72vw,24rem)] truncate max-md:sr-only">{ label }</span>
 		}
 		@popover.Content(popover.ContentProps{Align: popover.AlignEnd, Class: "max-h-[65dvh] w-auto max-w-[calc(100vw-2rem)] overflow-auto p-3"}) {
 			<form
@@ -414,48 +439,154 @@ templ LogInstanceFilters(props LogsPageProps) {
 			@popover.Title(popover.TitleProps{Class: "text-sm font-medium"}) {
 				{ i18n.T(ctx, "logs.filters") }
 			}
-			<form
-				id="log-instance-form"
-				method="get"
-				action={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)) }
-				hx-boost="true"
-				hx-target="body"
-				hx-swap="innerHTML"
-				hx-push-url="true"
-				hx-sync="body:replace"
-				class="space-y-2"
-			>
-				if props.Search != "" {
-					<input type="hidden" name="search" value={ props.Search }/>
-				}
-				@logs.QueryFields(props.LogPage.Range.Query())
-				<div class="max-h-52 overflow-auto">
-					for _, instance := range logInstanceOptions(props) {
-						<label class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
-							<input type="checkbox" name="instance" value={ instance } checked?={ active && slices.Contains(*props.Instances, instance) }/>
-							<span class="wrap-anywhere">{ logInstanceLabel(ctx, instance) }</span>
-						</label>
-					}
-				</div>
-				<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "logs.no_instance_selection") }</p>
-				<div class="flex flex-wrap items-center justify-end gap-2">
-					if active {
-						<a
-							href={ templ.SafeURL(clearLogInstancesPath(props)) }
-							class="text-sm text-muted-foreground hover:text-foreground"
-							data-log-instance-filter
-							hx-target="body"
-							hx-swap="innerHTML"
-							hx-sync="body:replace"
-						>{ i18n.T(ctx, "logs.clear_filters") }</a>
-					}
-					@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm}) {
-						{ i18n.T(ctx, "logs.apply_filters") }
-					}
-				</div>
-			</form>
+			@instanceFilterForm(props, "log-instance-form")
 		}
 	}
+}
+
+templ instanceFilterForm(props LogsPageProps, id string) {
+	{{ active := props.Instances != nil && len(*props.Instances) > 0 }}
+	<form
+		id={ id }
+		data-log-instance-form
+		method="get"
+		action={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)) }
+		hx-boost="true"
+		hx-target="body"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+		hx-sync="body:replace"
+		class="space-y-2"
+	>
+		if props.Search != "" {
+			<input type="hidden" name="search" value={ props.Search }/>
+		}
+		@logs.QueryFields(props.LogPage.Range.Query())
+		<div class="max-h-52 overflow-auto">
+			for _, instance := range logInstanceOptions(props) {
+				<label class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
+					<input type="checkbox" name="instance" value={ instance } checked?={ active && slices.Contains(*props.Instances, instance) }/>
+					<span class="wrap-anywhere">{ logInstanceLabel(ctx, instance) }</span>
+				</label>
+			}
+		</div>
+		<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "logs.no_instance_selection") }</p>
+		<div class="flex flex-wrap items-center justify-end gap-2">
+			if active {
+				<a
+					href={ templ.SafeURL(clearLogInstancesPath(props)) }
+					class="text-sm text-muted-foreground hover:text-foreground"
+					data-log-instance-filter
+					hx-target="body"
+					hx-swap="innerHTML"
+					hx-sync="body:replace"
+				>{ i18n.T(ctx, "logs.clear_filters") }</a>
+			}
+			@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm}) {
+				{ i18n.T(ctx, "logs.apply_filters") }
+			}
+		</div>
+	</form>
+}
+
+func logsToolsReturnPath(props LogsPageProps) string {
+	path := props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", props.Search)
+	parsed, err := url.Parse(path)
+	if err != nil {
+		return path
+	}
+	query := parsed.Query()
+	if props.LogLineId != nil && *props.LogLineId != "" {
+		query.Set("logLine", *props.LogLineId)
+	}
+	if props.ReturnSearch != "" {
+		query.Set("returnSearch", props.ReturnSearch)
+		if props.ReturnInstances != nil {
+			for _, instance := range *props.ReturnInstances {
+				query.Add("returnInstance", instance)
+			}
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+templ mobileLogTools(props LogsPageProps) {
+	<div class="md:hidden">
+		@popover.Popover(popover.Props{ID: "log-mobile-tools"}) {
+			@button.Button(button.Props{
+				Variant: button.VariantGhost,
+				Size:    button.SizeIconSm,
+				Attributes: utils.MergeAttributes(popover.Trigger(ctx), templ.Attributes{
+					"aria-label": i18n.T(ctx, "logs.tools"),
+					"title":      i18n.T(ctx, "logs.tools"),
+				}),
+			}) {
+				@icon.Ellipsis(icon.Props{Class: "size-3.5"})
+			}
+			@popover.Content(popover.ContentProps{
+				Align: popover.AlignEnd,
+				Class: "max-h-[70dvh] w-[min(calc(100vw-2rem),20rem)] gap-3 overflow-auto p-3",
+			}) {
+				<div class="flex flex-col gap-1">
+					@logColumnMenuItem("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
+						@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+					}
+					@logColumnMenuItem("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
+						@icon.Server(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
+					}
+				</div>
+				<div class="space-y-2 border-t pt-3">
+					<p class="text-sm font-medium">{ i18n.T(ctx, "logs.filters") }</p>
+					@instanceFilterForm(props, "log-instance-form-mobile")
+				</div>
+				if auth.IsAdmin(ctx) {
+					@button.Button(button.Props{
+						Variant: button.VariantGhost,
+						Size:    button.SizeSm,
+						Class:   "w-full justify-start",
+						Attributes: templ.Attributes{
+							"type":    "button",
+							"onclick": "document.getElementById('log-archive-trigger')?.click()",
+						},
+					}) {
+						@icon.Archive(icon.Props{Class: "size-3.5"})
+						{ i18n.T(ctx, "archives.title") }
+					}
+				}
+				<form method="post" action="/language" hx-boost="false" data-language-switcher class="space-y-1 border-t pt-3">
+					<p class="text-sm font-medium">{ i18n.T(ctx, "language.label") }</p>
+					<input type="hidden" name="returnTo" value={ logsToolsReturnPath(props) }/>
+					<div class="flex gap-1">
+						{{ selectedLanguage := i18n.LanguageFrom(ctx) }}
+						for _, lang := range []i18n.Language{i18n.English, i18n.Croatian} {
+							{{
+								selected := selectedLanguage == lang
+								label := "English"
+								if lang == i18n.Croatian {
+									label = "Hrvatski"
+								}
+							}}
+							@button.Button(button.Props{
+								Type: button.TypeSubmit, Variant: button.VariantGhost, Size: button.SizeSm,
+								Attributes: templ.Attributes{
+									"name":         "language",
+									"value":        string(lang),
+									"aria-current": strconv.FormatBool(selected),
+									"lang":         string(lang),
+								},
+							}) {
+								{ label }
+								if selected {
+									@icon.Check(icon.Props{Class: "ml-auto size-4", Attributes: templ.Attributes{"aria-hidden": "true"}})
+								}
+							}
+						}
+					</div>
+				</form>
+			}
+		}
+	</div>
 }
 
 templ InstanceFilter(props LogsPageProps) {

@@ -9,6 +9,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/dropdownmenu
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 
 templ LanguageSwitcher() {
+	<div id="language-switcher" class="contents">
 	@dropdownmenu.DropdownMenu() {
 		{{
 			selectedLanguage := i18n.LanguageFrom(ctx)
@@ -57,4 +58,5 @@ templ LanguageSwitcher() {
 			</form>
 		}
 	}
+	</div>
 }

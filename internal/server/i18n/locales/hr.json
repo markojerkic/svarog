@@ -95,6 +95,7 @@
   "logs.run_search": { "other": "Pokreni pretragu" },
   "logs.clear_search": { "other": "Očisti pretragu" },
   "logs.filters": { "other": "Filteri" },
+  "logs.tools": { "other": "Alati" },
   "logs.all_instances": { "other": "Sve instance" },
   "logs.instance": { "other": "Instanca" },
   "logs.show_time": { "other": "Prikaži vrijeme" },
