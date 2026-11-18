@@ -15,8 +15,6 @@ NATS JetStream; the server stores it in PostgreSQL and streams new lines to the 
 
 [docker-compose.prod.yml](docker-compose.prod.yml) runs the server and an
 authenticated NATS server. PostgreSQL is not included and must already exist.
-`POSTGRES_URL` must be a direct connection, not a transaction-pooling proxy, and
-its user must be able to create the `pg_trgm` extension unless it already exists.
 
 ### NATS credentials
 
@@ -41,12 +39,10 @@ Create `.env`:
 
 ```dotenv
 SVAROG_IMAGE=ghcr.io/markojerkic/svarog:latest
-# Absolute host directory containing nats-server.conf
 SVAROG_DEPLOY_DIR=/absolute/path/to/svarog
 # host.docker.internal is the Docker host; PostgreSQL must accept connections from containers
 POSTGRES_URL=postgres://svarog:password@host.docker.internal:5432/svarog
 SESSION_SECRET=replace-with-a-long-random-secret
-# Host and port clients use to reach NATS; written into connection URLs
 NATS_PUBLIC_ADDR=logs.example.com:4222
 # Printed by nats-setup
 NATS_ACCOUNT_SEED=...
@@ -54,29 +50,66 @@ NATS_SERVER_USER_JWT=...
 NATS_SERVER_USER_SEED=...
 ```
 
-Use a `vX.Y.Z` image tag instead of `latest` to pin the server or client version.
+Server and deployment defaults below are for production Compose. To override
+a server setting that `docker-compose.prod.yml` does not read from `.env`,
+set it explicitly in the `svarog` service's `environment`. The development
+stack uses `.env`; the demo stack uses `.env.log-demo`.
 
-Optional settings:
-
-| Variable                    | Default     | Purpose                            |
-| --------------------------- | ----------- | ---------------------------------- |
-| `SVAROG_HTTP_BIND`          | `127.0.0.1` | Host address of the web UI         |
-| `SVAROG_HTTP_PORT`          | `1323`      | Host port of the web UI            |
-| `SVAROG_NATS_BIND`          | `0.0.0.0`   | Host address for NATS clients      |
-| `SVAROG_NATS_PORT`          | `4222`      | Host port for NATS clients         |
-| `LOG_LEVEL`                 | `info`      | Server log level                   |
-| `ARCHIVE_SCHEDULER_ENABLED` | `true`      | Run archive policies automatically |
-
-Set `SVAROG_CONN_STRING` to a client URL to forward the server's own logs.
-`SVAROG_LOG_QUEUE_CAPACITY` sets the maximum number of waiting records per
-server process (default 1024; range 1–65536). Invalid values fall back to 1024.
-The queue holds at most 16 MiB of encoded payloads, excluding the one record
-being published. If either limit would be exceeded, the server logs the new
-record to the console and skips forwarding it rather than waiting for the broker.
-
-Other [ServerEnv](internal/server/types/env.go) settings, such as `ARCHIVE_S3_*`
-for S3 archive storage, must be added explicitly to the `svarog` service's
-`environment`; values in `.env` alone do not reach the container.
+| Variable                                                                  | Default                              | Purpose                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deployment and networking**                                             |                                      |                                                                                                                                                                                                                                                |
+| `SVAROG_IMAGE`                                                            | Required                             | Server image to deploy. Use a `vX.Y.Z` tag instead of `latest` to pin the version.                                                                                                                                                             |
+| `SVAROG_DEPLOY_DIR`                                                       | Required                             | Absolute host directory containing `nats-server.conf`.                                                                                                                                                                                         |
+| `POSTGRES_URL`                                                            | Required                             | Direct PostgreSQL connection URL (no transaction-pooling proxy). The database user must be able to create `pg_trgm` unless already installed.                                                                                                  |
+| `SESSION_SECRET`                                                          | Required                             | Secret used to sign session cookies.                                                                                                                                                                                                           |
+| `NATS_PUBLIC_ADDR`                                                        | Required                             | Host and port written into client connection URLs, e.g. `logs.example.com:4222`.                                                                                                                                                               |
+| `NATS_ACCOUNT_SEED`                                                       | Required                             | Account seed used to sign client credentials. Generated by `nats-setup`.                                                                                                                                                                       |
+| `NATS_SERVER_USER_JWT`                                                    | Required                             | NATS user JWT for the server. Generated by `nats-setup`.                                                                                                                                                                                       |
+| `NATS_SERVER_USER_SEED`                                                   | Required                             | NATS user seed paired with the server JWT. Generated by `nats-setup`.                                                                                                                                                                          |
+| `NATS_ACCOUNT_PUBLIC_KEY`                                                 | Unset                                | Public key printed by `nats-setup` for reference; the server does not require it.                                                                                                                                                              |
+| `SVAROG_HTTP_BIND`                                                        | `127.0.0.1`                          | Host address on which Compose publishes the web UI.                                                                                                                                                                                            |
+| `SVAROG_HTTP_PORT`                                                        | `1323`                               | Host port for the web UI.                                                                                                                                                                                                                      |
+| `SVAROG_NATS_BIND`                                                        | `0.0.0.0`                            | Host address on which Compose publishes NATS.                                                                                                                                                                                                  |
+| `SVAROG_NATS_PORT`                                                        | `4222`                               | Host port for NATS clients.                                                                                                                                                                                                                    |
+| `HTTP_SERVER_PORT`                                                        | `1323`                               | Port the server listens on inside the container.                                                                                                                                                                                               |
+| `NATS_ADDR`                                                               | `nats://nats:4222`                   | Internal broker URL the server connects to.                                                                                                                                                                                                    |
+| `DOCKER`                                                                  | `true` in the server image           | Skip loading local `.env` files and use the container environment.                                                                                                                                                                             |
+| `SERVER_DNS_NAME`                                                         | Unset                                | Parsed but currently unused by the server.                                                                                                                                                                                                     |
+| **Server and client logging**                                             |                                      |                                                                                                                                                                                                                                                |
+| `LOG_LEVEL`                                                               | `info`                               | Minimum severity for server logs: `debug`, `info`, `warn` or `error`.                                                                                                                                                                          |
+| `SVAROG_CONN_STRING`                                                      | Unset                                | **Server:** forward its own logs to this client URL; unset means console only. **CLI:** use this URL unless one is passed as the first argument. **Java bridge:** required.                                                                    |
+| `SVAROG_INSTANCE_ID`                                                      | Hostname                             | Instance name attached to forwarded logs, both for the server and for the client.                                                                                                                                                              |
+| `SVAROG_LOG_QUEUE_CAPACITY`                                               | `1024`                               | Maximum records waiting per server process (1–65536; invalid values use the default). The queue also caps encoded data at 16 MiB, excluding the record being sent. If either limit would be exceeded, the new record goes only to the console. |
+| `SVAROG_BRIDGE_PATH`                                                      | Bundled executable                   | Absolute path to an alternative bridge executable for [Java Logback](java/README.md).                                                                                                                                                          |
+| `SVAROG_LOGGING_ENABLED`                                                  | `false`                              | Enable log forwarding with the Svarog Spring Boot starter.                                                                                                                                                                                     |
+| `TINI_KILL_PROCESS_GROUP`                                                 | Unset                                | Set to `1` when piping logs to the CLI under Tini so `docker stop` signals the whole pipeline.                                                                                                                                                 |
+| **Archive storage and ingestion**                                         |                                      |                                                                                                                                                                                                                                                |
+| `ARCHIVE_DIR`                                                             | `/var/lib/svarog/archives`           | Directory for disk archives when S3 storage is not configured.                                                                                                                                                                                 |
+| `ARCHIVE_SCHEDULER_ENABLED`                                               | `true`                               | Run archive policies automatically when archive storage is configured.                                                                                                                                                                         |
+| `ARCHIVE_S3_BUCKET`                                                       | Unset                                | Destination bucket; required for S3 archive storage.                                                                                                                                                                                           |
+| `ARCHIVE_S3_ENDPOINT`                                                     | Unset                                | S3-compatible endpoint URL; required for S3 archive storage.                                                                                                                                                                                   |
+| `ARCHIVE_S3_REGION`                                                       | `auto`                               | Region used for S3 requests.                                                                                                                                                                                                                   |
+| `ARCHIVE_S3_ACCESS_KEY_ID`                                                | Unset                                | Access key ID for S3 archive storage.                                                                                                                                                                                                          |
+| `ARCHIVE_S3_SECRET_ACCESS_KEY`                                            | Unset                                | Secret key for S3 archive storage.                                                                                                                                                                                                             |
+| `INGEST_STREAM_MAX_BYTES`                                                 | `0`                                  | JetStream log stream size limit in bytes. `0` keeps the existing limit or sets 1 GiB for a new stream.                                                                                                                                         |
+| `INGEST_ACK_WAIT`                                                         | `60s`                                | How long JetStream waits for acknowledgement before a delivery is eligible for retry.                                                                                                                                                          |
+| `INGEST_ALLOW_RETENTION_MIGRATION`                                        | `false`                              | Allow migration of a legacy log stream's retention policy after backing it up and stopping old writers.                                                                                                                                        |
+| **Local development**                                                     |                                      |                                                                                                                                                                                                                                                |
+| `SVAROG_VERSION`                                                          | `local`                              | Server image tag for the development and load-balanced Compose stacks.                                                                                                                                                                         |
+| `SVAROG_POSTGRES_PORT`                                                    | `5434`                               | Host port for the development PostgreSQL container.                                                                                                                                                                                            |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`                       | `svarog` each                        | Database name, user and password set on the development PostgreSQL container in `docker-compose.dev.yml`.                                                                                                                                      |
+| `PROXY_PORT`                                                              | `7331`                               | Port used by the development hot-reload proxy.                                                                                                                                                                                                 |
+| `SHADCN_TEMPL_DEV`, `TEMPL_DEV_MODE`                                      | Unset                                | Either set to `true` disables browser caching of UI assets. `task dev` sets `SHADCN_TEMPL_DEV=true`.                                                                                                                                           |
+| `GO_ENV`                                                                  | Unset                                | `development` is the legacy alias for disabling asset caching.                                                                                                                                                                                 |
+| `GPRC_PORT`                                                               | Unused                               | Legacy entry in the development `.env`; it does not configure a listener.                                                                                                                                                                      |
+| **Log demo**                                                              |                                      |                                                                                                                                                                                                                                                |
+| `API_CONN_STRING`, `WORKER_CONN_STRING`, `PAYMENTS_CONN_STRING`           | Required for demo Compose            | Client connection URLs for the API, worker and payments generators, respectively.                                                                                                                                                              |
+| `NATIVE_CONN_STRING`                                                      | `API_CONN_STRING`                    | Client URL for the native Go logging demo.                                                                                                                                                                                                     |
+| `API_REPLICAS`, `WORKER_REPLICAS`, `PAYMENTS_REPLICAS`, `NATIVE_REPLICAS` | `3`, `2`, `2`, `1`                   | Number of generator containers for each demo service, respectively.                                                                                                                                                                            |
+| `DEMO_NETWORK_MODE`                                                       | `host`                               | Docker network mode for demo containers.                                                                                                                                                                                                       |
+| `DEMO_INTERVAL`                                                           | `1s`                                 | Time between generated log records.                                                                                                                                                                                                            |
+| `DEMO_APP_NAME`                                                           | `demo` (CLI), `demo-native` (native) | Application name attached to generated logs. Demo Compose sets it per service.                                                                                                                                                                 |
+| `DEMO_MESSAGES_FILE`                                                      | `cmd/log-demo/messages.txt`          | Message source for the CLI demo generator; the image uses `/app/messages.txt`.                                                                                                                                                                 |
 
 Start the server:
 
@@ -103,10 +136,7 @@ The token contains NATS credentials, so treat the URL as a secret. The client
 prints each line it sends to standard output; append `&debug=true` to the URL
 for verbose diagnostics on stderr.
 
-| Variable             | Description                                                               |
-| -------------------- | ------------------------------------------------------------------------- |
-| `SVAROG_CONN_STRING` | Connection URL, unless it is passed as the first argument                 |
-| `SVAROG_INSTANCE_ID` | Optional instance name; defaults to the hostname (container ID in Docker) |
+Client environment variables are listed in [Configuration](#configuration).
 
 The client image contains a static `linux/amd64` binary at `/svarog/client`:
 
