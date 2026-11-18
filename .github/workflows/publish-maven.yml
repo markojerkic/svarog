@@ -2,13 +2,14 @@ name: Publish to Maven Central
 
 on:
   push:
-    tags: ['java-v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: read
 
 jobs:
   publish:
+    if: ${{ !github.event.deleted }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -31,11 +32,7 @@ jobs:
 
       - name: Set Maven release version from tag
         run: |
-          version="${GITHUB_REF_NAME#java-v}"
-          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Expected a Java release tag in the form java-vX.Y.Z" >&2
-            exit 1
-          fi
+          version=$(bash scripts/release-tag.sh "$GITHUB_REF_NAME")
           ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml \
             org.codehaus.mojo:versions-maven-plugin:2.25.2:set \
             "-DnewVersion=$version" -DgenerateBackupPoms=false

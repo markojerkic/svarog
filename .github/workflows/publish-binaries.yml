@@ -2,19 +2,18 @@ name: Publish binaries
 
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: write
 
 concurrency:
-  group: client-binaries-latest
-  cancel-in-progress: false
+  group: publish-binaries
+  queue: max
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/master'
+    if: ${{ !github.event.deleted }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -39,6 +38,13 @@ jobs:
           java-version: "17"
           cache: maven
 
+      - name: Set Maven release version from tag
+        run: |
+          version=$(bash scripts/release-tag.sh "$GITHUB_REF_NAME")
+          ./java/mvnw --batch-mode --no-transfer-progress -f java/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.25.2:set \
+            "-DnewVersion=$version" -DgenerateBackupPoms=false
+
       - name: Generate templates
         run: go tool templ generate ./...
 
@@ -48,15 +54,21 @@ jobs:
       - name: Build Logback JAR with bundled bridges
         run: bash scripts/package-logback.sh
 
-      - name: Publish latest binaries release
+      - name: Publish versioned binaries release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          notes="$RUNNER_TEMP/binaries-release-notes.md"
-          printf 'Rolling binaries build from commit [%s](%s/%s/commit/%s).\n\nClient and bridge archives for Linux amd64 and arm64, plus the Logback JAR with both bridges bundled.\n' \
-            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > "$notes"
+          if [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null)" == false ]]; then
+            printf 'Release %s already published.\n' "$GITHUB_REF_NAME"
+            exit 0
+          fi
+          latest_tag=$(bash scripts/release-tag.sh --latest)
+          latest=false
+          if [[ "$GITHUB_REF_NAME" == "$latest_tag" ]]; then
+            latest=true
+          fi
           assets=(
             build/binaries/svarog-client_linux_amd64.tar.gz
             build/binaries/svarog-client_linux_arm64.tar.gz
@@ -65,15 +77,5 @@ jobs:
             build/binaries/svarog-logback.jar
             build/binaries/checksums.txt
           )
-          if gh release view latest > /dev/null 2>&1; then
-            gh release upload latest "${assets[@]}" --clobber
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
-              -f sha="$GITHUB_SHA" -F force=true --silent
-            gh release edit latest \
-              --target "$GITHUB_SHA" \
-              --title "Latest binaries" --notes-file "$notes" --latest
-          else
-            gh release create latest "${assets[@]}" \
-              --target "$GITHUB_SHA" \
-              --title "Latest binaries" --notes-file "$notes" --latest
-          fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --verify-tag --generate-notes --latest="$latest"

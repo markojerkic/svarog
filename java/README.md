@@ -20,7 +20,7 @@ application's Logback dependency.
 
 ## Install the release JAR manually
 
-Download [`svarog-logback.jar`](https://github.com/markojerkic/svarog/releases/download/latest/svarog-logback.jar)
+Download [`svarog-logback.jar`](https://github.com/markojerkic/svarog/releases/latest/download/svarog-logback.jar)
 and add it to your runtime classpath along with `com.fasterxml.jackson.core:jackson-core:2.23.0`
 and your application's `logback-classic`. The JAR bundles the Go bridge for
 Linux amd64 and arm64; it does not bundle Logback or Jackson.

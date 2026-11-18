@@ -54,6 +54,8 @@ NATS_SERVER_USER_JWT=...
 NATS_SERVER_USER_SEED=...
 ```
 
+Use a `vX.Y.Z` image tag instead of `latest` to pin the server or client version.
+
 Optional settings:
 
 | Variable                    | Default     | Purpose                            |

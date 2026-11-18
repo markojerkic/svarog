@@ -9,7 +9,7 @@ entry has a `message` and an RFC 3339 `timestamp`. For plain-text logs, use the
 Linux amd64:
 
 ```bash
-curl -fsSL https://github.com/markojerkic/svarog/releases/download/latest/svarog-bridge_linux_amd64.tar.gz | tar -xz
+curl -fsSL https://github.com/markojerkic/svarog/releases/latest/download/svarog-bridge_linux_amd64.tar.gz | tar -xz
 export SVAROG_CONN_STRING='PASTE_GENERATED_CONNECTION_URL'
 printf '{"message":"Hello from Java","timestamp":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" | ./svarog-bridge
 ```
@@ -35,6 +35,6 @@ This creates `svarog-bridge_linux_amd64.tar.gz`,
 Use `OUT=/path/to/output` to select another directory.
 
 `task build:binaries` builds both the client and bridge under `build/binaries`,
-with one shared `checksums.txt`. CI publishes these files to the same rolling
-[`latest` release](https://github.com/markojerkic/svarog/releases/tag/latest) on
-every push to `master`.
+with one shared `checksums.txt`. These archives are available from the
+[latest release](https://github.com/markojerkic/svarog/releases/latest) or a
+specific `vX.Y.Z` release.
