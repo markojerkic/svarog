@@ -10,12 +10,12 @@ import (
 type Option func(*setupConfig) error
 
 type setupConfig struct {
-	connectionString string
-	instanceID       string
-	level            slog.Leveler
-	console          slog.Handler
-	drainTimeout     time.Duration
-	dropWhenFull     bool
+	connectionString  string
+	instanceID        string
+	level             slog.Leveler
+	console           slog.Handler
+	drainTimeout      time.Duration
+	dropQueueCapacity int
 }
 
 // WithConnectionString overrides SVAROG_CONN_STRING.
@@ -26,11 +26,11 @@ func WithConnectionString(value string) Option {
 	}
 }
 
-// WithDropWhenFull keeps logging calls from waiting on broker backpressure.
-// Records that do not fit in the queue still go to the configured console.
-func WithDropWhenFull() Option {
+// WithDropQueueCapacity enables best-effort forwarding: records exceeding the
+// slot or byte limit still go to the console. Zero restores blocking delivery.
+func WithDropQueueCapacity(capacity int) Option {
 	return func(config *setupConfig) error {
-		config.dropWhenFull = true
+		config.dropQueueCapacity = capacity
 		return nil
 	}
 }

@@ -67,6 +67,13 @@ Optional settings:
 | `LOG_LEVEL`                 | `info`      | Server log level                   |
 | `ARCHIVE_SCHEDULER_ENABLED` | `true`      | Run archive policies automatically |
 
+Set `SVAROG_CONN_STRING` to a client URL to forward the server's own logs.
+`SVAROG_LOG_QUEUE_CAPACITY` sets the maximum number of waiting records per
+server process (default 1024; range 1–65536). Invalid values fall back to 1024.
+The queue holds at most 16 MiB of encoded payloads, excluding the one record
+being published. If either limit would be exceeded, the server logs the new
+record to the console and skips forwarding it rather than waiting for the broker.
+
 Other [ServerEnv](internal/server/types/env.go) settings, such as `ARCHIVE_S3_*`
 for S3 archive storage, must be added explicitly to the `svarog` service's
 `environment`; values in `.env` alone do not reach the container.

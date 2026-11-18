@@ -44,7 +44,8 @@ func (s *serverSuite) TestSelfLogging() {
 	cmd.Dir = build.Dir
 	cmd.Env = append(os.Environ(), "DOCKER=true", "HTTP_SERVER_PORT=0", "ARCHIVE_DIR=",
 		"POSTGRES_URL="+s.PostgresPool.Config().ConnString(), "NATS_ADDR="+s.NatsAddr,
-		"SVAROG_CONN_STRING="+config.GetConnString(), "SVAROG_INSTANCE_ID=test-server", "LOG_LEVEL=info")
+		"SVAROG_CONN_STRING="+config.GetConnString(), "SVAROG_INSTANCE_ID=test-server", "LOG_LEVEL=info",
+		"SVAROG_LOG_QUEUE_CAPACITY=invalid")
 	var console bytes.Buffer
 	cmd.Stderr = &console
 	require.NoError(t, cmd.Start())
@@ -66,5 +67,6 @@ func (s *serverSuite) TestSelfLogging() {
 	require.NoError(t, cmd.Process.Signal(os.Interrupt))
 	err = cmd.Wait()
 	require.NoError(t, err, "%s", console.String())
+	require.Contains(t, console.String(), "Invalid SVAROG_LOG_QUEUE_CAPACITY; using default")
 	require.Contains(t, console.String(), "PostgreSQL migrations applied")
 }

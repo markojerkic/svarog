@@ -280,26 +280,40 @@ func TestLoggingSetupLifecycle(t *testing.T) {
 	broker := newClientBroker(t)
 
 	t.Run("best effort logging keeps the console usable when the queue fills", func(t *testing.T) {
-		connectionURL, _, _ := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		connectionURL, _, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		subscription, err := broker.nc.SubscribeSync(subject)
+		require.NoError(t, err)
+		defer subscription.Unsubscribe()
+		require.NoError(t, broker.nc.Flush())
+
 		var console bytes.Buffer
-		closeLogging, err := svaroglog.Setup(context.Background(),
-			svaroglog.WithConnectionString(connectionURL), svaroglog.WithDropWhenFull(),
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		closeLogging, err := svaroglog.Setup(ctx,
+			svaroglog.WithConnectionString(connectionURL), svaroglog.WithDropQueueCapacity(20),
 			svaroglog.WithConsole(slog.NewTextHandler(&console, nil)), svaroglog.WithDrainTimeout(100*time.Millisecond))
 		require.NoError(t, err)
 		defer closeLogging()
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			for i := range 32 {
-				slog.Info("server request", "index", i)
-			}
-		}()
-		select {
-		case <-done:
-		case <-time.After(time.Second):
-			t.Fatal("a full remote queue blocked the application")
+
+		handler := slog.Default().Handler()
+		send := func(message string) error {
+			return handler.Handle(ctx, slog.NewRecord(time.Now(), slog.LevelInfo, message, 0))
 		}
-		require.Equal(t, 32, strings.Count(console.String(), "server request"))
+		// Each '<' occupies six bytes in the wire JSON: 16 payloads fit in
+		// 16 MiB, but a 17th does not, even though record slots are available.
+		large := strings.Repeat("<", 170_000)
+		require.NoError(t, send(large))
+		_, err = subscription.NextMsg(5 * time.Second)
+		require.NoError(t, err, "the unacknowledged payload must already be out of the queue")
+		for range 16 {
+			require.NoError(t, send(large))
+		}
+		require.ErrorIs(t, send(large), svarogclient.ErrQueueFull)
+		for range 4 {
+			require.NoError(t, send("small"), "a byte-limit rejection must leave room for smaller records")
+		}
+		require.ErrorIs(t, send("over slot limit"), svarogclient.ErrQueueFull)
+		require.Equal(t, 23, bytes.Count(console.Bytes(), []byte("\n")), "both kinds of dropped record must still reach the console")
 		require.ErrorIs(t, closeLogging(), context.DeadlineExceeded)
 	})
 

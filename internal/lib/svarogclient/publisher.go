@@ -32,6 +32,11 @@ func (c *Client) run() {
 	}()
 
 	for payload := range c.queue {
+		if c.dropWhenFull {
+			c.admission.Lock()
+			c.queuedBytes -= len(payload)
+			c.admission.Unlock()
+		}
 		for {
 			if err := c.ctx.Err(); err != nil {
 				c.setError(err)

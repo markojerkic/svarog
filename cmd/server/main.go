@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 	"github.com/markojerkic/svarog/internal/lib/svaroglog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
@@ -48,6 +50,19 @@ func loadEnv() types.ServerEnv {
 		log.Fatal("Error parsing env", "error", err)
 	}
 	return env
+}
+
+func selfLogQueueCapacity(raw string) int {
+	const defaultCapacity = 1024
+	if raw == "" {
+		return defaultCapacity
+	}
+	capacity, err := strconv.Atoi(raw)
+	if err != nil || capacity < 1 || capacity > svarogclient.MaxDropQueueCapacity {
+		log.Warn("Invalid SVAROG_LOG_QUEUE_CAPACITY; using default", "min", 1, "max", svarogclient.MaxDropQueueCapacity, "default", defaultCapacity)
+		return defaultCapacity
+	}
+	return capacity
 }
 
 type serverDependencies struct {
@@ -92,7 +107,7 @@ func main() {
 			svaroglog.WithConnectionString(env.LogConnectionString),
 			svaroglog.WithConsole(log.Default()),
 			svaroglog.WithLevel(slog.Level(level)),
-			svaroglog.WithDropWhenFull(),
+			svaroglog.WithDropQueueCapacity(selfLogQueueCapacity(env.LogQueueCapacity)),
 		)
 		if err != nil {
 			log.Error("Cannot forward server logs; using console only", "error", err)

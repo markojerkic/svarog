@@ -12,13 +12,19 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nats-io/nkeys"
+
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 	"github.com/markojerkic/svarog/internal/rpc"
-	"github.com/nats-io/nkeys"
 )
 
-const queueCapacity = 16
+const (
+	blockingQueueCapacity = 16
+	maxDropQueueBytes     = 16 << 20
+	// MaxDropQueueCapacity also bounds the channel allocation when entries are small.
+	MaxDropQueueCapacity = 65_536
+)
 
 var (
 	ErrClosed       = errors.New("Svarog client is closed")
@@ -40,8 +46,9 @@ type Options struct {
 	InstanceID string
 	// Diagnostics defaults to stderr. It must not feed back into this client.
 	Diagnostics io.Writer
-	// DropWhenFull makes Enqueue return ErrQueueFull instead of waiting for space.
-	DropWhenFull bool
+	// DropQueueCapacity enables best-effort delivery with this many queue slots
+	// and a fixed 16 MiB encoded payload budget. Zero uses the blocking 16-slot queue.
+	DropQueueCapacity int
 }
 
 type Client struct {
@@ -56,16 +63,24 @@ type Client struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 
-	admission sync.Mutex
-	sequence  int
-	stopOnce  sync.Once
-	stateMu   sync.Mutex
-	err       error
+	admission   sync.Mutex
+	sequence    int
+	queuedBytes int // protected by admission; excludes the payload being published
+	stopOnce    sync.Once
+	stateMu     sync.Mutex
+	err         error
 }
 
 // New validates local configuration and starts a background publisher. It does
 // not wait for the broker: unavailable connections retry while the queue fills.
 func New(options Options) (*Client, error) {
+	capacity := options.DropQueueCapacity
+	if capacity < 0 || capacity > MaxDropQueueCapacity {
+		return nil, fmt.Errorf("drop queue capacity must be between 0 and %d", MaxDropQueueCapacity)
+	}
+	if capacity == 0 {
+		capacity = blockingQueueCapacity
+	}
 	cfg, err := config.NewClientConfig(options.ConnectionString)
 	if err != nil {
 		return nil, err
@@ -108,8 +123,8 @@ func New(options Options) (*Client, error) {
 		config:       cfg,
 		instanceID:   instanceID,
 		logger:       logger,
-		dropWhenFull: options.DropWhenFull,
-		queue:        make(chan []byte, queueCapacity),
+		dropWhenFull: options.DropQueueCapacity > 0,
+		queue:        make(chan []byte, capacity),
 		stopping:     make(chan struct{}),
 		done:         make(chan struct{}),
 		ctx:          ctx,
@@ -119,7 +134,7 @@ func New(options Options) (*Client, error) {
 	return c, nil
 }
 
-// Enqueue waits for space in the bounded queue unless DropWhenFull is set.
+// Enqueue waits for space in the bounded queue unless DropQueueCapacity is set.
 // Success means local acceptance, not broker or database persistence.
 // Shutdown unblocks waiting callers.
 // Rejections are also reported locally because slog discards handler errors.
@@ -167,10 +182,16 @@ func (c *Client) accept(entry Entry) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("%w: encode log line: %w", ErrInvalidEntry, err)
 	}
+	if c.dropWhenFull && c.queuedBytes+len(payload) > maxDropQueueBytes {
+		return false, ErrQueueFull
+	}
 	select {
 	case <-c.stopping:
 		return false, errors.Join(ErrClosed, c.result())
 	case c.queue <- payload:
+		if c.dropWhenFull {
+			c.queuedBytes += len(payload)
+		}
 		c.sequence = (c.sequence + 1) % math.MaxInt
 		return truncated, nil
 	}
