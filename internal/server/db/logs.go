@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/url"
 	"strconv"
 	"time"
 
-	"log/slog"
-
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/live"
@@ -286,7 +287,7 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 	}
 	inserted, err := persistence.InsertIngestLogs(ctx, self.pool, input)
 	if err != nil {
-		slog.Error("Error saving logs", "error", err)
+		log.Error("Error saving logs", "error", err)
 		if self.liveLogs != nil && uncertainCommit(err) {
 			rows := make([]types.StoredLog, len(logs))
 			for i := range logs {

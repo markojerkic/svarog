@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -9,16 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/log"
-
 	envParser "github.com/caarlos0/env/v11"
+	"github.com/charmbracelet/log"
 	"github.com/jackc/pgx/v5/pgxpool"
 	dotenv "github.com/joho/godotenv"
+
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/lib/svaroglog"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
 	"github.com/markojerkic/svarog/internal/server/db"
@@ -51,16 +53,12 @@ func loadEnv() types.ServerEnv {
 type serverDependencies struct {
 	httpServer    *http.HttpServer
 	ingestService *ingest.Service
-	natsConn      *natsconn.NatsConnection
-	liveLogs      *live.Logs
-	liveConn      *natsconn.NatsConnection
-	postgresPool  *pgxpool.Pool
 	cancel        context.CancelFunc
 	background    *sync.WaitGroup
 }
 
 func gracefulShutdown(deps serverDependencies) {
-	log.Info("Shutting down server...")
+	slog.Info("Shutting down server...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
@@ -69,23 +67,16 @@ func gracefulShutdown(deps serverDependencies) {
 	go func() {
 		defer close(httpStopped)
 		if err := deps.httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Error("HTTP server shutdown error", "error", err)
+			slog.Error("HTTP server shutdown error", "error", err)
 		}
 	}()
 	if err := deps.ingestService.Shutdown(shutdownCtx); err != nil {
-		log.Error("Ingest shutdown error", "error", err)
+		slog.Error("Ingest shutdown error", "error", err)
 	}
 	<-httpStopped
 	deps.cancel()
 	// Canceled jobs must exit before closing their borrowed DB/NATS resources.
 	deps.background.Wait()
-
-	deps.liveLogs.Close()
-	deps.liveConn.Close()
-	deps.natsConn.Close()
-	deps.postgresPool.Close()
-
-	log.Info("Server stopped gracefully")
 }
 
 func main() {
@@ -95,33 +86,63 @@ func main() {
 		log.Fatal("Invalid log level", "error", err)
 	}
 	util.SetupLogger(level)
+	var closeLogging func() error
+	if env.LogConnectionString != "" {
+		closeLogging, err = svaroglog.Setup(context.Background(),
+			svaroglog.WithConnectionString(env.LogConnectionString),
+			svaroglog.WithConsole(log.Default()),
+			svaroglog.WithLevel(slog.Level(level)),
+			svaroglog.WithDropWhenFull(),
+		)
+		if err != nil {
+			log.Error("Cannot forward server logs; using console only", "error", err)
+		}
+	}
 
+	err = runServer(env)
+	if err != nil {
+		slog.Error("Server failed", "error", err)
+	} else {
+		slog.Info("Server stopped gracefully")
+	}
+	if closeLogging != nil {
+		if drainErr := closeLogging(); drainErr != nil {
+			log.Error("Could not flush server logs to Svarog", "error", drainErr)
+		}
+	}
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func runServer(env types.ServerEnv) error {
 	if err := migrations.Up(context.Background(), env.PostgresURL); err != nil {
-		log.Fatal("Couldn't apply PostgreSQL migrations", "error", err)
+		return fmt.Errorf("apply PostgreSQL migrations: %w", err)
 	}
 	slog.Info("PostgreSQL migrations applied")
 
 	postgresCtx, postgresCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	postgresPool, err := pgxpool.New(postgresCtx, env.PostgresURL)
 	if err == nil {
+		defer postgresPool.Close()
 		err = postgresPool.Ping(postgresCtx)
 	}
 	postgresCancel()
 	if err != nil {
-		log.Fatal("Couldn't connect to PostgreSQL", "error", err)
+		return fmt.Errorf("connect to PostgreSQL: %w", err)
 	}
 
 	projectsService := projects.NewPostgresProjectsService(postgresPool)
 	archiveStore, err := newArchiveStore(env)
 	if err != nil {
-		log.Fatal("Failed to configure archive storage", "error", err)
+		return fmt.Errorf("configure archive storage: %w", err)
 	}
 	projectsService.SetArchiveStore(archiveStore)
 	archiver := archive.NewArchiveService(postgresPool, archiveStore)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
 	if err != nil {
-		log.Fatal("Failed to create credential service", "error", err)
+		return fmt.Errorf("create credential service: %w", err)
 	}
 
 	slog.Debug("Starting NATS connection", "addr", env.NatsAddr, "publicAddr", env.NatsPublicAddr)
@@ -132,8 +153,9 @@ func main() {
 		EnableJetStream: true,
 	})
 	if err != nil {
-		log.Fatal("Failed to connect to NATS", "error", err)
+		return fmt.Errorf("connect to NATS: %w", err)
 	}
+	defer natsConn.Close()
 
 	liveConn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{
 		NatsAddr:               env.NatsAddr,
@@ -142,9 +164,11 @@ func main() {
 		DisableReconnectBuffer: true,
 	})
 	if err != nil {
-		log.Fatal("Failed to connect live logs to NATS", "error", err)
+		return fmt.Errorf("connect live logs to NATS: %w", err)
 	}
+	defer liveConn.Close()
 	liveLogs := live.New(liveConn.Conn)
+	defer liveLogs.Close()
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
 	logsService := db.NewLogService(postgresPool, liveLogs)
@@ -152,7 +176,7 @@ func main() {
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 
 	if err := authService.CreateInitialAdminUser(context.Background()); err != nil {
-		log.Fatal("Couldn't initialize PostgreSQL admin user", "error", err)
+		return fmt.Errorf("initialize PostgreSQL admin user: %w", err)
 	}
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -163,7 +187,7 @@ func main() {
 	})
 	startupCancel()
 	if err != nil {
-		log.Fatal("Failed to prepare durable log ingestion", "error", err)
+		return fmt.Errorf("prepare durable log ingestion: %w", err)
 	}
 
 	httpServer := http.NewServer(
@@ -199,27 +223,19 @@ func main() {
 	httpDone := make(chan error, 1)
 	go func() { httpDone <- httpServer.Start() }()
 
-	failed := false
+	var stopErr error
 	select {
 	case <-quit:
 	case err := <-ingestDone:
-		failed = true
-		log.Error("Ingest stopped unexpectedly", "error", err)
+		stopErr = fmt.Errorf("ingest stopped unexpectedly: %w", err)
 	case err := <-httpDone:
-		failed = true
-		log.Error("HTTP server stopped unexpectedly", "error", err)
+		stopErr = fmt.Errorf("HTTP server stopped unexpectedly: %w", err)
 	}
 	gracefulShutdown(serverDependencies{
 		httpServer:    httpServer,
 		ingestService: ingestService,
-		natsConn:      natsConn,
-		liveLogs:      liveLogs,
-		liveConn:      liveConn,
-		postgresPool:  postgresPool,
 		cancel:        cancel,
 		background:    &background,
 	})
-	if failed {
-		os.Exit(1)
-	}
+	return stopErr
 }

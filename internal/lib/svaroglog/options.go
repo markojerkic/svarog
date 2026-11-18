@@ -15,12 +15,22 @@ type setupConfig struct {
 	level            slog.Leveler
 	console          slog.Handler
 	drainTimeout     time.Duration
+	dropWhenFull     bool
 }
 
 // WithConnectionString overrides SVAROG_CONN_STRING.
 func WithConnectionString(value string) Option {
 	return func(config *setupConfig) error {
 		config.connectionString = value
+		return nil
+	}
+}
+
+// WithDropWhenFull keeps logging calls from waiting on broker backpressure.
+// Records that do not fit in the queue still go to the configured console.
+func WithDropWhenFull() Option {
+	return func(config *setupConfig) error {
+		config.dropWhenFull = true
 		return nil
 	}
 }

@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/markojerkic/svarog/internal/server/db"
 )
 
@@ -64,7 +65,7 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 		} else if systemicSaveError(err) {
 			return fmt.Errorf("systemic ingest write failure; deliveries left unacknowledged: %w", err)
 		}
-		slog.Warn("Log commit failed; retrying without ACK", "error", err, "count", len(batch), "retry_in", delay)
+		log.Warn("Log commit failed; retrying without ACK", "error", err, "count", len(batch), "retry_in", delay)
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():

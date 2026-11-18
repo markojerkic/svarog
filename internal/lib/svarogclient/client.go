@@ -23,6 +23,7 @@ const queueCapacity = 16
 var (
 	ErrClosed       = errors.New("Svarog client is closed")
 	ErrInvalidEntry = errors.New("invalid log entry")
+	ErrQueueFull    = errors.New("Svarog log queue is full")
 )
 
 type Entry struct {
@@ -39,12 +40,15 @@ type Options struct {
 	InstanceID string
 	// Diagnostics defaults to stderr. It must not feed back into this client.
 	Diagnostics io.Writer
+	// DropWhenFull makes Enqueue return ErrQueueFull instead of waiting for space.
+	DropWhenFull bool
 }
 
 type Client struct {
-	config     config.ClientConfig
-	instanceID string
-	logger     *slog.Logger
+	config       config.ClientConfig
+	instanceID   string
+	logger       *slog.Logger
+	dropWhenFull bool
 
 	queue    chan []byte
 	stopping chan struct{}
@@ -101,21 +105,23 @@ func New(options Options) (*Client, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
-		config:     cfg,
-		instanceID: instanceID,
-		logger:     logger,
-		queue:      make(chan []byte, queueCapacity),
-		stopping:   make(chan struct{}),
-		done:       make(chan struct{}),
-		ctx:        ctx,
-		cancel:     cancel,
+		config:       cfg,
+		instanceID:   instanceID,
+		logger:       logger,
+		dropWhenFull: options.DropWhenFull,
+		queue:        make(chan []byte, queueCapacity),
+		stopping:     make(chan struct{}),
+		done:         make(chan struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 	go c.run()
 	return c, nil
 }
 
-// Enqueue waits for space in the bounded queue. Success means local acceptance,
-// not broker or database persistence. Shutdown unblocks waiting callers.
+// Enqueue waits for space in the bounded queue unless DropWhenFull is set.
+// Success means local acceptance, not broker or database persistence.
+// Shutdown unblocks waiting callers.
 // Rejections are also reported locally because slog discards handler errors.
 func (c *Client) Enqueue(entry Entry) error {
 	truncated, err := c.accept(entry)
@@ -140,6 +146,10 @@ func (c *Client) accept(entry Entry) (bool, error) {
 	case <-c.stopping:
 		return false, errors.Join(ErrClosed, c.result())
 	default:
+	}
+	// Admission serializes all producers; only the publisher can remove an item.
+	if c.dropWhenFull && len(c.queue) == cap(c.queue) {
+		return false, ErrQueueFull
 	}
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = time.Now()

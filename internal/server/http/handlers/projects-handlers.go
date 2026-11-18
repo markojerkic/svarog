@@ -366,7 +366,7 @@ func (p *ProjectsRouter) createProjectConnString(c *echo.Context) error {
 	}
 
 	connString := creds.GetConnString()
-	slog.Debug("Generated connection string", "connString", connString)
+	slog.Debug("Generated connection string", "projectId", request.ProjectID, "clientId", request.ClientID)
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "connection.generated"))
 	htmx.Reswap(c, htmx.ReswapProps{

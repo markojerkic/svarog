@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/lib/natsconn"
-	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/markojerkic/svarog/internal/lib/natsconn"
+	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
 // Service owns every fetched message until commit/ACK, rejection or shutdown.
@@ -131,7 +132,7 @@ func (s *Service) run(ctx context.Context) error {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				slog.Warn("Log client lookup failed; retrying delivery", "error", err)
+				log.Warn("Log client lookup failed; retrying delivery", "error", err)
 				s.finish(p, "retry", func() error { return p.message.NakWithDelay(time.Second) })
 				continue
 			}
@@ -253,7 +254,7 @@ func (s *Service) heartbeat(ctx context.Context) {
 			s.pendingMu.Lock()
 			for p := range s.pending {
 				if err := p.message.InProgress(); err != nil {
-					slog.Warn("Could not extend log delivery deadline", "error", err)
+					log.Warn("Could not extend log delivery deadline", "error", err)
 				}
 			}
 			s.pendingMu.Unlock()
@@ -267,14 +268,14 @@ func (s *Service) finish(p *pendingLog, action string, complete func() error) {
 	s.pendingMu.Lock()
 	defer s.pendingMu.Unlock()
 	if err := complete(); err != nil {
-		slog.Warn("Could not complete log delivery; broker may redeliver", "action", action, "error", err)
+		log.Warn("Could not complete log delivery; broker may redeliver", "action", action, "error", err)
 	}
 	delete(s.pending, p)
 }
 
 func (s *Service) reject(p *pendingLog, reason rejectReason) {
 	s.rejected[reason]++
-	slog.Warn("Rejected log delivery", "reason", reason, "rejected_total", s.rejected[reason], "subject", p.message.Subject())
+	log.Warn("Rejected log delivery", "reason", reason, "rejected_total", s.rejected[reason], "subject", p.message.Subject())
 	s.finish(p, "terminate", func() error { return p.message.TermWithReason(string(reason)) })
 }
 
@@ -283,7 +284,7 @@ func (s *Service) releasePending() {
 	defer s.pendingMu.Unlock()
 	for p := range s.pending {
 		if err := p.message.Nak(); err != nil {
-			slog.Warn("Could not release uncommitted log delivery", "error", err)
+			log.Warn("Could not release uncommitted log delivery", "error", err)
 		}
 		delete(s.pending, p)
 	}

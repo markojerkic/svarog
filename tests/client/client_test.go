@@ -279,6 +279,30 @@ func TestLoggingSetupLifecycle(t *testing.T) {
 	preserveLogger(t)
 	broker := newClientBroker(t)
 
+	t.Run("best effort logging keeps the console usable when the queue fills", func(t *testing.T) {
+		connectionURL, _, _ := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		var console bytes.Buffer
+		closeLogging, err := svaroglog.Setup(context.Background(),
+			svaroglog.WithConnectionString(connectionURL), svaroglog.WithDropWhenFull(),
+			svaroglog.WithConsole(slog.NewTextHandler(&console, nil)), svaroglog.WithDrainTimeout(100*time.Millisecond))
+		require.NoError(t, err)
+		defer closeLogging()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := range 32 {
+				slog.Info("server request", "index", i)
+			}
+		}()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("a full remote queue blocked the application")
+		}
+		require.Equal(t, 32, strings.Count(console.String(), "server request"))
+		require.ErrorIs(t, closeLogging(), context.DeadlineExceeded)
+	})
+
 	t.Run("environment setup drains and restores derived global loggers", func(t *testing.T) {
 		connectionURL, stream, _ := broker.stream(t, jetstream.StreamConfig{})
 		t.Setenv("SVAROG_CONN_STRING", connectionURL)

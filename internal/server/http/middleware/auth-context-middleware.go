@@ -22,7 +22,7 @@ func AuthContextMiddleware(authService auth.AuthService) echo.MiddlewareFunc {
 				qp := url.Values{}
 				qp.Set("redirect", returnUrl.Path+"?"+returnUrl.RawQuery)
 				loginUrl := "/login?" + qp.Encode()
-				slog.Debug("Redirecting to login", "returnUrl", returnUrl.String(), "loginUrl", loginUrl)
+				slog.Debug("Redirecting to login", "path", returnUrl.Path)
 
 				return htmx.Redirect(c, loginUrl)
 			}

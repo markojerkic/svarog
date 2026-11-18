@@ -3,9 +3,10 @@ package live
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
+
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -129,7 +130,7 @@ func (l *Logs) invalidateRows(rows []types.StoredLog) {
 			return
 		case l.invalidations <- scope:
 		default:
-			slog.Warn("Live invalidation queue is full", "project_id", scope.ProjectID, "client_id", scope.ClientID)
+			log.Warn("Live invalidation queue is full", "project_id", scope.ProjectID, "client_id", scope.ClientID)
 		}
 	}
 }
@@ -141,6 +142,6 @@ func (l *Logs) invalidate(scope Scope) {
 		err = l.conn.Publish(scope.prefix()+"r", payload)
 	}
 	if err != nil {
-		slog.Warn("Could not invalidate committed live log views", "error", err)
+		log.Warn("Could not invalidate committed live log views", "error", err)
 	}
 }

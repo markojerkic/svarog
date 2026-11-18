@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -28,7 +28,7 @@ func (s *Service) fetchFailed(ctx context.Context, retry *fetchRetry, err error)
 	retry.failures++
 	retry.delay = min(max(2*retry.delay, fetchRetryMin), fetchRetryMax)
 	retry.at = time.Now().Add(retry.delay)
-	slog.Warn("Log fetch failed; keeping fetched deliveries and retrying", "error", err, "failures", retry.failures, "retry_in", retry.delay)
+	log.Warn("Log fetch failed; keeping fetched deliveries and retrying", "error", err, "failures", retry.failures, "retry_in", retry.delay)
 	if errors.Is(err, jetstream.ErrConsumerDeleted) || retry.failures%inspectFetchFailures == 0 {
 		return s.inspectConsumer(ctx)
 	}
@@ -52,7 +52,7 @@ func (s *Service) inspectConsumer(ctx context.Context) error {
 		return fmt.Errorf("LOGS log-processor durable is missing; incident requires operator inspection, not automatic recreation: %w", err)
 	}
 	if err != nil {
-		slog.Warn("Could not inspect the log durable; retrying", "error", err)
+		log.Warn("Could not inspect the log durable; retrying", "error", err)
 		return nil
 	}
 	if err := validateConsumer(info.Config); err != nil {

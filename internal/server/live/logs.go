@@ -3,13 +3,14 @@ package live
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"slices"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/nats.go"
+
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type publishJob struct {
@@ -260,5 +261,5 @@ func (l *Logs) Close() {
 }
 
 func warnPublish(err error) {
-	slog.Warn("Could not publish committed live logs; a fresh view may be required", "error", err)
+	log.Warn("Could not publish committed live logs; a fresh view may be required", "error", err)
 }

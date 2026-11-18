@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-// SetupLogger configures slog and the charmbracelet default logger to the same level.
+// SetupLogger configures the local console. Even if slog later forwards server
+// logs, ingest and live-delivery diagnostics use charmbracelet directly so a
+// failed delivery cannot produce another delivery.
 // Call this once at startup.
 func SetupLogger(level log.Level) {
 	logger := log.NewWithOptions(os.Stderr, log.Options{

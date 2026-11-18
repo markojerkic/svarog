@@ -11,7 +11,8 @@ services:
     ports:
       - 1324:1323
     environment:
-      - SVAROG_CONN_STRING=${SVAROG_CONN_STRING}
+      - SVAROG_CONN_STRING=${SVAROG_CONN_STRING:-}
+      - SVAROG_INSTANCE_ID=${SVAROG_INSTANCE_ID:-}
       - POSTGRES_URL=postgres://svarog:svarog@svarog-postgres:5432/svarog?sslmode=disable
       - SESSION_SECRET=${SESSION_SECRET}
       - HTTP_SERVER_PORT=1323

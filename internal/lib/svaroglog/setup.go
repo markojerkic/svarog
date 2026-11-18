@@ -67,6 +67,7 @@ func Setup(lifetime context.Context, options ...Option) (func() error, error) {
 	client, err := svarogclient.New(svarogclient.Options{
 		ConnectionString: config.connectionString,
 		InstanceID:       config.instanceID,
+		DropWhenFull:     config.dropWhenFull,
 	})
 	if err != nil {
 		return nil, err
