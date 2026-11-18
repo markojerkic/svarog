@@ -36,15 +36,17 @@ templ LogLine(props LogLineProps) {
 			aria-current="true"
 		}
 	>
-		<time
-			data-log-time
-			class="mr-3 shrink-0 text-muted-foreground tabular-nums"
-			datetime={ props.LogLine.Timestamp.UTC().Format(time.RFC3339Nano) }
-		></time>
-		<span data-log-instance class="mr-3 max-w-36 shrink-0 truncate text-muted-foreground" title={ props.LogLine.Client.InstanceId }>
-			{ props.LogLine.Client.InstanceId }
-		</span>
-		<span class="flex-1">
+		<div data-log-meta class="contents">
+			<time
+				data-log-time
+				class="mr-3 shrink-0 text-muted-foreground tabular-nums"
+				datetime={ props.LogLine.Timestamp.UTC().Format(time.RFC3339Nano) }
+			></time>
+			<span data-log-instance class="mr-3 max-w-36 shrink-0 truncate text-muted-foreground" title={ props.LogLine.Client.InstanceId }>
+				{ props.LogLine.Client.InstanceId }
+			</span>
+		</div>
+		<span data-log-message class="flex-1">
 			@LogLineText(props.LogLine.LogLine, props.Search)
 		</span>
 		@button.Button(button.Props{

@@ -24,14 +24,14 @@ templ SearchTrigger(search string) {
 			ID:         "log-search-trigger",
 			Variant:    button.VariantSecondary,
 			Size:       button.SizeSm,
-			Class:      "max-w-[min(68vw,20rem)] gap-2",
+			Class:      "max-w-[min(68vw,20rem)] gap-2 max-md:px-2",
 			Attributes: attributes,
 		}) {
 			@icon.Search(icon.Props{Class: "size-3.5"})
 			if search != "" {
-				<span class="truncate">{ search }</span>
+				<span class="truncate max-md:sr-only">{ search }</span>
 			} else {
-				<span>{ i18n.T(ctx, "common.search") }</span>
+				<span class="max-md:sr-only">{ i18n.T(ctx, "common.search") }</span>
 				<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
 			}
 		}
