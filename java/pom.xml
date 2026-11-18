@@ -35,6 +35,7 @@
   <modules>
     <module>svarog-logback</module>
     <module>svarog-demo</module>
+    <module>svarog-spring-boot-starter</module>
   </modules>
 
   <properties>
@@ -84,6 +85,12 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>spring-boot-demo</id>
+      <modules>
+        <module>svarog-spring-boot-demo</module>
+      </modules>
+    </profile>
     <profile>
       <id>central-release</id>
       <build>
