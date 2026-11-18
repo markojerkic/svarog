@@ -4,6 +4,12 @@
   let currentInstanceId = null;
   let menu = null;
 
+  function includeRange(target, source) {
+    for (const key of ["from", "to", "offset", "fromAt", "toAt"]) {
+      if (source.has(key)) target.set(key, source.get(key));
+    }
+  }
+
   function contextURL() {
     const url = new URL(window.location.pathname, window.location.origin);
     url.searchParams.set("logLine", currentLogId);
@@ -59,9 +65,20 @@
     currentLogContent = trigger.getAttribute("data-log-content");
     currentInstanceId = trigger.getAttribute("data-instance-id");
 
-    menu.querySelector("#log-context-link").href = contextURL().href;
+    const query = new URLSearchParams(window.location.search);
+    const context = contextURL();
+    includeRange(context.searchParams, query);
+    const search = query.get("search")?.trim();
+    if (search) {
+      context.searchParams.set("returnSearch", search);
+      for (const instance of query.getAll("instance")) {
+        context.searchParams.append("returnInstance", instance);
+      }
+    }
+    menu.querySelector("#log-context-link").href = context.href;
+
     const filterURL = new URL(window.location.pathname, window.location.origin);
-    const search = new URLSearchParams(window.location.search).get("search")?.trim();
+    includeRange(filterURL.searchParams, query);
     if (search) filterURL.searchParams.set("search", search);
     filterURL.searchParams.set("instance", currentInstanceId);
     menu.querySelector("#filter-instance-link").href = filterURL.href;

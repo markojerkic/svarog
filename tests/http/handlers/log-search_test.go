@@ -89,7 +89,7 @@ func TestLogsPageSearch(t *testing.T) {
 				if strings.Contains(search, "connection") {
 					require.Equal(t, 1, logs.instanceCalls, "search must load the client's instance choices")
 					require.Contains(t, rec.Body.String(), "api-3", "filter choices must include instances outside the current selection")
-					require.NotContains(t, rec.Body.String(), "Filtered by instance:", "search must keep instance controls inside the popover, not in a permanent row")
+					require.Contains(t, rec.Body.String(), "Filtered by instance:", "search must show active instances without opening the popover")
 					require.Equal(t, "connection refused", logs.request.Search, "the query must be trimmed before calling the service")
 					require.Nil(t, logs.request.LogLineId, "a search must not inherit a log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search results must not mount a live connection")
@@ -118,6 +118,7 @@ func TestLogsPageLiveModes(t *testing.T) {
 			{"multiple instances", "?instance=api-1&instance=api-2", true},
 			{"unnamed instance", "?instance=", true},
 			{"range", "?from=2026-11-01&to=2026-11-02&instance=api-1", false},
+			{"precise range", "?fromAt=2026-11-01T10:15:00Z&toAt=2026-11-01T10:16:00Z&search=error", false},
 			{"anchor", "?logLine=42", false},
 			{"cursor", "?cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", false},
 		} {
@@ -298,5 +299,33 @@ func TestContextPaginationUsesResolvedInstance(t *testing.T) {
 				require.NotContains(t, page.Body.String(), "hx-ws:connect=", "neither continuation may mount a live WebSocket")
 			}
 		})
+	}
+}
+
+func TestLogSearchKeepsPreciseRange(t *testing.T) {
+	e := echo.New()
+	logs := &logSearchStub{}
+	handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true},
+		loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+	path := "/logs/" + projectID + "/" + clientID
+	query := "?fromAt=2026-11-01T10:15:00Z&toAt=2026-11-01T10:16:00Z&search=error&instance=api-1&instance=api-2"
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+query, nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "error", logs.request.Search)
+	require.Equal(t, &[]string{"api-1", "api-2"}, logs.request.Instances)
+	require.Equal(t, time.Date(2026, 11, 1, 10, 15, 0, 0, time.UTC), logs.request.Range.From)
+	require.Equal(t, time.Date(2026, 11, 1, 10, 16, 0, 0, time.UTC), logs.request.Range.To)
+	require.Contains(t, rec.Body.String(), `name="fromAt" value="2026-11-01T10:15:00Z"`)
+	require.Contains(t, rec.Body.String(), `name="toAt" value="2026-11-01T10:16:00Z"`)
+
+	for _, invalid := range []string{
+		"?fromAt=2026-11-01T10:15:00Z",
+		"?fromAt=2026-11-01T10:16:00Z&toAt=2026-11-01T10:15:00Z",
+		query + "&from=2026-11-01",
+	} {
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+invalid, nil))
+		require.Equal(t, http.StatusBadRequest, rec.Code, invalid)
 	}
 }

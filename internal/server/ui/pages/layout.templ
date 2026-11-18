@@ -85,6 +85,7 @@ type AdminLayoutProps struct {
 	Title         string
 	CurrentPath   string
 	HeaderActions templ.Component
+	WrapHeaderActions bool
 }
 
 func isActivePath(currentPath, menuPath string) bool {
@@ -178,13 +179,13 @@ templ AdminLayout(props AdminLayoutProps) {
 			}
 			@sidebar.Inset(sidebar.InsetProps{Class: "min-w-0 h-svh overflow-hidden md:h-[calc(100svh-1rem)]"}) {
 				<div class="flex h-full min-h-0 flex-col">
-					<header class="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
+					<header class={ "flex shrink-0 items-center gap-3 border-b px-4 md:px-6", templ.KV("min-h-14 flex-wrap py-2", props.WrapHeaderActions), templ.KV("h-14", !props.WrapHeaderActions) }>
 						@sidebar.Trigger()
 						<span class="h-4 w-px bg-border" aria-hidden="true"></span>
 						<a href="/" class="hidden shrink-0 whitespace-nowrap text-sm text-muted-foreground hover:text-foreground xl:inline">{ i18n.T(ctx, "nav.workspace") }</a>
 						@icon.ChevronRight(icon.Props{Class: "hidden size-3.5 shrink-0 text-muted-foreground xl:block"})
 						<span class="truncate text-sm font-medium" aria-current="page">{ props.Title }</span>
-						<div class="ml-auto flex shrink-0 items-center gap-2">
+						<div class={ "ml-auto flex items-center gap-2", templ.KV("w-full min-w-0 flex-wrap lg:w-auto lg:justify-end", props.WrapHeaderActions), templ.KV("shrink-0", !props.WrapHeaderActions) }>
 							if props.HeaderActions != nil {
 								@props.HeaderActions
 							}

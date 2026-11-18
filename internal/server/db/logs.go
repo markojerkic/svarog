@@ -68,12 +68,38 @@ func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor
 		query.Set("search", search)
 	}
 	if l.Range != nil {
-		query.Set("from", l.Range.FromDate)
-		query.Set("to", l.Range.ToDate)
-		query.Set("offset", strconv.Itoa(l.Range.Offset))
+		for key, values := range l.Range.Query() {
+			query[key] = values
+		}
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
+}
+
+func (r *LogRange) Query() url.Values {
+	query := url.Values{}
+	if r == nil {
+		return query
+	}
+	if r.FromDate != "" {
+		query.Set("from", r.FromDate)
+		query.Set("to", r.ToDate)
+		query.Set("offset", strconv.Itoa(r.Offset))
+	} else {
+		query.Set("fromAt", r.From.Format(time.RFC3339Nano))
+		query.Set("toAt", r.To.Format(time.RFC3339Nano))
+	}
+	return query
+}
+
+// ParseLogTimeRange accepts an absolute, half-open interval.
+func ParseLogTimeRange(fromAt, toAt string) (LogRange, error) {
+	from, fromErr := time.Parse(time.RFC3339Nano, fromAt)
+	to, toErr := time.Parse(time.RFC3339Nano, toAt)
+	if fromErr != nil || toErr != nil || !from.Before(to) {
+		return LogRange{}, fmt.Errorf("invalid log time range")
+	}
+	return LogRange{From: from, To: to}, nil
 }
 
 type LogPageRequest struct {

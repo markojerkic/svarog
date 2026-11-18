@@ -39,13 +39,14 @@ func TestLogColumns(t *testing.T) {
 func TestLogSearchForm(t *testing.T) {
 	var output bytes.Buffer
 	instances := []string{"api-1", "api-2"}
-	if err := logs.SearchDialog("/logs/project/client", "error & timeout", &instances).Render(context.Background(), &output); err != nil {
+	if err := logs.SearchDialog("/logs/project/client", "error & timeout", &instances, url.Values{"from": {"2026-11-01"}, "to": {"2026-11-03"}, "offset": {"-60"}}).Render(context.Background(), &output); err != nil {
 		t.Fatalf("Search form must render successfully: %v", err)
 	}
 	for _, fragment := range []string{
 		`method="get"`, `action="/logs/project/client"`, `hx-target="body"`, `hx-push-url="true"`,
 		`name="search"`, `value="error &amp; timeout"`, `type="submit"`, `aria-label="Run search"`,
 		`name="instance" value="api-1"`, `name="instance" value="api-2"`,
+		`name="from" value="2026-11-01"`, `name="to" value="2026-11-03"`, `name="offset" value="-60"`,
 	} {
 		if !strings.Contains(output.String(), fragment) {
 			t.Errorf("Search form must contain %s", fragment)
@@ -183,53 +184,27 @@ func TestLogInstanceFilters(t *testing.T) {
 	instance := "api 01 & backup"
 	props := pages.LogsPageProps{
 		ProjectId: "project", ClientId: "client", Search: "error & timeout",
-		Instances: &[]string{instance}, AvailableInstances: []string{instance, "api-02"},
+		Instances: &[]string{instance, ""}, AvailableInstances: []string{instance, "api-02"},
+		LogPage: db.LogPage{Range: &db.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60}},
 	}
 	var output bytes.Buffer
 	if err := pages.LogInstanceFilters(props).Render(context.Background(), &output); err != nil {
 		t.Fatalf("Instance filters must render successfully: %v", err)
 	}
-	links := regexp.MustCompile(`<a\b[^>]*href="([^"]*)"[^>]*\bdata-log-instance-filter\b`).FindAllStringSubmatch(output.String(), -1)
-	if len(links) != 4 {
-		t.Fatalf("Instance filters must render all instances, both available instances and clear filters: got %d links", len(links))
-	}
-	wantInstances := map[string]int{"": 2, instance: 1, "api-02": 1}
-	for _, link := range links {
-		u, err := url.Parse(html.UnescapeString(link[1]))
-		if err != nil {
-			t.Fatalf("Instance filter links must be valid URLs: %v", err)
-		}
-		query := u.Query()
-		if u.Path != "/logs/project/client" || query.Get("search") != props.Search {
-			t.Fatal("Instance changes must preserve the client and the executed query")
-		}
-		selection := query.Get("instance")
-		if selection == "" {
-			if query.Has("instance") || len(query) != 1 {
-				t.Fatal("All instances must omit the instance parameter and any cursor or anchor")
-			}
-		} else if len(query["instance"]) != 1 || len(query) != 2 {
-			t.Fatal("Selecting an instance must replace the selection without retaining a cursor or anchor")
-		}
-		wantInstances[selection]--
-	}
-	for selection, remaining := range wantInstances {
-		if remaining != 0 {
-			t.Errorf("Instance filter links must preserve each available instance and both clear actions: instance %q has count difference %d", selection, remaining)
-		}
-	}
 	for _, fragment := range []string{
-		`aria-label="Filters (1 active)"`, `data-slot="popover-content"`,
-		`All instances`, `Clear filters`, `api-02`, `hidden`,
-		`hx-target:inherited="body"`, `hx-swap:inherited="innerHTML"`,
+		`id="log-instance-form"`, `method="get"`, `hx-target="body"`, `hx-push-url="true"`,
+		`name="search" value="error &amp; timeout"`,
+		`name="instance" value="api 01 &amp; backup" checked`,
+		`name="instance" value="api-02"`,
+		`name="instance" value="" checked`, `Unnamed instance`,
+		`name="from" value="2026-11-01"`, `name="to" value="2026-11-03"`, `name="offset" value="-60"`,
+		`Apply filters`, `Clear filters`,
 	} {
 		if !strings.Contains(output.String(), fragment) {
-			t.Errorf("Instance filter popover must contain %s", fragment)
+			t.Errorf("Instance filter form must contain %s", fragment)
 		}
 	}
-	if strings.Count(output.String(), `aria-current="true"`) != 1 {
-		t.Fatal("Only the selected instance must be marked as current")
-	}
+
 }
 
 func TestLogRangeFilterOpensOnSelectedMonth(t *testing.T) {

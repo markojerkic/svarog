@@ -44,16 +44,37 @@ document.addEventListener("htmx:before:settle", function (evt) {
   mergeLogRows(incoming, container);
 });
 
+document.addEventListener("htmx:ws:after:connection", function (evt) {
+  const container = evt.target.closest?.("#log-scroll-container[data-log-live]");
+  if (container && container.dataset.liveStale !== "true") setLiveStatus("live");
+});
+
+document.addEventListener("click", function (evt) {
+  if (!evt.target.closest("[data-log-pause]")) return;
+  const container = document.querySelector("#log-scroll-container[data-log-live]");
+  if (container) stopLiveLogs(container, "paused");
+});
+
 document.addEventListener("htmx:ws:close", function (evt) {
   if (evt.detail.reason === "removed") return;
   const container = evt.target.closest?.("#log-scroll-container[data-log-live]");
   if (container) stopLiveLogs(container);
 });
 
-function stopLiveLogs(container) {
+function setLiveStatus(state) {
+  const status = document.getElementById("log-live-status");
+  if (status) status.textContent = status.dataset[`${state}Label`];
+}
+
+function stopLiveLogs(container, state = "stale") {
   if (!container.hasAttribute("data-log-live") || container.dataset.liveStale === "true") return;
   container.dataset.liveStale = "true";
-  const notice = document.getElementById("log-live-notice");
+  setLiveStatus(state);
+  const pauseButton = document.querySelector("[data-log-pause]");
+  if (pauseButton) pauseButton.hidden = true;
+  const notice = document.getElementById(
+    state === "paused" ? "log-paused-notice" : "log-live-notice",
+  );
   if (notice) notice.hidden = false;
   const connection = container.querySelector("[data-log-stream]");
   if (connection) {

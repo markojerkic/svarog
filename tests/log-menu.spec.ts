@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.goto(
-    `${baseURL}?search=error+%26+timeout&instance=old&instance=other&cursorTimeUs=123&cursorSequenceNumber=2&cursorId=7&direction=backward&logLine=99#old`,
+    `${baseURL}?search=error+%26+timeout&instance=old&instance=other&from=2026-11-01&to=2026-11-02&offset=-60&cursorTimeUs=123&cursorSequenceNumber=2&cursorId=7&direction=backward&logLine=99#old`,
   );
   await page.addScriptTag({
     content: `window.copiedLinks = []; window.toastCalls = [];
@@ -33,7 +33,8 @@ test.beforeEach(async ({ page }) => {
 
 test("log menu navigation uses HTMX to replace the complete view", async ({ page }) => {
   await page.getByRole("button", { name: "Log actions", exact: true }).click();
-  const expectedURL = `${baseURL}?search=error+%26+timeout&instance=api+01+%26+backup`;
+  const expectedURL = `${baseURL}?from=2026-11-01&to=2026-11-02&offset=-60&search=error+%26+timeout&instance=api+01+%26+backup`;
+  const contextWithFilters = `${contextURL}&from=2026-11-01&to=2026-11-02&offset=-60&returnSearch=error+%26+timeout&returnInstance=api+01+%26+backup`;
   const requestPromise = page.waitForRequest(expectedURL);
   await page.getByRole("link", { name: "Show only logs of this instance" }).click();
   const request = await requestPromise;
@@ -46,13 +47,13 @@ test("log menu navigation uses HTMX to replace the complete view", async ({ page
   await page.getByRole("button", { name: "Log actions", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open context", exact: true })).toHaveAttribute(
     "href",
-    contextURL,
+    contextWithFilters,
   );
-  const contextRequestPromise = page.waitForRequest(contextURL);
+  const contextRequestPromise = page.waitForRequest(contextWithFilters);
   await page.getByRole("link", { name: "Open context", exact: true }).click();
   const contextRequest = await contextRequestPromise;
   expect(contextRequest.headers()["hx-request-type"]).toBe("full");
-  await expect(page).toHaveURL(contextURL);
+  await expect(page).toHaveURL(contextWithFilters);
 });
 
 test("log menu preserves search for filtering and copies context for the selected instance", async ({
@@ -61,7 +62,7 @@ test("log menu preserves search for filtering and copies context for the selecte
   await page.getByRole("button", { name: "Log actions", exact: true }).click();
   await expect(page.getByRole("link", { name: "Show only logs of this instance" })).toHaveAttribute(
     "href",
-    `${baseURL}?search=error+%26+timeout&instance=api+01+%26+backup`,
+    `${baseURL}?from=2026-11-01&to=2026-11-02&offset=-60&search=error+%26+timeout&instance=api+01+%26+backup`,
   );
   await page.getByRole("button", { name: "Copy link", exact: true }).click();
   await expect(page.locator("#shared-log-menu")).toBeHidden();

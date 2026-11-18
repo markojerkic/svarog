@@ -55,6 +55,10 @@ type LogsByClientBinding struct {
 	From                 string    `query:"from"`
 	To                   string    `query:"to"`
 	Offset               *int      `query:"offset"`
+	FromAt               string    `query:"fromAt"`
+	ToAt                 string    `query:"toAt"`
+	ReturnSearch         string    `query:"returnSearch"`
+	ReturnInstances      []string  `query:"returnInstance"`
 }
 
 func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
@@ -94,6 +98,13 @@ func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
 }
 
 func (params LogsByClientBinding) logRange() (*db.LogRange, error) {
+	if params.FromAt != "" || params.ToAt != "" {
+		if params.From != "" || params.To != "" || params.Offset != nil {
+			return nil, fmt.Errorf("cannot combine date and time ranges")
+		}
+		parsed, err := db.ParseLogTimeRange(params.FromAt, params.ToAt)
+		return &parsed, err
+	}
 	if params.From == "" && params.To == "" {
 		return nil, nil
 	}
@@ -203,12 +214,11 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if logPage.Instances != nil {
 		params.Instances = logPage.Instances
 	}
-	cookieValue := ""
+	showTime, showInstance := true, true
 	cookie, cookieErr := c.Cookie(pages.LogColumnsCookie)
 	if cookieErr == nil {
-		cookieValue = cookie.Value
+		showTime, showInstance = pages.LogColumns(cookie.Value)
 	}
-	showTime, showInstance := pages.LogColumns(cookieValue)
 	props := pages.LogsPageProps{
 		LogPage:      logPage,
 		ClientId:     params.ClientId,
@@ -220,6 +230,13 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		LogLineId:    params.LogLineId,
 	}
 
+	if params.LogLineId != nil && strings.TrimSpace(params.ReturnSearch) != "" {
+		selection, selectionErr := live.NewSelector(params.ReturnInstances)
+		if _, searchErr := logsearch.Parse(params.ReturnSearch); searchErr == nil && selectionErr == nil {
+			props.ReturnSearch = strings.TrimSpace(params.ReturnSearch)
+			props.ReturnInstances = &selection.Instances
+		}
+	}
 	isHx := c.Request().Header.Get("HX-Request") == "true"
 	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))

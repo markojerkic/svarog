@@ -61,7 +61,7 @@ document.addEventListener("htmx:before:response", (event) => {
   }
   if (
     sourceElement.matches(
-      "#log-search-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
+      "#log-search-form, #log-instance-form, #log-range-form, #log-time-range-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
     ) &&
     response.status >= 400
   ) {
@@ -82,7 +82,7 @@ document.addEventListener("htmx:error", (event) => {
   const { ctx, error } = event.detail;
   if (
     ctx.sourceElement.matches(
-      "#log-search-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
+      "#log-search-form, #log-instance-form, #log-range-form, #log-time-range-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
     ) &&
     error.name !== "AbortError"
   ) {
