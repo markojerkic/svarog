@@ -194,7 +194,7 @@ func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 	if err := auth.ValidateUserPage(c.Request().Context(), query); err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-	return a.renderUsersPage(c, query, false)
+	return a.renderUsersPage(c, query, false, "")
 }
 
 func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
@@ -293,7 +293,11 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 		htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.created"))
 	}
 	if htmx.IsHXRequest(c) {
-		return a.renderUsersPage(c, query, true)
+		loginURL := ""
+		if createUserForm.ID == "" && user.InitialLoginToken != "" {
+			loginURL = loginLinkURL(c, user.InitialLoginToken)
+		}
+		return a.renderUsersPage(c, query, true, loginURL)
 	}
 
 	return utils.Render(c, http.StatusOK, admin.UsersTableBody(admin.UsersListPageProps{
@@ -321,7 +325,7 @@ func (a *AuthRouter) deleteUser(c *echo.Context) error {
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.deleted"))
 	if htmx.IsHXRequest(c) {
-		return a.renderUsersPage(c, query, true)
+		return a.renderUsersPage(c, query, true, "")
 	}
 	return c.HTML(200, "")
 }

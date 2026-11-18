@@ -15,6 +15,7 @@ type User struct {
 	LastName           string    `json:"lastName"`
 	Username           string    `json:"username"`
 	Password           string    `json:"-"`
+	InitialLoginToken  string    `json:"-"` // Only populated when the account is created.
 	Role               Role      `json:"role"`
 	NeedsPasswordReset bool      `json:"needsPasswordReset"`
 	ProjectIDs         []string  `json:"projectIds,omitempty"`

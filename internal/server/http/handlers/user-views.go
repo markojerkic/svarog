@@ -58,7 +58,7 @@ func userMutationQuery(c *echo.Context) (types.GetUserPageInput, error) {
 	return query, auth.ValidateUserPage(c.Request().Context(), query)
 }
 
-func (a *AuthRouter) renderUsersPage(c *echo.Context, query types.GetUserPageInput, mutation bool) error {
+func (a *AuthRouter) renderUsersPage(c *echo.Context, query types.GetUserPageInput, mutation bool, loginURL string) error {
 	users, count, err := a.authService.GetUserPage(c.Request().Context(), query)
 	if err != nil {
 		var apiErr types.ApiError
@@ -75,7 +75,7 @@ func (a *AuthRouter) renderUsersPage(c *echo.Context, query types.GetUserPageInp
 		}
 		if query.Page > lastPage {
 			query.Page = lastPage
-			return a.renderUsersPage(c, query, true)
+			return a.renderUsersPage(c, query, true, loginURL)
 		}
 	}
 	if mutation {
@@ -94,7 +94,7 @@ func (a *AuthRouter) renderUsersPage(c *echo.Context, query types.GetUserPageInp
 		c.Response().Header().Set("HX-Replace-Url", view.String())
 	}
 	return utils.Render(c, http.StatusOK, admin.UsersListPage(admin.UsersListPageProps{
-		Users: users, Page: query.Page, Size: query.Size, Search: query.Search, TotalCount: count,
+		Users: users, Page: query.Page, Size: query.Size, Search: query.Search, TotalCount: count, LoginURL: loginURL,
 	}))
 }
 

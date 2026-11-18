@@ -6,7 +6,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/field"
 import "github.com/markojerkic/svarog/internal/server/ui/components/textarea"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 
-templ LoginLinkDialog() {
+templ LoginLinkDialog(loginURL string) {
 	@dialog.Dialog(dialog.Props{ID: "login-link-dialog"}) {
 		@dialog.Content(dialog.ContentProps{Class: "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"}) {
 			@dialog.Header() {
@@ -17,7 +17,11 @@ templ LoginLinkDialog() {
 					{ i18n.T(ctx, "users.login_link_description") }
 				}
 			}
-			<div id="login-link-result"></div>
+			<div id="login-link-result">
+				if loginURL != "" {
+					@LoginLinkResult(loginURL)
+				}
+			</div>
 			@dialog.Footer() {
 				@button.Button(button.Props{
 					Variant:    button.VariantOutline,

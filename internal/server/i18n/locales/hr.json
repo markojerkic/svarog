@@ -309,7 +309,7 @@
     "other": "Poveznica za prijavu je stvorena. Prethodna lozinka više ne vrijedi."
   },
   "users.login_link_description": {
-    "other": "Jednokratna poveznica za prijavu, važeća 24 sata. Prethodna lozinka više ne vrijedi."
+    "other": "Pošaljite korisniku ovu jednokratnu poveznicu za prijavu. Vrijedi 24 sata."
   },
   "users.updated": { "other": "Korisnik je ažuriran." },
   "users.deleted": { "other": "Korisnik je izbrisan." },

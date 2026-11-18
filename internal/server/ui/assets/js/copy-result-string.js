@@ -38,33 +38,25 @@ document.addEventListener("click", function (evt) {
   writeClipboard(secretText(field)).catch(showCopyFailed);
 });
 
-// Best-effort copy after the secret is already in the page. A rejected
-// clipboard write must not be reported as success; the visible field remains.
-document.addEventListener("htmx:after:swap", function (evt) {
-  const target = evt.detail && evt.detail.ctx && evt.detail.ctx.target;
+// Settle fires on the mounted target even when the request's original button
+// was replaced. Wait one frame for the dialog portal to initialize.
+const shownCopyResults = new WeakSet();
+document.addEventListener("htmx:after:settle", function (evt) {
+  const target = evt.detail.task.target;
   if (!(target instanceof Element)) return;
-
-  // open() is a no-op when the dialog is already open, and shows the secret
-  // if the admin closed the dialog before the response arrived.
-  if (
-    target.id === "login-link-result" ||
-    target.id === "login-link-url" ||
-    target.querySelector("#login-link-url")
-  ) {
-    window.templ.dialog.open("login-link-dialog");
-  }
-  if (target.id === "connection-string-value" || target.querySelector("#connection-string-value")) {
-    window.templ.dialog.open("connection-string-dialog");
-  }
-
   const field = target.matches("[data-copy-source]")
     ? target
     : target.querySelector("[data-copy-source]");
-  if (!field) return;
+  if (!field || shownCopyResults.has(field)) return;
 
-  requestAnimationFrame(function () {
-    if (typeof field.focus === "function") field.focus();
-    if (typeof field.select === "function") field.select();
-  });
+  const dialog = field.closest('[role="dialog"]');
+  if (!dialog) return;
+  shownCopyResults.add(field);
   writeClipboard(secretText(field)).catch(function () {});
+  requestAnimationFrame(function () {
+    if (!field.isConnected) return;
+    window.templ.dialog.open(dialog.id);
+    field.focus();
+    field.select();
+  });
 });

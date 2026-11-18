@@ -120,6 +120,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.NoError(t, err, "update existing user profile")
 		require.Equal(t, "Changed", updated.FirstName, "profile update persists first name")
 		require.Equal(t, user.Password, updated.Password, "profile update preserves password")
+		require.Empty(t, updated.InitialLoginToken, "profile updates do not issue invitations")
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", LastName: "User", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
 		})
@@ -147,11 +148,15 @@ func TestActivePostgresAuth(t *testing.T) {
 			Username: "tokenuser", FirstName: "Token", LastName: "User", Role: "user",
 		})
 		require.NoError(t, err, "create user for token authentication")
-		firstToken, err := service.GenerateLoginToken(ctx, user.ID.String())
-		require.NoError(t, err, "generate initial login token")
+		firstToken := user.InitialLoginToken
+		require.NotEmpty(t, firstToken, "creation returns the initial invitation")
+		var storedHash []byte
+		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&storedHash))
+		initialHash := sha256.Sum256([]byte(firstToken))
+		require.Equal(t, initialHash[:], storedHash, "the initial invitation matches the token saved during account creation")
+
 		token, err := service.GenerateLoginToken(ctx, user.ID.String())
 		require.NoError(t, err, "generate replacement login token")
-		var storedHash []byte
 		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&storedHash), "read persisted login token hash")
 		expectedHash := sha256.Sum256([]byte(token))
 		require.Equal(t, expectedHash[:], storedHash, "persist SHA-256 token hash rather than raw token")

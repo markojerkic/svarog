@@ -225,7 +225,12 @@ func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types
 	if err != nil {
 		return User{}, authError(ctx, err)
 	}
-	return a.userWithProjects(ctx, user)
+	created, err := a.userWithProjects(ctx, user)
+	if err != nil {
+		return User{}, err
+	}
+	created.InitialLoginToken = token
+	return created, nil
 }
 
 func (a *PostgresAuthService) GenerateLoginToken(ctx context.Context, userID string) (string, error) {

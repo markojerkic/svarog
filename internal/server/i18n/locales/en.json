@@ -293,7 +293,7 @@
     "other": "Login link created. The previous password no longer works."
   },
   "users.login_link_description": {
-    "other": "This one-time login link is valid for 24 hours. The previous password no longer works."
+    "other": "Send this one-time login link to the user. It is valid for 24 hours."
   },
   "users.updated": { "other": "User updated" },
   "users.deleted": { "other": "User deleted" },

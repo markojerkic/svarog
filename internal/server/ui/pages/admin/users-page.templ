@@ -20,6 +20,7 @@ type UsersListPageProps struct {
 	Size       int64
 	Search     string
 	TotalCount int64
+	LoginURL   string
 }
 
 templ UsersListPage(props UsersListPageProps) {
@@ -103,7 +104,7 @@ templ UsersListPage(props UsersListPageProps) {
 					})
 				</div>
 			</div>
-			@usercomponents.LoginLinkDialog()
+			@usercomponents.LoginLinkDialog(props.LoginURL)
 		</div>
 	}
 }
