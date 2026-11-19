@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
 )
 
@@ -23,25 +23,38 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 		input[i] = p.input
 	}
 	delay := 250 * time.Millisecond
+	retryClientDelete := true
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		attemptCtx, cancel := context.WithTimeout(ctx, dbWait)
-		err := s.writer.CommitLogs(attemptCtx, input)
+		results, err := s.writer.CommitLogs(attemptCtx, input)
 		cancel()
 		if err == nil {
-			for _, p := range batch {
-				s.finish(p, "acknowledge", p.message.Ack)
+			if len(results) != len(batch) {
+				return fmt.Errorf("ingest writer returned %d outcomes for %d deliveries", len(results), len(batch))
+			}
+			for i, p := range batch {
+				result := results[i]
+				if result.Ordinal != int64(i+1) {
+					return fmt.Errorf("ingest writer returned ordinal %d for delivery %d", result.Ordinal, i+1)
+				}
+				switch result.Status {
+				case persistence.IngestLogInserted, persistence.IngestLogDuplicate:
+					s.finish(p, "acknowledge", p.message.Ack)
+				case persistence.IngestLogRejectedClient:
+					s.reject(p, rejectInactive)
+				default:
+					return fmt.Errorf("ingest writer returned unknown outcome %d for delivery %d", result.Status, i+1)
+				}
 			}
 			return nil
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		var pgError *pgconn.PgError
-		foreign := errors.As(err, &pgError) && pgError.Code == "23503" && pgError.ConstraintName == "logs_client_id_fkey"
-		if foreign || rowDataError(err) {
+		if rowDataError(err) {
 			if len(batch) > 1 {
 				mid := len(batch) / 2
 				if err := s.commitBatch(ctx, batch[:mid]); err != nil {
@@ -49,19 +62,13 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 				}
 				return s.commitBatch(ctx, batch[mid:])
 			}
-			if !foreign {
-				s.reject(batch[0], rejectData)
-				return nil
-			}
-			log := batch[0].input.Log
-			active, lookupErr := s.active(ctx, uuid.MustParse(log.Client.ProjectId), uuid.MustParse(log.Client.ClientId))
-			if lookupErr == nil {
-				if active {
-					return fmt.Errorf("unexpected active-client log foreign key failure: %w", err)
-				}
-				s.reject(batch[0], rejectInactive)
-				return nil
-			}
+			s.reject(batch[0], rejectData)
+			return nil
+		}
+		if retryClientDelete && persistence.IsConstraintViolation(err, persistence.SQLStateForeignKeyViolation, "logs_client_id_fkey") {
+			// A committed delete can invalidate the statement snapshot. Retry once
+			// with a fresh snapshot so the join can reject the missing client.
+			retryClientDelete = false
 		} else if systemicSaveError(err) {
 			return fmt.Errorf("systemic ingest write failure; deliveries left unacknowledged: %w", err)
 		}
@@ -78,7 +85,7 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 }
 
 func rowDataError(err error) bool {
-	if errors.Is(err, db.ErrInvalidLogClientID) {
+	if errors.Is(err, db.ErrInvalidLogScope) {
 		return true
 	}
 	var pgError *pgconn.PgError

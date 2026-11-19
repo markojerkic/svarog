@@ -190,7 +190,8 @@ func ingestLine(env ingestEnv, i int, at time.Time) db.IngestLog {
 func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines []db.IngestLog) {
 	t.Helper()
 	for offset := 0; offset < len(lines); offset += 1000 {
-		require.NoError(t, env.logs.CommitLogs(ctx, lines[offset:min(offset+1000, len(lines))]), "commit all lines through the ingest writer")
+		_, err := env.logs.CommitLogs(ctx, lines[offset:min(offset+1000, len(lines))])
+		require.NoError(t, err, "commit all lines through the ingest writer")
 	}
 }
 

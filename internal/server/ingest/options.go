@@ -7,13 +7,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
+	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
 )
 
 type LogWriter interface {
-	// A nil error means every event is committed or its key already exists in
-	// logs. Writers must honor ctx; shutdown waits for their active call to exit.
-	CommitLogs(ctx context.Context, logs []db.IngestLog) error
+	// On success, return one result per event in input order. A result describes
+	// an inserted event, a duplicate, or a rejected client. Writers must honor
+	// ctx; shutdown waits for their active call to exit.
+	CommitLogs(ctx context.Context, logs []db.IngestLog) ([]persistence.IngestLogResult, error)
 }
 
 type Options struct {

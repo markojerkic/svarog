@@ -55,20 +55,26 @@ func (q *Queries) GetLogAnchor(ctx context.Context, arg GetLogAnchorParams) (Get
 
 const insertIngestLogs = `-- name: InsertIngestLogs :many
 WITH input AS (
-    SELECT c.client_id, i.instance_name, o.occurred_at,
+    SELECT c.client_id, p.project_id, i.instance_name, o.occurred_at,
            s.sequence_number, m.message, k.event_key, c.ordinality
     FROM unnest($1::uuid[]) WITH ORDINALITY AS c(client_id, ordinality)
-    JOIN unnest($2::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
-    JOIN unnest($3::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
-    JOIN unnest($4::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
-    JOIN unnest($5::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
-    JOIN unnest($6::bytea[]) WITH ORDINALITY AS k(event_key, ordinality) USING (ordinality)
+    JOIN unnest($2::uuid[]) WITH ORDINALITY AS p(project_id, ordinality) USING (ordinality)
+    JOIN unnest($3::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
+    JOIN unnest($4::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
+    JOIN unnest($5::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
+    JOIN unnest($6::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
+    JOIN unnest($7::bytea[]) WITH ORDINALITY AS k(event_key, ordinality) USING (ordinality)
+), scoped_input AS (
+    SELECT i.client_id, i.project_id, i.instance_name, i.occurred_at, i.sequence_number, i.message, i.event_key, i.ordinality, c.id IS NOT NULL AS active_client
+    FROM input i
+    LEFT JOIN clients c ON c.id = i.client_id AND c.project_id = i.project_id AND c.is_active
 ), unique_input AS (
-    SELECT DISTINCT ON (client_id, event_key) client_id, instance_name, occurred_at, sequence_number, message, event_key, ordinality
-    FROM input
+    SELECT DISTINCT ON (client_id, event_key) client_id, project_id, instance_name, occurred_at, sequence_number, message, event_key, ordinality, active_client
+    FROM scoped_input
+    WHERE active_client
     ORDER BY client_id, event_key, ordinality
 ), new_input AS (
-    SELECT nextval(pg_get_serial_sequence('logs', 'id')) AS id, i.client_id, i.instance_name, i.occurred_at, i.sequence_number, i.message, i.event_key, i.ordinality
+    SELECT nextval(pg_get_serial_sequence('logs', 'id')) AS id, i.client_id, i.project_id, i.instance_name, i.occurred_at, i.sequence_number, i.message, i.event_key, i.ordinality, i.active_client
     FROM unique_input i
 ), inserted AS (
     INSERT INTO logs (
@@ -80,13 +86,17 @@ WITH input AS (
     ON CONFLICT (client_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
     RETURNING id
 )
-SELECT n.ordinality::bigint AS ordinal, inserted.id
-FROM new_input n JOIN inserted ON inserted.id = n.id
-ORDER BY n.ordinality
+SELECT s.ordinality::bigint AS ordinal, COALESCE(inserted.id, 0)::bigint AS id,
+       s.active_client::boolean AS active_client
+FROM scoped_input s
+LEFT JOIN new_input n ON n.ordinality = s.ordinality
+LEFT JOIN inserted ON inserted.id = n.id
+ORDER BY s.ordinality
 `
 
 type InsertIngestLogsParams struct {
 	ClientIds       []uuid.UUID
+	ProjectIds      []uuid.UUID
 	InstanceNames   []string
 	OccurredAt      []time.Time
 	SequenceNumbers []int64
@@ -95,13 +105,15 @@ type InsertIngestLogsParams struct {
 }
 
 type InsertIngestLogsRow struct {
-	Ordinal int64
-	ID      int64
+	Ordinal      int64
+	ID           int64
+	ActiveClient bool
 }
 
 func (q *Queries) InsertIngestLogs(ctx context.Context, arg InsertIngestLogsParams) ([]InsertIngestLogsRow, error) {
 	rows, err := q.db.Query(ctx, insertIngestLogs,
 		arg.ClientIds,
+		arg.ProjectIds,
 		arg.InstanceNames,
 		arg.OccurredAt,
 		arg.SequenceNumbers,
@@ -115,7 +127,7 @@ func (q *Queries) InsertIngestLogs(ctx context.Context, arg InsertIngestLogsPara
 	var items []InsertIngestLogsRow
 	for rows.Next() {
 		var i InsertIngestLogsRow
-		if err := rows.Scan(&i.Ordinal, &i.ID); err != nil {
+		if err := rows.Scan(&i.Ordinal, &i.ID, &i.ActiveClient); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

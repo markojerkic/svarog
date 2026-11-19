@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/rpc"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/ingest"
@@ -60,8 +62,22 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 
 	liveLogs := live.New(conn.Conn)
 	t.Cleanup(liveLogs.Close)
-	logService := db.NewLogService(pool, liveLogs)
-	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: logService})
+	writeConfig := pool.Config()
+	writeConfig.ConnConfig.RuntimeParams["lock_timeout"] = "250ms"
+	writePool, err := pgxpool.NewWithConfig(ctx, writeConfig)
+	require.NoError(t, err, "use a short PostgreSQL lock timeout for retry coverage")
+	t.Cleanup(writePool.Close)
+	logService := db.NewLogService(writePool, liveLogs)
+	var lockTimedOut atomic.Bool
+	writer := ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		results, err := logService.CommitLogs(ctx, input)
+		var pgError *pgconn.PgError
+		if errors.As(err, &pgError) && pgError.Code == "55P03" {
+			lockTimedOut.Store(true)
+		}
+		return results, err
+	})
+	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: writer})
 	require.NoError(t, err, "prepare durable log ingestion before publishing")
 	runCtx, stop := context.WithCancel(ctx)
 	ingestDone := make(chan error, 1)
@@ -107,23 +123,23 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	waitForMessage(first.Clients[0].ID, "first accepted")
 	waitForMessage(second.Clients[0].ID, "second accepted")
 
-	// A temporary DB validation failure retries the message until the lock is released.
+	// A temporary write failure retries the batch until the lock is released.
 	tx, err := pool.Begin(ctx)
-	require.NoError(t, err, "begin temporary database lock to simulate unavailable client validation")
+	require.NoError(t, err, "begin a transaction to block ingest's client join")
 	defer tx.Rollback(context.Background())
 	_, err = tx.Exec(ctx, "LOCK TABLE clients IN ACCESS EXCLUSIVE MODE")
-	require.NoError(t, err, "block client validation until its query timeout")
+	require.NoError(t, err, "block the ingest write until its lock timeout")
 
 	publish(first.ID.String(), first.Clients[0].ID.String(), "retry accepted")
 	consumer, err := conn.JetStream.Consumer(ctx, "LOGS", "log-processor")
 	require.NoError(t, err, "load ingest consumer to observe retries")
 
-	require.Eventually(t, func() bool {
-		info, err := consumer.Info(ctx)
-		return err == nil && info.NumRedelivered > 0
-	}, 15*time.Second, 50*time.Millisecond, "database validation timeout must retry the message rather than acknowledge or discard it")
+	require.Eventually(t, lockTimedOut.Load, 15*time.Second, 50*time.Millisecond, "the blocked write reaches PostgreSQL's lock timeout")
+	info, err := consumer.Info(ctx)
+	require.NoError(t, err, "observe the delivery after a failed commit attempt")
+	require.Equal(t, 1, info.NumAckPending, "a failed commit attempt leaves the delivery unacknowledged")
 
-	require.NoError(t, tx.Commit(ctx), "restore database validation before retry is processed")
+	require.NoError(t, tx.Commit(ctx), "release the lock so the writer can retry the batch")
 	waitForMessage(first.Clients[0].ID, "retry accepted")
 
 	// Inactive, foreign, unknown, legacy, and malformed messages must not be persisted.
@@ -203,10 +219,10 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		var attempts atomic.Int32
 		opts := env.options
 		opts.AckWait = 300 * time.Millisecond
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) error {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
 			attempt := attempts.Add(1)
 			if attempt == 1 {
-				return &pgconn.PgError{Code: "40001"}
+				return nil, &pgconn.PgError{Code: "40001"}
 			}
 			if attempt == 2 {
 				close(entered)
@@ -215,7 +231,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 			case <-release:
 				return env.writer.CommitLogs(ctx, input)
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil, ctx.Err()
 			}
 		})
 		first := runIngest(t, env.ctx, opts)
@@ -336,13 +352,13 @@ func TestIngestCommitLifecycle(t *testing.T) {
 	t.Run("isolates a bad row but retains valid data on systemic SQL failure", func(t *testing.T) {
 		env := newIngestFixture(t)
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) error {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
 			for _, event := range input {
 				switch event.Log.LogLine {
 				case "bad":
-					return &pgconn.PgError{Code: "54000", Message: "index entry too large"}
+					return nil, &pgconn.PgError{Code: "54000", Message: "index entry too large"}
 				case "schema":
-					return &pgconn.PgError{Code: "42P01", Message: "relation missing"}
+					return nil, &pgconn.PgError{Code: "42P01", Message: "relation missing"}
 				}
 			}
 			return env.writer.CommitLogs(ctx, input)
@@ -375,10 +391,10 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		env := newIngestFixture(t)
 		entered := make(chan struct{})
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) error {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
 			close(entered)
 			<-ctx.Done()
-			return ctx.Err()
+			return nil, ctx.Err()
 		})
 		running := runIngest(t, env.ctx, opts)
 		publishIngestEvent(t, env, "interrupted batch")
@@ -484,9 +500,9 @@ func TestIngestBrokerBootstrap(t *testing.T) {
 	})
 }
 
-type ingestWriterFunc func(context.Context, []db.IngestLog) error
+type ingestWriterFunc func(context.Context, []db.IngestLog) ([]store.IngestLogResult, error)
 
-func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []db.IngestLog) error {
+func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
 	return f(ctx, input)
 }
 

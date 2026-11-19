@@ -12,7 +12,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
-	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
 // Service owns every fetched message until commit/ACK, rejection or shutdown.
@@ -20,7 +19,6 @@ import (
 type Service struct {
 	connection *natsconn.NatsConnection
 	consumer   jetstream.Consumer
-	queries    *sqlc.Queries
 	writer     LogWriter
 	ackWait    time.Duration
 	stop       chan struct{}
@@ -51,7 +49,7 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
-		connection: opts.Connection, consumer: consumer, queries: sqlc.New(opts.Pool),
+		connection: opts.Connection, consumer: consumer,
 		writer: opts.Writer, ackWait: opts.AckWait,
 		stop: make(chan struct{}), done: make(chan struct{}),
 		pending: make(map[*pendingLog]struct{}), rejected: make(map[rejectReason]uint64),
@@ -127,15 +125,7 @@ func (s *Service) run(ctx context.Context) error {
 		received, fetchErr := s.fetch(min(fetchRows, maxBatchRows-len(batch)), wait)
 		// Messages delivered before a pull failure are already owned here.
 		for _, p := range received {
-			input, reason, err := s.decode(ctx, p.message)
-			if err != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				log.Warn("Log client lookup failed; retrying delivery", "error", err)
-				s.finish(p, "retry", func() error { return p.message.NakWithDelay(time.Second) })
-				continue
-			}
+			input, reason := decode(p.message)
 			if reason != "" {
 				s.reject(p, reason)
 				continue

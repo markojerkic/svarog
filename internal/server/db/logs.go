@@ -288,22 +288,22 @@ func (self *PostgresLogService) searchLogs(ctx context.Context, query string, pr
 	return mapLogRows(rows), nil
 }
 
-var ErrInvalidLogClientID = errors.New("invalid log client id")
+var ErrInvalidLogScope = errors.New("invalid log project or client id")
 
-// CommitLogs returns nil after inserting new events or recognizing an existing
-// event key. Live delivery is best effort and must never turn a commit into a retry.
-func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog) error {
+// CommitLogs returns one result per input after a successful write. Live
+// delivery is best effort and must never turn a commit into a retry.
+func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog) ([]persistence.IngestLogResult, error) {
 	if len(logs) == 0 {
-		return nil
+		return nil, nil
 	}
 	input := make([]persistence.IngestLogInsert, len(logs))
 	for i, event := range logs {
 		log := event.Log
-		clientID, err := uuid.Parse(log.Client.ClientId)
-		if err != nil || clientID == uuid.Nil || clientID.String() != log.Client.ClientId {
-			return fmt.Errorf("%w %q", ErrInvalidLogClientID, log.Client.ClientId)
+		projectID, clientID, ok := parseLogScope(log.Client.ProjectId, log.Client.ClientId)
+		if !ok || projectID.String() != log.Client.ProjectId || clientID.String() != log.Client.ClientId {
+			return nil, fmt.Errorf("%w: project %q, client %q", ErrInvalidLogScope, log.Client.ProjectId, log.Client.ClientId)
 		}
-		input[i] = persistence.IngestLogInsert{EventKey: event.EventKey, Log: persistence.LogInsert{
+		input[i] = persistence.IngestLogInsert{ProjectID: projectID, EventKey: event.EventKey, Log: persistence.LogInsert{
 			ClientID:       clientID,
 			InstanceName:   log.Client.InstanceId,
 			OccurredAt:     log.Timestamp,
@@ -311,7 +311,7 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 			Message:        log.LogLine,
 		}}
 	}
-	inserted, err := persistence.InsertIngestLogs(ctx, self.pool, input)
+	results, err := persistence.InsertIngestLogs(ctx, self.pool, input)
 	if err != nil {
 		log.Error("Error saving logs", "error", err)
 		if self.liveLogs != nil && uncertainCommit(err) {
@@ -321,18 +321,20 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 			}
 			self.liveLogs.AfterUncertainCommit(rows)
 		}
-		return err
-	}
-	newRows := make([]types.StoredLog, 0, len(inserted))
-	for _, row := range inserted {
-		log := logs[row.Ordinal-1].Log
-		log.ID = row.ID
-		newRows = append(newRows, log)
+		return nil, err
 	}
 	if self.liveLogs != nil {
+		newRows := make([]types.StoredLog, 0, len(results))
+		for i, row := range results {
+			if row.Status == persistence.IngestLogInserted {
+				log := logs[i].Log
+				log.ID = row.ID
+				newRows = append(newRows, log)
+			}
+		}
 		self.liveLogs.AfterCommit(ctx, newRows)
 	}
-	return nil
+	return results, nil
 }
 
 // uncertainCommit reports whether a failed write may still have committed. A

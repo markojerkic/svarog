@@ -30,17 +30,23 @@ ORDER BY input.ordinality;
 
 -- name: InsertIngestLogs :many
 WITH input AS (
-    SELECT c.client_id, i.instance_name, o.occurred_at,
+    SELECT c.client_id, p.project_id, i.instance_name, o.occurred_at,
            s.sequence_number, m.message, k.event_key, c.ordinality
     FROM unnest(sqlc.arg(client_ids)::uuid[]) WITH ORDINALITY AS c(client_id, ordinality)
+    JOIN unnest(sqlc.arg(project_ids)::uuid[]) WITH ORDINALITY AS p(project_id, ordinality) USING (ordinality)
     JOIN unnest(sqlc.arg(instance_names)::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
     JOIN unnest(sqlc.arg(occurred_at)::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
     JOIN unnest(sqlc.arg(sequence_numbers)::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
     JOIN unnest(sqlc.arg(messages)::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
     JOIN unnest(sqlc.arg(event_keys)::bytea[]) WITH ORDINALITY AS k(event_key, ordinality) USING (ordinality)
+), scoped_input AS (
+    SELECT i.*, c.id IS NOT NULL AS active_client
+    FROM input i
+    LEFT JOIN clients c ON c.id = i.client_id AND c.project_id = i.project_id AND c.is_active
 ), unique_input AS (
     SELECT DISTINCT ON (client_id, event_key) *
-    FROM input
+    FROM scoped_input
+    WHERE active_client
     ORDER BY client_id, event_key, ordinality
 ), new_input AS (
     SELECT nextval(pg_get_serial_sequence('logs', 'id')) AS id, i.*
@@ -55,9 +61,12 @@ WITH input AS (
     ON CONFLICT (client_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
     RETURNING id
 )
-SELECT n.ordinality::bigint AS ordinal, inserted.id
-FROM new_input n JOIN inserted ON inserted.id = n.id
-ORDER BY n.ordinality;
+SELECT s.ordinality::bigint AS ordinal, COALESCE(inserted.id, 0)::bigint AS id,
+       s.active_client::boolean AS active_client
+FROM scoped_input s
+LEFT JOIN new_input n ON n.ordinality = s.ordinality
+LEFT JOIN inserted ON inserted.id = n.id
+ORDER BY s.ordinality;
 
 -- name: ListLogs :many
 SELECT l.id, l.client_id, c.project_id, l.instance_name,
