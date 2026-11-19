@@ -182,6 +182,43 @@ func TestReadLogs(t *testing.T) {
 		require.NoError(t, err, "the scoped log operation must succeed")
 		require.Equal(t, []string{"web"}, instances, "instances of an inactive client stay available")
 	})
+
+	t.Run("range and cursors constrain the merged instance page", func(t *testing.T) {
+		at := base.Add(time.Hour)
+		to := at.Add(time.Second)
+		ids, err := testutils.InsertLogFixtures(ctx, pool, []logstore.Row{
+			{Scope: scope, Instance: "web", OccurredAt: at.Add(-time.Second), Sequence: 5, Message: "before range"},
+			{Scope: scope, Instance: "web", OccurredAt: at, Sequence: 5, Message: "tie low"},
+			{Scope: scope, Instance: "", OccurredAt: at, Sequence: 5, Message: "tie high"},
+			{Scope: scope, Instance: "web", OccurredAt: at, Sequence: 6, Message: "higher sequence"},
+			{Scope: scope, Instance: "api", OccurredAt: at, Sequence: 7, Message: "unselected instance"},
+			{Scope: scope, Instance: "", OccurredAt: to, Sequence: 5, Message: "exclusive end"},
+		})
+		require.NoError(t, err, "insert tied logs across instances at both range bounds")
+
+		query := logstore.PageQuery{
+			Scope: scope, Instances: []string{"", "web", ""}, Limit: 2,
+			Range: &logstore.TimeRange{From: at.Add(500 * time.Nanosecond), To: to.Add(500 * time.Nanosecond)},
+		}
+		first := mustPage(t, ctx, logs, query)
+		require.Equal(t, []string{"higher sequence", "tie high"}, messages(first.Rows), "the merged page must sort by sequence and ID and exclude the upper bound")
+		require.NotNil(t, first.Older, "a full merged page must offer an older cursor")
+		query.Older = first.Older
+		older := mustPage(t, ctx, logs, query)
+		require.Equal(t, []string{"tie low"}, messages(older.Rows), "older paging must reach the tied row at the inclusive lower bound")
+
+		query.Older = nil
+		query.Newer = &logstore.Cursor{OccurredAt: at, Sequence: 5, ID: ids[1]}
+		newer := mustPage(t, ctx, logs, query)
+		require.Equal(t, []string{"higher sequence", "tie high"}, messages(newer.Rows), "newer paging must count a duplicate selector once and return the nearest rows newest first")
+		require.NotNil(t, newer.Newer, "a full newer page must offer a continuation cursor")
+		query.Newer = newer.Newer
+		require.Empty(t, mustPage(t, ctx, logs, query).Rows, "a newer continuation must stop at the exclusive upper bound")
+
+		query.Newer = nil
+		query.Older = &logstore.Cursor{OccurredAt: to, Sequence: 6, ID: ids[5]}
+		require.Equal(t, messages(first.Rows), messages(mustPage(t, ctx, logs, query).Rows), "the exclusive range end must take precedence when the cursor shares its stored microsecond")
+	})
 }
 
 func clientByName(t *testing.T, project projects.Project, name string) uuid.UUID {

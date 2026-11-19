@@ -38,45 +38,156 @@ LEFT JOIN new_input n ON n.ordinality = s.ordinality
 LEFT JOIN inserted ON inserted.id = n.id
 ORDER BY s.ordinality;
 
--- name: ListLogs :many
+-- name: ListLogsOlder :many
+-- The Go store intersects the cursor and time range before binding these keys.
 SELECT l.id, l.client_id, c.project_id, l.instance_name,
        l.occurred_at, l.sequence_number, l.message
 FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE c.project_id = sqlc.arg(project_id)
   AND l.client_id = sqlc.arg(client_id)
-  AND (
-    NOT sqlc.arg(filter_instances)::bool
-    OR l.instance_name = ANY(sqlc.arg(instances)::text[])
-  )
-  AND (
-    NOT sqlc.arg(has_range)::bool
-    OR (
-      l.occurred_at >= sqlc.arg(range_from)
-      AND l.occurred_at < sqlc.arg(range_to)
-    )
-  )
-  AND (
-    NOT sqlc.arg(has_cursor)::bool
-    OR (
-      sqlc.arg(backward)::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
-    )
-    OR (
-      NOT sqlc.arg(backward)::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
-    )
-  )
-ORDER BY
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.occurred_at END ASC,
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.sequence_number END ASC,
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.id END ASC,
-  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
 LIMIT sqlc.arg(page_size);
 
--- name: SearchLogs :many
+-- name: ListLogsNewer :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = sqlc.arg(project_id)
+  AND l.client_id = sqlc.arg(client_id)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+LIMIT sqlc.arg(page_size);
+
+-- name: ListLogsOlderByInstances :many
+-- Take one page of keys per distinct instance, then fetch the merged page's rows.
+-- A bounded scan of the client index can find the last key of the merged page.
+-- If it falls short, each instance scan uses the original bounds and page limit.
+WITH client_scope AS (
+    SELECT c.id, c.project_id
+    FROM clients c
+    WHERE c.project_id = sqlc.arg(project_id) AND c.id = sqlc.arg(client_id)
+), page_cutoff AS (
+    SELECT prefix.occurred_at, prefix.sequence_number, prefix.id
+    FROM (
+        SELECT l.occurred_at, l.sequence_number, l.id, l.instance_name
+        FROM logs l
+        WHERE l.client_id = (SELECT c.id FROM client_scope c)
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+               sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+               sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+        ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+        LIMIT 2 * sqlc.arg(page_size)::int::bigint
+    ) prefix
+    WHERE prefix.instance_name = ANY(sqlc.arg(instances)::text[])
+    ORDER BY prefix.occurred_at DESC, prefix.sequence_number DESC, prefix.id DESC
+    OFFSET (sqlc.arg(page_size)::int - 1) LIMIT 1
+)
+SELECT l.id, l.client_id, page.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM (
+    SELECT candidate.id, c.project_id, candidate.occurred_at, candidate.sequence_number
+    FROM client_scope c
+    LEFT JOIN page_cutoff cutoff ON true
+    CROSS JOIN (
+        SELECT DISTINCT instance_name
+        FROM unnest(sqlc.arg(instances)::text[]) AS selected(instance_name)
+    ) i
+    CROSS JOIN LATERAL (
+        SELECT l.id, l.occurred_at, l.sequence_number
+        FROM logs l
+        WHERE l.client_id = c.id
+          AND l.instance_name = i.instance_name
+          -- Without a cutoff, the lower time bound has the minimum sequence.
+          AND (l.occurred_at, l.sequence_number, l.id) >=
+              (COALESCE(cutoff.occurred_at, sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+               COALESCE(cutoff.sequence_number, sqlc.arg(after_sequence)::bigint),
+               COALESCE(cutoff.id, sqlc.arg(after_id)::bigint))
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+               sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+        ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+        LIMIT sqlc.arg(page_size)
+    ) candidate
+    ORDER BY candidate.occurred_at DESC, candidate.sequence_number DESC, candidate.id DESC
+    LIMIT sqlc.arg(page_size)
+) page
+JOIN logs l ON l.id = page.id
+ORDER BY page.occurred_at DESC, page.sequence_number DESC, page.id DESC;
+
+-- name: ListLogsNewerByInstances :many
+WITH client_scope AS (
+    SELECT c.id, c.project_id
+    FROM clients c
+    WHERE c.project_id = sqlc.arg(project_id) AND c.id = sqlc.arg(client_id)
+), page_cutoff AS (
+    SELECT prefix.occurred_at, prefix.sequence_number, prefix.id
+    FROM (
+        SELECT l.occurred_at, l.sequence_number, l.id, l.instance_name
+        FROM logs l
+        WHERE l.client_id = (SELECT c.id FROM client_scope c)
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+               sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+               sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+        ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+        LIMIT 2 * sqlc.arg(page_size)::int::bigint
+    ) prefix
+    WHERE prefix.instance_name = ANY(sqlc.arg(instances)::text[])
+    ORDER BY prefix.occurred_at ASC, prefix.sequence_number ASC, prefix.id ASC
+    OFFSET (sqlc.arg(page_size)::int - 1) LIMIT 1
+)
+SELECT l.id, l.client_id, page.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM (
+    SELECT candidate.id, c.project_id, candidate.occurred_at, candidate.sequence_number
+    FROM client_scope c
+    LEFT JOIN page_cutoff cutoff ON true
+    CROSS JOIN (
+        SELECT DISTINCT instance_name
+        FROM unnest(sqlc.arg(instances)::text[]) AS selected(instance_name)
+    ) i
+    CROSS JOIN LATERAL (
+        SELECT l.id, l.occurred_at, l.sequence_number
+        FROM logs l
+        WHERE l.client_id = c.id
+          AND l.instance_name = i.instance_name
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+               sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE(cutoff.occurred_at, sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+               COALESCE(cutoff.sequence_number, sqlc.arg(through_sequence)::bigint),
+               COALESCE(cutoff.id, sqlc.arg(through_id)::bigint))
+        ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+        LIMIT sqlc.arg(page_size)
+    ) candidate
+    ORDER BY candidate.occurred_at ASC, candidate.sequence_number ASC, candidate.id ASC
+    LIMIT sqlc.arg(page_size)
+) page
+JOIN logs l ON l.id = page.id
+ORDER BY page.occurred_at ASC, page.sequence_number ASC, page.id ASC;
+
+-- name: SearchLogsOlder :many
+-- Repeat the time bounds so the search planner can estimate range selectivity
+-- from the timestamp histogram when choosing between B-tree and trigram indexes.
 SELECT l.id, l.client_id, c.project_id, l.instance_name,
        l.occurred_at, l.sequence_number, l.message
 FROM logs l
@@ -85,35 +196,77 @@ WHERE c.project_id = sqlc.arg(project_id)
   AND l.client_id = sqlc.arg(client_id)
   AND l.message ILIKE sqlc.arg(primary_pattern)::text ESCAPE E'\\'
   AND l.message ILIKE ALL(sqlc.arg(remaining_patterns)::text[])
-  AND (
-    NOT sqlc.arg(filter_instances)::bool
-    OR l.instance_name = ANY(sqlc.arg(instances)::text[])
-  )
-  AND (
-    NOT sqlc.arg(has_range)::bool
-    OR (
-      l.occurred_at >= sqlc.arg(range_from)
-      AND l.occurred_at < sqlc.arg(range_to)
-    )
-  )
-  AND (
-    NOT sqlc.arg(has_cursor)::bool
-    OR (
-      sqlc.arg(backward)::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
-    )
-    OR (
-      NOT sqlc.arg(backward)::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          > (sqlc.arg(cursor_at), sqlc.arg(cursor_sequence)::bigint, sqlc.arg(cursor_id)::bigint)
-    )
-  )
-ORDER BY
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.occurred_at END ASC,
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.sequence_number END ASC,
-  CASE WHEN sqlc.arg(has_cursor)::bool AND NOT sqlc.arg(backward)::bool THEN l.id END ASC,
-  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+  AND l.occurred_at >= COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: SearchLogsNewer :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = sqlc.arg(project_id)
+  AND l.client_id = sqlc.arg(client_id)
+  AND l.message ILIKE sqlc.arg(primary_pattern)::text ESCAPE E'\\'
+  AND l.message ILIKE ALL(sqlc.arg(remaining_patterns)::text[])
+  AND l.occurred_at >= COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+LIMIT sqlc.arg(page_size);
+
+-- name: SearchLogsOlderByInstances :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = sqlc.arg(project_id)
+  AND l.client_id = sqlc.arg(client_id)
+  AND l.message ILIKE sqlc.arg(primary_pattern)::text ESCAPE E'\\'
+  AND l.message ILIKE ALL(sqlc.arg(remaining_patterns)::text[])
+  AND l.instance_name = ANY(sqlc.arg(instances)::text[])
+  AND l.occurred_at >= COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: SearchLogsNewerByInstances :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = sqlc.arg(project_id)
+  AND l.client_id = sqlc.arg(client_id)
+  AND l.message ILIKE sqlc.arg(primary_pattern)::text ESCAPE E'\\'
+  AND l.message ILIKE ALL(sqlc.arg(remaining_patterns)::text[])
+  AND l.instance_name = ANY(sqlc.arg(instances)::text[])
+  AND l.occurred_at >= COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE(sqlc.narg(after_at)::timestamptz, '-infinity'::timestamptz),
+       sqlc.arg(after_sequence)::bigint, sqlc.arg(after_id)::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE(sqlc.narg(through_at)::timestamptz, 'infinity'::timestamptz),
+       sqlc.arg(through_sequence)::bigint, sqlc.arg(through_id)::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
 LIMIT sqlc.arg(page_size);
 
 -- name: GetLogAnchor :one
