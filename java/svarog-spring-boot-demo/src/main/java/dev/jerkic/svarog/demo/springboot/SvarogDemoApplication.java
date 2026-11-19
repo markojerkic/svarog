@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @SpringBootApplication
 @RestController
 public class SvarogDemoApplication {
-    private static final Logger logger = LoggerFactory.getLogger(SvarogDemoApplication.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SvarogDemoApplication.class);
 
     public static void main(String[] args) {
         SpringApplication.run(SvarogDemoApplication.class, args);
@@ -18,7 +18,7 @@ public class SvarogDemoApplication {
 
     @GetMapping("/hello")
     public String hello() {
-        logger.info("Handled GET /hello in the Svarog Spring Boot demo");
+        LOGGER.info("Handled GET /hello in the Svarog Spring Boot demo");
         return "Hello from the Svarog Spring Boot demo!";
     }
 }

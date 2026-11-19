@@ -1,7 +1,6 @@
 package dev.jerkic.svarog.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import java.io.IOException;
@@ -16,45 +15,56 @@ public final class SvarogAppender extends UnsynchronizedAppenderBase<ILoggingEve
 
     @Override
     public boolean isStarted() {
-        BridgeProcess current = bridge;
+        var current = this.bridge;
         return super.isStarted() && current != null && current.isAccepting();
     }
 
     @Override
     public synchronized void start() {
-        if (bridge != null) {
-            if (bridge.isAccepting()) {
+        if (this.bridge != null) {
+            if (this.bridge.isAccepting()) {
                 return;
             }
-            if (!bridge.isTerminated()) {
-                addError("Cannot start Svarog bridge while the previous process is shutting down");
+            if (!this.bridge.isTerminated()) {
+                this.addError("Cannot start Svarog bridge while the previous process is shutting down");
                 return;
             }
             super.stop();
-            bridge = null;
+            this.bridge = null;
         }
         try {
-            bridge = BridgeProcess.launch(bridgePath, getContext());
-            bridge.start();
+            this.bridge = BridgeProcess.launch(this.bridgePath, this.getContext());
+            this.bridge.start();
             super.start();
         } catch (IOException e) {
-            abortStartup();
-            addError("Failed to start Svarog bridge", e);
+            this.abortStartup();
+            this.addError("Failed to start Svarog bridge", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            abortStartup();
-            addError("Interrupted while waiting for Svarog bridge readiness", e);
+            this.abortStartup();
+            this.addError("Interrupted while waiting for Svarog bridge readiness", e);
+        }
+    }
+
+    @Override
+    public synchronized void stop() {
+        super.stop();
+        if (this.bridge != null) {
+            this.bridge.stop();
+            if (this.bridge.isTerminated()) {
+                this.bridge = null;
+            }
         }
     }
 
     @Override
     protected void append(ILoggingEvent event) {
-        BridgeProcess current = bridge;
+        var current = this.bridge;
         if (current == null || !current.isAccepting()) {
             return;
         }
-        String message = event.getLevel() + " " + event.getLoggerName() + " - " + event.getFormattedMessage();
-        IThrowableProxy throwable = event.getThrowableProxy();
+        var message = event.getLevel() + " " + event.getLoggerName() + " - " + event.getFormattedMessage();
+        var throwable = event.getThrowableProxy();
         if (throwable != null) {
             message += "\n" + ThrowableProxyUtil.asString(throwable);
         }
@@ -65,22 +75,11 @@ public final class SvarogAppender extends UnsynchronizedAppenderBase<ILoggingEve
         }
     }
 
-    @Override
-    public synchronized void stop() {
-        super.stop();
-        if (bridge != null) {
-            bridge.stop();
-            if (bridge.isTerminated()) {
-                bridge = null;
-            }
-        }
-    }
-
     private void abortStartup() {
-        if (bridge != null) {
-            bridge.abort();
-            if (bridge.isTerminated()) {
-                bridge = null;
+        if (this.bridge != null) {
+            this.bridge.abort();
+            if (this.bridge.isTerminated()) {
+                this.bridge = null;
             }
         }
     }

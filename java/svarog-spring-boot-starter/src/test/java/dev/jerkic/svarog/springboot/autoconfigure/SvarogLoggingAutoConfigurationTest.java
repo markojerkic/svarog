@@ -25,13 +25,13 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.StandardEnvironment;
 
-class SvarogLoggingAutoConfigurationTest {
+public class SvarogLoggingAutoConfigurationTest {
     @TempDir
-    Path directory;
+    public Path directory;
 
     @Test
-    void leavesDefaultLoggingAloneWhenNotEnabled() {
-        try (var context = run("--svarog.logging.bridge-path=" + directory.resolve("missing"))) {
+    public void leavesDefaultLoggingAloneWhenNotEnabled() {
+        try (var context = run("--svarog.logging.bridge-path=" + this.directory.resolve("missing"))) {
             assertFalse(context.containsBean("svarogAppenderRegistration"));
             assertNull(rootLogger().getAppender("SVAROG"));
             assertNotNull(rootLogger().getAppender("CONSOLE"));
@@ -39,9 +39,9 @@ class SvarogLoggingAutoConfigurationTest {
     }
 
     @Test
-    void keepsApplicationRunningWhenBridgeCannotStart() {
+    public void keepsApplicationRunningWhenBridgeCannotStart() {
         try (var context = run("--svarog.logging.enabled=true",
-            "--svarog.logging.bridge-path=" + directory.resolve("missing"))) {
+            "--svarog.logging.bridge-path=" + this.directory.resolve("missing"))) {
             assertTrue(context.isActive());
             assertNull(rootLogger().getAppender("SVAROG"));
             assertNotNull(rootLogger().getAppender("CONSOLE"));
@@ -50,8 +50,8 @@ class SvarogLoggingAutoConfigurationTest {
 
     @Test
     @EnabledOnOs(OS.LINUX)
-    void forwardsLogsAndDrainsTheBridgeWhenTheApplicationCloses() throws Exception {
-        Path bridge = Files.createFile(directory.resolve("bridge"),
+    public void forwardsLogsAndDrainsTheBridgeWhenTheApplicationCloses() throws Exception {
+        var bridge = Files.createFile(this.directory.resolve("bridge"),
             PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
         Files.writeString(bridge, """
             #!/bin/sh
@@ -66,12 +66,12 @@ class SvarogLoggingAutoConfigurationTest {
             assertNotNull(appender);
             assertTrue(appender.isStarted());
             assertNotNull(rootLogger().getAppender("CONSOLE"));
-            LoggerFactory.getLogger(getClass()).info("forwarded by the Spring Boot starter");
+            LoggerFactory.getLogger(this.getClass()).info("forwarded by the Spring Boot starter");
         }
 
         assertNull(rootLogger().getAppender("SVAROG"));
         assertFalse(appender.isStarted());
-        assertTrue(Files.readString(directory.resolve("received")).contains("forwarded by the Spring Boot starter"));
+        assertTrue(Files.readString(this.directory.resolve("received")).contains("forwarded by the Spring Boot starter"));
     }
 
     private static ConfigurableApplicationContext run(String... args) {
@@ -91,6 +91,6 @@ class SvarogLoggingAutoConfigurationTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
-    static class TestApplication {
+    private static class TestApplication {
     }
 }

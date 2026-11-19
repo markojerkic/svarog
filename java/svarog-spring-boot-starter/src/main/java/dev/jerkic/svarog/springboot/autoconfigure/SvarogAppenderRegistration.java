@@ -1,40 +1,35 @@
 package dev.jerkic.svarog.springboot.autoconfigure;
 
-import java.util.Iterator;
-
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.Appender;
+import dev.jerkic.svarog.logback.SvarogAppender;
 import org.slf4j.LoggerFactory;
 
-import dev.jerkic.svarog.logback.SvarogAppender;
-
-final class SvarogAppenderRegistration {
+public final class SvarogAppenderRegistration {
     private static final String APPENDER_NAME = "SVAROG";
     private final String bridgePath;
     private Logger root;
     private SvarogAppender appender;
 
-    SvarogAppenderRegistration(String bridgePath) {
+    public SvarogAppenderRegistration(String bridgePath) {
         this.bridgePath = bridgePath;
     }
 
-    void start() {
+    public void start() {
         if (!(LoggerFactory.getILoggerFactory() instanceof LoggerContext context)) {
             return;
         }
 
-        Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
+        var rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
         synchronized (rootLogger) {
             if (hasSvarogAppender(rootLogger)) {
                 return;
             }
 
-            SvarogAppender candidate = new SvarogAppender();
+            var candidate = new SvarogAppender();
             candidate.setName(APPENDER_NAME);
             candidate.setContext(context);
-            candidate.setBridgePath(bridgePath);
+            candidate.setBridgePath(this.bridgePath);
             candidate.start();
             if (!candidate.isStarted()) {
                 candidate.stop();
@@ -44,22 +39,22 @@ final class SvarogAppenderRegistration {
             }
 
             rootLogger.addAppender(candidate);
-            root = rootLogger;
-            appender = candidate;
+            this.root = rootLogger;
+            this.appender = candidate;
         }
     }
 
-    void close() {
-        if (appender != null) {
-            root.detachAppender(appender);
-            appender.stop();
+    public void close() {
+        if (this.appender != null) {
+            this.root.detachAppender(this.appender);
+            this.appender.stop();
         }
     }
 
     private static boolean hasSvarogAppender(Logger rootLogger) {
-        Iterator<Appender<ILoggingEvent>> appenders = rootLogger.iteratorForAppenders();
+        var appenders = rootLogger.iteratorForAppenders();
         while (appenders.hasNext()) {
-            Appender<ILoggingEvent> appender = appenders.next();
+            var appender = appenders.next();
             if (appender instanceof SvarogAppender || APPENDER_NAME.equals(appender.getName())) {
                 return true;
             }

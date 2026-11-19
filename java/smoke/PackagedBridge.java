@@ -3,10 +3,10 @@ import ch.qos.logback.core.status.Status;
 import ch.qos.logback.core.util.StatusPrinter2;
 import dev.jerkic.svarog.logback.SvarogAppender;
 
-class PackagedBridge {
+public final class PackagedBridge {
     public static void main(String[] args) {
-        LoggerContext context = new LoggerContext();
-        SvarogAppender appender = new SvarogAppender();
+        var context = new LoggerContext();
+        var appender = new SvarogAppender();
         appender.setContext(context);
         try {
             appender.start();

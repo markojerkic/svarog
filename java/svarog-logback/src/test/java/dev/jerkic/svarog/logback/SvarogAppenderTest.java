@@ -10,7 +10,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,29 +31,29 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @EnabledOnOs(OS.LINUX)
-class SvarogAppenderTest {
+public class SvarogAppenderTest {
     @TempDir
-    Path directory;
+    public Path directory;
 
     private LoggerContext context;
     private SvarogAppender appender;
 
     @BeforeEach
-    void setUp() {
-        context = new LoggerContext();
-        context.start();
-        appender = new SvarogAppender();
-        appender.setContext(context);
+    public void setUp() {
+        this.context = new LoggerContext();
+        this.context.start();
+        this.appender = new SvarogAppender();
+        this.appender.setContext(this.context);
     }
 
     @AfterEach
-    void cleanUp() throws Exception {
-        appender.stop();
-        context.stop();
+    public void cleanUp() throws Exception {
+        this.appender.stop();
+        this.context.stop();
         // Keep a failed lifecycle assertion from leaving its fixture running.
-        Path pid = directory.resolve("pid");
+        var pid = this.directory.resolve("pid");
         if (Files.exists(pid)) {
-            ProcessHandle process = ProcessHandle.of(Long.parseLong(Files.readString(pid))).orElse(null);
+            var process = ProcessHandle.of(Long.parseLong(Files.readString(pid))).orElse(null);
             if (process != null && process.isAlive()) {
                 process.destroyForcibly();
                 process.onExit().get(5, TimeUnit.SECONDS);
@@ -64,50 +63,50 @@ class SvarogAppenderTest {
 
     @Test
     @EnabledOnOs(value = OS.LINUX, architectures = {"amd64", "x86_64"})
-    void startsBundledBridgeWithoutAnOverride() {
-        String override = System.getenv("SVAROG_BRIDGE_PATH");
+    public void startsBundledBridgeWithoutAnOverride() {
+        var override = System.getenv("SVAROG_BRIDGE_PATH");
         assumeTrue(override == null || override.isBlank());
-        appender.start();
-        assertTrue(appender.isStarted(), "the bundled bridge must be extracted and executable");
+        this.appender.start();
+        assertTrue(this.appender.isStarted(), "the bundled bridge must be extracted and executable");
     }
 
     @Test
-    void acceptsLogsAfterReadyAndStopsTheSameHelperOnEof() throws Exception {
-        Path received = directory.resolve("received");
-        helper("printf '%s\\n' ' {\"op\":\"ready\", \"v\":1} '\n"
+    public void acceptsLogsAfterReadyAndStopsTheSameHelperOnEof() throws Exception {
+        var received = this.directory.resolve("received");
+        this.helper("printf '%s\\n' ' {\"op\":\"ready\", \"v\":1} '\n"
             + "while IFS= read -r line; do printf '%s\\n' \"$line\" >> '" + received + "'; done\n");
 
-        appender.start();
-        assertTrue(appender.isStarted(), "a valid ready response must enable log admission");
-        long pid = helperPid();
-        appender.start();
-        assertEquals(pid, helperPid(), "repeated start must reuse the already-ready helper");
-        LoggingEvent event = event("accepted after ready");
-        appender.doAppend(event);
+        this.appender.start();
+        assertTrue(this.appender.isStarted(), "a valid ready response must enable log admission");
+        var pid = this.helperPid();
+        this.appender.start();
+        assertEquals(pid, this.helperPid(), "repeated start must reuse the already-ready helper");
+        var event = event("accepted after ready");
+        this.appender.doAppend(event);
 
-        IllegalStateException failure = new IllegalStateException("save failed", new IOException("database offline"));
+        var failure = new IllegalStateException("save failed", new IOException("database offline"));
         failure.addSuppressed(new IOException("cleanup failed"));
-        LoggingEvent error = new LoggingEvent(getClass().getName(), context.getLogger("example.Worker"),
+        var error = new LoggingEvent(this.getClass().getName(), this.context.getLogger("example.Worker"),
             Level.ERROR, "Failed request {}", failure, new Object[] {"abc\"č\nxyz"});
         error.setInstant(event.getInstant());
-        appender.doAppend(error);
-        appender.stop();
-        appender.stop();
+        this.appender.doAppend(error);
+        this.appender.stop();
+        this.appender.stop();
 
-        List<String> records = Files.readAllLines(received);
+        var records = Files.readAllLines(received);
         assertEquals(2, records.size(), "a multiline exception must remain one JSON record alongside the normal event");
         assertEquals("{\"message\":\"INFO example.Worker - accepted after ready\",\"timestamp\":\"2026-11-16T10:00:00.123456789Z\"}",
             records.get(0), "normal logs must retain severity, logger, source message and original timestamp");
-        try (JsonParser parser = new JsonFactory().createParser(records.get(1))) {
+        try (var parser = new JsonFactory().createParser(records.get(1))) {
             assertEquals(JsonToken.START_OBJECT, parser.nextToken(), "the error must remain valid JSON");
             assertEquals("message", parser.nextFieldName(), "the existing message field must carry all logging details");
             assertEquals(JsonToken.VALUE_STRING, parser.nextToken(), "error details must be a single string");
-            String message = parser.getText();
+            var message = parser.getText();
             assertTrue(message.startsWith("ERROR example.Worker - Failed request abc\"č\nxyz\n"),
                 "error records must preserve severity, logger, substituted arguments and Unicode");
             assertTrue(message.contains("java.lang.IllegalStateException: save failed"),
                 "the original exception type and message must survive logging");
-            assertTrue(message.contains("at " + getClass().getName() + "."),
+            assertTrue(message.contains("at " + this.getClass().getName() + "."),
                 "exception stack frames must reach the helper rather than only an exception summary");
             assertTrue(message.contains("Caused by: java.io.IOException: database offline"),
                 "nested exception causes must not be lost");
@@ -118,52 +117,52 @@ class SvarogAppenderTest {
             assertEquals(JsonToken.END_OBJECT, parser.nextToken(), "metadata must not introduce extra protocol fields");
             assertEquals(null, parser.nextToken(), "an error must not introduce another JSON record");
         }
-        assertHelperExited();
-        appender.start();
-        assertTrue(appender.isStarted(), "the same appender must start a new bridge after stop");
-        assertTrue(pid != helperPid(), "restarting must not reuse the stopped process");
-        appender.stop();
-        assertHelperExited();
+        this.assertHelperExited();
+        this.appender.start();
+        assertTrue(this.appender.isStarted(), "the same appender must start a new bridge after stop");
+        assertTrue(pid != this.helperPid(), "restarting must not reuse the stopped process");
+        this.appender.stop();
+        this.assertHelperExited();
     }
 
     @Test
-    void remainsResponsiveAndStopsWhenTheBridgeNeverReads() throws Exception {
-        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
-        appender.start();
-        assertTrue(appender.isStarted());
+    public void remainsResponsiveAndStopsWhenTheBridgeNeverReads() throws Exception {
+        this.helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
+        this.appender.start();
+        assertTrue(this.appender.isStarted());
 
-        LoggingEvent event = event("x".repeat(1024 * 1024));
+        var event = event("x".repeat(1024 * 1024));
         assertTimeoutPreemptively(Duration.ofSeconds(4), () -> {
-            for (int i = 0; i < 12; i++) {
-                appender.doAppend(event);
+            for (var i = 0; i < 12; i++) {
+                this.appender.doAppend(event);
             }
         }, "a full pipe and queue must not block callers");
-        assertTrue(context.getStatusManager().getCopyOfStatusList().stream()
+        assertTrue(this.context.getStatusManager().getCopyOfStatusList().stream()
             .anyMatch(status -> status.getMessage().contains("bridge queue full")));
 
-        assertTimeoutPreemptively(Duration.ofSeconds(8), appender::stop);
-        assertHelperExited();
+        assertTimeoutPreemptively(Duration.ofSeconds(8), this.appender::stop);
+        this.assertHelperExited();
     }
 
     @Test
-    void admitsOnlyAfterReadyAndReportsChildExitDuringDrain() throws Exception {
-        Path exit = directory.resolve("exit");
-        Path read = directory.resolve("read");
-        CountDownLatch reported = new CountDownLatch(1);
-        context.getStatusManager().add(status -> {
+    public void admitsOnlyAfterReadyAndReportsChildExitDuringDrain() throws Exception {
+        var exit = this.directory.resolve("exit");
+        var read = this.directory.resolve("read");
+        var reported = new CountDownLatch(1);
+        this.context.getStatusManager().add(status -> {
             if (status.getMessage().contains("bridge exited unexpectedly")) {
                 reported.countDown();
             }
         });
         // Keep the pipe open after the helper exits so the writer cannot diagnose the loss via EPIPE.
-        String path = helper("exec 3<&0\n"
+        var path = this.helper("exec 3<&0\n"
             + "(while [ ! -f '" + read + "' ]; do sleep .01; done; exec cat >/dev/null) <&3 &\n"
             + "printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\n"
             + "while [ ! -f '" + exit + "' ]; do sleep .01; done\n");
-        BridgeProcess bridge = BridgeProcess.launch(path, context);
+        var bridge = BridgeProcess.launch(path, this.context);
         CompletableFuture<Void> stopped;
         try {
-            byte[] record = BridgeFrame.encode("queued", Instant.now());
+            var record = BridgeFrame.encode("queued", Instant.now());
             assertFalse(bridge.tryOffer(record), "a bridge still starting must reject late calls from the previous run");
             bridge.start();
             assertTrue(bridge.tryOffer(BridgeFrame.encode("x".repeat(2 * 1024 * 1024), Instant.now())));
@@ -183,47 +182,47 @@ class SvarogAppenderTest {
             Files.writeString(read, "");
         }
         stopped.get(8, TimeUnit.SECONDS);
-        assertHelperExited();
+        this.assertHelperExited();
     }
 
     @Test
-    void interruptedStopStillTerminatesTheBridge() throws Exception {
-        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
-        appender.start();
-        assertTrue(appender.isStarted());
+    public void interruptedStopStillTerminatesTheBridge() throws Exception {
+        this.helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\nexec sleep 30\n");
+        this.appender.start();
+        assertTrue(this.appender.isStarted());
 
         assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
             Thread.currentThread().interrupt();
             try {
-                appender.stop();
+                this.appender.stop();
                 assertTrue(Thread.currentThread().isInterrupted());
             } finally {
                 Thread.interrupted();
             }
         });
-        assertHelperExited();
+        this.assertHelperExited();
     }
 
     @Test
-    void rejectsInvalidAndOversizedRecordsWithoutStoppingTheBridge() throws Exception {
-        Path received = directory.resolve("received");
-        helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\n"
+    public void rejectsInvalidAndOversizedRecordsWithoutStoppingTheBridge() throws Exception {
+        var received = this.directory.resolve("received");
+        this.helper("printf '%s\\n' '{\"v\":1,\"op\":\"ready\"}'\n"
             + "while IFS= read -r line; do printf '%s\\n' \"$line\" >> '" + received + "'; done\n");
-        appender.start();
-        assertTrue(appender.isStarted());
+        this.appender.start();
+        assertTrue(this.appender.isStarted());
 
-        appender.doAppend(event("contains \0 NUL"));
-        appender.doAppend(event("\u0001".repeat(BridgeFrame.MAX_BYTES / 6)));
-        LoggingEvent invalidTime = event("unrepresentable timestamp");
+        this.appender.doAppend(event("contains \0 NUL"));
+        this.appender.doAppend(event("\u0001".repeat(BridgeFrame.MAX_BYTES / 6)));
+        var invalidTime = event("unrepresentable timestamp");
         invalidTime.setInstant(Instant.MIN);
-        appender.doAppend(invalidTime);
-        appender.doAppend(event("still delivered"));
-        appender.stop();
+        this.appender.doAppend(invalidTime);
+        this.appender.doAppend(event("still delivered"));
+        this.appender.stop();
 
         assertEquals(List.of(
             "{\"message\":\"INFO example.Worker - still delivered\",\"timestamp\":\"2026-11-16T10:00:00.123456789Z\"}"),
             Files.readAllLines(received));
-        assertHelperExited();
+        this.assertHelperExited();
     }
 
     @ParameterizedTest
@@ -235,55 +234,55 @@ class SvarogAppenderTest {
         "{\"v\":1,\"op\":\"ready\",\"v\":1}",
         "{\"v\":1,\"op\":\"ready\"} {}"
     })
-    void rejectsInvalidReadyAndReapsTheOwnedHelper(String response) throws Exception {
-        helper("printf '%s\\n' '" + response + "'\nIFS= read -r line\n");
-        appender.start();
+    public void rejectsInvalidReadyAndReapsTheOwnedHelper(String response) throws Exception {
+        this.helper("printf '%s\\n' '" + response + "'\nIFS= read -r line\n");
+        this.appender.start();
 
-        assertFalse(appender.isStarted(), "an incompatible or malformed response must not enable logging");
-        assertHelperExited();
+        assertFalse(this.appender.isStarted(), "an incompatible or malformed response must not enable logging");
+        this.assertHelperExited();
     }
 
     @Test
-    void rejectsAnOversizedUnterminatedResponse() throws Exception {
-        helper("printf '%s' '" + "x".repeat(1025) + "'\nIFS= read -r line\n");
-        appender.start();
+    public void rejectsAnOversizedUnterminatedResponse() throws Exception {
+        this.helper("printf '%s' '" + "x".repeat(1025) + "'\nIFS= read -r line\n");
+        this.appender.start();
 
-        assertFalse(appender.isStarted(), "an oversized response must fail without waiting for a newline");
-        assertHelperExited();
+        assertFalse(this.appender.isStarted(), "an oversized response must fail without waiting for a newline");
+        this.assertHelperExited();
     }
 
     @Test
-    void rejectsEofBeforeACompleteReadyLine() throws Exception {
-        helper("printf '%s' '{\"v\":1,\"op\":\"ready\"}'\n");
-        appender.start();
+    public void rejectsEofBeforeACompleteReadyLine() throws Exception {
+        this.helper("printf '%s' '{\"v\":1,\"op\":\"ready\"}'\n");
+        this.appender.start();
 
-        assertFalse(appender.isStarted(), "EOF must not substitute for the ready line's terminating newline");
-        assertHelperExited();
+        assertFalse(this.appender.isStarted(), "EOF must not substitute for the ready line's terminating newline");
+        this.assertHelperExited();
     }
 
     @Test
-    void timesOutAndReapsAnUnresponsiveHelper() throws Exception {
-        helper("IFS= read -r line\n");
-        long started = System.nanoTime();
-        appender.start();
-        Duration elapsed = Duration.ofNanos(System.nanoTime() - started);
+    public void timesOutAndReapsAnUnresponsiveHelper() throws Exception {
+        this.helper("IFS= read -r line\n");
+        var started = System.nanoTime();
+        this.appender.start();
+        var elapsed = Duration.ofNanos(System.nanoTime() - started);
 
-        assertFalse(appender.isStarted(), "a silent helper must never enable log admission");
+        assertFalse(this.appender.isStarted(), "a silent helper must never enable log admission");
         assertTrue(elapsed.compareTo(Duration.ofMillis(4500)) >= 0, "startup must allow the ready deadline");
         assertTrue(elapsed.compareTo(Duration.ofSeconds(8)) < 0, "startup must not block indefinitely on stdout");
-        assertHelperExited();
+        this.assertHelperExited();
     }
 
     private String helper(String body) throws IOException {
-        Path script = directory.resolve("helper");
-        Files.writeString(script, "#!/bin/sh\nprintf '%s' \"$$\" > '" + directory.resolve("pid") + "'\n" + body);
+        var script = this.directory.resolve("helper");
+        Files.writeString(script, "#!/bin/sh\nprintf '%s' \"$$\" > '" + this.directory.resolve("pid") + "'\n" + body);
         Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwx------"));
-        appender.setBridgePath(script.toString());
+        this.appender.setBridgePath(script.toString());
         return script.toString();
     }
 
     private static LoggingEvent event(String message) {
-        LoggingEvent event = new LoggingEvent();
+        var event = new LoggingEvent();
         event.setLevel(Level.INFO);
         event.setLoggerName("example.Worker");
         event.setMessage(message);
@@ -292,11 +291,11 @@ class SvarogAppenderTest {
     }
 
     private long helperPid() throws IOException {
-        return Long.parseLong(Files.readString(directory.resolve("pid")));
+        return Long.parseLong(Files.readString(this.directory.resolve("pid")));
     }
 
     private void assertHelperExited() throws IOException {
-        assertFalse(ProcessHandle.of(helperPid()).map(ProcessHandle::isAlive).orElse(false),
+        assertFalse(ProcessHandle.of(this.helperPid()).map(ProcessHandle::isAlive).orElse(false),
             "startup failure or EOF shutdown must reap the appender's own child");
     }
 }

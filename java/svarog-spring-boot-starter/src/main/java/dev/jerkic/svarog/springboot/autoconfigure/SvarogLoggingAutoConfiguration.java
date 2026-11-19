@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Lazy;
 public class SvarogLoggingAutoConfiguration {
     @Bean(initMethod = "start", destroyMethod = "close")
     @Lazy(false)
-    SvarogAppenderRegistration svarogAppenderRegistration(SvarogLoggingProperties properties) {
+    public SvarogAppenderRegistration svarogAppenderRegistration(SvarogLoggingProperties properties) {
         return new SvarogAppenderRegistration(properties.bridgePath());
     }
 }
