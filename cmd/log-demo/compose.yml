@@ -64,3 +64,17 @@ services:
       DEMO_INTERVAL: ${DEMO_INTERVAL:-1s}
     deploy:
       replicas: ${NATIVE_REPLICAS:-1}
+
+  demo-spring-boot:
+    <<: *runtime
+    image: svarog-log-demo-spring-boot:local
+    build:
+      context: ./java/svarog-spring-boot-demo
+    stop_grace_period: 10s
+    environment:
+      SVAROG_CONN_STRING: ${SPRING_BOOT_CONN_STRING:-${API_CONN_STRING:?Popuni API_CONN_STRING ili SPRING_BOOT_CONN_STRING u .env.log-demo}}
+      DEMO_INTERVAL: ${DEMO_INTERVAL:-1s}
+      SPRING_MAIN_WEB_APPLICATION_TYPE: "none"
+      SVAROG_LOGGING_ENABLED: "true"
+    deploy:
+      replicas: ${SPRING_BOOT_REPLICAS:-1}

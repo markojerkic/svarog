@@ -105,7 +105,9 @@ stack uses `.env`; the demo stack uses `.env.log-demo`.
 | **Log demo**                                                              |                                      |                                                                                                                                                                                                                                                 |
 | `API_CONN_STRING`, `WORKER_CONN_STRING`, `PAYMENTS_CONN_STRING`           | Required for demo Compose            | Client connection URLs for the API, worker and payments generators, respectively.                                                                                                                                                               |
 | `NATIVE_CONN_STRING`                                                      | `API_CONN_STRING`                    | Client URL for the native Go logging demo.                                                                                                                                                                                                      |
+| `SPRING_BOOT_CONN_STRING`                                                 | `API_CONN_STRING`                    | Client URL for the Spring Boot logging demo.                                                                                                                                                                                                    |
 | `API_REPLICAS`, `WORKER_REPLICAS`, `PAYMENTS_REPLICAS`, `NATIVE_REPLICAS` | `3`, `2`, `2`, `1`                   | Number of generator containers for each demo service, respectively.                                                                                                                                                                             |
+| `SPRING_BOOT_REPLICAS`                                                    | `1`                                  | Number of Spring Boot generator containers.                                                                                                                                                                                                     |
 | `DEMO_NETWORK_MODE`                                                       | `host`                               | Docker network mode for demo containers.                                                                                                                                                                                                        |
 | `DEMO_INTERVAL`                                                           | `1s`                                 | Time between generated log records.                                                                                                                                                                                                             |
 | `DEMO_APP_NAME`                                                           | `demo` (CLI), `demo-native` (native) | Application name attached to generated logs. Demo Compose sets it per service.                                                                                                                                                                  |
@@ -233,11 +235,17 @@ cp .env.log-demo.example .env.log-demo   # then fill in the connection URLs
 docker compose -f docker-compose.log-demo.yml up -d --build
 ```
 
+The `demo-spring-boot` service sends one INFO heartbeat through the Svarog
+Spring Boot starter every `DEMO_INTERVAL` per replica. Compose runs it in
+Spring Boot's non-web mode so replicas can share the host network.
+Use milliseconds for fractional seconds, for example `1500ms`.
+
 Integration examples:
 
 - [Go `slog` and `log`](cmd/log-interceptor-demo/main.go) through the public
   [`svaroglog` package](#go-library).
 - [Java Logback](java/README.md) through the [Go bridge](cmd/svarog-bridge/README.md).
+- [Spring Boot logger](java/svarog-spring-boot-demo/) with automatic Logback registration.
 
 ## License
 

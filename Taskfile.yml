@@ -126,6 +126,7 @@ tasks:
     deps:
       - docker:log-demo-cli
       - docker:log-demo-native
+      - docker:log-demo-spring-boot
 
   docker:log-demo-cli:
     desc: Build the CLI log demo Docker image
@@ -136,6 +137,11 @@ tasks:
     desc: Build the native log demo Docker image
     cmds:
       - docker build --progress=plain -t markojerkic/svarog-log-demo-native:{{.SVAROG_VERSION | default "latest"}} -f cmd/log-interceptor-demo/Dockerfile .
+
+  docker:log-demo-spring-boot:
+    desc: Build the Spring Boot log demo Docker image
+    cmds:
+      - docker build --progress=plain -t markojerkic/svarog-log-demo-spring-boot:{{.SVAROG_VERSION | default "latest"}} java/svarog-spring-boot-demo
 
   docker:dev:
     desc: Run the docker dev environment
