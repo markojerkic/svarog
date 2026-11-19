@@ -7,6 +7,7 @@ services:
     build:
       context: .
       dockerfile: ./cmd/server/Dockerfile
+      target: server
     deploy:
       mode: replicated
       replicas: 3
@@ -31,7 +32,6 @@ services:
     develop:
       watch:
         - path: .
-          target: builder
           action: rebuild
   nginx:
     image: nginx:1.31.8-alpine

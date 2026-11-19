@@ -8,6 +8,7 @@ services:
     build:
       context: .
       dockerfile: ./cmd/server/Dockerfile
+      target: server
     ports:
       - 1324:1323
     environment:
@@ -32,5 +33,4 @@ services:
     develop:
       watch:
         - path: .
-          target: builder
           action: rebuild

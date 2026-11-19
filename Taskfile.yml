@@ -77,12 +77,24 @@ tasks:
       - task --parallel templ tailwind ui:scripts reload-assets PORT={{.PORT}} PROXY_PORT={{.PROXY_PORT}}
 
   build:
-    desc: Build minified assets and the server binary
+    desc: Build assets and a server binary (CMD=server or CMD=server-embedded)
+    cmds:
+      - task: build:assets
+      - task: build:binary
+
+  build:assets:
+    desc: Build minified assets and generate templates
     cmds:
       - bun run tw:build
       - go tool shadcn-templ bundle
       - go tool templ generate ./...
-      - CGO_ENABLED=0 go build -ldflags '-w -s' -o {{.OUT | default "/tmp/svarog-server"}} ./cmd/server
+
+  build:binary:
+    desc: Compile the selected server binary using generated assets
+    vars:
+      SERVER_CMD: '{{.CMD | default "server"}}'
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags '-w -s' -o "{{.OUT | default (printf "/tmp/svarog-%s" .SERVER_CMD)}}" "./cmd/{{.SERVER_CMD}}"
 
   build:client:
     desc: Build Linux CLI archives for amd64 and arm64 with checksums
@@ -119,7 +131,12 @@ tasks:
   docker:server:
     desc: Build the server Docker image
     cmds:
-      - docker build --progress=plain -t ghcr.io/markojerkic/svarog:{{.SVAROG_VERSION | default "local"}} -f cmd/server/Dockerfile .
+      - docker build --progress=plain --target server -t ghcr.io/markojerkic/svarog:{{.SVAROG_VERSION | default "local"}} -f cmd/server/Dockerfile .
+
+  docker:server-embedded:
+    desc: Build the server Docker image with embedded NATS
+    cmds:
+      - docker build --progress=plain --target server-embedded -t ghcr.io/markojerkic/svarog-embedded:{{.SVAROG_VERSION | default "local"}} -f cmd/server/Dockerfile .
 
   docker:log-demo:
     desc: Build the log demo Docker images in parallel
@@ -155,4 +172,5 @@ tasks:
     cmds:
       - task: docker:client
       - task: docker:server
+      - task: docker:server-embedded
     silent: true
