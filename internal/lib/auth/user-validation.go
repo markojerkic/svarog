@@ -73,10 +73,10 @@ func ValidateUserPage(ctx context.Context, query types.GetUserPageInput) error {
 // The stored value is not trimmed: surrounding spaces in an otherwise long password stay significant.
 func ValidateNewPassword(password string) error {
 	if !utf8.ValidString(password) || strings.ContainsRune(password, '\x00') {
-		return errors.New(ErrPasswordBlank)
+		return ErrPasswordBlank
 	}
 	if utf8.RuneCountInString(strings.TrimSpace(password)) < 8 {
-		return errors.New(ErrPasswordBlank)
+		return ErrPasswordBlank
 	}
 	if len(password) > 72 {
 		return errors.New("Password must contain between 8 and 72 bytes")

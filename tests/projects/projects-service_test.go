@@ -28,7 +28,7 @@ func TestProjectInputRejectedBeforeDatabaseAccess(t *testing.T) {
 
 	_, err = service.GetProject(ctx, "not-a-uuid")
 
-	require.EqualError(t, err, projects.ErrProjectNotFound, "legacy project ID must not be accepted as a UUID")
+	require.ErrorIs(t, err, projects.ErrNotFound, "legacy project ID must not be accepted as a UUID")
 
 	for _, query := range []types.GetProjectPageInput{
 		{

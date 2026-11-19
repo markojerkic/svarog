@@ -46,13 +46,12 @@ type PostgresProjectsService struct {
 	archives ArchiveContentDeleter
 }
 
-const (
-	ErrProjectNotFound                   = "project not found"
-	ErrClientNotFound                    = "client not found"
-	ErrProjectExists                     = "project already exists"
-	ErrProjectHasClients                 = "project has clients; deactivate clients to preserve history"
-	ErrProjectArchiveBusy                = "project archive is in progress"
-	ErrProjectDeleteConfirmationRequired = "project deletion requires its exact current name"
+var (
+	ErrNotFound             = errors.New("project not found")
+	ErrExists               = errors.New("project already exists")
+	ErrHasClients           = errors.New("project has clients; deactivate clients to preserve history")
+	ErrArchiveBusy          = errors.New("project archive is in progress")
+	ErrConfirmationRequired = errors.New("project deletion requires its exact current name")
 )
 
 var _ ProjectsService = (*PostgresProjectsService)(nil)
@@ -76,7 +75,7 @@ func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, for
 	}
 	id, err := uuid.Parse(form.ID)
 	if err != nil {
-		return Project{}, errors.New(ErrProjectNotFound)
+		return Project{}, ErrNotFound
 	}
 	return p.UpdateProject(ctx, id, form.Name, form.Clients)
 }
@@ -110,7 +109,7 @@ func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUI
 func (p *PostgresProjectsService) GetProject(ctx context.Context, id string) (Project, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
-		return Project{}, errors.New(ErrProjectNotFound)
+		return Project{}, ErrNotFound
 	}
 	row, err := p.queries.GetProjectByID(ctx, parsed)
 	if err != nil {
@@ -133,7 +132,7 @@ func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []st
 		var err error
 		parsed[i], err = uuid.Parse(id)
 		if err != nil {
-			return nil, errors.New(ErrProjectNotFound)
+			return nil, ErrNotFound
 		}
 	}
 	rows, err := p.queries.GetProjectsByIDs(ctx, parsed)
@@ -173,7 +172,7 @@ func (p *PostgresProjectsService) SearchProjects(ctx context.Context, request Se
 func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id, confirmationName string) error {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
-		return errors.New(ErrProjectNotFound)
+		return ErrNotFound
 	}
 	backend := ""
 	if p.archives != nil {
@@ -267,30 +266,24 @@ func (p *PostgresProjectsService) projectsWithClients(ctx context.Context, rows 
 }
 
 func projectDeleteError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New(ErrProjectNotFound)
-	}
 	if errors.Is(err, persistence.ErrProjectArchiveBusy) {
-		return errors.New(ErrProjectArchiveBusy)
+		return ErrArchiveBusy
 	}
 	if errors.Is(err, persistence.ErrProjectDeleteConfirmationRequired) {
-		return errors.New(ErrProjectDeleteConfirmationRequired)
+		return ErrConfirmationRequired
 	}
 	return projectError(err)
 }
 
 func projectError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New(ErrProjectNotFound)
+		return ErrNotFound
 	}
 	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "projects_name_key") {
-		return errors.New(ErrProjectExists)
+		return ErrExists
 	}
 	if persistence.IsConstraintViolation(err, persistence.SQLStateRestrictViolation, "clients_project_id_fkey") {
-		return errors.New(ErrProjectHasClients)
+		return ErrHasClients
 	}
 	return err
 }

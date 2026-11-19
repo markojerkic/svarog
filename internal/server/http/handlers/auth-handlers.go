@@ -146,7 +146,7 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	}
 	if err := auth.ValidateNewPassword(resetPasswordForm.Password); err != nil {
 		messageKey := "auth.password_too_short"
-		if err.Error() == auth.ErrPasswordBlank {
+		if errors.Is(err, auth.ErrPasswordBlank) {
 			messageKey = "auth.password_blank"
 		}
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), messageKey)))
@@ -206,7 +206,7 @@ func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 	user, err := a.authService.GetUserByID(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching user", "error", err)
-		if err.Error() == auth.ErrUserNotFound {
+		if errors.Is(err, auth.ErrUserNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.load_failed")})
@@ -264,13 +264,19 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	slog.Debug("Creating user", "user", createUserForm)
 	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
 	if err != nil {
-		if err.Error() == auth.UserAlreadyExists {
+		if errors.Is(err, auth.ErrUserExists) {
 			return a.renderUserFormError(c, http.StatusConflict, createUserForm, types.NewApiError(
 				i18n.T(c.Request().Context(), "users.already_exists"), map[string]string{"username": i18n.T(c.Request().Context(), "users.username_exists")},
 			))
 		}
-		if err.Error() == auth.ErrUserNotFound {
+		if errors.Is(err, auth.ErrUserNotFound) {
 			return a.renderUserFormError(c, http.StatusNotFound, createUserForm, types.NewApiError(i18n.T(c.Request().Context(), "users.not_found")))
+		}
+		if errors.Is(err, auth.ErrProjectSelectionMissing) {
+			ctx := c.Request().Context()
+			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, types.NewApiError(
+				i18n.T(ctx, "projects.not_found"), map[string]string{"projects": i18n.T(ctx, "projects.selection_missing")},
+			))
 		}
 		var apiErr types.ApiError
 		if errors.As(err, &apiErr) {
@@ -317,7 +323,7 @@ func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	err = a.authService.DeleteUser(c, id)
 	if err != nil {
 		slog.Error("Error deleting user", "error", err)
-		if err.Error() == auth.ErrUserNotFound {
+		if errors.Is(err, auth.ErrUserNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.delete_failed")})

@@ -283,7 +283,7 @@ func TestHomepageLoadsOnlyVisibleProjects(t *testing.T) {
 
 func TestDeleteProjectWithClientsReturnsConflict(t *testing.T) {
 	e := echo.New()
-	p := &projectAccessProjectsStub{deleteErr: errors.New(projects.ErrProjectHasClients)}
+	p := &projectAccessProjectsStub{deleteErr: projects.ErrHasClients}
 	handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/projects/"+projectID, nil))

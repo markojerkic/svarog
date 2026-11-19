@@ -113,7 +113,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			Username: "testuser", FirstName: "Test", LastName: "User", Role: "user",
 		})
-		require.EqualError(t, err, auth.UserAlreadyExists, "duplicate username maps to user-already-exists error")
+		require.ErrorIs(t, err, auth.ErrUserExists, "duplicate username maps to user-already-exists error")
 		updated, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			ID: user.ID.String(), Username: user.Username, FirstName: "Changed", LastName: "User", Role: "user",
 		})
@@ -161,7 +161,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		expectedHash := sha256.Sum256([]byte(token))
 		require.Equal(t, expectedHash[:], storedHash, "persist SHA-256 token hash rather than raw token")
 		rec, err := tokenLogin(firstToken)
-		require.EqualError(t, err, auth.LoginTokenNotValid, "replacement invalidates initial token")
+		require.ErrorIs(t, err, auth.ErrLoginTokenInvalid, "replacement invalidates initial token")
 		require.Empty(t, rec.Result().Cookies(), "invalidated token must not set session cookie")
 		rec, err = tokenLogin(token)
 		require.NoError(t, err, "replacement token authenticates successfully")
@@ -169,11 +169,11 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.Len(t, cookies, 1, "token login sets one session cookie")
 		require.Equal(t, http.StatusOK, request(http.MethodGet, "/me", cookies).Code, "token session grants current-user access")
 		rec, err = tokenLogin(token)
-		require.EqualError(t, err, auth.LoginTokenNotValid, "consumed token cannot authenticate again")
+		require.ErrorIs(t, err, auth.ErrLoginTokenInvalid, "consumed token cannot authenticate again")
 		require.Empty(t, rec.Result().Cookies(), "replayed token must not set session cookie")
-		require.EqualError(t, service.ResetPassword(ctx, user.ID.String(), types.ResetPasswordForm{
+		require.ErrorIs(t, service.ResetPassword(ctx, user.ID.String(), types.ResetPasswordForm{
 			Password: "newpassword", RepeatedPassword: "different",
-		}), auth.PasswordsDoNotMatch, "reject mismatched password confirmation")
+		}), auth.ErrPasswordsDoNotMatch, "reject mismatched password confirmation")
 		require.NoError(t, service.ResetPassword(ctx, user.ID.String(), types.ResetPasswordForm{
 			Password: "newpassword", RepeatedPassword: "newpassword",
 		}), "reset password with matching confirmation")
@@ -190,7 +190,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		_, err = pool.Exec(ctx, `UPDATE login_tokens SET created_at = now() - interval '2 days', expires_at = now() - interval '1 day' WHERE user_id = $1`, user.ID)
 		require.NoError(t, err, "expire generated login token")
 		_, err = tokenLogin(token)
-		require.EqualError(t, err, auth.LoginTokenNotValid, "expired login token is rejected")
+		require.ErrorIs(t, err, auth.ErrLoginTokenInvalid, "expired login token is rejected")
 		deleteContext := e.NewContext(httptest.NewRequest(http.MethodDelete, "/users", nil), httptest.NewRecorder())
 		require.NoError(t, service.DeleteUser(deleteContext, user.ID.String()), "delete user with token and password sessions")
 		require.Equal(t, http.StatusUnauthorized, request(http.MethodGet, "/me", cookies).Code, "user deletion revokes token session")

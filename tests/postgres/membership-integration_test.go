@@ -74,8 +74,12 @@ func TestActivePostgresMembership(t *testing.T) {
 		require.NoError(t, err, "evaluate active project access: %s", scenario)
 		require.Equal(t, expected, access, scenario)
 	}
-	requireProjectError := func(t *testing.T, err error, scenario string) {
+	requireProjectError := func(t *testing.T, err error, projectID, scenario string) {
 		t.Helper()
+		if projectID != "not-a-uuid" {
+			require.ErrorIs(t, err, auth.ErrProjectSelectionMissing, scenario)
+			return
+		}
 		var apiError types.ApiError
 		require.ErrorAs(t, err, &apiError, scenario)
 		require.NotEmpty(t, apiError.Fields["projects"], "project assignment errors identify the projects field: %s", scenario)
@@ -116,7 +120,7 @@ func TestActivePostgresMembership(t *testing.T) {
 		checkAccess(t, "not-a-uuid", first.ID.String(), false, "malformed user identifier cannot grant access")
 		checkAccess(t, admin.ID.String(), "not-a-uuid", false, "malformed project identifier is denied even for admin")
 		_, err = service.GetProjectIDsForUser(ctx, uuid.NewString())
-		require.EqualError(t, err, auth.ErrUserNotFound, "project ID lookup preserves missing-user error mapping")
+		require.ErrorIs(t, err, auth.ErrUserNotFound, "project ID lookup preserves missing-user error mapping")
 	})
 
 	t.Run("failed create leaves no user token or memberships", func(t *testing.T) {
@@ -125,7 +129,7 @@ func TestActivePostgresMembership(t *testing.T) {
 				Username: "rejected-member", FirstName: "Rejected", LastName: "User", Role: "user",
 				ProjectIDs: []string{first.ID.String(), projectID},
 			})
-			requireProjectError(t, err, "invalid or missing project rejects user creation")
+			requireProjectError(t, err, projectID, "invalid or missing project rejects user creation")
 			require.Equal(t, auth.User{}, result, "failed user creation returns no persisted user")
 			_, err = q.GetUserByUsername(ctx, "rejected-member")
 			require.ErrorIs(t, err, pgx.ErrNoRows, "failed creation rolls back all user profile writes")
@@ -156,7 +160,7 @@ func TestActivePostgresMembership(t *testing.T) {
 				ID: user.ID.String(), Username: "rejected-rename", FirstName: "Rejected", LastName: "Changed", Role: "admin",
 				ProjectIDs: []string{second.ID.String(), projectID},
 			})
-			requireProjectError(t, err, "invalid or missing project rejects profile and membership update")
+			requireProjectError(t, err, projectID, "invalid or missing project rejects profile and membership update")
 			require.Equal(t, auth.User{}, result, "failed update returns no updated user")
 			after, err := q.GetUserByID(ctx, user.ID)
 			require.NoError(t, err, "reload profile after rejected membership update")
@@ -169,7 +173,7 @@ func TestActivePostgresMembership(t *testing.T) {
 		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&token), "reload login token after rejected profile updates")
 		require.Equal(t, originalToken, token, "rejected profile updates preserve login token")
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{ID: uuid.NewString(), Username: "missing-user", FirstName: "Missing", LastName: "User", Role: "user"})
-		require.EqualError(t, err, auth.ErrUserNotFound, "compound profile update preserves missing-user error mapping")
+		require.ErrorIs(t, err, auth.ErrUserNotFound, "compound profile update preserves missing-user error mapping")
 	})
 
 	t.Run("replace and clear assignments refresh access and auth context", func(t *testing.T) {

@@ -102,7 +102,7 @@ func (p *ProjectsSuite) TestGetProject() {
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 			if err != nil {
-				assert.Equal(t, projects.ErrProjectNotFound, err.Error(), "Test case %d failed", i)
+				assert.ErrorIs(t, err, projects.ErrNotFound, "updating a missing project should return not found (case %d)", i)
 			}
 		} else {
 			assert.NoError(t, err, "Test case %d failed", i)
@@ -122,7 +122,7 @@ func (p *ProjectsSuite) TestDeleteProject() {
 	require.NoError(t, err, "deleting a project without clients should succeed")
 
 	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "deleted project should no longer exist")
+	assert.ErrorIs(t, err, projects.ErrNotFound, "deleted project should no longer exist")
 }
 
 func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
@@ -146,7 +146,7 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 
 	require.NoError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String(), ""), "delete the clientless project with user memberships")
 	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "project should not exist after deletion")
+	assert.ErrorIs(t, err, projects.ErrNotFound, "project should not exist after deletion")
 
 	for i, userID := range userIDs {
 		_, err := queries.GetUserByID(ctx, userID)
@@ -236,11 +236,11 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	service := projects.NewPostgresProjectsService(p.PostgresPool)
 	service.SetArchiveStore(disk)
 	for _, confirmation := range []string{"", "another-project", "DELETE-WITH-HISTORY"} {
-		require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), confirmation), projects.ErrProjectDeleteConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
+		require.ErrorIs(t, service.DeleteProject(ctx, project.ID.String(), confirmation), projects.ErrConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
 	}
 	renamed, err := service.UpdateProject(ctx, project.ID, "Živi projekt & arhive", nil)
 	require.NoError(t, err, "rename the project and deactivate all clients before confirming deletion")
-	require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), project.Name), projects.ErrProjectDeleteConfirmationRequired, "a stale name must not authorize deletion, even when every client is inactive")
+	require.ErrorIs(t, service.DeleteProject(ctx, project.ID.String(), project.Name), projects.ErrConfirmationRequired, "a stale name must not authorize deletion, even when every client is inactive")
 	var retainedLogs, retainedArchives int
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedLogs), "count logs after rejected deletion attempts")
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedArchives), "count archives after rejected deletion attempts")
@@ -251,7 +251,7 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	require.NoError(t, service.DeleteProject(ctx, project.ID.String(), renamed.Name), "the exact current name must permit deletion of the project and all its retained history")
 
 	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "the deleted project should no longer exist")
+	assert.ErrorIs(t, err, projects.ErrNotFound, "the deleted project should no longer exist")
 	var clients, logs, archives int
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM clients WHERE project_id = $1", project.ID).Scan(&clients), "count leftover clients")
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&logs), "count leftover logs")

@@ -151,7 +151,7 @@ func (p *ProjectsRouter) getProject(c *echo.Context) error {
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
-		if err.Error() == projects.ErrProjectNotFound {
+		if errors.Is(err, projects.ErrNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
@@ -169,7 +169,7 @@ func (p *ProjectsRouter) getEditProjectForm(c *echo.Context) error {
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
-		if err.Error() == projects.ErrProjectNotFound {
+		if errors.Is(err, projects.ErrNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
@@ -194,7 +194,7 @@ func (p *ProjectsRouter) getConnectionStringForm(c *echo.Context) error {
 	project, err := p.projectsService.GetProject(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching project", "error", err)
-		if err.Error() == projects.ErrProjectNotFound {
+		if errors.Is(err, projects.ErrNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.load_one_failed")})
@@ -248,7 +248,7 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 			Target: "this",
 			Select: "form",
 		})
-		if err.Error() == projects.ErrProjectExists {
+		if errors.Is(err, projects.ErrExists) {
 			return utils.Render(c, http.StatusConflict, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: types.ApiError{
 					Message: i18n.T(c.Request().Context(), "projects.already_exists"),
@@ -256,7 +256,7 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 				Value: createProjectForm,
 			}))
 		}
-		if err.Error() == projects.ErrProjectNotFound {
+		if errors.Is(err, projects.ErrNotFound) {
 			return utils.Render(c, http.StatusNotFound, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")}, Value: createProjectForm,
 			}))
@@ -310,22 +310,22 @@ func (p *ProjectsRouter) deleteProject(c *echo.Context) error {
 	err = p.projectsService.DeleteProject(c.Request().Context(), id, c.QueryParam("confirmationName"))
 	if err != nil {
 		slog.Error("Error deleting project", "error", err)
-		if err.Error() == projects.ErrProjectDeleteConfirmationRequired {
+		if errors.Is(err, projects.ErrConfirmationRequired) {
 			return projectPageError(c, http.StatusConflict, i18n.T(c.Request().Context(), "projects.delete_name_required"))
 		}
-		if err.Error() == projects.ErrProjectHasClients {
+		if errors.Is(err, projects.ErrHasClients) {
 			message := i18n.T(c.Request().Context(), "projects.has_clients")
 			htmx.AddErrorToast(c, message)
 			c.Response().Header().Set("HX-Reswap", "none")
 			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
 		}
-		if err.Error() == projects.ErrProjectArchiveBusy {
+		if errors.Is(err, projects.ErrArchiveBusy) {
 			message := i18n.T(c.Request().Context(), "projects.archive_busy")
 			htmx.AddErrorToast(c, message)
 			c.Response().Header().Set("HX-Reswap", "none")
 			return c.JSON(http.StatusConflict, types.ApiError{Message: message})
 		}
-		if err.Error() == projects.ErrProjectNotFound {
+		if errors.Is(err, projects.ErrNotFound) {
 			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")})
 		}
 		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.delete_failed")})

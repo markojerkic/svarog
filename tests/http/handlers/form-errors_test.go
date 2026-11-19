@@ -22,7 +22,7 @@ import (
 type invalidAssignmentAuthStub struct{ auth.AuthService }
 
 func (invalidAssignmentAuthStub) CreateOrUpdateUser(context.Context, types.CreateUserForm) (auth.User, error) {
-	return auth.User{}, types.NewApiError("Project not found", map[string]string{"projects": "Select valid projects"})
+	return auth.User{}, auth.ErrProjectSelectionMissing
 }
 
 type invalidProjectFormStub struct{ projects.ProjectsService }
@@ -50,7 +50,7 @@ func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, rec.Code, "Invalid assignments must return a field validation error")
 			require.Contains(t, rec.Body.String(), `id="`+formID+`"`, "Re-rendered form must retain its create/edit identity for the dialog's save button")
 			require.Contains(t, rec.Body.String(), html.EscapeString("#"+formID+" [name='projects']"), "Assignment retries must read the failing form's input, not another open form")
-			require.Contains(t, rec.Body.String(), "Select valid projects", "Assignment errors must identify the projects field")
+			require.Contains(t, rec.Body.String(), "One or more selected projects do not exist", "Assignment errors must identify the projects field")
 			require.Equal(t, []assignmentOption{{ID: projectID, Name: projectID, Selected: true}}, projectAssignmentOptions(rec.Body.String()), "Re-rendered validation error must preserve submitted project selection")
 		})
 	}

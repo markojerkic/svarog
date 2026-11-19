@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -120,7 +119,7 @@ func TestProjectInvalidFormAndMissingEditReturnClientErrors(t *testing.T) {
 		{form: url.Values{"name": {"Projekt"}, "id": {"not-a-uuid"}}, code: http.StatusBadRequest},
 		{form: url.Values{"name": {"Projekt\x00"}}, code: http.StatusBadRequest},
 		{form: url.Values{"name": {strings.Repeat("Ž", 256)}}, code: http.StatusBadRequest},
-		{form: url.Values{"name": {"Projekt"}, "id": {uuid.NewString()}}, err: errors.New(projects.ErrProjectNotFound), code: http.StatusNotFound},
+		{form: url.Values{"name": {"Projekt"}, "id": {uuid.NewString()}}, err: projects.ErrNotFound, code: http.StatusNotFound},
 	} {
 		service := &projectCRUDStub{saveError: tc.err}
 		rec := projectCRUDRequest(t, service, http.MethodPost, "/admin/projects", "", tc.form, true)

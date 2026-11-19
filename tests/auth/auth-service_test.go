@@ -47,7 +47,7 @@ func TestPostgresAuthRejectsInvalidInputBeforeDatabaseAccess(t *testing.T) {
 		RepeatedPassword: "password2",
 	})
 
-	require.EqualError(t, err, auth.PasswordsDoNotMatch, "Mismatched reset passwords should be rejected before accessing the database")
+	require.ErrorIs(t, err, auth.ErrPasswordsDoNotMatch, "Mismatched reset passwords should be rejected before accessing the database")
 
 	_, _, err = service.GetUserPage(context.Background(), types.GetUserPageInput{
 		Page: -1,

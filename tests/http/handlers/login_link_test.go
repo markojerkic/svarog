@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"errors"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -109,7 +108,7 @@ func TestLoginLinkIsConsumedOnlyByPost(t *testing.T) {
 	})
 
 	t.Run("invalid token does not log the user in", func(t *testing.T) {
-		stub := &loginLinkAuthStub{tokenErr: errors.New(auth.LoginTokenNotValid)}
+		stub := &loginLinkAuthStub{tokenErr: auth.ErrLoginTokenInvalid}
 		form := url.Values{"token": {token}}
 		request := httptest.NewRequest(http.MethodPost, "/login/token", strings.NewReader(form.Encode()))
 		request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
