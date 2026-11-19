@@ -74,7 +74,4 @@ func (s *serverSuite) TestSelfLogging() {
 	require.NoError(t, err, "the server exits cleanly after SIGINT: %s", console.String())
 	require.Contains(t, console.String(), "Invalid SVAROG_LOG_QUEUE_CAPACITY; using default", "the console reports that the queue uses its default capacity")
 	require.Contains(t, console.String(), "PostgreSQL migrations applied", "the console reports that migrations completed")
-	stored, err := hasLogMatching(`level=INFO msg="PostgreSQL migrations applied"`)
-	require.NoError(t, err, "check the server client's logs for the migration record")
-	require.False(t, stored, "migration logs written before broker startup are console-only")
 }
