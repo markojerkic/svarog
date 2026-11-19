@@ -12,9 +12,9 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,31 +23,33 @@ type projectCRUDStub struct {
 	saved         projects.Project
 	rows          []projects.Project
 	count         int64
-	queries       []types.GetProjectPageInput
+	queries       []forms.PageInput
 	writeCalls    int
 	saveError     error
 	validateInput bool
 }
 
-func (s *projectCRUDStub) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (projects.Project, error) {
+func (s *projectCRUDStub) Create(ctx context.Context, input projects.ProjectInput) (projects.Project, error) {
 	if s.validateInput {
-		return projects.NewPostgresProjectsService(nil).CreateOrUpdateProject(ctx, form)
+		return projects.NewPostgresProjectsService(nil).Create(ctx, input)
 	}
 	s.writeCalls++
 	return s.saved, s.saveError
 }
 
-func (s *projectCRUDStub) DeleteProject(context.Context, string, string) error {
+func (s *projectCRUDStub) Update(_ context.Context, _ uuid.UUID, _ projects.ProjectInput) (projects.Project, error) {
+	s.writeCalls++
+	return s.saved, s.saveError
+}
+
+func (s *projectCRUDStub) Delete(context.Context, string, string) error {
 	s.writeCalls++
 	return nil
 }
 
-func (s *projectCRUDStub) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
-	if s.validateInput {
-		return projects.NewPostgresProjectsService(nil).GetProjectPage(ctx, query)
-	}
-	s.queries = append(s.queries, query)
-	if query.Page*query.Size >= s.count {
+func (s *projectCRUDStub) Page(_ context.Context, query projects.PageQuery) ([]projects.Project, int64, error) {
+	s.queries = append(s.queries, forms.PageInput{Search: query.Search(), Page: query.Page(), Size: query.Size()})
+	if query.Page()*query.Size() >= s.count {
 		return nil, s.count, nil
 	}
 	return s.rows, s.count, nil
@@ -83,7 +85,7 @@ func TestProjectWritesReloadCurrentFilteredPageInsteadOfAppendingRows(t *testing
 			query := url.Values{"search": {"Čć"}, "page": {"2"}, "size": {"5"}}
 			rec := projectCRUDRequest(t, service, http.MethodPost, "/admin/projects", "http://localhost:1323/admin/projects?"+query.Encode(), form, true)
 			require.Equal(t, http.StatusOK, rec.Code, "A successful project write must render the refreshed view")
-			require.Equal(t, []types.GetProjectPageInput{{Search: "Čć", Page: 2, Size: 5}}, service.queries, "Writes must preserve the current search, page and page size")
+			require.Equal(t, []forms.PageInput{{Search: "Čć", Page: 2, Size: 5}}, service.queries, "Writes must preserve the current search, page and page size")
 			require.Contains(t, rec.Body.String(), `data-project-id="`+matching.ID.String()+`"`, "The response must contain the service's current filtered rows")
 			require.NotContains(t, rec.Body.String(), `data-project-id="`+changed.ID.String()+`"`, "An out-of-filter created or renamed project must not be inserted into the table")
 			require.Contains(t, rec.Body.String(), `id="new-project-form"`, "Successful writes must supply a fresh creation form")
@@ -99,7 +101,7 @@ func TestProjectDeletionClampsTheLastPageAndRefreshesItsRows(t *testing.T) {
 	service := &projectCRUDStub{rows: []projects.Project{remaining}, count: 1}
 	rec := projectCRUDRequest(t, service, http.MethodDelete, "/admin/projects/"+uuid.NewString(), "http://localhost/admin/projects?search=QA&page=1&size=1", nil, true)
 	require.Equal(t, http.StatusOK, rec.Code, "Deleting the last row of a page must return a usable refreshed view")
-	require.Equal(t, []types.GetProjectPageInput{{Search: "QA", Page: 1, Size: 1}, {Search: "QA", Page: 0, Size: 1}}, service.queries, "An emptied last page must fall back to the nearest existing page")
+	require.Equal(t, []forms.PageInput{{Search: "QA", Page: 1, Size: 1}, {Search: "QA", Page: 0, Size: 1}}, service.queries, "An emptied last page must fall back to the nearest existing page")
 	require.Equal(t, "/admin/projects?search=QA&size=1", rec.Header().Get("HX-Replace-Url"), "The visible URL must follow the clamped page without losing search or size")
 	require.Contains(t, rec.Body.String(), `data-project-id="`+remaining.ID.String()+`"`, "The fallback page must contain its remaining row")
 }
@@ -141,7 +143,7 @@ func TestProjectInvalidFormAndMissingEditReturnClientErrors(t *testing.T) {
 func TestInvalidProjectListRequestsRenderLocalizedHTMLOrKeepTheHTMXView(t *testing.T) {
 	for _, query := range []string{"page=abc", "page=-1", "page=9223372036854775807", "search=%00"} {
 		for _, hx := range []bool{false, true} {
-			service := &projectCRUDStub{validateInput: true}
+			service := &projectCRUDStub{}
 			rec := projectCRUDRequest(t, service, http.MethodGet, "/admin/projects?"+query, "", nil, hx)
 			require.Equal(t, http.StatusBadRequest, rec.Code, "Malformed project list parameters must not cause server errors")
 			require.Empty(t, service.queries, "Malformed parameters must be rejected before querying persistence")

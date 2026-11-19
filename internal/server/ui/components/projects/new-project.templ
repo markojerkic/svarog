@@ -5,15 +5,16 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/field"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
-import "github.com/markojerkic/svarog/internal/server/types"
+import "github.com/markojerkic/svarog/internal/lib/projects"
+import "github.com/markojerkic/svarog/internal/server/http/forms"
 import "github.com/markojerkic/svarog/internal/server/ui/components/erroralert"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/i18n"
 
 type NewProjectFormProps struct {
 	FormID   string
-	ApiError types.ApiError
-	Value    types.CreateProjectForm
+	ApiError forms.ApiError
+	Value    forms.CreateProjectForm
 }
 
 templ NewProjectForm(props ...NewProjectFormProps) {
@@ -53,7 +54,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Value:       p.Value.Name,
 					Attributes: templ.Attributes{
 						"required":     "",
-						"maxlength":    types.ProjectNameMaxLength,
+						"maxlength":    projects.ProjectNameMaxLength,
 						"aria-invalid": p.ApiError.Fields["name"] != "",
 					},
 				})
@@ -77,7 +78,7 @@ templ NewProjectForm(props ...NewProjectFormProps) {
 					Placeholder: i18n.T(ctx, "projects.clients_placeholder"),
 					Value:       p.Value.Clients,
 					HasError:    p.ApiError.Fields["clients"] != "",
-					MaxLength:   types.ClientNameMaxLength,
+					MaxLength:   projects.ClientNameMaxLength,
 				})
 				if p.ApiError.Fields["clients"] != "" {
 					@field.Error() {

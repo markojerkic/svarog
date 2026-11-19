@@ -27,7 +27,7 @@ type connStringProjectStub struct {
 	project projects.Project
 }
 
-func (s *connStringProjectStub) GetProject(context.Context, string) (projects.Project, error) {
+func (s *connStringProjectStub) Get(context.Context, string) (projects.Project, error) {
 	return s.project, nil
 }
 

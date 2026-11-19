@@ -5,15 +5,16 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/validation"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-func validationResponse(ctx context.Context, err error) (types.ApiError, bool) {
+func validationResponse(ctx context.Context, err error) (forms.ApiError, bool) {
 	var invalid *validation.Error
 	if !errors.As(err, &invalid) {
-		return types.ApiError{}, false
+		return forms.ApiError{}, false
 	}
 	fields := make(map[string]string, len(invalid.Fields))
 	for name, violation := range invalid.Fields {
@@ -31,5 +32,13 @@ func validationResponse(ctx context.Context, err error) (types.ApiError, bool) {
 			fields[name] = i18n.T(ctx, violation.Key)
 		}
 	}
-	return types.NewApiError(i18n.T(ctx, invalid.Key), fields), true
+	return forms.NewApiError(i18n.T(ctx, invalid.Key), fields), true
+}
+
+func canonicalFormUUID(value string) uuid.UUID {
+	id, err := uuid.Parse(value)
+	if err != nil || id.String() != value {
+		return uuid.Nil
+	}
+	return id
 }

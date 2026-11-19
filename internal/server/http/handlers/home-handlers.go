@@ -30,9 +30,9 @@ func (h *HomeHandler) homeHandler(c *echo.Context) error {
 	var visibleProjects []projects.Project
 	var err error
 	if user.Role == auth.ADMIN {
-		visibleProjects, err = h.projectsService.GetProjects(c.Request().Context())
+		visibleProjects, err = h.projectsService.All(c.Request().Context())
 	} else if len(user.ProjectIDs) > 0 {
-		visibleProjects, err = h.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
+		visibleProjects, err = h.projectsService.ByIDs(c.Request().Context(), user.ProjectIDs)
 	}
 	if err != nil {
 		return err

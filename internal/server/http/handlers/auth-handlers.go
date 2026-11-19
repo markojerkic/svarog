@@ -8,13 +8,14 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
@@ -39,7 +40,7 @@ func loginRedirect(target string) string {
 }
 
 func (a *AuthRouter) login(c *echo.Context) error {
-	var loginForm types.LoginForm
+	var loginForm forms.LoginForm
 	bindErr := c.Bind(&loginForm)
 	redirect := loginForm.Redirect
 	if redirect == "" {
@@ -81,7 +82,7 @@ func (a *AuthRouter) login(c *echo.Context) error {
 }
 
 func (a *AuthRouter) loginWithToken(c *echo.Context) error {
-	var loginForm types.LoginFormWithToken
+	var loginForm forms.LoginFormWithToken
 	if err := c.Bind(&loginForm); err != nil {
 		return c.JSON(400, err)
 	}
@@ -133,7 +134,7 @@ func (a *AuthRouter) resetPasswordPage(c *echo.Context) error {
 }
 
 func (a *AuthRouter) resetPassword(c *echo.Context) error {
-	var resetPasswordForm types.ResetPasswordForm
+	var resetPasswordForm forms.ResetPasswordForm
 	if err := c.Bind(&resetPasswordForm); err != nil {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.invalid_form")))
 	}
@@ -144,23 +145,18 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	if resetPasswordForm.Password != resetPasswordForm.RepeatedPassword {
 		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.passwords_mismatch")))
 	}
-	if err := auth.ValidateNewPassword(resetPasswordForm.Password); err != nil {
-		messageKey := "auth.password_too_short"
-		if errors.Is(err, auth.ErrPasswordBlank) {
-			messageKey = "auth.password_blank"
-		}
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), messageKey)))
-	}
-
 	user, err := a.authService.GetCurrentUser(c)
 	if err != nil {
+		// Preserve the form error when a submitted password is invalid and the session lookup fails.
+		if err := auth.ValidateNewPassword(resetPasswordForm.Password); err != nil {
+			return resetPasswordError(c, err)
+		}
 		return htmx.Redirect(c, "/login")
 	}
 
-	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm)
+	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm.Password)
 	if err != nil {
-		slog.Error("Error resetting password", "error", err)
-		return utils.Render(c, http.StatusInternalServerError, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.reset_failed")))
+		return resetPasswordError(c, err)
 	}
 
 	redirect := c.FormValue("redirect")
@@ -170,16 +166,32 @@ func (a *AuthRouter) resetPassword(c *echo.Context) error {
 	return utils.HxRedirect(c, "/")
 }
 
+func resetPasswordError(c *echo.Context, err error) error {
+	status := http.StatusBadRequest
+	var key string
+	switch {
+	case errors.Is(err, auth.ErrPasswordBlank):
+		key = "auth.password_blank"
+	case errors.Is(err, auth.ErrPasswordTooLong):
+		key = "auth.password_too_short"
+	default:
+		slog.Error("Error resetting password", "error", err)
+		status = http.StatusInternalServerError
+		key = "auth.reset_failed"
+	}
+	return utils.Render(c, status, authpages.ResetPasswordError(i18n.T(c.Request().Context(), key)))
+}
+
 func (a *AuthRouter) logout(c *echo.Context) error {
 	err := a.authService.Logout(c)
 	if err != nil {
-		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "auth.logout_failed")})
+		return c.JSON(500, forms.ApiError{Message: i18n.T(c.Request().Context(), "auth.logout_failed")})
 	}
 	return htmx.Redirect(c, "/login")
 }
 
 func (a *AuthRouter) getUsersPage(c *echo.Context) error {
-	var query types.GetUserPageInput
+	var query forms.PageInput
 	if err := c.Bind(&query); err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
@@ -191,29 +203,30 @@ func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 	if err := utils.Validate(c, &query); err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-	return a.renderUsersPage(c, query, false, "")
+	pageQuery, err := auth.NewPageQuery(query.Search, query.Page, query.Size)
+	if err != nil {
+		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
+	}
+	return a.renderUsersPage(c, pageQuery, false, "")
 }
 
 func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
+		return c.JSON(400, forms.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
 	}
 
 	user, err := a.authService.GetUserByID(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error fetching user", "error", err)
-		if errors.Is(err, auth.ErrUserNotFound) {
-			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
-		}
-		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.load_failed")})
+		return userOperationError(c, err, "users.load_failed")
 	}
 	var projectItems []combobox.Option
 	if len(user.ProjectIDs) > 0 {
-		assignedProjects, err := a.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
+		assignedProjects, err := a.projectsService.ByIDs(c.Request().Context(), user.ProjectIDs)
 		if err != nil {
 			slog.Error("Error fetching assigned projects", "error", err)
-			return c.JSON(http.StatusInternalServerError, types.ApiError{Message: i18n.T(c.Request().Context(), "projects.selected_load_failed")})
+			return c.JSON(http.StatusInternalServerError, forms.ApiError{Message: i18n.T(c.Request().Context(), "projects.selected_load_failed")})
 		}
 		for _, project := range assignedProjects {
 			projectItems = append(projectItems, combobox.Option{Value: project.ID.String(), Name: project.Name})
@@ -221,15 +234,15 @@ func (a *AuthRouter) getEditUserForm(c *echo.Context) error {
 	}
 
 	return utils.Render(c, http.StatusOK, usercomponents.NewUserForm(usercomponents.NewUserFormProps{
-		FormID: "edit-user-form",
-		Value: types.CreateUserForm{
+		FormID:   "edit-user-form",
+		Projects: projectItems,
+		Value: forms.CreateUserForm{
 			ID:         user.ID.String(),
 			Username:   user.Username,
 			FirstName:  user.FirstName,
 			LastName:   user.LastName,
 			Role:       string(user.Role),
-			ProjectIDs: types.CommaSeparatedStrings(user.ProjectIDs),
-			Projects:   projectItems,
+			ProjectIDs: forms.CommaSeparatedStrings(user.ProjectIDs),
 		},
 	}))
 }
@@ -239,32 +252,45 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	if err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-	var createUserForm types.CreateUserForm
+	var createUserForm forms.CreateUserForm
 	if err := c.Bind(&createUserForm); err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 	if err := utils.Validate(c, &createUserForm); err != nil {
-		var apiErr types.ApiError
+		var apiErr forms.ApiError
 		if !errors.As(err, &apiErr) {
-			apiErr = types.NewApiError(i18n.T(c.Request().Context(), "validation.failed"))
+			apiErr = forms.NewApiError(i18n.T(c.Request().Context(), "validation.failed"))
 		}
 		return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
 	}
 
-	slog.Debug("Creating user", "user", createUserForm)
-	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
+	ctx := c.Request().Context()
+	input := auth.UserInput{
+		Username: createUserForm.Username, FirstName: createUserForm.FirstName, LastName: createUserForm.LastName,
+		Role: auth.Role(createUserForm.Role), ProjectIDs: make([]uuid.UUID, 0, len(createUserForm.ProjectIDs)),
+	}
+	for _, value := range createUserForm.ProjectIDs {
+		input.ProjectIDs = append(input.ProjectIDs, canonicalFormUUID(value))
+	}
+	var user auth.User
+	var initialLoginToken string
+	if createUserForm.ID == "" {
+		user, initialLoginToken, err = a.authService.CreateUser(ctx, input)
+	} else {
+		user, err = a.authService.UpdateUser(ctx, canonicalFormUUID(createUserForm.ID), input)
+	}
 	if err != nil {
 		if errors.Is(err, auth.ErrUserExists) {
-			return a.renderUserFormError(c, http.StatusConflict, createUserForm, types.NewApiError(
+			return a.renderUserFormError(c, http.StatusConflict, createUserForm, forms.NewApiError(
 				i18n.T(c.Request().Context(), "users.already_exists"), map[string]string{"username": i18n.T(c.Request().Context(), "users.username_exists")},
 			))
 		}
 		if errors.Is(err, auth.ErrUserNotFound) {
-			return a.renderUserFormError(c, http.StatusNotFound, createUserForm, types.NewApiError(i18n.T(c.Request().Context(), "users.not_found")))
+			return a.renderUserFormError(c, http.StatusNotFound, createUserForm, forms.NewApiError(i18n.T(c.Request().Context(), "users.not_found")))
 		}
 		if errors.Is(err, auth.ErrProjectSelectionMissing) {
 			ctx := c.Request().Context()
-			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, types.NewApiError(
+			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, forms.NewApiError(
 				i18n.T(ctx, "projects.not_found"), map[string]string{"projects": i18n.T(ctx, "projects.selection_missing")},
 			))
 		}
@@ -289,8 +315,8 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 	}
 	if htmx.IsHXRequest(c) {
 		loginURL := ""
-		if createUserForm.ID == "" && user.InitialLoginToken != "" {
-			loginURL = loginLinkURL(c, user.InitialLoginToken)
+		if createUserForm.ID == "" && initialLoginToken != "" {
+			loginURL = loginLinkURL(c, initialLoginToken)
 		}
 		return a.renderUsersPage(c, query, true, loginURL)
 	}
@@ -307,15 +333,12 @@ func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	}
 	id := c.Param("id")
 	if id == "" {
-		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "users.id_required")}})
+		return c.JSON(400, forms.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required"), Fields: map[string]string{"id": i18n.T(c.Request().Context(), "users.id_required")}})
 	}
-	err = a.authService.DeleteUser(c, id)
+	err = a.authService.DeleteUser(c.Request().Context(), id)
 	if err != nil {
 		slog.Error("Error deleting user", "error", err)
-		if errors.Is(err, auth.ErrUserNotFound) {
-			return c.JSON(404, types.ApiError{Message: i18n.T(c.Request().Context(), "users.not_found")})
-		}
-		return c.JSON(500, types.ApiError{Message: i18n.T(c.Request().Context(), "users.delete_failed")})
+		return userOperationError(c, err, "users.delete_failed")
 	}
 
 	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "users.deleted"))
@@ -325,10 +348,18 @@ func (a *AuthRouter) deleteUser(c *echo.Context) error {
 	return c.HTML(200, "")
 }
 
+func userOperationError(c *echo.Context, err error, failureKey string) error {
+	ctx := c.Request().Context()
+	if errors.Is(err, auth.ErrUserNotFound) {
+		return c.JSON(http.StatusNotFound, forms.ApiError{Message: i18n.T(ctx, "users.not_found")})
+	}
+	return c.JSON(http.StatusInternalServerError, forms.ApiError{Message: i18n.T(ctx, failureKey)})
+}
+
 func (a *AuthRouter) generateLoginToken(c *echo.Context) error {
 	userId := c.FormValue("userId")
 	if userId == "" {
-		return c.JSON(400, types.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
+		return c.JSON(400, forms.ApiError{Message: i18n.T(c.Request().Context(), "users.id_required")})
 	}
 
 	loginToken, err := a.authService.GenerateLoginToken(c.Request().Context(), userId)

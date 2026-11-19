@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +16,11 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/types"
+	serverhttp "github.com/markojerkic/svarog/internal/server/http"
+	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +34,8 @@ func TestActivePostgresAuth(t *testing.T) {
 	service := auth.NewPostgresAuthService(pool, store)
 	e := echo.New()
 	e.Use(session.Middleware(store))
+	e.Validator = serverhttp.NewValidator()
+	handlers.NewAuthRouter(service, projects.NewPostgresProjectsService(pool), e.Group("/admin"), e.Group(""), e.Group(""))
 	e.GET("/me", func(c *echo.Context) error {
 		user, err := service.GetCurrentUser(c)
 		if err != nil {
@@ -106,24 +112,27 @@ func TestActivePostgresAuth(t *testing.T) {
 	})
 
 	t.Run("create update list and reject invalid project assignment", func(t *testing.T) {
-		user, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
+		user, initialToken, err := service.CreateUser(ctx, auth.UserInput{
 			Username: "testuser", FirstName: "Test", LastName: "User", Role: "user",
 		})
 		require.NoError(t, err, "create regular user without project assignments")
 		require.Empty(t, user.ProjectIDs, "new user has no assigned projects")
-		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
+		_, _, err = service.CreateUser(ctx, auth.UserInput{
 			Username: "testuser", FirstName: "Test", LastName: "User", Role: "user",
 		})
 		require.ErrorIs(t, err, auth.ErrUserExists, "duplicate username maps to user-already-exists error")
-		updated, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Changed", LastName: "User", Role: "user",
+		updated, err := service.UpdateUser(ctx, user.ID, auth.UserInput{
+			Username: user.Username, FirstName: "Changed", LastName: "User", Role: "user",
 		})
 		require.NoError(t, err, "update existing user profile")
 		require.Equal(t, "Changed", updated.FirstName, "profile update persists first name")
 		require.Equal(t, user.Password, updated.Password, "profile update preserves password")
-		require.Empty(t, updated.InitialLoginToken, "profile updates do not issue invitations")
-		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", LastName: "User", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
+		var updatedTokenHash []byte
+		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&updatedTokenHash), "load invitation after profile update")
+		initialTokenHash := sha256.Sum256([]byte(initialToken))
+		require.Equal(t, initialTokenHash[:], updatedTokenHash, "profile updates preserve the original invitation")
+		_, err = service.UpdateUser(ctx, user.ID, auth.UserInput{
+			Username: user.Username, FirstName: "Rejected", LastName: "User", Role: "admin", ProjectIDs: []uuid.UUID{uuid.Nil},
 		})
 		var apiError *validation.Error
 		require.ErrorAs(t, err, &apiError, "reject malformed project UUID before profile update")
@@ -131,7 +140,9 @@ func TestActivePostgresAuth(t *testing.T) {
 		again, err := service.GetUserByID(ctx, user.ID.String())
 		require.NoError(t, err, "reload user after rejected assignment")
 		require.Equal(t, updated, again, "rejected assignment leaves profile unchanged")
-		users, count, err := service.GetUserPage(ctx, types.GetUserPageInput{Size: 10, Search: "TESTUSER"})
+		pageQuery, err := auth.NewPageQuery("TESTUSER", 0, 10)
+		require.NoError(t, err, "construct valid user search query")
+		users, count, err := service.GetUserPage(ctx, pageQuery)
 		require.NoError(t, err, "search user page case-insensitively")
 		require.EqualValues(t, 1, count, "user page count matches searched username")
 		require.Len(t, users, 1, "user page returns searched user")
@@ -145,14 +156,13 @@ func TestActivePostgresAuth(t *testing.T) {
 	})
 
 	t.Run("hashed token login reset and session revocation", func(t *testing.T) {
-		user, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
+		user, firstToken, err := service.CreateUser(ctx, auth.UserInput{
 			Username: "tokenuser", FirstName: "Token", LastName: "User", Role: "user",
 		})
 		require.NoError(t, err, "create user for token authentication")
-		firstToken := user.InitialLoginToken
 		require.NotEmpty(t, firstToken, "creation returns the initial invitation")
 		var storedHash []byte
-		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&storedHash))
+		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&storedHash), "read the persisted initial invitation hash")
 		initialHash := sha256.Sum256([]byte(firstToken))
 		require.Equal(t, initialHash[:], storedHash, "the initial invitation matches the token saved during account creation")
 
@@ -172,12 +182,20 @@ func TestActivePostgresAuth(t *testing.T) {
 		rec, err = tokenLogin(token)
 		require.ErrorIs(t, err, auth.ErrLoginTokenInvalid, "consumed token cannot authenticate again")
 		require.Empty(t, rec.Result().Cookies(), "replayed token must not set session cookie")
-		require.ErrorIs(t, service.ResetPassword(ctx, user.ID.String(), types.ResetPasswordForm{
-			Password: "newpassword", RepeatedPassword: "different",
-		}), auth.ErrPasswordsDoNotMatch, "reject mismatched password confirmation")
-		require.NoError(t, service.ResetPassword(ctx, user.ID.String(), types.ResetPasswordForm{
-			Password: "newpassword", RepeatedPassword: "newpassword",
-		}), "reset password with matching confirmation")
+		resetForm := url.Values{"password": {"newpassword"}, "repeatedPassword": {"different"}}
+		resetRequest := httptest.NewRequest(http.MethodPost, "/reset-password", strings.NewReader(resetForm.Encode()))
+		resetRequest.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
+		for _, cookie := range cookies {
+			resetRequest.AddCookie(cookie)
+		}
+		resetResponse := httptest.NewRecorder()
+		e.ServeHTTP(resetResponse, resetRequest)
+		require.Equal(t, http.StatusBadRequest, resetResponse.Code, "reject mismatched password confirmation")
+		require.Contains(t, resetResponse.Body.String(), "Passwords do not match", "explain the mismatched confirmation")
+		stillPending, err := service.GetUserByID(ctx, user.ID.String())
+		require.NoError(t, err, "reload user after mismatched confirmation")
+		require.True(t, stillPending.NeedsPasswordReset, "the rejected confirmation must leave password reset pending")
+		require.NoError(t, service.ResetPassword(ctx, user.ID.String(), "newpassword"), "reset password after successful confirmation")
 		updated, err := service.GetUserByID(ctx, user.ID.String())
 		require.NoError(t, err, "reload user after password reset")
 		require.False(t, updated.NeedsPasswordReset, "successful reset clears password reset requirement")
@@ -192,8 +210,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		require.NoError(t, err, "expire generated login token")
 		_, err = tokenLogin(token)
 		require.ErrorIs(t, err, auth.ErrLoginTokenInvalid, "expired login token is rejected")
-		deleteContext := e.NewContext(httptest.NewRequest(http.MethodDelete, "/users", nil), httptest.NewRecorder())
-		require.NoError(t, service.DeleteUser(deleteContext, user.ID.String()), "delete user with token and password sessions")
+		require.NoError(t, service.DeleteUser(ctx, user.ID.String()), "delete user with token and password sessions")
 		require.Equal(t, http.StatusUnauthorized, request(http.MethodGet, "/me", cookies).Code, "user deletion revokes token session")
 		require.Equal(t, http.StatusUnauthorized, request(http.MethodGet, "/me", passwordCookies).Code, "user deletion revokes password session")
 		var count int64

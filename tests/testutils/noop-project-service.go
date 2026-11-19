@@ -5,43 +5,37 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type NoopProjectService struct{}
 
-// CreateOrUpdateProject implements [projects.ProjectsService].
-func (n *NoopProjectService) CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (projects.Project, error) {
-	panic("unimplemented")
-}
-
 // CreateProject implements [projects.ProjectsService].
-func (n *NoopProjectService) CreateProject(ctx context.Context, name string, clients []string) (projects.Project, error) {
+func (n *NoopProjectService) Create(ctx context.Context, input projects.ProjectInput) (projects.Project, error) {
 	panic("unimplemented")
 }
 
 // DeleteProject implements [projects.ProjectsService].
-func (n *NoopProjectService) DeleteProject(ctx context.Context, id, confirmationName string) error {
+func (n *NoopProjectService) Delete(ctx context.Context, id, confirmationName string) error {
 	panic("unimplemented")
 }
 
 // GetProject implements [projects.ProjectsService].
-func (n *NoopProjectService) GetProject(ctx context.Context, id string) (projects.Project, error) {
+func (n *NoopProjectService) Get(ctx context.Context, id string) (projects.Project, error) {
 	panic("unimplemented")
 }
 
 // GetProjects implements [projects.ProjectsService].
-func (n *NoopProjectService) GetProjects(ctx context.Context) ([]projects.Project, error) {
+func (n *NoopProjectService) All(ctx context.Context) ([]projects.Project, error) {
 	panic("unimplemented")
 }
 
 // GetProjectPage implements [projects.ProjectsService].
-func (n *NoopProjectService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
+func (n *NoopProjectService) Page(ctx context.Context, query projects.PageQuery) ([]projects.Project, int64, error) {
 	panic("unimplemented")
 }
 
 // GetProjectsByIds implements [projects.ProjectsService].
-func (n *NoopProjectService) GetProjectsByIds(ctx context.Context, ids []string) ([]projects.Project, error) {
+func (n *NoopProjectService) ByIDs(ctx context.Context, ids []string) ([]projects.Project, error) {
 	return []projects.Project{}, nil
 }
 
@@ -54,13 +48,8 @@ func (n *NoopProjectService) ClientBelongsToProject(ctx context.Context, project
 	return true, nil
 }
 
-// SearchProjects implements [projects.ProjectsService].
-func (n *NoopProjectService) SearchProjects(ctx context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
-	panic("unimplemented")
-}
-
 // UpdateProject implements [projects.ProjectsService].
-func (n *NoopProjectService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (projects.Project, error) {
+func (n *NoopProjectService) Update(ctx context.Context, id uuid.UUID, input projects.ProjectInput) (projects.Project, error) {
 	panic("unimplemented")
 }
 

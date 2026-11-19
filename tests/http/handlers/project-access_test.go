@@ -60,22 +60,22 @@ func (s *projectAccessProjectsStub) ClientBelongsToProject(_ context.Context, pr
 	return s.belongs, s.err
 }
 
-func (s *projectAccessProjectsStub) GetProjects(context.Context) ([]projects.Project, error) {
+func (s *projectAccessProjectsStub) All(context.Context) ([]projects.Project, error) {
 	s.allCalls++
 	return s.visible, nil
 }
 
-func (s *projectAccessProjectsStub) GetProjectsByIds(_ context.Context, ids []string) ([]projects.Project, error) {
+func (s *projectAccessProjectsStub) ByIDs(_ context.Context, ids []string) ([]projects.Project, error) {
 	s.assignedCalls++
 	s.assignedIDs = ids
 	return s.visible, nil
 }
 
-func (s *projectAccessProjectsStub) DeleteProject(context.Context, string, string) error {
+func (s *projectAccessProjectsStub) Delete(context.Context, string, string) error {
 	return s.deleteErr
 }
 
-func (s *projectAccessProjectsStub) GetProject(context.Context, string) (projects.Project, error) {
+func (s *projectAccessProjectsStub) Get(context.Context, string) (projects.Project, error) {
 	return projects.Project{}, nil
 }
 

@@ -16,20 +16,28 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/stretchr/testify/require"
 )
 
 type invalidAssignmentAuthStub struct{ auth.AuthService }
 
-func (invalidAssignmentAuthStub) CreateOrUpdateUser(context.Context, types.CreateUserForm) (auth.User, error) {
+func (invalidAssignmentAuthStub) CreateUser(context.Context, auth.UserInput) (auth.User, string, error) {
+	return auth.User{}, "", auth.ErrProjectSelectionMissing
+}
+
+func (invalidAssignmentAuthStub) UpdateUser(context.Context, uuid.UUID, auth.UserInput) (auth.User, error) {
 	return auth.User{}, auth.ErrProjectSelectionMissing
 }
 
 type invalidProjectFormStub struct{ projects.ProjectsService }
 
-func (invalidProjectFormStub) CreateOrUpdateProject(context.Context, types.CreateProjectForm) (projects.Project, error) {
+func (invalidProjectFormStub) Create(context.Context, projects.ProjectInput) (projects.Project, error) {
 	return projects.Project{}, &validation.Error{Key: "validation.failed", Fields: map[string]validation.Violation{"clients": {Key: "projects.clients_blank"}}}
+}
+
+func (s invalidProjectFormStub) Update(ctx context.Context, _ uuid.UUID, input projects.ProjectInput) (projects.Project, error) {
+	return s.Create(ctx, input)
 }
 
 func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
@@ -55,6 +63,21 @@ func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
 			require.Equal(t, []assignmentOption{{ID: projectID, Name: projectID, Selected: true}}, projectAssignmentOptions(rec.Body.String()), "Re-rendered validation error must preserve submitted project selection")
 		})
 	}
+	t.Run("malformed identifiers produce localized validation", func(t *testing.T) {
+		e := echo.New()
+		e.Validator = assignmentValidator{}
+		service := auth.NewPostgresAuthService(nil, nil)
+		handlers.NewAuthRouter(service, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+		form := url.Values{"id": {"not-a-uuid"}, "username": {"username"}, "firstName": {"First"}, "lastName": {"Last"}, "role": {"user"}, "projects": {"also-not-a-uuid"}}
+		req := httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(form.Encode()))
+		req = req.WithContext(i18n.WithLanguage(req.Context(), i18n.Croatian))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "Malformed user and project identifiers must be rejected before persistence")
+		require.Contains(t, rec.Body.String(), "Podaci nisu ispravni.", "Form validation must use the request language")
+		require.Contains(t, rec.Body.String(), "Odaberite valjane projekte.", "Invalid project IDs must identify the projects field in the request language")
+	})
 }
 
 func TestProjectClientErrorsPreserveFormIdentity(t *testing.T) {

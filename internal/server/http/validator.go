@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type Validator struct {
@@ -31,7 +31,7 @@ func (v *Validator) ValidateContext(ctx context.Context, i any) error {
 	if err := v.validator.Struct(i); err != nil {
 		errs := err.(validator.ValidationErrors)
 		slog.Error("Validation error", "error", errs)
-		apiError := types.NewApiError(i18n.T(ctx, "validation.failed"))
+		apiError := forms.NewApiError(i18n.T(ctx, "validation.failed"))
 
 		// Get the type of the struct, handling both pointer and non-pointer types
 		t := reflect.TypeOf(i)

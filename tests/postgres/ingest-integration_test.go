@@ -38,9 +38,9 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	// Set up PostgreSQL projects with distinct client UUIDs and JetStream.
 	pool := testutils.NewPostgresPool(t, ctx)
 	projectService := projects.NewPostgresProjectsService(pool)
-	first, err := projectService.CreateProject(ctx, "First", []string{"api"})
+	first, err := projectService.Create(ctx, projects.ProjectInput{Name: "First", Clients: []string{"api"}})
 	require.NoError(t, err, "create first PG project with active client")
-	second, err := projectService.CreateProject(ctx, "Second", []string{"api"})
+	second, err := projectService.Create(ctx, projects.ProjectInput{Name: "Second", Clients: []string{"api"}})
 	require.NoError(t, err, "create second PG project with same client name and a distinct UUID")
 
 	natsContainer, err := natscontainer.Run(ctx, "nats:2.15.1-alpine",
@@ -142,7 +142,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	waitForMessage(first.Clients[0].ID, "retry accepted")
 
 	// Inactive, foreign, unknown, legacy, and malformed messages must not be persisted.
-	_, err = projectService.UpdateProject(ctx, first.ID, first.Name, nil)
+	_, err = projectService.Update(ctx, first.ID, projects.ProjectInput{Name: first.Name})
 	require.NoError(t, err, "deactivate first client while preserving its UUID")
 
 	publish(first.ID.String(), first.Clients[0].ID.String(), "inactive rejected")
@@ -198,7 +198,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	require.False(t, projectService.ProjectExists(ctx, first.ID.String(), first.Clients[0].ID.String()), "inactive client cannot receive new credentials")
 
 	// Reactivation keeps the client UUID and both original and retried history.
-	_, err = projectService.UpdateProject(ctx, first.ID, first.Name, []string{"api"})
+	_, err = projectService.Update(ctx, first.ID, projects.ProjectInput{Name: first.Name, Clients: []string{"api"}})
 	require.NoError(t, err, "reactivate first client by name without changing its UUID")
 
 	publish(first.ID.String(), first.Clients[0].ID.String(), "reactivated accepted")
@@ -527,7 +527,7 @@ func newIngestFixture(t *testing.T) ingestFixture {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "Ingest", []string{"api"})
+	project, err := projects.NewPostgresProjectsService(pool).Create(ctx, projects.ProjectInput{Name: "Ingest", Clients: []string{"api"}})
 	require.NoError(t, err, "create a client for the durable-ingest contract")
 	container, err := natscontainer.Run(ctx, "nats:2.15.1-alpine", natscontainer.WithConfigFile(strings.NewReader("jetstream { store_dir: /data }")))
 	if container != nil {

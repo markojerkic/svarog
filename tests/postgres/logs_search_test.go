@@ -21,7 +21,7 @@ func TestSearchLogs(t *testing.T) {
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
 	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "LogsSearch", []string{"api", "worker"})
+	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "LogsSearch", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create project and clients for log search")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
@@ -149,14 +149,14 @@ func TestSearchLogs(t *testing.T) {
 	})
 
 	t.Run("inactive client stays searchable", func(t *testing.T) {
-		inactiveProject, err := projectService.CreateProject(ctx, "LogsSearchInactive", []string{"api"})
+		inactiveProject, err := projectService.Create(ctx, projects.ProjectInput{Name: "LogsSearchInactive", Clients: []string{"api"}})
 		require.NoError(t, err, "create project for inactive search")
 		inactiveClient := clientByName(t, inactiveProject, "api")
 		_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{
 			Scope: logstore.Scope{ClientID: inactiveClient}, Instance: "web", OccurredAt: base, Sequence: 1, Message: "kept secret",
 		}})
 		require.NoError(t, err, "insert a log before deactivating the client")
-		_, err = projectService.UpdateProject(ctx, inactiveProject.ID, inactiveProject.Name, nil)
+		_, err = projectService.Update(ctx, inactiveProject.ID, projects.ProjectInput{Name: inactiveProject.Name})
 		require.NoError(t, err, "deactivate client while retaining its row")
 		found := mustSearch(t, ctx, logs, "secret", logstore.Scope{ProjectID: inactiveProject.ID, ClientID: inactiveClient}, nil, 10, nil, nil)
 		require.Equal(t, []string{"kept secret"}, messages(found), "deactivating a client does not hide its logs from search")

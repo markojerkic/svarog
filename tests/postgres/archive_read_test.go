@@ -21,7 +21,7 @@ func TestArchiveListAndOpen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "ArchiveDownloads", []string{"api", "worker"})
+	project, err := projects.NewPostgresProjectsService(pool).Create(ctx, projects.ProjectInput{Name: "ArchiveDownloads", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create the download project's clients")
 	dir := t.TempDir()
 	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(dir))

@@ -1,4 +1,4 @@
-package types_test
+package forms_test
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v5"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func TestFormBoolAcceptsCheckboxAndBooleanValues(t *testing.T) {
 		{"unknown value", "maybe", false, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			var got types.FormBool
+			var got forms.FormBool
 			err := got.UnmarshalParam(test.value)
 			if test.wantErr {
 				require.Error(t, err, "an unrecognized checkbox value must not be treated as false")
@@ -47,7 +47,7 @@ func TestFormBoolBindsThroughEcho(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("enabled=on"))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
 	var form struct {
-		Enabled types.FormBool `form:"enabled"`
+		Enabled forms.FormBool `form:"enabled"`
 	}
 	require.NoError(t, e.NewContext(request, httptest.NewRecorder()).Bind(&form), "Echo must use FormBool for the checkbox field")
 	require.True(t, form.Enabled.Bool(), "a checked checkbox without an explicit value must bind as true")

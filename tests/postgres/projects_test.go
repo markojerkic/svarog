@@ -11,7 +11,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -92,10 +91,9 @@ func TestProjectPersistence(t *testing.T) {
 		require.Equal(t, all, append(first, rest...), "pagination preserves ordering without omissions or duplicates")
 
 		projectService := projects.NewPostgresProjectsService(pool)
-		largePage, count, err := projectService.GetProjectPage(ctx, types.GetProjectPageInput{
-			Page: math.MaxInt32 + 1,
-			Size: 1,
-		})
+		pageQuery, err := projects.NewPageQuery("", math.MaxInt32+1, 1)
+		require.NoError(t, err, "construct project page with an offset beyond int32")
+		largePage, count, err := projectService.Page(ctx, pageQuery)
 		require.NoError(t, err, "project pagination accepts offsets beyond int32 without truncation")
 		require.Empty(t, largePage, "large int64 page is beyond the fixture projects")
 		require.EqualValues(t, 5, count, "large page offset must not affect matching project count")

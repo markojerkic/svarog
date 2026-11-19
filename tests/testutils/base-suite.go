@@ -14,10 +14,10 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
+	"github.com/markojerkic/svarog/internal/server/config"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/logstore"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/nats"
 )
@@ -54,7 +54,7 @@ type BaseSuiteConfig struct {
 
 // DefaultBaseSuiteConfig returns sensible defaults
 func DefaultBaseSuiteConfig() BaseSuiteConfig {
-	env := types.ServerEnv{}
+	env := config.ServerEnv{}
 	if err := dotenv.Load("../../.env"); err != nil {
 		panic(err)
 	}

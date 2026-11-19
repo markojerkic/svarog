@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 // ArchiveContentDeleter removes archive files after their rows are gone.
@@ -20,22 +19,16 @@ type ArchiveContentDeleter interface {
 	Delete(ctx context.Context, key string) error
 }
 
-type SearchProjectsRequest struct {
-	Search string `json:"search" query:"search"`
-	Page   int64  `json:"page" query:"page" default:"0" validate:"gte=0"`
-	Size   int64  `json:"size" query:"size" default:"10" validate:"gte=1,lte=100"`
-}
-
 type ProjectsService interface {
-	CreateProject(ctx context.Context, name string, clients []string) (Project, error)
-	UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error)
-	CreateOrUpdateProject(ctx context.Context, project types.CreateProjectForm) (Project, error)
-	GetProject(ctx context.Context, id string) (Project, error)
-	GetProjects(ctx context.Context) ([]Project, error)
-	GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error)
-	GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error)
-	SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error)
-	DeleteProject(ctx context.Context, id, confirmationName string) error
+	Create(ctx context.Context, input ProjectInput) (Project, error)
+	Update(ctx context.Context, id uuid.UUID, input ProjectInput) (Project, error)
+
+	Get(ctx context.Context, id string) (Project, error)
+	All(ctx context.Context) ([]Project, error)
+	ByIDs(ctx context.Context, ids []string) ([]Project, error)
+	Page(ctx context.Context, query PageQuery) ([]Project, int64, error)
+
+	Delete(ctx context.Context, id, confirmationName string) error
 	ProjectExists(ctx context.Context, projectID, clientID string) bool
 	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
 }
@@ -66,26 +59,12 @@ func (p *PostgresProjectsService) SetArchiveStore(store ArchiveContentDeleter) {
 	p.archives = store
 }
 
-func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (Project, error) {
-	if err := validateProjectID(form.ID); err != nil {
-		return Project{}, err
-	}
-	if form.ID == "" {
-		return p.CreateProject(ctx, form.Name, form.Clients)
-	}
-	id, err := uuid.Parse(form.ID)
-	if err != nil {
-		return Project{}, ErrNotFound
-	}
-	return p.UpdateProject(ctx, id, form.Name, form.Clients)
-}
-
-func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
-	if err := validateProject(name, clients); err != nil {
+func (p *PostgresProjectsService) Create(ctx context.Context, input ProjectInput) (Project, error) {
+	if err := validateProject(input); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.CreateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
-		ID: uuid.New(), Name: name, Clients: clients,
+		ID: uuid.New(), Name: input.Name, Clients: input.Clients,
 	})
 	if err != nil {
 		return Project{}, projectError(err)
@@ -93,12 +72,12 @@ func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string
 	return p.projectWithClients(ctx, row)
 }
 
-func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error) {
-	if err := validateProject(name, clients); err != nil {
+func (p *PostgresProjectsService) Update(ctx context.Context, id uuid.UUID, input ProjectInput) (Project, error) {
+	if err := validateProject(input); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.UpdateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
-		ID: id, Name: name, Clients: clients,
+		ID: id, Name: input.Name, Clients: input.Clients,
 	})
 	if err != nil {
 		return Project{}, projectError(err)
@@ -106,7 +85,7 @@ func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUI
 	return p.projectWithClients(ctx, row)
 }
 
-func (p *PostgresProjectsService) GetProject(ctx context.Context, id string) (Project, error) {
+func (p *PostgresProjectsService) Get(ctx context.Context, id string) (Project, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return Project{}, ErrNotFound
@@ -118,7 +97,7 @@ func (p *PostgresProjectsService) GetProject(ctx context.Context, id string) (Pr
 	return p.projectWithClients(ctx, row)
 }
 
-func (p *PostgresProjectsService) GetProjects(ctx context.Context) ([]Project, error) {
+func (p *PostgresProjectsService) All(ctx context.Context) ([]Project, error) {
 	rows, err := p.queries.ListAllProjects(ctx)
 	if err != nil {
 		return nil, err
@@ -126,7 +105,7 @@ func (p *PostgresProjectsService) GetProjects(ctx context.Context) ([]Project, e
 	return p.projectsWithClients(ctx, rows)
 }
 
-func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []string) ([]Project, error) {
+func (p *PostgresProjectsService) ByIDs(ctx context.Context, ids []string) ([]Project, error) {
 	parsed := make([]uuid.UUID, len(ids))
 	for i, id := range ids {
 		var err error
@@ -142,19 +121,16 @@ func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []st
 	return p.projectsWithClients(ctx, rows)
 }
 
-func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	if err := ValidateProjectPage(query); err != nil {
-		return nil, 0, err
-	}
+func (p *PostgresProjectsService) Page(ctx context.Context, query PageQuery) ([]Project, int64, error) {
 	rows, err := p.queries.ListProjects(ctx, sqlc.ListProjectsParams{
-		Search:     query.Search,
-		PageSize:   query.Size,
-		PageOffset: query.Page * query.Size,
+		Search:     query.Search(),
+		PageSize:   query.Size(),
+		PageOffset: query.Page() * query.Size(),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	count, err := p.queries.CountProjects(ctx, query.Search)
+	count, err := p.queries.CountProjects(ctx, query.Search())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -162,14 +138,7 @@ func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query type
 	return projects, count, err
 }
 
-func (p *PostgresProjectsService) SearchProjects(ctx context.Context, request SearchProjectsRequest) ([]Project, error) {
-	projects, _, err := p.GetProjectPage(ctx, types.GetProjectPageInput{
-		Search: request.Search, Page: request.Page, Size: request.Size,
-	})
-	return projects, err
-}
-
-func (p *PostgresProjectsService) DeleteProject(ctx context.Context, id, confirmationName string) error {
+func (p *PostgresProjectsService) Delete(ctx context.Context, id, confirmationName string) error {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return ErrNotFound

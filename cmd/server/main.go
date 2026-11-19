@@ -24,16 +24,16 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
+	"github.com/markojerkic/svarog/internal/server/config"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/logstore"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/svaroglog"
 )
 
-func loadEnv() types.ServerEnv {
-	env := types.ServerEnv{}
+func loadEnv() config.ServerEnv {
+	env := config.ServerEnv{}
 	if os.Getenv("DOCKER") != "true" {
 		// Local values override .env defaults, but never the process environment.
 		if err := dotenv.Load(".env.local"); err != nil && !os.IsNotExist(err) {
@@ -130,7 +130,7 @@ func main() {
 	}
 }
 
-func runServer(env types.ServerEnv) error {
+func runServer(env config.ServerEnv) error {
 	if err := migrations.Up(context.Background(), env.PostgresURL); err != nil {
 		return fmt.Errorf("apply PostgreSQL migrations: %w", err)
 	}

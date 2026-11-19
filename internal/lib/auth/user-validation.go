@@ -1,41 +1,49 @@
 package auth
 
 import (
-	"errors"
 	"math"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/validation"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-func ValidateUserForm(form types.CreateUserForm) error {
+const (
+	UsernameMaxLength        = 255
+	UserProfileNameMaxLength = 255
+	UserSearchMaxLength      = 1024
+)
+
+func ValidateUserInput(input UserInput) error {
+	return validateUserInput(input, false)
+}
+
+func validateUserInput(input UserInput, invalidID bool) error {
 	fields := make(map[string]validation.Violation)
 	for _, field := range []struct {
 		name    string
 		value   string
 		maximum int
 	}{
-		{"username", form.Username, types.UsernameMaxLength},
-		{"firstName", form.FirstName, types.UserProfileNameMaxLength},
-		{"lastName", form.LastName, types.UserProfileNameMaxLength},
+		{"username", input.Username, UsernameMaxLength},
+		{"firstName", input.FirstName, UserProfileNameMaxLength},
+		{"lastName", input.LastName, UserProfileNameMaxLength},
 	} {
 		if violation := userTextError(field.value, 3, field.maximum); violation.Key != "" {
 			fields[field.name] = violation
 		}
 	}
-	if form.ID != "" && !canonicalUserUUID(form.ID) {
+	if invalidID {
 		fields["id"] = validation.Violation{Key: "users.invalid_id"}
 	}
-	if form.Role == "" {
+	if input.Role == "" {
 		fields["role"] = validation.Violation{Key: "validation.required"}
-	} else if form.Role != string(USER) && form.Role != string(ADMIN) {
+	} else if input.Role != USER && input.Role != ADMIN {
 		fields["role"] = validation.Violation{Key: "validation.one_of", Options: []string{"users.role_user", "users.role_admin"}}
 	}
-	for _, id := range form.ProjectIDs {
-		if !canonicalUserUUID(id) {
+	for _, id := range input.ProjectIDs {
+		if id == uuid.Nil {
 			fields["projects"] = validation.Violation{Key: "projects.select_valid"}
 			break
 		}
@@ -46,23 +54,23 @@ func ValidateUserForm(form types.CreateUserForm) error {
 	return nil
 }
 
-func ValidateUserPage(query types.GetUserPageInput) error {
+func NewPageQuery(search string, page, size int64) (PageQuery, error) {
 	fields := make(map[string]validation.Violation)
-	if query.Size < 1 || query.Size > 100 {
+	if size < 1 || size > 100 {
 		fields["size"] = validation.Violation{Key: "validation.invalid"}
 	}
 	// ListUsers uses int32 LIMIT/OFFSET parameters. Validate before narrowing
 	// the integers or multiplying, rather than exposing a persistence error.
-	if query.Page < 0 || (query.Size > 0 && query.Page > math.MaxInt32/query.Size) {
+	if page < 0 || (size > 0 && page > math.MaxInt32/size) {
 		fields["page"] = validation.Violation{Key: "validation.invalid"}
 	}
-	if violation := userTextError(query.Search, 0, types.UserSearchMaxLength); violation.Key != "" {
+	if violation := userTextError(search, 0, UserSearchMaxLength); violation.Key != "" {
 		fields["search"] = violation
 	}
 	if len(fields) > 0 {
-		return &validation.Error{Key: "request.invalid_parameters", Fields: fields}
+		return PageQuery{}, &validation.Error{Key: "request.invalid_parameters", Fields: fields}
 	}
-	return nil
+	return PageQuery{search: search, page: page, size: size}, nil
 }
 
 // ValidateNewPassword rejects a password whose meaningful content is shorter than 8
@@ -76,7 +84,7 @@ func ValidateNewPassword(password string) error {
 		return ErrPasswordBlank
 	}
 	if len(password) > 72 {
-		return errors.New("Password must contain between 8 and 72 bytes")
+		return ErrPasswordTooLong
 	}
 	return nil
 }
@@ -96,9 +104,4 @@ func userTextError(value string, minimum, maximum int) validation.Violation {
 		return validation.Violation{Key: "validation.max_length", Count: maximum}
 	}
 	return validation.Violation{}
-}
-
-func canonicalUserUUID(value string) bool {
-	id, err := uuid.Parse(value)
-	return err == nil && id != uuid.Nil && id.String() == value
 }

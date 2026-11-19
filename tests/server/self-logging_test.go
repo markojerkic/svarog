@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/tests/testutils"
 )
@@ -25,7 +26,7 @@ func (s *serverSuite) TestSelfLogging() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	project, err := s.ProjectsService.CreateProject(ctx, "Svarog", []string{"server"})
+	project, err := s.ProjectsService.Create(ctx, projects.ProjectInput{Name: "Svarog", Clients: []string{"server"}})
 	require.NoError(t, err)
 	clientID := project.Clients[0].ID
 	config, err := s.NatsCredsService.GenerateConnString(ctx, serverauth.CredentialGenerationRequest{

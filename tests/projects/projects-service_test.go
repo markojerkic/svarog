@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,23 +13,26 @@ func TestProjectInputRejectedBeforeDatabaseAccess(t *testing.T) {
 	service := projects.NewPostgresProjectsService(nil)
 	ctx := context.Background()
 
-	_, err := service.CreateProject(ctx, " ", nil)
+	_, err := service.Create(ctx, projects.ProjectInput{Name: " "})
 
 	require.Error(t, err, "blank project name must fail before database access")
 
-	_, err = service.CreateProject(ctx, "Project", []string{" "})
+	_, err = service.Create(ctx, projects.ProjectInput{Name: "Project", Clients: []string{" "}})
 
 	require.Error(t, err, "blank client name must fail before database access")
 
-	_, err = service.UpdateProject(ctx, uuid.New(), "Project", []string{""})
+	_, err = service.Update(ctx, uuid.New(), projects.ProjectInput{Name: "Project", Clients: []string{""}})
 
 	require.Error(t, err, "updating with a blank client must fail before database access")
 
-	_, err = service.GetProject(ctx, "not-a-uuid")
+	_, err = service.Get(ctx, "not-a-uuid")
 
 	require.ErrorIs(t, err, projects.ErrNotFound, "legacy project ID must not be accepted as a UUID")
 
-	for _, query := range []types.GetProjectPageInput{
+	for _, query := range []struct {
+		Search     string
+		Page, Size int64
+	}{
 		{
 			Page: -1,
 			Size: 10,
@@ -42,7 +44,7 @@ func TestProjectInputRejectedBeforeDatabaseAccess(t *testing.T) {
 			Size: 10,
 		},
 	} {
-		_, _, err = service.GetProjectPage(ctx, query)
+		_, err = projects.NewPageQuery(query.Search, query.Page, query.Size)
 
 		require.Error(t, err, "invalid pagination %+v must fail before database access", query)
 	}

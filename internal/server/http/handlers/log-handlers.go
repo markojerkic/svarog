@@ -167,7 +167,7 @@ func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID s
 	if self.projectsService == nil {
 		return ""
 	}
-	project, err := self.projectsService.GetProject(ctx, projectID)
+	project, err := self.projectsService.Get(ctx, projectID)
 	if err != nil {
 		slog.Debug("log page client name unavailable", "error", err)
 		return ""

@@ -20,7 +20,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/stretchr/testify/require"
@@ -40,7 +39,7 @@ type assignmentProjectsStub struct {
 	searchCalls int
 }
 
-func (s *assignmentProjectsStub) GetProjectsByIds(_ context.Context, ids []string) ([]projects.Project, error) {
+func (s *assignmentProjectsStub) ByIDs(_ context.Context, ids []string) ([]projects.Project, error) {
 	s.lookupCalls++
 	s.loadedIDs = ids
 	var selected []projects.Project
@@ -54,34 +53,39 @@ func (s *assignmentProjectsStub) GetProjectsByIds(_ context.Context, ids []strin
 	return selected, nil
 }
 
-func (s *assignmentProjectsStub) SearchProjects(_ context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
+func (s *assignmentProjectsStub) Page(_ context.Context, request projects.PageQuery) ([]projects.Project, int64, error) {
 	s.searchCalls++
 	var matches []projects.Project
 	for _, project := range s.all {
-		if strings.Contains(strings.ToLower(project.Name), strings.ToLower(request.Search)) {
+		if strings.Contains(strings.ToLower(project.Name), strings.ToLower(request.Search())) {
 			matches = append(matches, project)
 		}
 	}
-	start := int(request.Page * request.Size)
+	start := int(request.Page() * request.Size())
 	if start >= len(matches) {
-		return nil, nil
+		return nil, int64(len(matches)), nil
 	}
-	end := min(start+int(request.Size), len(matches))
-	return matches[start:end], nil
+	end := min(start+int(request.Size()), len(matches))
+	return matches[start:end], int64(len(matches)), nil
 }
 
 type assignmentAuthStub struct {
 	auth.AuthService
 	user      auth.User
-	submitted types.CreateUserForm
+	submitted auth.UserInput
 }
 
 func (s *assignmentAuthStub) GetUserByID(context.Context, string) (auth.User, error) {
 	return s.user, nil
 }
 
-func (s *assignmentAuthStub) CreateOrUpdateUser(_ context.Context, form types.CreateUserForm) (auth.User, error) {
-	s.submitted = form
+func (s *assignmentAuthStub) CreateUser(_ context.Context, input auth.UserInput) (auth.User, string, error) {
+	s.submitted = input
+	return s.user, "", nil
+}
+
+func (s *assignmentAuthStub) UpdateUser(_ context.Context, _ uuid.UUID, input auth.UserInput) (auth.User, error) {
+	s.submitted = input
 	return s.user, nil
 }
 
@@ -292,13 +296,8 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 
 			err := usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 				FormID: formID,
-				Value: types.CreateUserForm{
-					Projects: []combobox.Option{
-						{
-							Value: project.ID.String(),
-							Name:  project.Name,
-						},
-					},
+				Projects: []combobox.Option{
+					{Value: project.ID.String(), Name: project.Name},
 				},
 			}).Render(context.Background(), &rendered)
 
