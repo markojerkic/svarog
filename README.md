@@ -139,7 +139,10 @@ The embedded image uses the same PostgreSQL, session, archive and logging
 settings. It generates the NATS operator and `$SYS` account on every start.
 Use HTTP `/login` for health checks. The broker exposes only the NATS client
 listener. `SVAROG_CONN_STRING` enables self-logging in both server modes. In
-embedded mode it connects to the server's own broker.
+embedded mode it connects to the server's own broker, so its `host:port` must
+be reachable from inside the container. When the published port differs from
+`NATS_LISTEN_PORT`, as in the Compose example below, replace the copied URL's
+`host:port` with `localhost:4222`.
 
 | Variable            | Default                | Purpose                                                                                         |
 | ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
