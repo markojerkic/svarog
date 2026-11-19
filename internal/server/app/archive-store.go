@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -8,10 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/markojerkic/svarog/internal/lib/archive"
-	"github.com/markojerkic/svarog/internal/server/config"
 )
 
-func newArchiveStore(env config.ServerEnv) (archive.Store, error) {
+func newArchiveStore(env Config) (archive.Store, error) {
 	if env.ArchiveS3Bucket == "" && env.ArchiveS3Endpoint == "" &&
 		env.ArchiveS3AccessKeyID == "" && env.ArchiveS3SecretAccessKey == "" {
 		return archive.NewDiskStore(env.ArchiveDir), nil

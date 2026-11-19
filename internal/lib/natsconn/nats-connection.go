@@ -2,9 +2,8 @@ package natsconn
 
 import (
 	"fmt"
-	"time"
-
 	"log/slog"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -35,7 +34,17 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		opts = append(opts, nats.UserInfo(cfg.User, cfg.Password))
 	}
 
+	return Connect(cfg.NatsAddr, ConnectOptions{
+		EnableJetStream:        cfg.EnableJetStream,
+		DisableReconnectBuffer: cfg.DisableReconnectBuffer,
+	}, opts...)
+}
+
+// Connect applies the shared connection behavior and wraps JetStream when
+// requested. Broker implementations supply their own transport and auth options.
+func Connect(addr string, cfg ConnectOptions, opts ...nats.Option) (*NatsConnection, error) {
 	opts = append(opts,
+		nats.Name(cfg.Name),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
@@ -51,7 +60,7 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		opts = append(opts, nats.ReconnectBufSize(-1))
 	}
 
-	nc, err := nats.Connect(cfg.NatsAddr, opts...)
+	nc, err := nats.Connect(addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -70,7 +79,7 @@ func NewNatsConnection(cfg NatsConnectionConfig) (*NatsConnection, error) {
 		conn.JetStream = js
 	}
 
-	slog.Info("Connected to NATS", "addr", cfg.NatsAddr, "jetstream", cfg.EnableJetStream)
+	slog.Info("Connected to NATS", "addr", addr, "name", cfg.Name, "jetstream", cfg.EnableJetStream)
 
 	return conn, nil
 }
