@@ -19,7 +19,7 @@ import (
 type Service struct {
 	connection *natsconn.NatsConnection
 	consumer   jetstream.Consumer
-	writer     LogWriter
+	writer     Writer
 	live       Live
 	ackWait    time.Duration
 	stop       chan struct{}

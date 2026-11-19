@@ -6,27 +6,25 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type LogRange struct {
-	db.LogRange
+	logstore.TimeRange
 	FromDate string
 	ToDate   string
 	Offset   int
 }
 
-func (p LogsPageProps) ToPath(instances *[]string, cursor *db.LastCursor, direction, search string) string {
+func (p LogsPageProps) ToPath(instances *[]string, cursor *logstore.Cursor, direction, search string) string {
 	u := url.URL{
 		Path: fmt.Sprintf("/logs/%s/%s", p.ProjectId, p.ClientId),
 	}
 	query := u.Query()
 	if cursor != nil {
-		query.Set("cursorTimeUs", strconv.FormatInt(cursor.Timestamp.UnixMicro(), 10))
-		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
-		if cursor.ID > 0 {
-			query.Set("cursorId", strconv.FormatInt(cursor.ID, 10))
-		}
+		query.Set("cursorTimeUs", strconv.FormatInt(cursor.OccurredAt.UnixMicro(), 10))
+		query.Set("cursorSequenceNumber", strconv.FormatInt(cursor.Sequence, 10))
+		query.Set("cursorId", strconv.FormatInt(cursor.ID, 10))
 	}
 	if direction != "" {
 		query.Set("direction", direction)

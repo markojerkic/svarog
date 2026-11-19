@@ -24,10 +24,10 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/svarogclient"
 	"github.com/markojerkic/svarog/internal/lib/util"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/migrations"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/svaroglog"
 )
@@ -186,7 +186,7 @@ func runServer(env types.ServerEnv) error {
 	defer liveLogs.Close()
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
-	logsService := db.NewLogService(postgresPool)
+	logStore := logstore.New(postgresPool)
 
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 
@@ -196,7 +196,7 @@ func runServer(env types.ServerEnv) error {
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	ingestService, err := ingest.Open(startupCtx, ingest.Options{
-		Connection: natsConn, Pool: postgresPool, Writer: logsService, Live: liveLogs,
+		Connection: natsConn, Pool: postgresPool, Writer: logStore, Live: liveLogs,
 		StreamMaxBytes: env.IngestStreamMaxBytes, AckWait: env.IngestAckWait,
 		AllowRetentionMigration: env.IngestAllowRetentionMigration,
 	})
@@ -209,7 +209,7 @@ func runServer(env types.ServerEnv) error {
 		http.HttpServerOptions{
 			ServerPort:              env.HttpServerPort,
 			SessionStore:            sessionStore,
-			LogService:              logsService,
+			LogReader:               logStore,
 			AuthService:             authService,
 			ProjectsService:         projectsService,
 			Archiver:                archiver,

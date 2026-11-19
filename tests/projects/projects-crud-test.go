@@ -9,9 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -213,10 +214,10 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	scope := archive.Scope{ProjectID: project.ID, ClientID: apiID}
 	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
 	require.NoError(t, archiver.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable archiving so deletion has a ZIP to remove")
-	_, err = store.InsertLogs(ctx, p.PostgresPool, []store.LogInsert{
-		{ClientID: apiID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "archived"},
-		{ClientID: workerID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "inactive-client"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: time.Now().UTC(), SequenceNumber: 2, Message: "still-live"},
+	_, err = testutils.InsertLogFixtures(ctx, p.PostgresPool, []logstore.Row{
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "archived"},
+		{Scope: logstore.Scope{ClientID: workerID}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "inactive-client"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: time.Now().UTC(), Sequence: 2, Message: "still-live"},
 	})
 	require.NoError(t, err, "insert logs that deletion must remove with the project")
 	created, err := archiver.Create(ctx, scope)

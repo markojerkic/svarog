@@ -12,48 +12,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/stretchr/testify/require"
 )
 
 type logSearchStub struct {
-	db.LogService
-	request       db.LogPageRequest
+	request       logstore.PageQuery
 	instanceCalls int
 	logCalls      int
-	page          *db.LogPage
+	anchorID      int64
+	page          *logstore.Page
 }
 
-func (s *logSearchStub) GetInstances(_ context.Context, project, client string) ([]string, error) {
+func (s *logSearchStub) Instances(_ context.Context, scope logstore.Scope) ([]string, error) {
 	s.instanceCalls++
-	if project != s.request.ProjectId || client != s.request.ClientId {
+	if scope != s.request.Scope {
 		return nil, fmt.Errorf("instances must use the same scope as the logs")
 	}
 	return []string{"api-1", "api-2", "api-3"}, nil
 }
 
-func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.LogPage, error) {
+func (s *logSearchStub) Page(_ context.Context, request logstore.PageQuery) (logstore.Page, error) {
 	s.logCalls++
-	s.request = req
-	if s.page != nil {
-		return *s.page, nil
-	}
-	return db.LogPage{
-		Logs:       []logstore.Row{{Message: "matching connection refused"}},
-		IsLastPage: req.Cursor == nil,
-	}, nil
+	s.request = request
+	return logstore.Page{Rows: []logstore.Row{{Message: "matching connection refused"}}}, nil
 }
 
-func (s *logSearchStub) SearchLogs(ctx context.Context, search, project, client string, instances *[]string, pageSize int64, cursor *db.LastCursor) ([]logstore.Row, error) {
-	page, err := s.GetLogs(ctx, db.LogPageRequest{
-		ProjectId: project, ClientId: client, Search: search, Instances: instances,
-		PageSize: pageSize, Cursor: cursor,
-	})
-	return page.Logs, err
+func (s *logSearchStub) Around(_ context.Context, scope logstore.Scope, id int64, limit int, bounds *logstore.TimeRange) (logstore.Page, bool, error) {
+	s.logCalls++
+	s.anchorID = id
+	s.request = logstore.PageQuery{Scope: scope, Limit: limit, Range: bounds}
+	if s.page != nil {
+		return *s.page, true, nil
+	}
+	return logstore.Page{}, false, nil
 }
 
 func TestLogsPageSearch(t *testing.T) {
@@ -78,25 +74,25 @@ func TestLogsPageSearch(t *testing.T) {
 
 				require.Equal(t, http.StatusOK, rec.Code, "search must render an HTML page")
 				require.Contains(t, rec.Header().Get("Content-Type"), "text/html", "the UI must receive HTML rather than the JSON search response")
-				require.Equal(t, projectID, logs.request.ProjectId, "search must use the authorized project")
-				require.Equal(t, clientID, logs.request.ClientId, "search must use the authorized client")
-				require.Equal(t, handlers.DEFAULT_PAGE_SIZE, logs.request.PageSize, "search must use the existing page size")
-				require.Equal(t, &[]string{"api-1", "api-2"}, logs.request.Instances, "all active instance parameters must be retained")
-				require.Nil(t, logs.request.Cursor, "a query without cursor parameters must fetch the first page")
+				require.Equal(t, uuid.MustParse(projectID), logs.request.Scope.ProjectID, "search must use the authorized project")
+				require.Equal(t, uuid.MustParse(clientID), logs.request.Scope.ClientID, "search must use the authorized client")
+				require.Equal(t, handlers.DEFAULT_PAGE_SIZE, logs.request.Limit, "search must use the existing page size")
+				require.Equal(t, []string{"api-1", "api-2"}, logs.request.Instances, "all active instance parameters must be retained")
+				require.Nil(t, logs.request.Older, "the first page has no older cursor")
+				require.Nil(t, logs.request.Newer, "the first page has no newer cursor")
 				require.Contains(t, rec.Body.String(), "matching connection refused", "the fetched log must be rendered")
 				require.Contains(t, rec.Body.String(), `id="log-search-form"`, "HTMX and direct navigation must both return the complete view")
 				if strings.Contains(search, "connection") {
 					require.Equal(t, 1, logs.instanceCalls, "search must load the client's instance choices")
 					require.Contains(t, rec.Body.String(), "api-3", "filter choices must include instances outside the current selection")
 					require.Contains(t, rec.Body.String(), "Filtered by instance:", "search must show active instances without opening the popover")
-					require.Equal(t, "connection refused", logs.request.Search, "the query must be trimmed before calling the service")
-					require.Nil(t, logs.request.LogLineId, "a search must not inherit a log anchor")
+					require.Equal(t, []string{"connection", "refused"}, logs.request.Search.Terms, "the handler must pass parsed search terms to the reader")
+					require.Zero(t, logs.anchorID, "search must not load a log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search results must not mount a live connection")
 				} else {
 					require.Equal(t, 1, logs.instanceCalls, "ordinary logs must load the complete client instance list for consistent colors")
-					require.Empty(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
-					require.NotNil(t, logs.request.LogLineId, "whitespace-only queries must retain the log anchor")
-					require.Equal(t, "123", *logs.request.LogLineId, "whitespace-only queries must preserve the log anchor")
+					require.Nil(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
+					require.Equal(t, int64(123), logs.anchorID, "whitespace-only queries must preserve the log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "instance-filtered and anchored views must not mount a live connection")
 				}
 			})
@@ -148,7 +144,7 @@ func TestLogsPageLiveModes(t *testing.T) {
 					require.NoError(t, err, "the instance query fixture must be valid")
 					require.Equal(t, expected.Query()["instance"], wsURL.Query()["instance"], "the WebSocket selection must exactly match the HTTP view, including an empty instance name")
 				}
-				if requestType == "partial" && logs.request.Cursor != nil {
+				if requestType == "partial" && (logs.request.Older != nil || logs.request.Newer != nil) {
 					require.Zero(t, logs.instanceCalls, "pagination must reuse the mounted view's instance colors without reloading the list")
 					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")
 				} else {
@@ -159,7 +155,7 @@ func TestLogsPageLiveModes(t *testing.T) {
 					require.Contains(t, rec.Body.String(), `data-log-client-id="`+clientID+`"`, "the palette seed must identify the authorized client in every log view")
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), `aria-label="Back to live"`), "every non-live page must offer a return to the live view")
 					status := "Not live"
-					if logs.request.LogLineId != nil {
+					if logs.anchorID != 0 {
 						status = "Line context"
 					}
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), status), "the header must reflect the same live state as the connection")
@@ -206,8 +202,10 @@ func TestLogCursorValidation(t *testing.T) {
 			micros int64
 		}{
 			{"microseconds", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", 200, 1791979200123456},
-			{"legacy milliseconds", "cursorTime=1791979200123&cursorSequenceNumber=2&direction=forward", 200, 1791979200123000},
-			{"missing direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2", 400, 0},
+			{"legacy milliseconds", "cursorTime=1791979200123&cursorSequenceNumber=2&cursorId=7&direction=forward", 400, 0},
+			{"forward direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=forward", 200, 1791979200123456},
+			{"missing ID", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&direction=backward", 400, 0},
+			{"missing direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7", 400, 0},
 			{"invalid direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&direction=sideways", 400, 0},
 			{"missing sequence", "cursorTimeUs=1791979200123456&direction=backward", 400, 0},
 			{"missing timestamp", "cursorSequenceNumber=2&direction=backward", 400, 0},
@@ -231,12 +229,17 @@ func TestLogCursorValidation(t *testing.T) {
 					require.Zero(t, logs.logCalls, "invalid cursors must be rejected before querying logs")
 					return
 				}
-				require.Equal(t, time.UnixMicro(tc.micros), logs.request.Cursor.Timestamp, "cursor parsing must preserve timestamp precision and accept legacy links")
-				require.Equal(t, int64(2), logs.request.Cursor.SequenceNumber, "cursor parsing must preserve the sequence number")
-				require.Equal(t, strings.Contains(tc.query, "direction=backward"), logs.request.Cursor.IsBackward, "cursor parsing must preserve the direction")
-				if strings.Contains(tc.query, "cursorId=7") {
-					require.Equal(t, int64(7), logs.request.Cursor.ID, "cursor parsing must preserve the row id tie breaker")
+				cursor := logs.request.Older
+				if strings.Contains(tc.query, "direction=backward") {
+					require.Nil(t, logs.request.Newer, "backward navigation uses only the older cursor")
+				} else {
+					require.Nil(t, logs.request.Older, "forward navigation uses only the newer cursor")
+					cursor = logs.request.Newer
 				}
+				require.NotNil(t, cursor, "a complete cursor must reach the reader")
+				require.Equal(t, time.UnixMicro(tc.micros), cursor.OccurredAt, "cursor parsing must preserve microsecond precision")
+				require.Equal(t, int64(2), cursor.Sequence, "cursor parsing must preserve the sequence number")
+				require.Equal(t, int64(7), cursor.ID, "cursor parsing must preserve the row id tie breaker")
 				require.Zero(t, logs.instanceCalls, "pagination fragments must not reload filter choices")
 				if route == "" {
 					require.NotContains(t, rec.Body.String(), "<html", "pagination must return only log rows")
@@ -264,7 +267,7 @@ func TestSearchCursorFullPage(t *testing.T) {
 			e.ServeHTTP(rec, req)
 			require.Equal(t, http.StatusOK, rec.Code, "direct and full HTMX navigation must support cursor URLs")
 			require.Contains(t, rec.Body.String(), `id="log-search-form"`, "full navigation must return the complete search view")
-			require.Equal(t, &[]string{"api-1", "api-2"}, logs.request.Instances, "pagination must retain every selected instance")
+			require.Equal(t, []string{"api-1", "api-2"}, logs.request.Instances, "pagination must retain every selected instance")
 			require.Equal(t, 1, logs.instanceCalls, "full search pages must load filter choices")
 			require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search pages opened at a cursor must remain non-live")
 		})
@@ -275,10 +278,12 @@ func TestContextPaginationUsesResolvedInstance(t *testing.T) {
 	for _, query := range []string{"?logLine=42", "?logLine=42&instance=wrong"} {
 		t.Run(query, func(t *testing.T) {
 			e := echo.New()
-			logs := &logSearchStub{page: &db.LogPage{
-				Instances:      &[]string{"api-1"},
-				ForwardCursor:  &db.LastCursor{Timestamp: time.Unix(100, 0), SequenceNumber: 1, ID: 43},
-				BackwardCursor: &db.LastCursor{Timestamp: time.Unix(90, 0), SequenceNumber: 1, ID: 41, IsBackward: true},
+			instance := "api-1"
+			logs := &logSearchStub{page: &logstore.Page{
+				AnchorInstance: &instance,
+				Rows:           []logstore.Row{{ID: 43}, {ID: 42}, {ID: 41}},
+				Newer:          &logstore.Cursor{OccurredAt: time.Unix(100, 0), Sequence: 1, ID: 43},
+				Older:          &logstore.Cursor{OccurredAt: time.Unix(90, 0), Sequence: 1, ID: 41},
 			}}
 			handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
 			rec := httptest.NewRecorder()
@@ -292,11 +297,27 @@ func TestContextPaginationUsesResolvedInstance(t *testing.T) {
 				page := httptest.NewRecorder()
 				e.ServeHTTP(page, req)
 				require.Equal(t, http.StatusOK, page.Code, "each context continuation must load successfully")
-				require.Equal(t, &[]string{"api-1"}, logs.request.Instances, "following either link must use the server-resolved instance, not the original query")
-				require.NotNil(t, logs.request.Cursor, "context continuation must use a cursor rather than reload the initial context")
-				require.Equal(t, link[1] == "backward", logs.request.Cursor.IsBackward, "each link must load its intended direction")
+				require.Equal(t, []string{"api-1"}, logs.request.Instances, "following either link must use the server-resolved instance, not the original query")
+				require.Equal(t, link[1] == "backward", logs.request.Older != nil, "the older link must load older rows")
+				require.Equal(t, link[1] == "forward", logs.request.Newer != nil, "the newer link must load newer rows")
 				require.NotContains(t, page.Body.String(), "hx-ws:connect=", "neither continuation may mount a live WebSocket")
 			}
+		})
+	}
+}
+
+func TestMissingLogContextFallsBackToPage(t *testing.T) {
+	for _, anchor := range []string{"999", "not-an-id"} {
+		t.Run(anchor, func(t *testing.T) {
+			e := echo.New()
+			logs := &logSearchStub{}
+			handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+"?logLine="+anchor+"&instance=api-1", nil))
+			require.Equal(t, http.StatusOK, rec.Code, "a missing or invalid anchor must render a regular page")
+			require.Contains(t, rec.Body.String(), "matching connection refused", "fallback must render the requested client's logs")
+			require.Equal(t, []string{"api-1"}, logs.request.Instances, "fallback must keep the instance selection")
+			require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "an anchored URL remains historical when the anchor cannot be resolved")
 		})
 	}
 }
@@ -310,13 +331,13 @@ func TestLogSearchKeepsPreciseRange(t *testing.T) {
 	query := "?fromAt=2026-11-01T10:15:00Z&toAt=2026-11-01T10:16:00Z&search=error&instance=api-1&instance=api-2"
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+query, nil))
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "error", logs.request.Search)
-	require.Equal(t, &[]string{"api-1", "api-2"}, logs.request.Instances)
-	require.Equal(t, time.Date(2026, 11, 1, 10, 15, 0, 0, time.UTC), logs.request.Range.From)
-	require.Equal(t, time.Date(2026, 11, 1, 10, 16, 0, 0, time.UTC), logs.request.Range.To)
-	require.Contains(t, rec.Body.String(), `name="fromAt" value="2026-11-01T10:15:00Z"`)
-	require.Contains(t, rec.Body.String(), `name="toAt" value="2026-11-01T10:16:00Z"`)
+	require.Equal(t, http.StatusOK, rec.Code, "the precise range must render successfully")
+	require.Equal(t, []string{"error"}, logs.request.Search.Terms, "the precise range must retain the parsed search")
+	require.Equal(t, []string{"api-1", "api-2"}, logs.request.Instances, "the precise range must retain both selected instances")
+	require.Equal(t, time.Date(2026, 11, 1, 10, 15, 0, 0, time.UTC), logs.request.Range.From, "the lower bound must reach the reader exactly")
+	require.Equal(t, time.Date(2026, 11, 1, 10, 16, 0, 0, time.UTC), logs.request.Range.To, "the upper bound must reach the reader exactly")
+	require.Contains(t, rec.Body.String(), `name="fromAt" value="2026-11-01T10:15:00Z"`, "the range form must retain its start")
+	require.Contains(t, rec.Body.String(), `name="toAt" value="2026-11-01T10:16:00Z"`, "the range form must retain its end")
 
 	for _, invalid := range []string{
 		"?fromAt=2026-11-01T10:15:00Z",

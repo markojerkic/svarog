@@ -14,9 +14,9 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,11 +80,11 @@ func (s *projectAccessProjectsStub) GetProject(context.Context, string) (project
 }
 
 type projectAccessLogsStub struct {
-	db.LogService
+	handlers.LogReader
 	calls int
 }
 
-func (s *projectAccessLogsStub) GetInstances(context.Context, string, string) ([]string, error) {
+func (s *projectAccessLogsStub) Instances(context.Context, logstore.Scope) ([]string, error) {
 	s.calls++
 	return []string{"instance"}, nil
 }

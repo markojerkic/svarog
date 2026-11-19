@@ -4,21 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
@@ -37,19 +37,25 @@ type logLineClient struct {
 	Instance  string `json:"instanceId"`
 }
 
+type LogReader interface {
+	Page(ctx context.Context, query logstore.PageQuery) (logstore.Page, error)
+	Around(ctx context.Context, scope logstore.Scope, id int64, limit int, bounds *logstore.TimeRange) (logstore.Page, bool, error)
+	Instances(ctx context.Context, scope logstore.Scope) ([]string, error)
+}
+
 type LogsRouter struct {
-	logService      db.LogService
+	logReader       LogReader
 	projectsService projects.ProjectsService
 	parentRouter    *echo.Group
 	api             *echo.Group
 }
 
-var DEFAULT_PAGE_SIZE = int64(300)
+const DEFAULT_PAGE_SIZE = 300
 
 type LogsByClientBinding struct {
 	ProjectId            string    `param:"projectId"`
 	ClientId             string    `param:"clientId"`
-	CursorTime           *int64    `query:"cursorTime"`
+	LegacyCursorTime     *string   `query:"cursorTime"`
 	CursorTimeUs         *int64    `query:"cursorTimeUs"`
 	CursorSequenceNumber *int64    `query:"cursorSequenceNumber"`
 	CursorID             *int64    `query:"cursorId"`
@@ -66,40 +72,44 @@ type LogsByClientBinding struct {
 	ReturnInstances      []string  `query:"returnInstance"`
 }
 
-func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
-	if params.CursorTime == nil && params.CursorTimeUs == nil && params.CursorSequenceNumber == nil && params.CursorID == nil && params.Direction == nil {
+func (params LogsByClientBinding) cursor() (*logstore.Cursor, error) {
+	if params.LegacyCursorTime != nil {
+		return nil, fmt.Errorf("cursor requires a microsecond timestamp")
+	}
+	if params.CursorTimeUs == nil && params.CursorSequenceNumber == nil && params.CursorID == nil && params.Direction == nil {
 		return nil, nil
 	}
-	if params.CursorTime == nil && params.CursorTimeUs == nil || params.CursorTime != nil && params.CursorTimeUs != nil {
-		return nil, fmt.Errorf("cursor requires exactly one timestamp")
+	if params.CursorTimeUs == nil || *params.CursorTimeUs <= 0 || params.CursorSequenceNumber == nil ||
+		params.CursorID == nil || *params.CursorID <= 0 || params.Direction == nil ||
+		(*params.Direction != "backward" && *params.Direction != "forward") {
+		return nil, fmt.Errorf("cursor requires a positive timestamp and id, a sequence number, and a valid direction")
 	}
-	if params.CursorSequenceNumber == nil || params.Direction == nil || (*params.Direction != "backward" && *params.Direction != "forward") {
-		return nil, fmt.Errorf("cursor requires a sequence number and a valid direction")
+	return &logstore.Cursor{
+		OccurredAt: time.UnixMicro(*params.CursorTimeUs), Sequence: *params.CursorSequenceNumber, ID: *params.CursorID,
+	}, nil
+}
+
+func logScope(project, client string) logstore.Scope {
+	projectID, _ := uuid.Parse(project)
+	clientID, _ := uuid.Parse(client)
+	return logstore.Scope{ProjectID: projectID, ClientID: clientID}
+}
+
+func (params LogsByClientBinding) pageQuery(cursor *logstore.Cursor, search *logsearch.Query, bounds *logstore.TimeRange) logstore.PageQuery {
+	query := logstore.PageQuery{
+		Scope: logScope(params.ProjectId, params.ClientId), Search: search, Range: bounds, Limit: DEFAULT_PAGE_SIZE,
 	}
-	var timestamp time.Time
-	if params.CursorTimeUs != nil {
-		if *params.CursorTimeUs <= 0 {
-			return nil, fmt.Errorf("cursor timestamp must be positive")
+	if params.Instances != nil {
+		query.Instances = *params.Instances
+	}
+	if cursor != nil {
+		if *params.Direction == "backward" {
+			query.Older = cursor
+		} else {
+			query.Newer = cursor
 		}
-		timestamp = time.UnixMicro(*params.CursorTimeUs)
-	} else {
-		if *params.CursorTime <= 0 || *params.CursorTime > math.MaxInt64/1000 {
-			return nil, fmt.Errorf("invalid cursor timestamp")
-		}
-		timestamp = time.UnixMilli(*params.CursorTime)
 	}
-	cursor := &db.LastCursor{
-		Timestamp:      timestamp,
-		SequenceNumber: *params.CursorSequenceNumber,
-		IsBackward:     *params.Direction == "backward",
-	}
-	if params.CursorID != nil {
-		if *params.CursorID <= 0 {
-			return nil, fmt.Errorf("cursor id must be positive")
-		}
-		cursor.ID = *params.CursorID
-	}
-	return cursor, nil
+	return query
 }
 
 func (params LogsByClientBinding) logRange() (*pages.LogRange, error) {
@@ -138,7 +148,7 @@ func ParseLogTimeRange(fromAt, toAt string) (pages.LogRange, error) {
 	if fromErr != nil || toErr != nil || !from.Before(to) {
 		return pages.LogRange{}, fmt.Errorf("invalid log time range")
 	}
-	return pages.LogRange{LogRange: db.LogRange{From: from, To: to}}, nil
+	return pages.LogRange{TimeRange: logstore.TimeRange{From: from, To: to}}, nil
 }
 
 // ParseLogRange turns inclusive local calendar dates into a half-open UTC
@@ -162,10 +172,10 @@ func ParseLogRange(fromDate, toDate string, offsetMin int) (pages.LogRange, erro
 	}
 	offset := time.Duration(offsetMin) * time.Minute
 	return pages.LogRange{
-		LogRange: db.LogRange{From: fromDay.Add(offset), To: toDay.AddDate(0, 0, 1).Add(offset)},
-		FromDate: fromDate,
-		ToDate:   toDate,
-		Offset:   offsetMin,
+		TimeRange: logstore.TimeRange{From: fromDay.Add(offset), To: toDay.AddDate(0, 0, 1).Add(offset)},
+		FromDate:  fromDate,
+		ToDate:    toDate,
+		Offset:    offsetMin,
 	}, nil
 }
 
@@ -194,7 +204,7 @@ func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
 	}
 	slog.Debug("Getting instances by client", "projectId", projectId, "clientId", clientId)
 
-	instances, err := self.logService.GetInstances(c.Request().Context(), projectId, clientId)
+	instances, err := self.logReader.Instances(c.Request().Context(), logScope(projectId, clientId))
 	if err != nil {
 		return err
 	}
@@ -223,7 +233,8 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 			params.Instances = nil
 		}
 	}
-	if _, err := logsearch.Parse(params.Search); err != nil {
+	parsedSearch, err := logsearch.Parse(params.Search)
+	if err != nil {
 		return logSearchValidationError(c, false)
 	}
 	if params.Search != "" {
@@ -239,27 +250,22 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_range"))
 	}
 
-	var bounds *db.LogRange
+	var bounds *logstore.TimeRange
 	if logRange != nil {
-		bounds = &logRange.LogRange
+		bounds = &logRange.TimeRange
 	}
-	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
-		ProjectId: params.ProjectId,
-		ClientId:  params.ClientId,
-		Instances: params.Instances,
-		PageSize:  DEFAULT_PAGE_SIZE,
-		LogLineId: params.LogLineId,
-		Cursor:    nextCursor,
-		Search:    params.Search,
-		Range:     bounds,
-	})
-
+	var search *logsearch.Query
+	if params.Search != "" {
+		search = &parsedSearch
+	}
+	query := params.pageQuery(nextCursor, search, bounds)
+	ctx := c.Request().Context()
+	logPage, isLastPage, err := self.readPage(ctx, query, params.LogLineId)
 	if err != nil {
 		return err
 	}
-
-	if logPage.Instances != nil {
-		params.Instances = logPage.Instances
+	if logPage.AnchorInstance != nil {
+		params.Instances = &[]string{*logPage.AnchorInstance}
 	}
 	showTime, showInstance := true, true
 	cookie, cookieErr := c.Cookie(pages.LogColumnsCookie)
@@ -268,6 +274,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	}
 	props := pages.LogsPageProps{
 		LogPage:      logPage,
+		IsLastPage:   isLastPage,
 		Range:        logRange,
 		ClientId:     params.ClientId,
 		ProjectId:    params.ProjectId,
@@ -290,12 +297,37 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
 	props.ClientName = self.logClientName(c.Request().Context(), params.ProjectId, params.ClientId)
-	props.AvailableInstances, err = self.logService.GetInstances(c.Request().Context(), params.ProjectId, params.ClientId)
+	props.AvailableInstances, err = self.logReader.Instances(ctx, query.Scope)
 	if err != nil {
 		return err
 	}
 
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
+}
+
+func (self *LogsRouter) readPage(ctx context.Context, query logstore.PageQuery, logLineID *string) (logstore.Page, bool, error) {
+	latest := query.Older == nil && query.Newer == nil
+	if logLineID != nil {
+		id, parseErr := strconv.ParseInt(*logLineID, 10, 64)
+		if parseErr == nil && id > 0 {
+			if latest {
+				page, found, err := self.logReader.Around(ctx, query.Scope, id, query.Limit, query.Range)
+				if err != nil {
+					return logstore.Page{}, false, err
+				}
+				if found {
+					return page, page.Rows[0].ID == id, nil
+				}
+			} else {
+				query.AnchorID = id
+			}
+		}
+	}
+	page, err := self.logReader.Page(ctx, query)
+	if err == nil && logLineID != nil && page.AnchorInstance == nil {
+		slog.Warn("Log context anchor not found", "logLineId", *logLineID)
+	}
+	return page, latest, err
 }
 
 func (self *LogsRouter) searchLogs(c *echo.Context) error {
@@ -307,7 +339,8 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 		return c.JSON(400, i18n.T(c.Request().Context(), "errors.400_title"))
 	}
 	params.Search = strings.TrimSpace(params.Search)
-	if _, err := logsearch.Parse(params.Search); err != nil {
+	parsedSearch, err := logsearch.Parse(params.Search)
+	if err != nil {
 		return logSearchValidationError(c, true)
 	}
 
@@ -317,15 +350,15 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 	}
 
 	slog.Debug("next", "cursor", nextCursor)
-	logs, err := self.logService.SearchLogs(c.Request().Context(), params.Search, params.ProjectId, params.ClientId, params.Instances, DEFAULT_PAGE_SIZE, nextCursor)
+	page, err := self.logReader.Page(c.Request().Context(), params.pageQuery(nextCursor, &parsedSearch, nil))
 
 	if err != nil {
 		return err
 	}
 
-	logsLen := len(logs)
+	logsLen := len(page.Rows)
 	mappedLogs := make([]LogLine, logsLen)
-	for i, log := range logs {
+	for i, log := range page.Rows {
 		mappedLogs[logsLen-i-1] = LogLine{
 			strconv.FormatInt(log.ID, 10),
 			log.OccurredAt.UnixMilli(),
@@ -354,11 +387,11 @@ func logSearchValidationError(c *echo.Context, jsonResponse bool) error {
 	}))
 }
 
-func NewLogsRouter(logService db.LogService, authService auth.AuthService, projectsService projects.ProjectsService, e *echo.Group) *LogsRouter {
+func NewLogsRouter(logReader LogReader, authService auth.AuthService, projectsService projects.ProjectsService, e *echo.Group) *LogsRouter {
 	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 
 	logsRouter := &LogsRouter{
-		logService:      logService,
+		logReader:       logReader,
 		projectsService: projectsService,
 		parentRouter:    e,
 		api:             logsApi,

@@ -7,15 +7,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
-	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
-type LogWriter interface {
+type Writer interface {
 	// On success, return one result per event in input order. A result describes
 	// an inserted event, a duplicate, or a rejected client. Writers must honor
 	// ctx; shutdown waits for their active call to exit.
-	CommitLogs(ctx context.Context, logs []logstore.Event) ([]persistence.IngestLogResult, error)
+	Commit(ctx context.Context, logs []logstore.Event) ([]logstore.Result, error)
 }
 
 type Live interface {
@@ -26,7 +25,7 @@ type Live interface {
 type Options struct {
 	Connection              *natsconn.NatsConnection
 	Pool                    *pgxpool.Pool
-	Writer                  LogWriter
+	Writer                  Writer
 	Live                    Live
 	StreamMaxBytes          int64 // Zero preserves an existing finite limit; new streams default to 1 GiB.
 	AckWait                 time.Duration

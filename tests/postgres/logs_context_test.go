@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
@@ -24,88 +22,89 @@ func TestLogContext(t *testing.T) {
 	require.NoError(t, err, "context fixtures must have a project and client")
 	clientID := project.Clients[0].ID
 	base := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	var input []store.LogInsert
+	var input []logstore.Row
 	for i := 0; i <= 10; i++ {
 		input = append(input,
-			store.LogInsert{ClientID: clientID, InstanceName: "api-1", OccurredAt: base.Add(time.Duration(i) * time.Second), SequenceNumber: 1, Message: fmt.Sprintf("api-%02d", i)},
-			store.LogInsert{ClientID: clientID, InstanceName: "api-2", OccurredAt: base.Add(time.Duration(i)*time.Second + 500*time.Millisecond), SequenceNumber: 1, Message: fmt.Sprintf("other-%02d", i)},
+			logstore.Row{Scope: logstore.Scope{ClientID: clientID}, Instance: "api-1", OccurredAt: base.Add(time.Duration(i) * time.Second), Sequence: 1, Message: fmt.Sprintf("api-%02d", i)},
+			logstore.Row{Scope: logstore.Scope{ClientID: clientID}, Instance: "api-2", OccurredAt: base.Add(time.Duration(i)*time.Second + 500*time.Millisecond), Sequence: 1, Message: fmt.Sprintf("other-%02d", i)},
 		)
 	}
-	ids, err := store.InsertLogs(ctx, pool, input)
+	ids, err := testutils.InsertLogFixtures(ctx, pool, input)
 	require.NoError(t, err, "context fixtures must interleave two instances around the anchor")
 	anchorID := ids[10]
-	anchor := strconv.FormatInt(anchorID, 10)
-	logs := db.NewLogService(pool)
+	scope := logstore.Scope{ProjectID: project.ID, ClientID: clientID}
+	logs := logstore.New(pool)
 	instances := []string{"api-1"}
-	request := db.LogPageRequest{ProjectId: project.ID.String(), ClientId: clientID.String(), PageSize: 2, LogLineId: &anchor}
+	const limit = 2
 
 	t.Run("anchor determines the instance", func(t *testing.T) {
-		page, err := logs.GetLogs(ctx, request)
+		page, found, err := logs.Around(ctx, scope, anchorID, limit, nil)
 		require.NoError(t, err, "opening a valid context must succeed")
-		require.NotEmpty(t, page.Logs, "context must contain the selected log")
-		for _, log := range page.Logs {
+		require.True(t, found, "the requested anchor must belong to the client")
+		require.NotEmpty(t, page.Rows, "context must contain the selected log")
+		for _, log := range page.Rows {
 			require.Equal(t, "api-1", log.Instance, "context must exclude other instances even without an explicit instance parameter")
 		}
 	})
 
 	t.Run("one page on each side of the anchor", func(t *testing.T) {
-		req := request
-		req.Instances = &instances
-		page, err := logs.GetLogs(ctx, req)
-		require.NoError(t, err, "context with an explicit instance must succeed")
-		require.Equal(t, []string{"api-07", "api-06", "api-05", "api-04", "api-03"}, messages(page.Logs), "context must contain the anchor once and the nearest page of newer and older rows")
+		page, found, err := logs.Around(ctx, scope, anchorID, limit, nil)
+		require.NoError(t, err, "context must load neighbors around the anchor")
+		require.True(t, found, "the requested anchor must belong to the client")
+		require.Equal(t, []string{"api-07", "api-06", "api-05", "api-04", "api-03"}, messages(page.Rows), "context must contain the anchor once and the nearest page of newer and older rows")
 	})
 
 	t.Run("both pagination directions are available", func(t *testing.T) {
-		req := request
-		req.Instances = &instances
-		page, err := logs.GetLogs(ctx, req)
+		page, found, err := logs.Around(ctx, scope, anchorID, limit, nil)
 		require.NoError(t, err, "context must load before offering pagination")
-		require.NotNil(t, page.BackwardCursor, "older rows beyond the context window must be reachable")
-		require.NotNil(t, page.ForwardCursor, "newer rows beyond the context window must be reachable")
+		require.True(t, found, "the requested anchor must belong to the client")
+		require.NotNil(t, page.Older, "older rows beyond the context window must be reachable")
+		require.NotNil(t, page.Newer, "newer rows beyond the context window must be reachable")
 	})
 
 	t.Run("forward pagination returns adjacent rows without gaps", func(t *testing.T) {
-		page, err := logs.GetLogs(ctx, db.LogPageRequest{
-			ProjectId: request.ProjectId,
-			ClientId:  request.ClientId,
-			Instances: &instances,
-			PageSize:  2,
-			Cursor:    &db.LastCursor{Timestamp: base.Add(5 * time.Second), SequenceNumber: 1, ID: anchorID},
+		page, err := logs.Page(ctx, logstore.PageQuery{
+			Scope: scope, Instances: instances, Limit: limit,
+			Newer: &logstore.Cursor{OccurredAt: base.Add(5 * time.Second), Sequence: 1, ID: anchorID},
 		})
 		require.NoError(t, err, "loading newer context rows must succeed")
-		require.Equal(t, []string{"api-07", "api-06"}, messages(page.Logs), "forward pagination must return the nearest newer rows, not jump to the latest page")
+		require.Equal(t, []string{"api-07", "api-06"}, messages(page.Rows), "forward pagination must return the nearest newer rows, not jump to the latest page")
 	})
 
 	t.Run("both directions reach every instance row exactly once", func(t *testing.T) {
-		initial, err := logs.GetLogs(ctx, request)
+		initial, found, err := logs.Around(ctx, scope, anchorID, limit, nil)
 		require.NoError(t, err, "context without an explicit instance must load")
-		require.Equal(t, &instances, initial.Instances, "context must expose its resolved instance for pagination links")
-		var found []int64
-		for _, log := range initial.Logs {
-			found = append(found, log.ID)
+		require.True(t, found, "the requested anchor must belong to the client")
+		require.NotNil(t, initial.AnchorInstance, "the initial context must resolve the instance")
+		require.Equal(t, instances[0], *initial.AnchorInstance, "context must expose its resolved instance for pagination links")
+		var seen []int64
+		for _, log := range initial.Rows {
+			seen = append(seen, log.ID)
 		}
 		for _, direction := range []string{"backward", "forward"} {
-			cursor := initial.BackwardCursor
+			cursor := initial.Older
 			if direction == "forward" {
-				cursor = initial.ForwardCursor
+				cursor = initial.Newer
 			}
 			for i := 0; cursor != nil && i < 10; i++ {
-				path, err := url.Parse((pages.LogsPageProps{ProjectId: request.ProjectId, ClientId: request.ClientId}).ToPath(initial.Instances, cursor, direction, ""))
+				path, err := url.Parse((pages.LogsPageProps{ProjectId: scope.ProjectID.String(), ClientId: scope.ClientID.String()}).ToPath(&instances, cursor, direction, ""))
 				require.NoError(t, err, "context pagination must generate a valid URL")
 				selected := path.Query()["instance"]
-				page, err := logs.GetLogs(ctx, db.LogPageRequest{
-					ProjectId: request.ProjectId, ClientId: request.ClientId,
-					PageSize: request.PageSize, Instances: &selected, Cursor: cursor,
-				})
-				require.NoError(t, err, "context pagination without the original anchor must load")
-				for _, log := range page.Logs {
-					require.Equal(t, "api-1", log.Instance, "every continuation must retain the anchor instance")
-					found = append(found, log.ID)
+				query := logstore.PageQuery{Scope: scope, Limit: limit, Instances: selected}
+				if direction == "backward" {
+					query.Older = cursor
+				} else {
+					query.Newer = cursor
 				}
-				cursor = page.BackwardCursor
+				page, err := logs.Page(ctx, query)
+				require.NoError(t, err, "context pagination without the original anchor must load")
+				for _, log := range page.Rows {
+					require.Equal(t, "api-1", log.Instance, "every continuation must retain the anchor instance")
+					seen = append(seen, log.ID)
+				}
+				cursor = page.Older
 				if direction == "forward" {
-					cursor = page.ForwardCursor
+					cursor = page.Newer
 				}
 			}
 			require.Nil(t, cursor, "pagination must terminate after reaching the end of its instance")
@@ -114,23 +113,21 @@ func TestLogContext(t *testing.T) {
 		for i := 0; i < len(ids); i += 2 {
 			expected = append(expected, ids[i])
 		}
-		require.ElementsMatch(t, expected, found, "both directions together must return all instance rows exactly once, including the anchor")
+		require.ElementsMatch(t, expected, seen, "both directions together must return all instance rows exactly once, including the anchor")
 	})
 
 	t.Run("context at instance boundaries", func(t *testing.T) {
 		for _, index := range []int{0, 10} {
-			id := strconv.FormatInt(ids[index*2], 10)
-			req := request
-			req.LogLineId = &id
-			page, err := logs.GetLogs(ctx, req)
+			page, found, err := logs.Around(ctx, scope, ids[index*2], limit, nil)
 			require.NoError(t, err, "context must load at either end of an instance")
-			require.Len(t, page.Logs, 3, "a boundary must show the anchor and the available page on its other side")
+			require.True(t, found, "the requested anchor must belong to the client")
+			require.Len(t, page.Rows, 3, "a boundary must show the anchor and the available page on its other side")
 			if index == 0 {
-				require.Equal(t, []string{"api-02", "api-01", "api-00"}, messages(page.Logs), "the oldest anchor must retain its newer neighbors")
-				require.Nil(t, page.BackwardCursor, "the oldest anchor must not offer nonexistent older logs")
+				require.Equal(t, []string{"api-02", "api-01", "api-00"}, messages(page.Rows), "the oldest anchor must retain its newer neighbors")
+				require.Nil(t, page.Older, "the oldest anchor must not offer nonexistent older logs")
 			} else {
-				require.Equal(t, []string{"api-10", "api-09", "api-08"}, messages(page.Logs), "the newest anchor must retain its older neighbors")
-				require.Nil(t, page.ForwardCursor, "the newest anchor must not offer nonexistent newer logs")
+				require.Equal(t, []string{"api-10", "api-09", "api-08"}, messages(page.Rows), "the newest anchor must retain its older neighbors")
+				require.Nil(t, page.Newer, "the newest anchor must not offer nonexistent newer logs")
 			}
 		}
 	})

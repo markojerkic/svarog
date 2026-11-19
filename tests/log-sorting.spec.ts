@@ -116,10 +116,13 @@ test.describe("Log Sorting Logic", () => {
       query: loader.getAttribute("hx-get"),
     }));
     expect(boundary.previous).toBe("101");
-    expect(new URL(boundary.query!, "http://logs.test").searchParams.get("cursorId")).toBe("101");
-    expect(new URL(boundary.query!, "http://logs.test").searchParams.get("cursorTimeUs")).toBe(
-      "1770000000000101",
-    );
+    const query = new URL(boundary.query!, "http://logs.test").searchParams;
+    expect(Object.fromEntries(query)).toEqual({
+      direction: "backward",
+      cursorTimeUs: "1770000000000101",
+      cursorSequenceNumber: "0",
+      cursorId: "101",
+    });
   });
 
   test("stops live updates instead of evicting the history being read", async ({ page }) => {

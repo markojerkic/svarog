@@ -3,17 +3,13 @@ package postgres_test
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
@@ -73,31 +69,25 @@ func TestFindLoglinePage(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	batch := make([]store.LogInsert, count)
+	batch := make([]logstore.Row, count)
 	for i := range batch {
-		batch[i] = store.LogInsert{
-			ClientID:       env.clientID,
-			InstanceName:   "web",
-			OccurredAt:     base.Add(time.Duration(i) * time.Millisecond),
-			SequenceNumber: int64(i),
-			Message:        fmt.Sprintf("Log line %d", i),
+		batch[i] = logstore.Row{
+			Scope: logstore.Scope{ClientID: env.scope.ClientID}, Instance: "web",
+			OccurredAt: base.Add(time.Duration(i) * time.Millisecond),
+			Sequence:   int64(i),
+			Message:    fmt.Sprintf("Log line %d", i),
 		}
 	}
-	ids, err := store.InsertLogs(ctx, env.pool, batch)
+	ids, err := testutils.InsertLogFixtures(ctx, env.pool, batch)
 	require.NoError(t, err, "insert %d sequenced lines", count)
 
-	logLine := strconv.FormatInt(ids[target], 10)
-	page, err := env.logs.GetLogs(ctx, db.LogPageRequest{
-		ProjectId: env.projectID,
-		ClientId:  env.clientID.String(),
-		PageSize:  300,
-		LogLineId: &logLine,
-	})
+	page, found, err := env.logs.Around(ctx, env.scope, ids[target], 300, nil)
 	require.NoError(t, err, "read the page anchored at the middle log")
-	require.Len(t, page.Logs, 601, "middle context contains the anchor and 300 lines on each side")
-	require.Equal(t, ids[target], page.Logs[300].ID, "logLine anchor is the middle row of the context")
-	requireNewestFirst(t, page.Logs)
-	for i, log := range page.Logs {
+	require.True(t, found, "the middle log must be an authorized anchor")
+	require.Len(t, page.Rows, 601, "middle context contains the anchor and 300 lines on each side")
+	require.Equal(t, ids[target], page.Rows[300].ID, "logLine anchor is the middle row of the context")
+	requireNewestFirst(t, page.Rows)
+	for i, log := range page.Rows {
 		require.Equal(t, fmt.Sprintf("Log line %d", target+300-i), log.Message, "context walks through newer and older neighbors without gaps")
 	}
 }
@@ -110,27 +100,27 @@ func TestArchiveLargeClient(t *testing.T) {
 	env := newIngestEnv(t, ctx)
 	dir := t.TempDir()
 	var service archive.Archiver = archive.NewArchiveService(env.pool, archive.NewDiskStore(dir))
-	scope := archive.Scope{ProjectID: uuid.MustParse(env.projectID), ClientID: env.clientID}
+	scope := archive.Scope{ProjectID: env.scope.ProjectID, ClientID: env.scope.ClientID}
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
 
 	recent := time.Now().UTC().Truncate(time.Microsecond)
 	old := recent.Add(-14 * 24 * time.Hour)
-	batch := make([]store.LogInsert, 0, oldCount+recentCount)
+	batch := make([]logstore.Row, 0, oldCount+recentCount)
 	for i := 0; i < oldCount; i++ {
-		batch = append(batch, store.LogInsert{
-			ClientID: env.clientID, InstanceName: "web",
-			OccurredAt:     old.Add(time.Duration(i) * time.Millisecond),
-			SequenceNumber: int64(i), Message: fmt.Sprintf("old %d", i),
+		batch = append(batch, logstore.Row{
+			Scope: logstore.Scope{ClientID: env.scope.ClientID}, Instance: "web",
+			OccurredAt: old.Add(time.Duration(i) * time.Millisecond),
+			Sequence:   int64(i), Message: fmt.Sprintf("old %d", i),
 		})
 	}
 	for i := 0; i < recentCount; i++ {
-		batch = append(batch, store.LogInsert{
-			ClientID: env.clientID, InstanceName: "web",
-			OccurredAt:     recent.Add(time.Duration(i) * time.Millisecond),
-			SequenceNumber: int64(oldCount + i), Message: fmt.Sprintf("new %d", i),
+		batch = append(batch, logstore.Row{
+			Scope: logstore.Scope{ClientID: env.scope.ClientID}, Instance: "web",
+			OccurredAt: recent.Add(time.Duration(i) * time.Millisecond),
+			Sequence:   int64(oldCount + i), Message: fmt.Sprintf("new %d", i),
 		})
 	}
-	_, err := store.InsertLogs(ctx, env.pool, batch)
+	_, err := testutils.InsertLogFixtures(ctx, env.pool, batch)
 	require.NoError(t, err, "insert %d old and %d new logs", oldCount, recentCount)
 
 	result, err := service.Create(ctx, scope)
@@ -149,21 +139,20 @@ func TestArchiveLargeClient(t *testing.T) {
 	for i := range wantKept {
 		wantKept[i] = fmt.Sprintf("new %d", recentCount-1-i)
 	}
-	require.Equal(t, wantKept, remainingMessages(t, ctx, env.pool, env.clientID), "all recent logs remain")
+	require.Equal(t, wantKept, remainingMessages(t, ctx, env.pool, env.scope.ClientID), "all recent logs remain")
 	var older int
 	err = env.pool.QueryRow(ctx,
 		"SELECT count(*) FROM logs WHERE client_id = $1 AND occurred_at < $2",
-		env.clientID, record.CutoffAt,
+		env.scope.ClientID, record.CutoffAt,
 	).Scan(&older)
 	require.NoError(t, err, "count logs older than the archive cutoff")
 	require.Zero(t, older, "no log older than the cutoff remains")
 }
 
 type ingestEnv struct {
-	pool      *pgxpool.Pool
-	logs      *db.PostgresLogService
-	projectID string
-	clientID  uuid.UUID
+	pool  *pgxpool.Pool
+	logs  *logstore.Store
+	scope logstore.Scope
 }
 
 func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
@@ -172,15 +161,15 @@ func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "MassImport", []string{"api"})
 	require.NoError(t, err, "create the import project and client")
 	return ingestEnv{
-		pool: pool, logs: db.NewLogService(pool),
-		projectID: project.ID.String(), clientID: clientByName(t, project, "api"),
+		pool: pool, logs: logstore.New(pool),
+		scope: logstore.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")},
 	}
 }
 
 func ingestLine(env ingestEnv, i int, at time.Time) logstore.Event {
 	return logstore.Event{
-		Key:      logevent.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
-		Scope:    logstore.Scope{ProjectID: uuid.MustParse(env.projectID), ClientID: env.clientID},
+		Key:      logevent.MessageKey("logs."+env.scope.ProjectID.String()+"."+env.scope.ClientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
+		Scope:    env.scope,
 		Instance: "web", OccurredAt: at, Sequence: int64(i), Message: fmt.Sprintf("Log line %d", i),
 	}
 }
@@ -188,32 +177,31 @@ func ingestLine(env ingestEnv, i int, at time.Time) logstore.Event {
 func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines []logstore.Event) {
 	t.Helper()
 	for offset := 0; offset < len(lines); offset += 1000 {
-		_, err := env.logs.CommitLogs(ctx, lines[offset:min(offset+1000, len(lines))])
+		_, err := env.logs.Commit(ctx, lines[offset:min(offset+1000, len(lines))])
 		require.NoError(t, err, "commit all lines through the ingest writer")
 	}
 }
 
-func pageNewestFirst(t *testing.T, ctx context.Context, env ingestEnv, pageSize int64) []logstore.Row {
+func pageNewestFirst(t *testing.T, ctx context.Context, env ingestEnv, pageSize int) []logstore.Row {
 	t.Helper()
-	var cursor *db.LastCursor
+	var cursor *logstore.Cursor
 	var all []logstore.Row
 	seen := make(map[int64]bool)
 	for {
-		page, err := env.logs.GetLogs(ctx, db.LogPageRequest{
-			ProjectId: env.projectID, ClientId: env.clientID.String(),
-			PageSize: pageSize, Cursor: cursor,
+		page, err := env.logs.Page(ctx, logstore.PageQuery{
+			Scope: env.scope, Limit: pageSize, Older: cursor,
 		})
 		require.NoError(t, err, "read the next newest-first page")
-		for _, log := range page.Logs {
+		for _, log := range page.Rows {
 			require.False(t, seen[log.ID], "paging must not repeat log ID %d", log.ID)
 			seen[log.ID] = true
 		}
-		all = append(all, page.Logs...)
-		if int64(len(page.Logs)) < pageSize {
+		all = append(all, page.Rows...)
+		if len(page.Rows) < pageSize {
 			return all
 		}
-		require.NotNil(t, page.BackwardCursor, "a full page provides a cursor for older logs")
-		cursor = page.BackwardCursor
+		require.NotNil(t, page.Older, "a full page provides a cursor for older logs")
+		cursor = page.Older
 	}
 }
 

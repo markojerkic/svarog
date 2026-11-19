@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -42,12 +42,12 @@ func TestCreateArchiveForClient(t *testing.T) {
 	recent := time.Now().UTC().Truncate(time.Microsecond)
 
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a one-week archive policy")
-	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{
-		{ClientID: apiID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "old-a"},
-		{ClientID: apiID, InstanceName: "worker", OccurredAt: old.Add(500 * time.Millisecond), SequenceNumber: 1, Message: "old-worker"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: old.Add(time.Second), SequenceNumber: 2, Message: "old-b"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: recent, SequenceNumber: 3, Message: "recent"},
-		{ClientID: workerID, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "other-client"},
+	_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "old-a"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "worker", OccurredAt: old.Add(500 * time.Millisecond), Sequence: 1, Message: "old-worker"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: old.Add(time.Second), Sequence: 2, Message: "old-b"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: recent, Sequence: 3, Message: "recent"},
+		{Scope: logstore.Scope{ClientID: workerID}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "other-client"},
 	})
 	require.NoError(t, err, "insert logs around the archive cutoff")
 
@@ -120,18 +120,18 @@ func TestCreateArchiveForClient(t *testing.T) {
 		require.NoError(t, err, "clear the tie client's earlier log")
 		tieScope := archive.Scope{ProjectID: project.ID, ClientID: tieClient}
 		require.NoError(t, service.SetPolicy(ctx, tieScope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "create a policy for the tie client")
-		batch := make([]store.LogInsert, 0, 5001)
+		batch := make([]logstore.Row, 0, 5001)
 		for i := 1; i <= 4999; i++ {
-			batch = append(batch, store.LogInsert{
-				ClientID: tieClient, InstanceName: "web", OccurredAt: old.Add(time.Duration(i) * time.Second),
-				SequenceNumber: int64(i), Message: "filler",
+			batch = append(batch, logstore.Row{
+				Scope: logstore.Scope{ClientID: tieClient}, Instance: "web", OccurredAt: old.Add(time.Duration(i) * time.Second),
+				Sequence: int64(i), Message: "filler",
 			})
 		}
 		batch = append(batch,
-			store.LogInsert{ClientID: tieClient, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "tie-low"},
-			store.LogInsert{ClientID: tieClient, InstanceName: "web", OccurredAt: old, SequenceNumber: 1, Message: "tie-high"},
+			logstore.Row{Scope: logstore.Scope{ClientID: tieClient}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "tie-low"},
+			logstore.Row{Scope: logstore.Scope{ClientID: tieClient}, Instance: "web", OccurredAt: old, Sequence: 1, Message: "tie-high"},
 		)
-		_, err = store.InsertLogs(ctx, pool, batch)
+		_, err = testutils.InsertLogFixtures(ctx, pool, batch)
 		require.NoError(t, err, "insert a page of logs with a tied oldest pair")
 		tied, err := service.Create(ctx, tieScope)
 		require.NoError(t, err, "archive across a page boundary")
@@ -252,8 +252,8 @@ func newArchiveFixture(t *testing.T, ctx context.Context, name string) (*pgxpool
 
 func insertArchiveLog(t *testing.T, ctx context.Context, pool *pgxpool.Pool, scope archive.Scope, message string) {
 	t.Helper()
-	_, err := store.InsertLogs(ctx, pool, []store.LogInsert{{
-		ClientID: scope.ClientID, InstanceName: "web", OccurredAt: time.Now().UTC().Add(-14 * 24 * time.Hour), SequenceNumber: 1, Message: message,
+	_, err := testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{
+		Scope: logstore.Scope{ClientID: scope.ClientID}, Instance: "web", OccurredAt: time.Now().UTC().Add(-14 * 24 * time.Hour), Sequence: 1, Message: message,
 	}})
 	require.NoError(t, err, "insert the old log %q", message)
 }
