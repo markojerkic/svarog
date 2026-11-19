@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,10 +22,5 @@ public class SvarogDemoApplication {
     public String hello() {
         LOGGER.info("Handled GET /hello in the Svarog Spring Boot demo");
         return "Hello from the Svarog Spring Boot demo!";
-    }
-
-    @Scheduled(fixedRateString = "${demo.interval:1s}")
-    public void logHeartbeat() {
-        LOGGER.info("Spring Boot demo heartbeat");
     }
 }

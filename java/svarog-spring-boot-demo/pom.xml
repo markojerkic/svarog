@@ -27,6 +27,11 @@
       <artifactId>svarog-spring-boot-starter</artifactId>
       <version>0.0.2</version>
     </dependency>
+    <dependency>
+      <groupId>net.datafaker</groupId>
+      <artifactId>datafaker</artifactId>
+      <version>2.7.0</version>
+    </dependency>
   </dependencies>
 
   <build>

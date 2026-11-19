@@ -235,10 +235,14 @@ cp .env.log-demo.example .env.log-demo   # then fill in the connection URLs
 docker compose -f docker-compose.log-demo.yml up -d --build
 ```
 
-The `demo-spring-boot` service sends one INFO heartbeat through the Svarog
-Spring Boot starter every `DEMO_INTERVAL` per replica. Compose runs it in
-Spring Boot's non-web mode so replicas can share the host network.
-Use milliseconds for fractional seconds, for example `1500ms`.
+The `demo-spring-boot` service simulates one order every `DEMO_INTERVAL` per
+replica and forwards its logs through the Svarog Spring Boot starter. Datafaker
+generates product names. Logs share an `orderId` and show successful orders,
+out-of-stock rejections, and payment timeouts with one retry. If both payment
+attempts time out, the order logs an error with a stack trace. The demo does
+not call a real payment service. Compose runs it in Spring Boot's non-web mode
+so replicas can share the host network. Use milliseconds for fractional
+seconds, for example `1500ms`.
 
 Integration examples:
 
