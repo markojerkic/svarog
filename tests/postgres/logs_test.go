@@ -19,7 +19,7 @@ func TestCommitLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
+	projectService := projects.NewPostgresProjectsService(pool, nil)
 	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "Idempotent", Clients: []string{"api", "retired"}})
 	require.NoError(t, err, "create a client for idempotent log writes")
 	clientID := clientByName(t, project, "api")

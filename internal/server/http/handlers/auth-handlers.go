@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,175 +20,25 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/markojerkic/svarog/internal/server/ui/pages/admin"
-	authpages "github.com/markojerkic/svarog/internal/server/ui/pages/auth"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
+type userAdminService interface {
+	GetUserByID(context.Context, string) (auth.User, error)
+	GetUserPage(context.Context, auth.PageQuery) ([]auth.User, int64, error)
+	CreateUser(context.Context, auth.UserInput) (auth.User, string, error)
+	UpdateUser(context.Context, uuid.UUID, auth.UserInput) (auth.User, error)
+	DeleteUser(context.Context, string) error
+	GenerateLoginToken(context.Context, string) (string, error)
+}
+
+type assignedProjects interface {
+	ByIDs(context.Context, []string) ([]projects.Project, error)
+}
+
 type AuthRouter struct {
-	authService     auth.AuthService
-	projectsService projects.ProjectsService
-}
-
-func loginRedirect(target string) string {
-	u, err := url.Parse(target)
-	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil {
-		return "/"
-	}
-	if !strings.HasPrefix(target, "/") || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") || strings.Contains(u.Path, "\\") {
-		return "/"
-	}
-	return target
-}
-
-func (a *AuthRouter) login(c *echo.Context) error {
-	var loginForm forms.LoginForm
-	bindErr := c.Bind(&loginForm)
-	redirect := loginForm.Redirect
-	if redirect == "" {
-		redirect = c.QueryParam("redirect")
-	}
-	redirect = loginRedirect(redirect)
-	if bindErr != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(authpages.LoginPageProps{
-			Error:    i18n.T(c.Request().Context(), "auth.invalid_form"),
-			Username: loginForm.Username,
-			Password: loginForm.Password,
-			Redirect: redirect,
-		}))
-	}
-	if err := utils.Validate(c, &loginForm); err != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.LoginPage(
-			authpages.LoginPageProps{
-				Error:    i18n.T(c.Request().Context(), "auth.credentials_required"),
-				Username: loginForm.Username,
-				Password: loginForm.Password,
-				Redirect: redirect,
-			},
-		))
-	}
-
-	err := a.authService.Login(c, loginForm.Username, loginForm.Password)
-	if err != nil {
-		return utils.Render(c, http.StatusUnauthorized, authpages.LoginPage(
-			authpages.LoginPageProps{
-				Error:    i18n.T(c.Request().Context(), "auth.invalid_credentials"),
-				Username: loginForm.Username,
-				Password: loginForm.Password,
-				Redirect: redirect,
-			},
-		))
-	}
-
-	return utils.HxRedirect(c, redirect)
-}
-
-func (a *AuthRouter) loginWithToken(c *echo.Context) error {
-	var loginForm forms.LoginFormWithToken
-	if err := c.Bind(&loginForm); err != nil {
-		return c.JSON(400, err)
-	}
-	if err := utils.Validate(c, &loginForm); err != nil {
-		return err
-	}
-
-	err := a.authService.LoginWithToken(c, loginForm.Token)
-	if err != nil {
-		htmx.AddErrorToast(c, i18n.T(c.Request().Context(), "auth.token_invalid"))
-		return redirectAfterTokenLogin(c, "/login")
-	}
-
-	htmx.AddSuccessToast(c, i18n.T(c.Request().Context(), "auth.logged_in"))
-	return redirectAfterTokenLogin(c, "/reset-password")
-}
-
-// A 307 would replay POST /login/token onto the next page. HTMX keeps the
-// existing toast plus HX-Redirect response.
-func redirectAfterTokenLogin(c *echo.Context, target string) error {
-	if htmx.IsHXRequest(c) {
-		return htmx.Redirect(c, target)
-	}
-	return c.Redirect(http.StatusSeeOther, target)
-}
-
-// Preview clients fetch the login link before the user opens it. Rendering a
-// confirmation form keeps that GET from spending the single-use token.
-func (a *AuthRouter) loginTokenPage(c *echo.Context) error {
-	header := c.Response().Header()
-	header.Set("Cache-Control", "private, no-store")
-	header.Set("Referrer-Policy", "no-referrer")
-	return utils.Render(c, http.StatusOK, authpages.LoginTokenPage(authpages.LoginTokenPageProps{
-		Token: c.QueryParam("token"),
-	}))
-}
-
-func (a *AuthRouter) loginPage(c *echo.Context) error {
-	return utils.Render(c, http.StatusOK, authpages.LoginPage(authpages.LoginPageProps{
-		Redirect: loginRedirect(c.QueryParam("redirect")),
-	}))
-}
-
-func (a *AuthRouter) resetPasswordPage(c *echo.Context) error {
-	redirect := c.QueryParam("redirect")
-	return utils.Render(c, http.StatusOK, authpages.ResetPasswordPage(authpages.ResetPasswordPageProps{
-		Redirect: redirect,
-	}))
-}
-
-func (a *AuthRouter) resetPassword(c *echo.Context) error {
-	var resetPasswordForm forms.ResetPasswordForm
-	if err := c.Bind(&resetPasswordForm); err != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.invalid_form")))
-	}
-	if err := utils.Validate(c, &resetPasswordForm); err != nil {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.password_too_short")))
-	}
-
-	if resetPasswordForm.Password != resetPasswordForm.RepeatedPassword {
-		return utils.Render(c, http.StatusBadRequest, authpages.ResetPasswordError(i18n.T(c.Request().Context(), "auth.passwords_mismatch")))
-	}
-	user, err := a.authService.GetCurrentUser(c)
-	if err != nil {
-		// Preserve the form error when a submitted password is invalid and the session lookup fails.
-		if err := auth.ValidateNewPassword(resetPasswordForm.Password); err != nil {
-			return resetPasswordError(c, err)
-		}
-		return htmx.Redirect(c, "/login")
-	}
-
-	err = a.authService.ResetPassword(c.Request().Context(), user.ID, resetPasswordForm.Password)
-	if err != nil {
-		return resetPasswordError(c, err)
-	}
-
-	redirect := c.FormValue("redirect")
-	if redirect != "" {
-		return utils.HxRedirect(c, redirect)
-	}
-	return utils.HxRedirect(c, "/")
-}
-
-func resetPasswordError(c *echo.Context, err error) error {
-	status := http.StatusBadRequest
-	var key string
-	switch {
-	case errors.Is(err, auth.ErrPasswordBlank):
-		key = "auth.password_blank"
-	case errors.Is(err, auth.ErrPasswordTooLong):
-		key = "auth.password_too_short"
-	default:
-		slog.Error("Error resetting password", "error", err)
-		status = http.StatusInternalServerError
-		key = "auth.reset_failed"
-	}
-	return utils.Render(c, status, authpages.ResetPasswordError(i18n.T(c.Request().Context(), key)))
-}
-
-func (a *AuthRouter) logout(c *echo.Context) error {
-	err := a.authService.Logout(c)
-	if err != nil {
-		return c.JSON(500, forms.ApiError{Message: i18n.T(c.Request().Context(), "auth.logout_failed")})
-	}
-	return htmx.Redirect(c, "/login")
+	authService     userAdminService
+	projectsService assignedProjects
 }
 
 func (a *AuthRouter) getUsersPage(c *echo.Context) error {
@@ -390,11 +241,9 @@ func loginLinkURL(c *echo.Context, token string) string {
 	return requestScheme(c) + "://" + c.Request().Host + "/login?token=" + url.QueryEscape(token)
 }
 
-func NewAuthRouter(authService auth.AuthService,
-	projectsService projects.ProjectsService,
-	adminGroup *echo.Group,
-	privateGroup *echo.Group,
-	publicGroup *echo.Group) *AuthRouter {
+func NewAuthRouter(authService userAdminService,
+	projectsService assignedProjects,
+	adminGroup *echo.Group) *AuthRouter {
 	router := &AuthRouter{authService: authService, projectsService: projectsService}
 
 	if router.authService == nil {
@@ -406,19 +255,6 @@ func NewAuthRouter(authService auth.AuthService,
 	adminGroup.POST("/users", router.createOrUpdateUser)
 	adminGroup.DELETE("/users/:id", router.deleteUser)
 	adminGroup.POST("/users/generate-login-token", router.generateLoginToken)
-
-	privateGroup.GET("/logout", router.logout)
-	privateGroup.GET("/reset-password", router.resetPasswordPage)
-	privateGroup.POST("/reset-password", router.resetPassword)
-
-	publicGroup.GET("/login", func(c *echo.Context) error {
-		if c.QueryParams().Has("token") {
-			return router.loginTokenPage(c)
-		}
-		return router.loginPage(c)
-	})
-	publicGroup.POST("/login", router.login)
-	publicGroup.POST("/login/token", router.loginWithToken)
 
 	return router
 }

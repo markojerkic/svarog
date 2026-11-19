@@ -15,7 +15,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
@@ -39,8 +38,8 @@ type archiveSettingsForm struct {
 func NewArchiveRouter(
 	archiver archive.Archiver,
 	schedulerEnabled bool,
-	authService auth.AuthService,
-	projectsService projects.ProjectsService,
+	authService middleware.ProjectAccessChecker,
+	projectsService middleware.ClientOwnershipChecker,
 	e *echo.Group,
 ) *ArchiveRouter {
 	router := &ArchiveRouter{archiver: archiver, schedulerEnabled: schedulerEnabled}

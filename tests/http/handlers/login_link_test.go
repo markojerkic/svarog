@@ -17,7 +17,6 @@ import (
 )
 
 type loginLinkAuthStub struct {
-	auth.AuthService
 	tokenLogins    []string
 	passwordLogins []string
 	tokenErr       error
@@ -33,11 +32,11 @@ func (s *loginLinkAuthStub) LoginWithToken(_ *echo.Context, token string) error 
 	return s.tokenErr
 }
 
-func newLoginLinkServer(service auth.AuthService) *echo.Echo {
+func newLoginLinkServer(service *loginLinkAuthStub) *echo.Echo {
 	e := echo.New()
 	e.Validator = serverhttp.NewValidator()
 	e.Use(middleware.LanguageMiddleware)
-	handlers.NewAuthRouter(service, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.RegisterLogin(service, e.Group(""))
 	return e
 }
 

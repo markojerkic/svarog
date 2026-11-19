@@ -18,7 +18,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
@@ -32,7 +31,6 @@ func (assignmentValidator) Validate(value interface{}) error {
 }
 
 type assignmentProjectsStub struct {
-	projects.ProjectsService
 	all         []projects.Project
 	loadedIDs   []string
 	lookupCalls int
@@ -70,7 +68,6 @@ func (s *assignmentProjectsStub) Page(_ context.Context, request projects.PageQu
 }
 
 type assignmentAuthStub struct {
-	auth.AuthService
 	user      auth.User
 	submitted auth.UserInput
 }
@@ -161,7 +158,7 @@ func TestProjectAssignmentSearchPreservesSelectionsAcrossSearchAndPagination(t *
 	}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+	handlers.NewProjectsRouter(projectRoutesStub{byIDs: p.ByIDs, page: p.Page}, nil, e.Group("/admin"))
 	selectedIDs := []string{
 		alreadyAssigned.ID.String(),
 		outsideSearch.ID.String(),
@@ -248,7 +245,7 @@ func TestProjectAssignmentSearchRejectsInvalidSelectedIDsBeforeQueries(t *testin
 			p := &assignmentProjectsStub{}
 			e := echo.New()
 			e.Validator = assignmentValidator{}
-			handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+			handlers.NewProjectsRouter(projectRoutesStub{byIDs: p.ByIDs, page: p.Page}, nil, e.Group("/admin"))
 			rec := httptest.NewRecorder()
 
 			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/projects/search?projects="+url.QueryEscape(id), nil))
@@ -275,7 +272,7 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 	}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewAuthRouter(a, p, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.NewAuthRouter(userRoutesStub{get: a.GetUserByID, create: a.CreateUser, update: a.UpdateUser}, p, e.Group("/admin"))
 	edit := httptest.NewRecorder()
 
 	e.ServeHTTP(edit, httptest.NewRequest(http.MethodGet, "/admin/users/"+a.user.ID.String()+"/edit", nil))

@@ -35,7 +35,7 @@ type BaseSuite struct {
 
 	// Services
 	NatsCredsService *serverauth.NatsCredentialService
-	ProjectsService  projects.ProjectsService
+	ProjectsService  *projects.PostgresProjectsService
 
 	// WebSocket
 	LiveLogs *live.Logs
@@ -86,7 +86,7 @@ func (s *BaseSuite) SetupSuite() {
 	util.SetupLogger(log.DebugLevel)
 
 	s.PostgresPool = NewPostgresPool(s.T(), ctx)
-	s.ProjectsService = projects.NewPostgresProjectsService(s.PostgresPool)
+	s.ProjectsService = projects.NewPostgresProjectsService(s.PostgresPool, nil)
 
 	if err := s.setupNats(ctx); err != nil {
 		s.T().Fatalf("failed to start NATS: %v", err)

@@ -1,18 +1,26 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 )
 
-func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsService projects.ProjectsService) echo.MiddlewareFunc {
+type ProjectAccessChecker interface {
+	UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error)
+}
+
+type ClientOwnershipChecker interface {
+	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
+}
+
+func RequiresProjectAccessMiddleware(authService ProjectAccessChecker, projectsService ClientOwnershipChecker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)

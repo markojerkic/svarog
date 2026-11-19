@@ -19,24 +19,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type AuthService interface {
-	Login(ctx *echo.Context, username string, password string) error
-	LoginWithToken(ctx *echo.Context, token string) error
-	Logout(ctx *echo.Context) error
-	ResetPassword(ctx context.Context, userId string, password string) error
-	GenerateLoginToken(ctx context.Context, userId string) (string, error)
-	DeleteUser(ctx context.Context, id string) error
-	GetCurrentUser(ctx *echo.Context) (LoggedInUser, error)
-	GetUserByID(ctx context.Context, id string) (User, error)
-	GetUserByUsername(ctx context.Context, username string) (User, error)
-	GetUserPage(ctx context.Context, query PageQuery) ([]User, int64, error)
-
-	CreateUser(ctx context.Context, input UserInput) (User, string, error)
-	UpdateUser(ctx context.Context, id uuid.UUID, input UserInput) (User, error)
-	UserHasAccessToProject(ctx context.Context, userId, projectId string) (bool, error)
-	GetProjectIDsForUser(ctx context.Context, userId string) ([]string, error)
-}
-
 const SVAROG_SESSION = "svarog_session"
 const loginTokenDuration = 24 * time.Hour
 
@@ -55,8 +37,6 @@ type PostgresAuthService struct {
 	queries      *sqlc.Queries
 	sessionStore *PostgresSessionStore
 }
-
-var _ AuthService = (*PostgresAuthService)(nil)
 
 func NewPostgresAuthService(pool *pgxpool.Pool, sessionStore *PostgresSessionStore) *PostgresAuthService {
 	return &PostgresAuthService{pool: pool, queries: sqlc.New(pool), sessionStore: sessionStore}

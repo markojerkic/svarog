@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 	gorillaWs "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
-	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/live"
@@ -151,7 +149,7 @@ func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	return nil
 }
 
-func NewWsConnectionRouter(liveLogs *live.Logs, authService auth.AuthService, projectsService projects.ProjectsService, parentRouter *echo.Group) *WsRouter {
+func NewWsConnectionRouter(liveLogs *live.Logs, authService middleware.ProjectAccessChecker, projectsService middleware.ClientOwnershipChecker, parentRouter *echo.Group) *WsRouter {
 	api := parentRouter.Group("/ws", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 	router := &WsRouter{
 		liveLogs:     liveLogs,

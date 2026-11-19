@@ -232,8 +232,7 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	require.NoError(t, err, "reload the project after deactivating a client")
 	assert.True(t, loaded.HasRetainedClients, "inactive clients still count as retained history")
 
-	service := projects.NewPostgresProjectsService(p.PostgresPool)
-	service.SetArchiveStore(disk)
+	service := projects.NewPostgresProjectsService(p.PostgresPool, disk)
 	for _, confirmation := range []string{"", "another-project", "DELETE-WITH-HISTORY"} {
 		require.ErrorIs(t, service.Delete(ctx, project.ID.String(), confirmation), projects.ErrConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
 	}

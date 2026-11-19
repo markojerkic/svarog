@@ -16,7 +16,7 @@ func TestArchivePolicies(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectsService := projects.NewPostgresProjectsService(pool)
+	projectsService := projects.NewPostgresProjectsService(pool, nil)
 	project, err := projectsService.Create(ctx, projects.ProjectInput{Name: "ArchivePolicies", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create project and clients for archive policies")
 	other, err := projectsService.Create(ctx, projects.ProjectInput{Name: "ArchivePoliciesOther", Clients: []string{"api"}})

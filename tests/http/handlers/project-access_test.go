@@ -13,7 +13,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/logstore"
@@ -26,7 +25,6 @@ const (
 )
 
 type projectAccessAuthStub struct {
-	auth.AuthService
 	allowed bool
 	err     error
 	calls   int
@@ -41,7 +39,6 @@ func (s *projectAccessAuthStub) UserHasAccessToProject(_ context.Context, userID
 }
 
 type projectAccessProjectsStub struct {
-	projects.ProjectsService
 	belongs       bool
 	err           error
 	calls         int
@@ -187,10 +184,7 @@ func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 					e := echo.New()
 					group := loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: role})
 					a := &projectAccessAuthStub{allowed: deniedByOwnership}
-					var p projects.ProjectsService
-					if deniedByOwnership {
-						p = &projectAccessProjectsStub{belongs: false}
-					}
+					p := &projectAccessProjectsStub{}
 					// Nil log/hub dependencies prove neither is reached for either denial reason.
 					handlers.NewLogsRouter(nil, a, p, group)
 					handlers.NewWsConnectionRouter(nil, a, p, group)
@@ -284,7 +278,7 @@ func TestHomepageLoadsOnlyVisibleProjects(t *testing.T) {
 func TestDeleteProjectWithClientsReturnsConflict(t *testing.T) {
 	e := echo.New()
 	p := &projectAccessProjectsStub{deleteErr: projects.ErrHasClients}
-	handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+	handlers.NewProjectsRouter(projectRoutesStub{deleteProject: p.Delete}, nil, e.Group("/admin"))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/projects/"+projectID, nil))
 	require.Equal(t, http.StatusConflict, rec.Code, "Projects with historical clients must return conflict, not internal server error")

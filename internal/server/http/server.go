@@ -20,8 +20,8 @@ import (
 type HttpServer struct {
 	logReader               handlers.LogReader
 	sessionStore            sessions.Store
-	authService             auth.AuthService
-	projectsService         projects.ProjectsService
+	authService             *auth.PostgresAuthService
+	projectsService         *projects.PostgresProjectsService
 	archiver                archive.Archiver
 	archiveSchedulerEnabled bool
 	natsCredentialService   *serverauth.NatsCredentialService
@@ -33,8 +33,8 @@ type HttpServer struct {
 type HttpServerOptions struct {
 	LogReader               handlers.LogReader
 	SessionStore            sessions.Store
-	AuthService             auth.AuthService
-	ProjectsService         projects.ProjectsService
+	AuthService             *auth.PostgresAuthService
+	ProjectsService         *projects.PostgresProjectsService
 	Archiver                archive.Archiver
 	ArchiveSchedulerEnabled bool
 	NatsCredentialService   *serverauth.NatsCredentialService
@@ -64,10 +64,13 @@ func (self *HttpServer) Start() error {
 
 	handlers.NewLanguageRouter(publicApi)
 	handlers.NewHomeHandler(privateApi, self.projectsService)
-	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
+	handlers.NewProjectsRouter(self.projectsService, self.natsCredentialService, adminApi)
 	handlers.NewLogsRouter(self.logReader, self.authService, self.projectsService, privateApi)
 	handlers.NewArchiveRouter(self.archiver, self.archiveSchedulerEnabled, self.authService, self.projectsService, privateApi)
-	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
+	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi)
+	handlers.RegisterLogout(self.authService, privateApi)
+	handlers.RegisterPasswordReset(self.authService, privateApi)
+	handlers.RegisterLogin(self.authService, publicApi)
 	handlers.NewWsConnectionRouter(self.liveLogs, self.authService, self.projectsService, privateApi)
 
 	e.Static("/assets", "internal/server/ui/assets", customMiddleware.AssetsCacheMiddleware)

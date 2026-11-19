@@ -90,7 +90,7 @@ func TestProjectPersistence(t *testing.T) {
 		require.NoError(t, err, "fetch remaining project page")
 		require.Equal(t, all, append(first, rest...), "pagination preserves ordering without omissions or duplicates")
 
-		projectService := projects.NewPostgresProjectsService(pool)
+		projectService := projects.NewPostgresProjectsService(pool, nil)
 		pageQuery, err := projects.NewPageQuery("", math.MaxInt32+1, 1)
 		require.NoError(t, err, "construct project page with an offset beyond int32")
 		largePage, count, err := projectService.Page(ctx, pageQuery)

@@ -19,20 +19,6 @@ type ArchiveContentDeleter interface {
 	Delete(ctx context.Context, key string) error
 }
 
-type ProjectsService interface {
-	Create(ctx context.Context, input ProjectInput) (Project, error)
-	Update(ctx context.Context, id uuid.UUID, input ProjectInput) (Project, error)
-
-	Get(ctx context.Context, id string) (Project, error)
-	All(ctx context.Context) ([]Project, error)
-	ByIDs(ctx context.Context, ids []string) ([]Project, error)
-	Page(ctx context.Context, query PageQuery) ([]Project, int64, error)
-
-	Delete(ctx context.Context, id, confirmationName string) error
-	ProjectExists(ctx context.Context, projectID, clientID string) bool
-	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
-}
-
 type PostgresProjectsService struct {
 	pool     *pgxpool.Pool
 	queries  *sqlc.Queries
@@ -47,16 +33,9 @@ var (
 	ErrConfirmationRequired = errors.New("project deletion requires its exact current name")
 )
 
-var _ ProjectsService = (*PostgresProjectsService)(nil)
-
-func NewPostgresProjectsService(pool *pgxpool.Pool) *PostgresProjectsService {
-	return &PostgresProjectsService{pool: pool, queries: sqlc.New(pool)}
-}
-
-// SetArchiveStore wires the store that holds ZIP content. Without it, a project
-// that has archive rows cannot be deleted, because the files would be left behind.
-func (p *PostgresProjectsService) SetArchiveStore(store ArchiveContentDeleter) {
-	p.archives = store
+// NewPostgresProjectsService uses archives to remove retained ZIPs after deletion.
+func NewPostgresProjectsService(pool *pgxpool.Pool, archives ArchiveContentDeleter) *PostgresProjectsService {
+	return &PostgresProjectsService{pool: pool, queries: sqlc.New(pool), archives: archives}
 }
 
 func (p *PostgresProjectsService) Create(ctx context.Context, input ProjectInput) (Project, error) {

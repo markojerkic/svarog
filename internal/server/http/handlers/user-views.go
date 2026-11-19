@@ -87,7 +87,7 @@ func (a *AuthRouter) userProjectOptions(c *echo.Context, ids forms.CommaSeparate
 			validIDs = append(validIDs, value)
 		}
 	}
-	if len(validIDs) == 0 || a.projectsService == nil {
+	if len(validIDs) == 0 {
 		return options, nil
 	}
 	projects, err := a.projectsService.ByIDs(c.Request().Context(), validIDs)

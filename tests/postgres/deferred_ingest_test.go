@@ -158,7 +158,7 @@ type ingestEnv struct {
 func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 	t.Helper()
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).Create(ctx, projects.ProjectInput{Name: "MassImport", Clients: []string{"api"}})
+	project, err := projects.NewPostgresProjectsService(pool, nil).Create(ctx, projects.ProjectInput{Name: "MassImport", Clients: []string{"api"}})
 	require.NoError(t, err, "create the import project and client")
 	return ingestEnv{
 		pool: pool, logs: logstore.New(pool),

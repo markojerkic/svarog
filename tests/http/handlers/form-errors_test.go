@@ -13,14 +13,13 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/stretchr/testify/require"
 )
 
-type invalidAssignmentAuthStub struct{ auth.AuthService }
+type invalidAssignmentAuthStub struct{}
 
 func (invalidAssignmentAuthStub) CreateUser(context.Context, auth.UserInput) (auth.User, string, error) {
 	return auth.User{}, "", auth.ErrProjectSelectionMissing
@@ -30,7 +29,7 @@ func (invalidAssignmentAuthStub) UpdateUser(context.Context, uuid.UUID, auth.Use
 	return auth.User{}, auth.ErrProjectSelectionMissing
 }
 
-type invalidProjectFormStub struct{ projects.ProjectsService }
+type invalidProjectFormStub struct{}
 
 func (invalidProjectFormStub) Create(context.Context, projects.ProjectInput) (projects.Project, error) {
 	return projects.Project{}, &validation.Error{Key: "validation.failed", Fields: map[string]validation.Violation{"clients": {Key: "projects.clients_blank"}}}
@@ -49,7 +48,8 @@ func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
 		t.Run(formID, func(t *testing.T) {
 			e := echo.New()
 			e.Validator = assignmentValidator{}
-			handlers.NewAuthRouter(invalidAssignmentAuthStub{}, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+			stub := invalidAssignmentAuthStub{}
+			handlers.NewAuthRouter(userRoutesStub{create: stub.CreateUser, update: stub.UpdateUser}, &assignmentProjectsStub{}, e.Group("/admin"))
 			projectID := uuid.NewString()
 			form := url.Values{"id": {id}, "username": {"username"}, "firstName": {"First"}, "lastName": {"Last"}, "role": {"user"}, "projects": {projectID}}
 			req := httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(form.Encode()))
@@ -67,7 +67,7 @@ func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {
 		e := echo.New()
 		e.Validator = assignmentValidator{}
 		service := auth.NewPostgresAuthService(nil, nil)
-		handlers.NewAuthRouter(service, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+		handlers.NewAuthRouter(service, &assignmentProjectsStub{}, e.Group("/admin"))
 		form := url.Values{"id": {"not-a-uuid"}, "username": {"username"}, "firstName": {"First"}, "lastName": {"Last"}, "role": {"user"}, "projects": {"also-not-a-uuid"}}
 		req := httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(form.Encode()))
 		req = req.WithContext(i18n.WithLanguage(req.Context(), i18n.Croatian))
@@ -89,7 +89,8 @@ func TestProjectClientErrorsPreserveFormIdentity(t *testing.T) {
 		t.Run(formID, func(t *testing.T) {
 			e := echo.New()
 			e.Validator = assignmentValidator{}
-			handlers.NewProjectsRouter(invalidProjectFormStub{}, serverauth.NatsCredentialService{}, e.Group("/admin"))
+			stub := invalidProjectFormStub{}
+			handlers.NewProjectsRouter(projectRoutesStub{create: stub.Create, update: stub.Update}, nil, e.Group("/admin"))
 			form := url.Values{"id": {id}, "name": {"Project"}, "clients": {" "}}
 			req := httptest.NewRequest(http.MethodPost, "/admin/projects", strings.NewReader(form.Encode()))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)

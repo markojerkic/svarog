@@ -11,7 +11,11 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 )
 
-func AuthContextMiddleware(authService auth.AuthService) echo.MiddlewareFunc {
+type CurrentUserReader interface {
+	GetCurrentUser(*echo.Context) (auth.LoggedInUser, error)
+}
+
+func AuthContextMiddleware(authService CurrentUserReader) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			user, err := authService.GetCurrentUser(c)

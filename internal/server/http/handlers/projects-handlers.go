@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,9 +21,18 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
+type projectAdminService interface {
+	assignedProjects
+	Create(context.Context, projects.ProjectInput) (projects.Project, error)
+	Update(context.Context, uuid.UUID, projects.ProjectInput) (projects.Project, error)
+	Get(context.Context, string) (projects.Project, error)
+	Page(context.Context, projects.PageQuery) ([]projects.Project, int64, error)
+	Delete(ctx context.Context, id, confirmationName string) error
+}
+
 type ProjectsRouter struct {
-	projectsService  projects.ProjectsService
-	natsCredsService serverauth.NatsCredentialService
+	projectsService  projectAdminService
+	natsCredsService *serverauth.NatsCredentialService
 }
 
 func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
@@ -380,8 +390,8 @@ func (p *ProjectsRouter) renderConnectionStringFormError(c *echo.Context, projec
 }
 
 func NewProjectsRouter(
-	projectsService projects.ProjectsService,
-	natsCredsService serverauth.NatsCredentialService,
+	projectsService projectAdminService,
+	natsCredsService *serverauth.NatsCredentialService,
 	e *echo.Group,
 ) *ProjectsRouter {
 	router := &ProjectsRouter{projectsService, natsCredsService}

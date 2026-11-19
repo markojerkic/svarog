@@ -7,11 +7,16 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/forms"
-	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 )
+
+type existingProject struct{}
+
+func (existingProject) ProjectExists(context.Context, string, string) bool {
+	return true
+}
 
 func TestCredentialExpiry(t *testing.T) {
 	service := newCredentialService(t)
@@ -80,7 +85,7 @@ func newCredentialService(t *testing.T) *serverauth.NatsCredentialService {
 	require.NoError(t, err, "a test account key must be created without a NATS server")
 	seed, err := account.Seed()
 	require.NoError(t, err, "a test account seed must be readable")
-	service, err := serverauth.NewNatsCredentialService(string(seed), "nats.example:4222", &testutils.NoopProjectService{})
+	service, err := serverauth.NewNatsCredentialService(string(seed), "nats.example:4222", existingProject{})
 	require.NoError(t, err, "credential generation must be constructible without a running NATS server")
 	return service
 }

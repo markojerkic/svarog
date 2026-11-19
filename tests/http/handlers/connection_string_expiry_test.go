@@ -17,13 +17,11 @@ import (
 	serverhttp "github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 )
 
 type connStringProjectStub struct {
-	projects.ProjectsService
 	project projects.Project
 }
 
@@ -53,7 +51,7 @@ func TestPastConnectionStringExpiryIsAFieldError(t *testing.T) {
 		t.Run(string(lang.language), func(t *testing.T) {
 			e := echo.New()
 			e.Validator = serverhttp.NewValidator()
-			handlers.NewProjectsRouter(service, *newHandlerCredentialService(t), e.Group("/admin"))
+			handlers.NewProjectsRouter(projectRoutesStub{get: service.Get}, newHandlerCredentialService(t), e.Group("/admin"))
 
 			form := url.Values{
 				"projectId": {projectID.String()},
@@ -82,13 +80,19 @@ func TestPastConnectionStringExpiryIsAFieldError(t *testing.T) {
 	}
 }
 
+type credentialProjectExists struct{}
+
+func (credentialProjectExists) ProjectExists(context.Context, string, string) bool {
+	return true
+}
+
 func newHandlerCredentialService(t *testing.T) *serverauth.NatsCredentialService {
 	t.Helper()
 	account, err := nkeys.CreateAccount()
 	require.NoError(t, err, "a test account key must be created without a NATS server")
 	seed, err := account.Seed()
 	require.NoError(t, err, "a test account seed must be readable")
-	service, err := serverauth.NewNatsCredentialService(string(seed), "nats.example:4222", &testutils.NoopProjectService{})
+	service, err := serverauth.NewNatsCredentialService(string(seed), "nats.example:4222", credentialProjectExists{})
 	require.NoError(t, err, "credential generation must be constructible without a running NATS server")
 	return service
 }

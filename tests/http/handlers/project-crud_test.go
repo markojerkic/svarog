@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/i18n"
@@ -19,7 +18,6 @@ import (
 )
 
 type projectCRUDStub struct {
-	projects.ProjectsService
 	saved         projects.Project
 	rows          []projects.Project
 	count         int64
@@ -31,7 +29,7 @@ type projectCRUDStub struct {
 
 func (s *projectCRUDStub) Create(ctx context.Context, input projects.ProjectInput) (projects.Project, error) {
 	if s.validateInput {
-		return projects.NewPostgresProjectsService(nil).Create(ctx, input)
+		return projects.NewPostgresProjectsService(nil, nil).Create(ctx, input)
 	}
 	s.writeCalls++
 	return s.saved, s.saveError
@@ -59,7 +57,7 @@ func projectCRUDRequest(t *testing.T, service *projectCRUDStub, method, path, vi
 	t.Helper()
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewProjectsRouter(service, serverauth.NatsCredentialService{}, e.Group("/admin"))
+	handlers.NewProjectsRouter(projectRoutesStub{create: service.Create, update: service.Update, page: service.Page, deleteProject: service.Delete}, nil, e.Group("/admin"))
 	req := httptest.NewRequest(method, path, strings.NewReader(form.Encode()))
 	req = req.WithContext(i18n.WithLanguage(req.Context(), i18n.Croatian))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)

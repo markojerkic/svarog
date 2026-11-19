@@ -8,14 +8,12 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	serverhttp "github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/stretchr/testify/require"
 )
 
 type paginationProjectsStub struct {
-	projects.ProjectsService
 	pageCalls int
 }
 
@@ -31,7 +29,7 @@ func TestProjectPaginationValidatedBeforeServiceAccess(t *testing.T) {
 				service := &paginationProjectsStub{}
 				e := echo.New()
 				e.Validator = serverhttp.NewValidator()
-				handlers.NewProjectsRouter(service, serverauth.NatsCredentialService{}, e.Group("/admin"))
+				handlers.NewProjectsRouter(projectRoutesStub{page: service.Page}, nil, e.Group("/admin"))
 
 				rec := httptest.NewRecorder()
 				e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+"?"+query, nil))

@@ -18,7 +18,7 @@ func TestReadLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
+	projectService := projects.NewPostgresProjectsService(pool, nil)
 	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "LogsRead", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create project and clients")
 	apiID := clientByName(t, project, "api")

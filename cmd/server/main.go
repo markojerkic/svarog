@@ -147,12 +147,11 @@ func runServer(env config.ServerEnv) error {
 		return fmt.Errorf("connect to PostgreSQL: %w", err)
 	}
 
-	projectsService := projects.NewPostgresProjectsService(postgresPool)
 	archiveStore, err := newArchiveStore(env)
 	if err != nil {
 		return fmt.Errorf("configure archive storage: %w", err)
 	}
-	projectsService.SetArchiveStore(archiveStore)
+	projectsService := projects.NewPostgresProjectsService(postgresPool, archiveStore)
 	archiver := archive.NewArchiveService(postgresPool, archiveStore)
 
 	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)

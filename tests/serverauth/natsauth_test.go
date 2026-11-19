@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -152,7 +151,7 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("", "", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("", "", existingProject{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "accountSeed is required")
 }
@@ -160,7 +159,7 @@ func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceInvalidSeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("invalid-seed", "", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("invalid-seed", "", existingProject{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse account seed")
 }

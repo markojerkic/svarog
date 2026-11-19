@@ -10,7 +10,7 @@ import (
 )
 
 func TestProjectInputRejectedBeforeDatabaseAccess(t *testing.T) {
-	service := projects.NewPostgresProjectsService(nil)
+	service := projects.NewPostgresProjectsService(nil, nil)
 	ctx := context.Background()
 
 	_, err := service.Create(ctx, projects.ProjectInput{Name: " "})

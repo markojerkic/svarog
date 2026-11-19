@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -11,12 +12,17 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
-type HomeHandler struct {
-	group           *echo.Group
-	projectsService projects.ProjectsService
+type homeProjects interface {
+	assignedProjects
+	All(context.Context) ([]projects.Project, error)
 }
 
-func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService) *HomeHandler {
+type HomeHandler struct {
+	group           *echo.Group
+	projectsService homeProjects
+}
+
+func NewHomeHandler(group *echo.Group, projectsService homeProjects) *HomeHandler {
 	handler := &HomeHandler{group, projectsService}
 	handler.registerRoutes()
 	return handler

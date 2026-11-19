@@ -16,7 +16,6 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	serverhttp "github.com/markojerkic/svarog/internal/server/http"
@@ -35,7 +34,7 @@ func TestActivePostgresAuth(t *testing.T) {
 	e := echo.New()
 	e.Use(session.Middleware(store))
 	e.Validator = serverhttp.NewValidator()
-	handlers.NewAuthRouter(service, projects.NewPostgresProjectsService(pool), e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.RegisterPasswordReset(service, e.Group(""))
 	e.GET("/me", func(c *echo.Context) error {
 		user, err := service.GetCurrentUser(c)
 		if err != nil {

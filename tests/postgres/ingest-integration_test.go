@@ -37,7 +37,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 
 	// Set up PostgreSQL projects with distinct client UUIDs and JetStream.
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
+	projectService := projects.NewPostgresProjectsService(pool, nil)
 	first, err := projectService.Create(ctx, projects.ProjectInput{Name: "First", Clients: []string{"api"}})
 	require.NoError(t, err, "create first PG project with active client")
 	second, err := projectService.Create(ctx, projects.ProjectInput{Name: "Second", Clients: []string{"api"}})
@@ -527,7 +527,7 @@ func newIngestFixture(t *testing.T) ingestFixture {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).Create(ctx, projects.ProjectInput{Name: "Ingest", Clients: []string{"api"}})
+	project, err := projects.NewPostgresProjectsService(pool, nil).Create(ctx, projects.ProjectInput{Name: "Ingest", Clients: []string{"api"}})
 	require.NoError(t, err, "create a client for the durable-ingest contract")
 	container, err := natscontainer.Run(ctx, "nats:2.15.1-alpine", natscontainer.WithConfigFile(strings.NewReader("jetstream { store_dir: /data }")))
 	if container != nil {

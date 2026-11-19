@@ -12,18 +12,17 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/stretchr/testify/require"
 )
 
-type archiveAccessAuth struct{ auth.AuthService }
+type archiveAccessAuth struct{}
 
 func (archiveAccessAuth) UserHasAccessToProject(context.Context, string, string) (bool, error) {
 	return true, nil
 }
 
-type archiveAccessProjects struct{ projects.ProjectsService }
+type archiveAccessProjects struct{}
 
 func (archiveAccessProjects) ClientBelongsToProject(context.Context, string, string) (bool, error) {
 	return true, nil

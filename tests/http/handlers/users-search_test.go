@@ -14,7 +14,6 @@ import (
 )
 
 type usersSearchAuthStub struct {
-	auth.AuthService
 	query auth.PageQuery
 	users []auth.User
 }
@@ -31,7 +30,7 @@ func TestUsersSearchKeepsTheUsersTable(t *testing.T) {
 	stub := &usersSearchAuthStub{users: []auth.User{user}}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewAuthRouter(stub, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.NewAuthRouter(userRoutesStub{page: stub.GetUserPage}, &assignmentProjectsStub{}, e.Group("/admin"))
 
 	matched := httptest.NewRecorder()
 	e.ServeHTTP(matched, httptest.NewRequest(http.MethodGet, "/admin/users?search=qa-demo-check", nil))

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -16,17 +15,21 @@ import (
 // ErrExpiryNotInFuture means the requested credential expiry is not strictly after the current time.
 var ErrExpiryNotInFuture = errors.New("credential expiry must be in the future")
 
+type ProjectLookup interface {
+	ProjectExists(ctx context.Context, projectID, clientID string) bool
+}
+
 type NatsCredentialService struct {
 	accountKeyPair   nkeys.KeyPair
 	accountPublicKey string
 	natsPublicAddr   string
-	projectsService  projects.ProjectsService
+	projectsService  ProjectLookup
 }
 
 func NewNatsCredentialService(
 	accountSeed string,
 	natsPublicAddr string,
-	projectsService projects.ProjectsService) (*NatsCredentialService, error) {
+	projectsService ProjectLookup) (*NatsCredentialService, error) {
 	if projectsService == nil {
 		return nil, errors.New("projectsService is required")
 	}
