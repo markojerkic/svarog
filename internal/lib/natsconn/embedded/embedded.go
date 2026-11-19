@@ -36,12 +36,13 @@ func New(cfg Config) *Embedded {
 	return &Embedded{config: cfg}
 }
 
+// Start blocks until the broker accepts connections. JetStream recovers the
+// persisted store inside this call, so only ctx bounds it. Start is not safe
+// for concurrent use.
 func (e *Embedded) Start(ctx context.Context) error {
 	if e.ns != nil {
 		return errors.New("embedded NATS is already started or shutting down")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -53,6 +54,11 @@ func (e *Embedded) Start(ctx context.Context) error {
 		port = server.RANDOM_PORT
 	}
 	auth, err := newBrokerAuth(e.config.AccountSeed)
+	if err != nil {
+		return err
+	}
+	// nats-server does not lock its store; two brokers on one directory corrupt it.
+	unlock, err := lockStore(e.config.StoreDir)
 	if err != nil {
 		return err
 	}
@@ -69,6 +75,7 @@ func (e *Embedded) Start(ctx context.Context) error {
 		SystemAccount:    auth.operator.SystemAccount,
 	})
 	if err != nil {
+		unlock()
 		return fmt.Errorf("configure embedded NATS server: %w", err)
 	}
 
@@ -80,6 +87,7 @@ func (e *Embedded) Start(ctx context.Context) error {
 	e.ns, e.stop, e.stopped = ns, stop, stopped
 	go func() {
 		defer close(stopped)
+		defer unlock()
 		ns.Start()
 		close(started)
 		// Finish startup before stopping, even if the caller has timed out.
@@ -99,12 +107,11 @@ func (e *Embedded) Start(ctx context.Context) error {
 			}
 		}
 	case <-ctx.Done():
-	}
-	if err == nil {
 		err = ctx.Err()
 	}
 	if err != nil {
-		_ = e.Shutdown(ctx)
+		// Join the broker so the process never exits during store recovery.
+		_ = e.Shutdown(context.Background())
 		return fmt.Errorf("start embedded NATS server: %w", err)
 	}
 	e.userJWT, e.userSeed = auth.userJWT, auth.userSeed
