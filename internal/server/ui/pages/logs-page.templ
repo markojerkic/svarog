@@ -22,6 +22,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/archives"
 
 type LogsPageProps struct {
 	LogPage            db.LogPage
+	Range              *LogRange
 	ClientId           string
 	ProjectId          string
 	ClientName         string
@@ -51,11 +52,11 @@ func LogColumns(value string) (showTime, showInstance bool) {
 }
 
 func (p LogsPageProps) IsLive() bool {
-	return p.Search == "" && p.LogLineId == nil && p.LogPage.IsLastPage && p.LogPage.Range == nil
+	return p.Search == "" && p.LogLineId == nil && p.LogPage.IsLastPage && p.Range == nil
 }
 
 func (p LogsPageProps) LivePath() string {
-	return (&db.LogPage{}).ToPath(p.ProjectId, p.ClientId, p.Instances, nil, "", "")
+	return (LogsPageProps{ProjectId: p.ProjectId, ClientId: p.ClientId}).ToPath(p.Instances, nil, "", "")
 }
 
 func (p LogsPageProps) WebSocketPath() string {
@@ -89,7 +90,7 @@ templ LogsPage(props LogsPageProps) {
 					<a class="underline underline-offset-4" href={ templ.SafeURL(props.LivePath()) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.refresh_live") }</a>
 				</div>
 				<template id="log-live-older-loader">
-					@LogPageLoader(props, &db.LastCursor{IsBackward: true}, "backward", "logs.load_older")
+					@LogPageLoader(props, nil, "backward", "logs.load_older")
 				</template>
 			}
 			<div
@@ -119,7 +120,7 @@ templ LogsPage(props LogsPageProps) {
 			</div>
 		</div>
 		@logs.SharedLogMenu()
-		@logs.SearchDialog(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), props.Search, props.Instances, props.LogPage.Range.Query())
+		@logs.SearchDialog(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), props.Search, props.Instances, props.Range.Query())
 		if auth.IsAdmin(ctx) {
 			@archives.SettingsSheet()
 		}
@@ -173,7 +174,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 		<span class="whitespace-nowrap text-xs text-muted-foreground max-md:sr-only">{ i18n.T(ctx, "logs.context") }</span>
 		if props.ReturnSearch != "" {
 			@button.Button(button.Props{
-				Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, props.ReturnInstances, nil, "", props.ReturnSearch),
+				Href:    props.ToPath(props.ReturnInstances, nil, "", props.ReturnSearch),
 				Variant: button.VariantOutline, Size: button.SizeSm,
 				Attributes: templ.Attributes{
 					"hx-sync":    "body:replace",
@@ -217,7 +218,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 	@LogRangeFilter(props)
 	if props.Search != "" {
 		@button.Button(button.Props{
-			Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", ""),
+			Href:    props.ToPath(props.Instances, nil, "", ""),
 			Variant: button.VariantGhost,
 			Size:    button.SizeIconSm,
 			Attributes: templ.Attributes{
@@ -273,25 +274,25 @@ templ LogRangeFilter(props LogsPageProps) {
 		label := i18n.T(ctx, "logs.date_range")
 		selected := calendar.DateRange{}
 		fromValue, toValue := "", ""
-		timeQuery := props.LogPage.Range.Query()
-		if props.LogPage.Range != nil {
-			from, fromErr := time.Parse("2006-01-02", props.LogPage.Range.FromDate)
-			to, toErr := time.Parse("2006-01-02", props.LogPage.Range.ToDate)
+		timeQuery := props.Range.Query()
+		if props.Range != nil {
+			from, fromErr := time.Parse("2006-01-02", props.Range.FromDate)
+			to, toErr := time.Parse("2006-01-02", props.Range.ToDate)
 			if fromErr == nil && toErr == nil {
 				selected = calendar.DateRange{From: from, To: to}
 			}
-			fromValue = props.LogPage.Range.FromDate
-			toValue = props.LogPage.Range.ToDate
+			fromValue = props.Range.FromDate
+			toValue = props.Range.ToDate
 			if fromValue != "" {
 				label = formatLogDate(ctx, fromValue) + " – " + formatLogDate(ctx, toValue)
 			} else {
-				label = props.LogPage.Range.From.UTC().Format("02 Jan 15:04") + " – " + props.LogPage.Range.To.UTC().Format("02 Jan 15:04") + " UTC"
+				label = props.Range.From.UTC().Format("02 Jan 15:04") + " – " + props.Range.To.UTC().Format("02 Jan 15:04") + " UTC"
 			}
 		}
 		action := fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)
-		cleared := props.LogPage
+		cleared := props
 		cleared.Range = nil
-		clearPath := cleared.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", props.Search)
+		clearPath := cleared.ToPath(props.Instances, nil, "", props.Search)
 	}}
 	@popover.Popover(popover.Props{ID: "log-range"}) {
 		@button.Button(button.Props{
@@ -360,7 +361,7 @@ templ LogRangeFilter(props LogsPageProps) {
 					DefaultMonth: selected.From,
 				})
 				<div class="flex items-center justify-end gap-2">
-					if props.LogPage.Range != nil {
+					if props.Range != nil {
 						<a href={ templ.SafeURL(clearPath) } class="text-sm text-muted-foreground hover:text-foreground" hx-target="body" hx-swap="innerHTML">{ i18n.T(ctx, "logs.clear_range") }</a>
 					}
 					@button.Button(button.Props{
@@ -398,7 +399,7 @@ templ LogRangePreset(preset, label string) {
 }
 
 func clearLogInstancesPath(props LogsPageProps) string {
-	return props.LogPage.ToPath(props.ProjectId, props.ClientId, nil, nil, "", props.Search)
+	return props.ToPath(nil, nil, "", props.Search)
 }
 
 func logInstanceOptions(props LogsPageProps) []string {
@@ -461,7 +462,7 @@ templ instanceFilterForm(props LogsPageProps, id string) {
 		if props.Search != "" {
 			<input type="hidden" name="search" value={ props.Search }/>
 		}
-		@logs.QueryFields(props.LogPage.Range.Query())
+		@logs.QueryFields(props.Range.Query())
 		<div class="max-h-52 overflow-auto">
 			for _, instance := range logInstanceOptions(props) {
 				<label class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
@@ -490,7 +491,7 @@ templ instanceFilterForm(props LogsPageProps, id string) {
 }
 
 func logsToolsReturnPath(props LogsPageProps) string {
-	path := props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, nil, "", props.Search)
+	path := props.ToPath(props.Instances, nil, "", props.Search)
 	parsed, err := url.Parse(path)
 	if err != nil {
 		return path
@@ -599,7 +600,7 @@ templ InstanceFilter(props LogsPageProps) {
 				removeLabel := i18n.Format(ctx, i18n.Message{ID: "logs.remove_instance_filter", Data: map[string]any{"Name": label}})
 			}}
 			@badge.Badge(badge.Props{
-				Href:    props.LogPage.ToPath(props.ProjectId, props.ClientId, &remaining, nil, "", props.Search),
+				Href:    props.ToPath(&remaining, nil, "", props.Search),
 				Variant: badge.VariantDefault,
 				Class:   "cursor-pointer gap-1.5",
 				Attributes: templ.Attributes{
@@ -656,7 +657,7 @@ templ LogPageLines(props LogsPageProps) {
 templ LogPageLoader(props LogsPageProps, cursor *db.LastCursor, direction, label string) {
 	<div
 		data-log-page={ direction }
-		hx-get={ props.LogPage.ToPath(props.ProjectId, props.ClientId, props.Instances, cursor, direction, props.Search) }
+		hx-get={ props.ToPath(props.Instances, cursor, direction, props.Search) }
 		hx-swap="outerHTML"
 		hx-trigger="intersect once root:#log-scroll-container rootMargin:160px, click"
 		hx-sync="body:abort"

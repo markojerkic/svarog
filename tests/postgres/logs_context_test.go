@@ -11,6 +11,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +91,7 @@ func TestLogContext(t *testing.T) {
 				cursor = initial.ForwardCursor
 			}
 			for i := 0; cursor != nil && i < 10; i++ {
-				path, err := url.Parse(initial.ToPath(request.ProjectId, request.ClientId, initial.Instances, cursor, direction, ""))
+				path, err := url.Parse((pages.LogsPageProps{ProjectId: request.ProjectId, ClientId: request.ClientId}).ToPath(initial.Instances, cursor, direction, ""))
 				require.NoError(t, err, "context pagination must generate a valid URL")
 				selected := path.Query()["instance"]
 				page, err := logs.GetLogs(ctx, db.LogPageRequest{

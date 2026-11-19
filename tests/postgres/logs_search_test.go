@@ -12,6 +12,7 @@ import (
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -146,7 +147,7 @@ func TestSearchLogs(t *testing.T) {
 				break
 			}
 			found = append(found, page.Logs[0].ID)
-			u, err := url.Parse(page.ToPath(api, client, &instances, page.BackwardCursor, "backward", req.Search))
+			u, err := url.Parse((pages.LogsPageProps{ProjectId: api, ClientId: client}).ToPath(&instances, page.BackwardCursor, "backward", req.Search))
 			require.NoError(t, err, "pagination must generate a valid URL")
 			query := u.Query()
 			require.Equal(t, req.Search, query.Get("search"), "every page link must preserve the executed query")

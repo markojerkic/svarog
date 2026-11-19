@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -30,11 +29,8 @@ type LastCursor struct {
 }
 
 type LogRange struct {
-	From     time.Time
-	To       time.Time
-	FromDate string
-	ToDate   string
-	Offset   int
+	From time.Time
+	To   time.Time
 }
 
 type LogPage struct {
@@ -43,63 +39,6 @@ type LogPage struct {
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
 	IsLastPage     bool
-	Range          *LogRange
-}
-
-func (l *LogPage) ToPath(projectId, clientId string, instances *[]string, cursor *LastCursor, direction, search string) string {
-	u := url.URL{
-		Path: fmt.Sprintf("/logs/%s/%s", projectId, clientId),
-	}
-	query := u.Query()
-	if cursor != nil {
-		query.Set("cursorTimeUs", strconv.FormatInt(cursor.Timestamp.UnixMicro(), 10))
-		query.Set("cursorSequenceNumber", fmt.Sprintf("%d", cursor.SequenceNumber))
-		query.Set("direction", direction)
-		if cursor.ID > 0 {
-			query.Set("cursorId", strconv.FormatInt(cursor.ID, 10))
-		}
-	}
-	if instances != nil {
-		for _, instance := range *instances {
-			query.Add("instance", instance)
-		}
-	}
-	if search != "" {
-		query.Set("search", search)
-	}
-	if l.Range != nil {
-		for key, values := range l.Range.Query() {
-			query[key] = values
-		}
-	}
-	u.RawQuery = query.Encode()
-	return u.String()
-}
-
-func (r *LogRange) Query() url.Values {
-	query := url.Values{}
-	if r == nil {
-		return query
-	}
-	if r.FromDate != "" {
-		query.Set("from", r.FromDate)
-		query.Set("to", r.ToDate)
-		query.Set("offset", strconv.Itoa(r.Offset))
-	} else {
-		query.Set("fromAt", r.From.Format(time.RFC3339Nano))
-		query.Set("toAt", r.To.Format(time.RFC3339Nano))
-	}
-	return query
-}
-
-// ParseLogTimeRange accepts an absolute, half-open interval.
-func ParseLogTimeRange(fromAt, toAt string) (LogRange, error) {
-	from, fromErr := time.Parse(time.RFC3339Nano, fromAt)
-	to, toErr := time.Parse(time.RFC3339Nano, toAt)
-	if fromErr != nil || toErr != nil || !from.Before(to) {
-		return LogRange{}, fmt.Errorf("invalid log time range")
-	}
-	return LogRange{From: from, To: to}, nil
 }
 
 type LogPageRequest struct {
@@ -226,7 +165,6 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 		Logs:       mapLogRows(append(append(newer, anchor), older...)),
 		Instances:  req.Instances,
 		IsLastPage: len(newer) == 0,
-		Range:      req.Range,
 	}
 	if int64(len(older)) == req.PageSize {
 		page.BackwardCursor = logCursor(page.Logs[len(page.Logs)-1], true)
@@ -364,7 +302,7 @@ func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {
 }
 
 func emptyLogPage(req LogPageRequest) LogPage {
-	return LogPage{Instances: req.Instances, IsLastPage: req.Cursor == nil, Range: req.Range}
+	return LogPage{Instances: req.Instances, IsLastPage: req.Cursor == nil}
 }
 
 func applyLogRange(query *persistence.LogReadQuery, logRange *LogRange) {
@@ -374,35 +312,6 @@ func applyLogRange(query *persistence.LogReadQuery, logRange *LogRange) {
 	query.HasRange = true
 	query.RangeFrom = logRange.From
 	query.RangeTo = logRange.To
-}
-
-// ParseLogRange turns inclusive local calendar dates into a half-open UTC
-// interval. offsetMin is JavaScript's getTimezoneOffset: minutes to add to
-// local time to get UTC.
-func ParseLogRange(fromDate, toDate string, offsetMin int) (LogRange, error) {
-	if offsetMin < -14*60 || offsetMin > 14*60 {
-		return LogRange{}, fmt.Errorf("invalid timezone offset")
-	}
-	fromDay, err := time.Parse("2006-01-02", fromDate)
-	if err != nil {
-		return LogRange{}, fmt.Errorf("invalid from date")
-	}
-	toDay, err := time.Parse("2006-01-02", toDate)
-	if err != nil {
-		return LogRange{}, fmt.Errorf("invalid to date")
-	}
-	if toDay.Before(fromDay) {
-		fromDay, toDay = toDay, fromDay
-		fromDate, toDate = toDate, fromDate
-	}
-	offset := time.Duration(offsetMin) * time.Minute
-	return LogRange{
-		From:     fromDay.Add(offset),
-		To:       toDay.AddDate(0, 0, 1).Add(offset),
-		FromDate: fromDate,
-		ToDate:   toDate,
-		Offset:   offsetMin,
-	}, nil
 }
 
 func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogRow, bool, error) {
@@ -456,7 +365,6 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 		ForwardCursor:  forwardCursor,
 		BackwardCursor: backwardCursor,
 		IsLastPage:     req.Cursor == nil,
-		Range:          req.Range,
 	}
 }
 

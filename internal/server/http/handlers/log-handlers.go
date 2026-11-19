@@ -97,12 +97,12 @@ func (params LogsByClientBinding) cursor() (*db.LastCursor, error) {
 	return cursor, nil
 }
 
-func (params LogsByClientBinding) logRange() (*db.LogRange, error) {
+func (params LogsByClientBinding) logRange() (*pages.LogRange, error) {
 	if params.FromAt != "" || params.ToAt != "" {
 		if params.From != "" || params.To != "" || params.Offset != nil {
 			return nil, fmt.Errorf("cannot combine date and time ranges")
 		}
-		parsed, err := db.ParseLogTimeRange(params.FromAt, params.ToAt)
+		parsed, err := ParseLogTimeRange(params.FromAt, params.ToAt)
 		return &parsed, err
 	}
 	if params.From == "" && params.To == "" {
@@ -119,11 +119,49 @@ func (params LogsByClientBinding) logRange() (*db.LogRange, error) {
 	if params.Offset != nil {
 		offset = *params.Offset
 	}
-	parsed, err := db.ParseLogRange(from, to, offset)
+	parsed, err := ParseLogRange(from, to, offset)
 	if err != nil {
 		return nil, err
 	}
 	return &parsed, nil
+}
+
+// ParseLogTimeRange accepts an absolute, half-open interval.
+func ParseLogTimeRange(fromAt, toAt string) (pages.LogRange, error) {
+	from, fromErr := time.Parse(time.RFC3339Nano, fromAt)
+	to, toErr := time.Parse(time.RFC3339Nano, toAt)
+	if fromErr != nil || toErr != nil || !from.Before(to) {
+		return pages.LogRange{}, fmt.Errorf("invalid log time range")
+	}
+	return pages.LogRange{LogRange: db.LogRange{From: from, To: to}}, nil
+}
+
+// ParseLogRange turns inclusive local calendar dates into a half-open UTC
+// interval. offsetMin is JavaScript's getTimezoneOffset: minutes to add to
+// local time to get UTC.
+func ParseLogRange(fromDate, toDate string, offsetMin int) (pages.LogRange, error) {
+	if offsetMin < -14*60 || offsetMin > 14*60 {
+		return pages.LogRange{}, fmt.Errorf("invalid timezone offset")
+	}
+	fromDay, err := time.Parse("2006-01-02", fromDate)
+	if err != nil {
+		return pages.LogRange{}, fmt.Errorf("invalid from date")
+	}
+	toDay, err := time.Parse("2006-01-02", toDate)
+	if err != nil {
+		return pages.LogRange{}, fmt.Errorf("invalid to date")
+	}
+	if toDay.Before(fromDay) {
+		fromDay, toDay = toDay, fromDay
+		fromDate, toDate = toDate, fromDate
+	}
+	offset := time.Duration(offsetMin) * time.Minute
+	return pages.LogRange{
+		LogRange: db.LogRange{From: fromDay.Add(offset), To: toDay.AddDate(0, 0, 1).Add(offset)},
+		FromDate: fromDate,
+		ToDate:   toDate,
+		Offset:   offsetMin,
+	}, nil
 }
 
 func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID string) string {
@@ -196,6 +234,10 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_range"))
 	}
 
+	var bounds *db.LogRange
+	if logRange != nil {
+		bounds = &logRange.LogRange
+	}
 	logPage, err := self.logService.GetLogs(c.Request().Context(), db.LogPageRequest{
 		ProjectId: params.ProjectId,
 		ClientId:  params.ClientId,
@@ -204,7 +246,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		LogLineId: params.LogLineId,
 		Cursor:    nextCursor,
 		Search:    params.Search,
-		Range:     logRange,
+		Range:     bounds,
 	})
 
 	if err != nil {
@@ -221,6 +263,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	}
 	props := pages.LogsPageProps{
 		LogPage:      logPage,
+		Range:        logRange,
 		ClientId:     params.ClientId,
 		ProjectId:    params.ProjectId,
 		Search:       params.Search,

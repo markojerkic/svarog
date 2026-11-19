@@ -184,7 +184,7 @@ func TestRemoveOneInstancePreservesOtherFilters(t *testing.T) {
 	instances := []string{"api & backup", "", "worker"}
 	props := pages.LogsPageProps{
 		ProjectId: "project", ClientId: "client", Instances: &instances, Search: "payment timeout",
-		LogPage: db.LogPage{Range: &db.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60}},
+		Range: &pages.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60},
 	}
 	var output bytes.Buffer
 	if err := pages.InstanceFilter(props).Render(context.Background(), &output); err != nil {
@@ -213,7 +213,7 @@ func TestLogInstanceFilters(t *testing.T) {
 	props := pages.LogsPageProps{
 		ProjectId: "project", ClientId: "client", Search: "error & timeout",
 		Instances: &[]string{instance, ""}, AvailableInstances: []string{instance, "api-02"},
-		LogPage: db.LogPage{Range: &db.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60}},
+		Range: &pages.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60},
 	}
 	var output bytes.Buffer
 	if err := pages.LogInstanceFilters(props).Render(context.Background(), &output); err != nil {
@@ -239,7 +239,7 @@ func TestLogRangeFilterOpensOnSelectedMonth(t *testing.T) {
 	props := pages.LogsPageProps{
 		ProjectId: "project",
 		ClientId:  "client",
-		LogPage:   db.LogPage{Range: &db.LogRange{FromDate: "2026-10-25", ToDate: "2026-10-28"}},
+		Range:     &pages.LogRange{FromDate: "2026-10-25", ToDate: "2026-10-28"},
 	}
 	var output bytes.Buffer
 	if err := pages.LogRangeFilter(props).Render(context.Background(), &output); err != nil {
@@ -254,7 +254,7 @@ func TestLogRangeFilterOpensOnSelectedMonth(t *testing.T) {
 	}
 
 	output.Reset()
-	props.LogPage.Range = nil
+	props.Range = nil
 	if err := pages.LogRangeFilter(props).Render(context.Background(), &output); err != nil {
 		t.Fatalf("Date range filter must render successfully: %v", err)
 	}

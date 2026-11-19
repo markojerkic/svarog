@@ -10,7 +10,9 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +49,7 @@ func TestReadLogs(t *testing.T) {
 		require.Nil(t, page.ForwardCursor)
 		require.NotNil(t, page.BackwardCursor)
 		require.Equal(t, page.Logs[1].ID, page.BackwardCursor.ID)
-		require.Contains(t, page.ToPath(api, client, nil, page.BackwardCursor, "backward", ""), "cursorId="+strconv.FormatInt(page.Logs[1].ID, 10), "pagination links must include the row id as a tie breaker")
+		require.Contains(t, (pages.LogsPageProps{ProjectId: api, ClientId: client}).ToPath(nil, page.BackwardCursor, "backward", ""), "cursorId="+strconv.FormatInt(page.Logs[1].ID, 10), "pagination links must include the row id as a tie breaker")
 	})
 
 	t.Run("backward page does not overlap", func(t *testing.T) {
@@ -173,15 +175,15 @@ func TestReadLogs(t *testing.T) {
 	})
 
 	t.Run("date range excludes logs outside the local day", func(t *testing.T) {
-		inside, err := db.ParseLogRange("2026-10-14", "2026-10-14", 0)
+		inside, err := handlers.ParseLogRange("2026-10-14", "2026-10-14", 0)
 		require.NoError(t, err, "the inserted day is a valid range")
-		page := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &inside})
+		page := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &inside.LogRange})
 		require.Equal(t, []string{"newest", "instance-api", "tie-high", "tie-low", "older"}, messages(page.Logs), "a UTC day includes every log written on that day")
-		require.Contains(t, page.ToPath(api, client, nil, nil, "", ""), "from=2026-10-14", "pagination must keep the selected range")
+		require.Contains(t, (pages.LogsPageProps{ProjectId: api, ClientId: client, Range: &inside}).ToPath(nil, nil, "", ""), "from=2026-10-14", "pagination must keep the selected range")
 
-		outside, err := db.ParseLogRange("2026-10-15", "2026-10-15", 0)
+		outside, err := handlers.ParseLogRange("2026-10-15", "2026-10-15", 0)
 		require.NoError(t, err, "the following day is a valid range")
-		empty := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &outside})
+		empty := mustPage(t, ctx, logs, db.LogPageRequest{ProjectId: api, ClientId: client, PageSize: 10, Range: &outside.LogRange})
 		require.Empty(t, empty.Logs, "logs from the previous UTC day stay outside the range")
 	})
 

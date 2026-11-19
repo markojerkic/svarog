@@ -45,7 +45,6 @@ func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.Lo
 	return db.LogPage{
 		Logs:       []types.StoredLog{{LogLine: "matching connection refused"}},
 		IsLastPage: req.Cursor == nil,
-		Range:      req.Range,
 	}, nil
 }
 
