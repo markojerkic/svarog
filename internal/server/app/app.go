@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/signal"
 	"strconv"
 	"sync"
@@ -100,14 +99,22 @@ func Main(cfg Config, opts ...Option) int {
 	util.SetupLogger(level)
 
 	if err := New(cfg, opts...).Run(); err != nil {
-		slog.Error("Server failed", "error", err)
 		return 1
 	}
-	slog.Info("Server stopped gracefully")
 	return 0
 }
 
+// Run serves until SIGINT/SIGTERM or a fatal error. It logs its own outcome so
+// that the final record is still forwarded when self-logging is enabled.
 func (a *App) Run() (runErr error) {
+	reportOutcome := sync.OnceFunc(func() {
+		if runErr != nil {
+			slog.Error("Server failed", "error", runErr)
+		} else {
+			slog.Info("Server stopped gracefully")
+		}
+	})
+	defer reportOutcome()
 	if a.broker == nil {
 		return errors.New("a NATS broker is required")
 	}
@@ -129,14 +136,33 @@ func (a *App) Run() (runErr error) {
 		return fmt.Errorf("connect to PostgreSQL: %w", err)
 	}
 
-	if err := a.broker.Start(context.Background()); err != nil {
+	// Validate the remaining configuration before the broker opens its store.
+	archiveStore, err := newArchiveStore(env)
+	if err != nil {
+		return fmt.Errorf("configure archive storage: %w", err)
+	}
+	projectsService := projects.NewPostgresProjectsService(postgresPool, archiveStore)
+	archiver := archive.NewArchiveService(postgresPool, archiveStore)
+
+	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
+	if err != nil {
+		return fmt.Errorf("create credential service: %w", err)
+	}
+
+	// From here on a signal stops startup and the broker shuts down cleanly.
+	signals, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
+
+	if err := a.broker.Start(signals); err != nil {
 		return fmt.Errorf("start NATS broker: %w", err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := a.broker.Shutdown(ctx); err != nil {
-			runErr = errors.Join(runErr, fmt.Errorf("shut down NATS broker: %w", err))
+		// Wait for the broker to flush its store; the supervisor's stop grace
+		// period bounds this wait.
+		if err := a.broker.Shutdown(context.Background()); err != nil {
+			err = fmt.Errorf("shut down NATS broker: %w", err)
+			slog.Error("NATS broker shutdown failed", "error", err)
+			runErr = errors.Join(runErr, err)
 		}
 	}()
 
@@ -152,23 +178,12 @@ func (a *App) Run() (runErr error) {
 			log.Error("Cannot forward server logs; using console only", "error", err)
 		} else {
 			defer func() {
+				reportOutcome()
 				if err := closeLogging(); err != nil {
 					log.Error("Could not flush server logs to Svarog", "error", err)
 				}
 			}()
 		}
-	}
-
-	archiveStore, err := newArchiveStore(env)
-	if err != nil {
-		return fmt.Errorf("configure archive storage: %w", err)
-	}
-	projectsService := projects.NewPostgresProjectsService(postgresPool, archiveStore)
-	archiver := archive.NewArchiveService(postgresPool, archiveStore)
-
-	natsCredService, err := serverauth.NewNatsCredentialService(env.NatsAccountSeed, env.NatsPublicAddr, projectsService)
-	if err != nil {
-		return fmt.Errorf("create credential service: %w", err)
 	}
 
 	natsConn, err := a.broker.Connect(natsconn.ConnectOptions{
@@ -200,7 +215,7 @@ func (a *App) Run() (runErr error) {
 		return fmt.Errorf("initialize PostgreSQL admin user: %w", err)
 	}
 
-	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	startupCtx, startupCancel := context.WithTimeout(signals, 30*time.Second)
 	ingestService, err := ingest.Open(startupCtx, ingest.Options{
 		Connection: natsConn, Pool: postgresPool, Writer: logStore, Live: liveLogs,
 		StreamMaxBytes: env.IngestStreamMaxBytes, AckWait: env.IngestAckWait,
@@ -224,12 +239,8 @@ func (a *App) Run() (runErr error) {
 			LiveLogs:                liveLogs,
 		})
 
+	// Background work stops in gracefulShutdown's order, not directly on a signal.
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Signal handling for graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(quit)
 
 	ingestDone := make(chan error, 1)
 	go func() { ingestDone <- ingestService.Run(ctx) }()
@@ -246,7 +257,7 @@ func (a *App) Run() (runErr error) {
 
 	var stopErr error
 	select {
-	case <-quit:
+	case <-signals.Done():
 	case err := <-ingestDone:
 		stopErr = fmt.Errorf("ingest stopped unexpectedly: %w", err)
 	case err := <-httpDone:
