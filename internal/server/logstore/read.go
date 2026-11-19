@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
@@ -121,61 +123,22 @@ func (s *Store) anchor(ctx context.Context, scope Scope, id int64) (Row, bool, e
 	if err != nil {
 		return Row{}, false, fmt.Errorf("get log anchor: %w", err)
 	}
-	return readRow(sqlc.ListLogsRow(row)), true, nil
+	return readRow(logReadRow(row)), true, nil
 }
 
 func (s *Store) list(ctx context.Context, query PageQuery) ([]Row, error) {
-	params := sqlc.ListLogsParams{
-		ProjectID: query.Scope.ProjectID, ClientID: query.Scope.ClientID,
-		FilterInstances: query.Instances != nil,
-		Instances:       query.Instances, PageSize: int32(query.Limit),
+	if query.Search != nil && len(query.Search.Terms) == 0 {
+		return nil, nil
 	}
-	if params.Instances == nil {
-		params.Instances = []string{}
+	if query.Instances != nil && len(query.Instances) == 0 {
+		return []Row{}, nil
 	}
-	if query.Range != nil {
-		params.HasRange = true
-		params.RangeFrom, params.RangeTo = query.Range.From, query.Range.To
-	}
-	cursor := query.Newer
-	if query.Older != nil {
-		cursor = query.Older
-		params.Backward = true
-	}
-	if cursor != nil {
-		params.HasCursor = true
-		params.CursorAt, params.CursorSequence, params.CursorID = cursor.OccurredAt, cursor.Sequence, cursor.ID
-	}
-	var rows []Row
-	if query.Search == nil {
-		found, err := s.queries.ListLogs(ctx, params)
-		if err != nil {
-			return nil, fmt.Errorf("list logs: %w", err)
-		}
-		rows = make([]Row, len(found))
-		for i, row := range found {
-			rows[i] = readRow(row)
-		}
-	} else {
-		if len(query.Search.Terms) == 0 {
-			return nil, nil
-		}
-		found, err := s.search.SearchLogs(ctx, sqlc.SearchLogsParams{
-			ProjectID: params.ProjectID, ClientID: params.ClientID,
-			PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
-			FilterInstances: params.FilterInstances, Instances: params.Instances,
-			HasRange: params.HasRange, RangeFrom: params.RangeFrom, RangeTo: params.RangeTo,
-			HasCursor: params.HasCursor, Backward: params.Backward,
-			CursorAt: params.CursorAt, CursorSequence: params.CursorSequence, CursorID: params.CursorID,
-			PageSize: params.PageSize,
-		})
-		if err != nil {
+	rows, err := s.pageRows(ctx, query)
+	if err != nil {
+		if query.Search != nil {
 			return nil, fmt.Errorf("search logs: %w", err)
 		}
-		rows = make([]Row, len(found))
-		for i, row := range found {
-			rows[i] = readRow(sqlc.ListLogsRow(row))
-		}
+		return nil, fmt.Errorf("list logs: %w", err)
 	}
 	if query.Newer != nil {
 		slices.Reverse(rows)
@@ -183,15 +146,127 @@ func (s *Store) list(ctx context.Context, query PageQuery) ([]Row, error) {
 	return rows, nil
 }
 
-func readRow(row sqlc.ListLogsRow) Row {
+func (s *Store) pageRows(ctx context.Context, query PageQuery) ([]Row, error) {
+	after, through := pageKeyBounds(query)
+	projectID, clientID, limit := query.Scope.ProjectID, query.Scope.ClientID, int32(query.Limit)
+	switch {
+	case query.Search == nil && query.Instances == nil:
+		params := sqlc.ListLogsOlderParams{
+			ProjectID: projectID, ClientID: clientID, PageSize: limit,
+			AfterAt: after.at, AfterSequence: after.sequence, AfterID: after.id,
+			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
+		}
+		if query.Newer != nil {
+			return readRows(s.queries.ListLogsNewer(ctx, sqlc.ListLogsNewerParams(params)))
+		}
+		return readRows(s.queries.ListLogsOlder(ctx, params))
+	case query.Search == nil:
+		params := sqlc.ListLogsOlderByInstancesParams{
+			ProjectID: projectID, ClientID: clientID, PageSize: limit,
+			Instances: query.Instances,
+			AfterAt:   after.at, AfterSequence: after.sequence, AfterID: after.id,
+			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
+		}
+		if query.Newer != nil {
+			return readRows(s.queries.ListLogsNewerByInstances(ctx, sqlc.ListLogsNewerByInstancesParams(params)))
+		}
+		return readRows(s.queries.ListLogsOlderByInstances(ctx, params))
+	case query.Instances == nil:
+		params := sqlc.SearchLogsOlderParams{
+			ProjectID: projectID, ClientID: clientID, PageSize: limit,
+			AfterAt: after.at, AfterSequence: after.sequence, AfterID: after.id,
+			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
+			PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
+		}
+		if query.Newer != nil {
+			return readRows(s.search.SearchLogsNewer(ctx, sqlc.SearchLogsNewerParams(params)))
+		}
+		return readRows(s.search.SearchLogsOlder(ctx, params))
+	default:
+		params := sqlc.SearchLogsOlderByInstancesParams{
+			ProjectID: projectID, ClientID: clientID, PageSize: limit,
+			Instances: query.Instances,
+			AfterAt:   after.at, AfterSequence: after.sequence, AfterID: after.id,
+			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
+			PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
+		}
+		if query.Newer != nil {
+			return readRows(s.search.SearchLogsNewerByInstances(ctx, sqlc.SearchLogsNewerByInstancesParams(params)))
+		}
+		return readRows(s.search.SearchLogsOlderByInstances(ctx, params))
+	}
+}
+
+type logReadKey struct {
+	at       pgtype.Timestamptz
+	sequence int64
+	id       int64
+}
+
+// Intersect the time range and cursor into one bound per end of the index scan.
+// A separate timestamp bound can cause PostgreSQL to start scanning before the
+// full cursor key. Compare timestamps at pgx's microsecond encoding precision.
+func pageKeyBounds(query PageQuery) (after, through logReadKey) {
+	// SQL maps NULL timestamps to the corresponding infinities. Since sequences
+	// are nonnegative, the minimum sequence sorts before every row at that time.
+	after = logReadKey{sequence: math.MinInt64, id: math.MinInt64}
+	through = logReadKey{sequence: math.MaxInt64, id: math.MaxInt64}
+	if query.Range != nil {
+		after.at = pgtype.Timestamptz{Time: query.Range.From.Truncate(time.Microsecond), Valid: true}
+		through = logReadKey{
+			at:       pgtype.Timestamptz{Time: query.Range.To.Truncate(time.Microsecond), Valid: true},
+			sequence: math.MinInt64,
+			id:       math.MinInt64,
+		}
+	}
+	if cursor := query.Older; cursor != nil {
+		at := cursor.OccurredAt.Truncate(time.Microsecond)
+		if !through.at.Valid || at.Before(through.at.Time) {
+			// Page validates positive cursor IDs. Decrementing the ID makes
+			// the inclusive upper key exclude the cursor itself.
+			through = logReadKey{at: pgtype.Timestamptz{Time: at, Valid: true}, sequence: cursor.Sequence, id: cursor.ID - 1}
+		}
+	}
+	if cursor := query.Newer; cursor != nil {
+		at := cursor.OccurredAt.Truncate(time.Microsecond)
+		if !after.at.Valid || !at.Before(after.at.Time) {
+			after = logReadKey{at: pgtype.Timestamptz{Time: at, Valid: true}, sequence: cursor.Sequence, id: cursor.ID}
+		}
+	}
+	return after, through
+}
+
+// sqlc generates a separate type for each statement's shared column list.
+type logReadRow = struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func readRows[T ~logReadRow](found []T, err error) ([]Row, error) {
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]Row, len(found))
+	for i, row := range found {
+		rows[i] = readRow(logReadRow(row))
+	}
+	return rows, nil
+}
+
+func readRow(row logReadRow) Row {
 	return Row{
 		ID: row.ID, Scope: Scope{ProjectID: row.ProjectID, ClientID: row.ClientID},
 		Instance: row.InstanceName, OccurredAt: row.OccurredAt, Sequence: row.SequenceNumber, Message: row.Message,
 	}
 }
 
-// Search selectivity and cursor direction vary per request. Cache parameter
-// descriptions, but plan with the actual values instead of using a generic plan.
+// Search selectivity varies per pattern. Cache parameter descriptions, but plan
+// with the actual values so PostgreSQL can choose between B-tree and trigram indexes.
 type searchQueryDB struct {
 	sqlc.DBTX
 }

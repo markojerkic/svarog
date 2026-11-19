@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getLogAnchor = `-- name: GetLogAnchor :one
@@ -191,62 +192,36 @@ func (q *Queries) ListInstances(ctx context.Context, arg ListInstancesParams) ([
 	return items, nil
 }
 
-const listLogs = `-- name: ListLogs :many
+const listLogsNewer = `-- name: ListLogsNewer :many
 SELECT l.id, l.client_id, c.project_id, l.instance_name,
        l.occurred_at, l.sequence_number, l.message
 FROM logs l
 JOIN clients c ON c.id = l.client_id
 WHERE c.project_id = $1
   AND l.client_id = $2
-  AND (
-    NOT $3::bool
-    OR l.instance_name = ANY($4::text[])
-  )
-  AND (
-    NOT $5::bool
-    OR (
-      l.occurred_at >= $6
-      AND l.occurred_at < $7
-    )
-  )
-  AND (
-    NOT $8::bool
-    OR (
-      $9::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < ($10, $11::bigint, $12::bigint)
-    )
-    OR (
-      NOT $9::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          > ($10, $11::bigint, $12::bigint)
-    )
-  )
-ORDER BY
-  CASE WHEN $8::bool AND NOT $9::bool THEN l.occurred_at END ASC,
-  CASE WHEN $8::bool AND NOT $9::bool THEN l.sequence_number END ASC,
-  CASE WHEN $8::bool AND NOT $9::bool THEN l.id END ASC,
-  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $13
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($3::timestamptz, '-infinity'::timestamptz),
+       $4::bigint, $5::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($6::timestamptz, 'infinity'::timestamptz),
+       $7::bigint, $8::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+LIMIT $9
 `
 
-type ListLogsParams struct {
+type ListLogsNewerParams struct {
 	ProjectID       uuid.UUID
 	ClientID        uuid.UUID
-	FilterInstances bool
-	Instances       []string
-	HasRange        bool
-	RangeFrom       time.Time
-	RangeTo         time.Time
-	HasCursor       bool
-	Backward        bool
-	CursorAt        time.Time
-	CursorSequence  int64
-	CursorID        int64
+	AfterAt         pgtype.Timestamptz
+	AfterSequence   int64
+	AfterID         int64
+	ThroughAt       pgtype.Timestamptz
+	ThroughSequence int64
+	ThroughID       int64
 	PageSize        int32
 }
 
-type ListLogsRow struct {
+type ListLogsNewerRow struct {
 	ID             int64
 	ClientID       uuid.UUID
 	ProjectID      uuid.UUID
@@ -256,29 +231,25 @@ type ListLogsRow struct {
 	Message        string
 }
 
-func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsRow, error) {
-	rows, err := q.db.Query(ctx, listLogs,
+func (q *Queries) ListLogsNewer(ctx context.Context, arg ListLogsNewerParams) ([]ListLogsNewerRow, error) {
+	rows, err := q.db.Query(ctx, listLogsNewer,
 		arg.ProjectID,
 		arg.ClientID,
-		arg.FilterInstances,
-		arg.Instances,
-		arg.HasRange,
-		arg.RangeFrom,
-		arg.RangeTo,
-		arg.HasCursor,
-		arg.Backward,
-		arg.CursorAt,
-		arg.CursorSequence,
-		arg.CursorID,
+		arg.AfterAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughAt,
+		arg.ThroughSequence,
+		arg.ThroughID,
 		arg.PageSize,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListLogsRow
+	var items []ListLogsNewerRow
 	for rows.Next() {
-		var i ListLogsRow
+		var i ListLogsNewerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ClientID,
@@ -298,66 +269,76 @@ func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsR
 	return items, nil
 }
 
-const searchLogs = `-- name: SearchLogs :many
-SELECT l.id, l.client_id, c.project_id, l.instance_name,
+const listLogsNewerByInstances = `-- name: ListLogsNewerByInstances :many
+WITH client_scope AS (
+    SELECT c.id, c.project_id
+    FROM clients c
+    WHERE c.project_id = $9 AND c.id = $10
+), page_cutoff AS (
+    SELECT prefix.occurred_at, prefix.sequence_number, prefix.id
+    FROM (
+        SELECT l.occurred_at, l.sequence_number, l.id, l.instance_name
+        FROM logs l
+        WHERE l.client_id = (SELECT c.id FROM client_scope c)
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE($2::timestamptz, '-infinity'::timestamptz),
+               $3::bigint, $4::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE($5::timestamptz, 'infinity'::timestamptz),
+               $6::bigint, $7::bigint)
+        ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+        LIMIT 2 * $8::int::bigint
+    ) prefix
+    WHERE prefix.instance_name = ANY($1::text[])
+    ORDER BY prefix.occurred_at ASC, prefix.sequence_number ASC, prefix.id ASC
+    OFFSET ($8::int - 1) LIMIT 1
+)
+SELECT l.id, l.client_id, page.project_id, l.instance_name,
        l.occurred_at, l.sequence_number, l.message
-FROM logs l
-JOIN clients c ON c.id = l.client_id
-WHERE c.project_id = $1
-  AND l.client_id = $2
-  AND l.message ILIKE $3::text ESCAPE E'\\'
-  AND l.message ILIKE ALL($4::text[])
-  AND (
-    NOT $5::bool
-    OR l.instance_name = ANY($6::text[])
-  )
-  AND (
-    NOT $7::bool
-    OR (
-      l.occurred_at >= $8
-      AND l.occurred_at < $9
-    )
-  )
-  AND (
-    NOT $10::bool
-    OR (
-      $11::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < ($12, $13::bigint, $14::bigint)
-    )
-    OR (
-      NOT $11::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          > ($12, $13::bigint, $14::bigint)
-    )
-  )
-ORDER BY
-  CASE WHEN $10::bool AND NOT $11::bool THEN l.occurred_at END ASC,
-  CASE WHEN $10::bool AND NOT $11::bool THEN l.sequence_number END ASC,
-  CASE WHEN $10::bool AND NOT $11::bool THEN l.id END ASC,
-  l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $15
+FROM (
+    SELECT candidate.id, c.project_id, candidate.occurred_at, candidate.sequence_number
+    FROM client_scope c
+    LEFT JOIN page_cutoff cutoff ON true
+    CROSS JOIN (
+        SELECT DISTINCT instance_name
+        FROM unnest($1::text[]) AS selected(instance_name)
+    ) i
+    CROSS JOIN LATERAL (
+        SELECT l.id, l.occurred_at, l.sequence_number
+        FROM logs l
+        WHERE l.client_id = c.id
+          AND l.instance_name = i.instance_name
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE($2::timestamptz, '-infinity'::timestamptz),
+               $3::bigint, $4::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE(cutoff.occurred_at, $5::timestamptz, 'infinity'::timestamptz),
+               COALESCE(cutoff.sequence_number, $6::bigint),
+               COALESCE(cutoff.id, $7::bigint))
+        ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+        LIMIT $8
+    ) candidate
+    ORDER BY candidate.occurred_at ASC, candidate.sequence_number ASC, candidate.id ASC
+    LIMIT $8
+) page
+JOIN logs l ON l.id = page.id
+ORDER BY page.occurred_at ASC, page.sequence_number ASC, page.id ASC
 `
 
-type SearchLogsParams struct {
-	ProjectID         uuid.UUID
-	ClientID          uuid.UUID
-	PrimaryPattern    string
-	RemainingPatterns []string
-	FilterInstances   bool
-	Instances         []string
-	HasRange          bool
-	RangeFrom         time.Time
-	RangeTo           time.Time
-	HasCursor         bool
-	Backward          bool
-	CursorAt          time.Time
-	CursorSequence    int64
-	CursorID          int64
-	PageSize          int32
+type ListLogsNewerByInstancesParams struct {
+	Instances       []string
+	AfterAt         pgtype.Timestamptz
+	AfterSequence   int64
+	AfterID         int64
+	ThroughAt       pgtype.Timestamptz
+	ThroughSequence int64
+	ThroughID       int64
+	PageSize        int32
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
 }
 
-type SearchLogsRow struct {
+type ListLogsNewerByInstancesRow struct {
 	ID             int64
 	ClientID       uuid.UUID
 	ProjectID      uuid.UUID
@@ -367,31 +348,574 @@ type SearchLogsRow struct {
 	Message        string
 }
 
-func (q *Queries) SearchLogs(ctx context.Context, arg SearchLogsParams) ([]SearchLogsRow, error) {
-	rows, err := q.db.Query(ctx, searchLogs,
+func (q *Queries) ListLogsNewerByInstances(ctx context.Context, arg ListLogsNewerByInstancesParams) ([]ListLogsNewerByInstancesRow, error) {
+	rows, err := q.db.Query(ctx, listLogsNewerByInstances,
+		arg.Instances,
+		arg.AfterAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughAt,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
 		arg.ProjectID,
 		arg.ClientID,
-		arg.PrimaryPattern,
-		arg.RemainingPatterns,
-		arg.FilterInstances,
-		arg.Instances,
-		arg.HasRange,
-		arg.RangeFrom,
-		arg.RangeTo,
-		arg.HasCursor,
-		arg.Backward,
-		arg.CursorAt,
-		arg.CursorSequence,
-		arg.CursorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLogsNewerByInstancesRow
+	for rows.Next() {
+		var i ListLogsNewerByInstancesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLogsOlder = `-- name: ListLogsOlder :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($3::timestamptz, '-infinity'::timestamptz),
+       $4::bigint, $5::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($6::timestamptz, 'infinity'::timestamptz),
+       $7::bigint, $8::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT $9
+`
+
+type ListLogsOlderParams struct {
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
+	AfterAt         pgtype.Timestamptz
+	AfterSequence   int64
+	AfterID         int64
+	ThroughAt       pgtype.Timestamptz
+	ThroughSequence int64
+	ThroughID       int64
+	PageSize        int32
+}
+
+type ListLogsOlderRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+// The Go store intersects the cursor and time range before binding these keys.
+func (q *Queries) ListLogsOlder(ctx context.Context, arg ListLogsOlderParams) ([]ListLogsOlderRow, error) {
+	rows, err := q.db.Query(ctx, listLogsOlder,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.AfterAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughAt,
+		arg.ThroughSequence,
+		arg.ThroughID,
 		arg.PageSize,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SearchLogsRow
+	var items []ListLogsOlderRow
 	for rows.Next() {
-		var i SearchLogsRow
+		var i ListLogsOlderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLogsOlderByInstances = `-- name: ListLogsOlderByInstances :many
+WITH client_scope AS (
+    SELECT c.id, c.project_id
+    FROM clients c
+    WHERE c.project_id = $9 AND c.id = $10
+), page_cutoff AS (
+    SELECT prefix.occurred_at, prefix.sequence_number, prefix.id
+    FROM (
+        SELECT l.occurred_at, l.sequence_number, l.id, l.instance_name
+        FROM logs l
+        WHERE l.client_id = (SELECT c.id FROM client_scope c)
+          AND (l.occurred_at, l.sequence_number, l.id) >
+              (COALESCE($2::timestamptz, '-infinity'::timestamptz),
+               $3::bigint, $4::bigint)
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE($5::timestamptz, 'infinity'::timestamptz),
+               $6::bigint, $7::bigint)
+        ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+        LIMIT 2 * $8::int::bigint
+    ) prefix
+    WHERE prefix.instance_name = ANY($1::text[])
+    ORDER BY prefix.occurred_at DESC, prefix.sequence_number DESC, prefix.id DESC
+    OFFSET ($8::int - 1) LIMIT 1
+)
+SELECT l.id, l.client_id, page.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM (
+    SELECT candidate.id, c.project_id, candidate.occurred_at, candidate.sequence_number
+    FROM client_scope c
+    LEFT JOIN page_cutoff cutoff ON true
+    CROSS JOIN (
+        SELECT DISTINCT instance_name
+        FROM unnest($1::text[]) AS selected(instance_name)
+    ) i
+    CROSS JOIN LATERAL (
+        SELECT l.id, l.occurred_at, l.sequence_number
+        FROM logs l
+        WHERE l.client_id = c.id
+          AND l.instance_name = i.instance_name
+          -- Without a cutoff, the lower time bound has the minimum sequence.
+          AND (l.occurred_at, l.sequence_number, l.id) >=
+              (COALESCE(cutoff.occurred_at, $2::timestamptz, '-infinity'::timestamptz),
+               COALESCE(cutoff.sequence_number, $3::bigint),
+               COALESCE(cutoff.id, $4::bigint))
+          AND (l.occurred_at, l.sequence_number, l.id) <=
+              (COALESCE($5::timestamptz, 'infinity'::timestamptz),
+               $6::bigint, $7::bigint)
+        ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+        LIMIT $8
+    ) candidate
+    ORDER BY candidate.occurred_at DESC, candidate.sequence_number DESC, candidate.id DESC
+    LIMIT $8
+) page
+JOIN logs l ON l.id = page.id
+ORDER BY page.occurred_at DESC, page.sequence_number DESC, page.id DESC
+`
+
+type ListLogsOlderByInstancesParams struct {
+	Instances       []string
+	AfterAt         pgtype.Timestamptz
+	AfterSequence   int64
+	AfterID         int64
+	ThroughAt       pgtype.Timestamptz
+	ThroughSequence int64
+	ThroughID       int64
+	PageSize        int32
+	ProjectID       uuid.UUID
+	ClientID        uuid.UUID
+}
+
+type ListLogsOlderByInstancesRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+// Take one page of keys per distinct instance, then fetch the merged page's rows.
+// A bounded scan of the client index can find the last key of the merged page.
+// If it falls short, each instance scan uses the original bounds and page limit.
+func (q *Queries) ListLogsOlderByInstances(ctx context.Context, arg ListLogsOlderByInstancesParams) ([]ListLogsOlderByInstancesRow, error) {
+	rows, err := q.db.Query(ctx, listLogsOlderByInstances,
+		arg.Instances,
+		arg.AfterAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughAt,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
+		arg.ProjectID,
+		arg.ClientID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLogsOlderByInstancesRow
+	for rows.Next() {
+		var i ListLogsOlderByInstancesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchLogsNewer = `-- name: SearchLogsNewer :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND l.message ILIKE $3::text ESCAPE E'\\'
+  AND l.message ILIKE ALL($4::text[])
+  AND l.occurred_at >= COALESCE($5::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE($6::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($5::timestamptz, '-infinity'::timestamptz),
+       $7::bigint, $8::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($6::timestamptz, 'infinity'::timestamptz),
+       $9::bigint, $10::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+LIMIT $11
+`
+
+type SearchLogsNewerParams struct {
+	ProjectID         uuid.UUID
+	ClientID          uuid.UUID
+	PrimaryPattern    string
+	RemainingPatterns []string
+	AfterAt           pgtype.Timestamptz
+	ThroughAt         pgtype.Timestamptz
+	AfterSequence     int64
+	AfterID           int64
+	ThroughSequence   int64
+	ThroughID         int64
+	PageSize          int32
+}
+
+type SearchLogsNewerRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) SearchLogsNewer(ctx context.Context, arg SearchLogsNewerParams) ([]SearchLogsNewerRow, error) {
+	rows, err := q.db.Query(ctx, searchLogsNewer,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.PrimaryPattern,
+		arg.RemainingPatterns,
+		arg.AfterAt,
+		arg.ThroughAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchLogsNewerRow
+	for rows.Next() {
+		var i SearchLogsNewerRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchLogsNewerByInstances = `-- name: SearchLogsNewerByInstances :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND l.message ILIKE $3::text ESCAPE E'\\'
+  AND l.message ILIKE ALL($4::text[])
+  AND l.instance_name = ANY($5::text[])
+  AND l.occurred_at >= COALESCE($6::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE($7::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($6::timestamptz, '-infinity'::timestamptz),
+       $8::bigint, $9::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($7::timestamptz, 'infinity'::timestamptz),
+       $10::bigint, $11::bigint)
+ORDER BY l.occurred_at ASC, l.sequence_number ASC, l.id ASC
+LIMIT $12
+`
+
+type SearchLogsNewerByInstancesParams struct {
+	ProjectID         uuid.UUID
+	ClientID          uuid.UUID
+	PrimaryPattern    string
+	RemainingPatterns []string
+	Instances         []string
+	AfterAt           pgtype.Timestamptz
+	ThroughAt         pgtype.Timestamptz
+	AfterSequence     int64
+	AfterID           int64
+	ThroughSequence   int64
+	ThroughID         int64
+	PageSize          int32
+}
+
+type SearchLogsNewerByInstancesRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) SearchLogsNewerByInstances(ctx context.Context, arg SearchLogsNewerByInstancesParams) ([]SearchLogsNewerByInstancesRow, error) {
+	rows, err := q.db.Query(ctx, searchLogsNewerByInstances,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.PrimaryPattern,
+		arg.RemainingPatterns,
+		arg.Instances,
+		arg.AfterAt,
+		arg.ThroughAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchLogsNewerByInstancesRow
+	for rows.Next() {
+		var i SearchLogsNewerByInstancesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchLogsOlder = `-- name: SearchLogsOlder :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND l.message ILIKE $3::text ESCAPE E'\\'
+  AND l.message ILIKE ALL($4::text[])
+  AND l.occurred_at >= COALESCE($5::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE($6::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($5::timestamptz, '-infinity'::timestamptz),
+       $7::bigint, $8::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($6::timestamptz, 'infinity'::timestamptz),
+       $9::bigint, $10::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT $11
+`
+
+type SearchLogsOlderParams struct {
+	ProjectID         uuid.UUID
+	ClientID          uuid.UUID
+	PrimaryPattern    string
+	RemainingPatterns []string
+	AfterAt           pgtype.Timestamptz
+	ThroughAt         pgtype.Timestamptz
+	AfterSequence     int64
+	AfterID           int64
+	ThroughSequence   int64
+	ThroughID         int64
+	PageSize          int32
+}
+
+type SearchLogsOlderRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+// Repeat the time bounds so the search planner can estimate range selectivity
+// from the timestamp histogram when choosing between B-tree and trigram indexes.
+func (q *Queries) SearchLogsOlder(ctx context.Context, arg SearchLogsOlderParams) ([]SearchLogsOlderRow, error) {
+	rows, err := q.db.Query(ctx, searchLogsOlder,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.PrimaryPattern,
+		arg.RemainingPatterns,
+		arg.AfterAt,
+		arg.ThroughAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchLogsOlderRow
+	for rows.Next() {
+		var i SearchLogsOlderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ProjectID,
+			&i.InstanceName,
+			&i.OccurredAt,
+			&i.SequenceNumber,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchLogsOlderByInstances = `-- name: SearchLogsOlderByInstances :many
+SELECT l.id, l.client_id, c.project_id, l.instance_name,
+       l.occurred_at, l.sequence_number, l.message
+FROM logs l
+JOIN clients c ON c.id = l.client_id
+WHERE c.project_id = $1
+  AND l.client_id = $2
+  AND l.message ILIKE $3::text ESCAPE E'\\'
+  AND l.message ILIKE ALL($4::text[])
+  AND l.instance_name = ANY($5::text[])
+  AND l.occurred_at >= COALESCE($6::timestamptz, '-infinity'::timestamptz)
+  AND l.occurred_at <= COALESCE($7::timestamptz, 'infinity'::timestamptz)
+  AND (l.occurred_at, l.sequence_number, l.id) >
+      (COALESCE($6::timestamptz, '-infinity'::timestamptz),
+       $8::bigint, $9::bigint)
+  AND (l.occurred_at, l.sequence_number, l.id) <=
+      (COALESCE($7::timestamptz, 'infinity'::timestamptz),
+       $10::bigint, $11::bigint)
+ORDER BY l.occurred_at DESC, l.sequence_number DESC, l.id DESC
+LIMIT $12
+`
+
+type SearchLogsOlderByInstancesParams struct {
+	ProjectID         uuid.UUID
+	ClientID          uuid.UUID
+	PrimaryPattern    string
+	RemainingPatterns []string
+	Instances         []string
+	AfterAt           pgtype.Timestamptz
+	ThroughAt         pgtype.Timestamptz
+	AfterSequence     int64
+	AfterID           int64
+	ThroughSequence   int64
+	ThroughID         int64
+	PageSize          int32
+}
+
+type SearchLogsOlderByInstancesRow struct {
+	ID             int64
+	ClientID       uuid.UUID
+	ProjectID      uuid.UUID
+	InstanceName   string
+	OccurredAt     time.Time
+	SequenceNumber int64
+	Message        string
+}
+
+func (q *Queries) SearchLogsOlderByInstances(ctx context.Context, arg SearchLogsOlderByInstancesParams) ([]SearchLogsOlderByInstancesRow, error) {
+	rows, err := q.db.Query(ctx, searchLogsOlderByInstances,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.PrimaryPattern,
+		arg.RemainingPatterns,
+		arg.Instances,
+		arg.AfterAt,
+		arg.ThroughAt,
+		arg.AfterSequence,
+		arg.AfterID,
+		arg.ThroughSequence,
+		arg.ThroughID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchLogsOlderByInstancesRow
+	for rows.Next() {
+		var i SearchLogsOlderByInstancesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ClientID,
