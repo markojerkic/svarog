@@ -10,9 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
-func ListLogs(ctx context.Context, pool *pgxpool.Pool, query LogReadQuery) ([]LogRow, error) {
+func ListLogs(ctx context.Context, pool *pgxpool.Pool, query LogReadQuery) ([]logstore.Row, error) {
 	instances := query.Instances
 	if instances == nil {
 		instances = []string{}
@@ -45,22 +46,21 @@ func ListLogs(ctx context.Context, pool *pgxpool.Pool, query LogReadQuery) ([]Lo
 	if query.HasCursor && !query.Backward {
 		slices.Reverse(rows)
 	}
-	logs := make([]LogRow, len(rows))
+	logs := make([]logstore.Row, len(rows))
 	for i, row := range rows {
-		logs[i] = LogRow{
-			ID:             row.ID,
-			ClientID:       row.ClientID,
-			ProjectID:      row.ProjectID,
-			InstanceName:   row.InstanceName,
-			OccurredAt:     row.OccurredAt,
-			SequenceNumber: row.SequenceNumber,
-			Message:        row.Message,
+		logs[i] = logstore.Row{
+			ID:         row.ID,
+			Scope:      logstore.Scope{ClientID: row.ClientID, ProjectID: row.ProjectID},
+			Instance:   row.InstanceName,
+			OccurredAt: row.OccurredAt,
+			Sequence:   row.SequenceNumber,
+			Message:    row.Message,
 		}
 	}
 	return logs, nil
 }
 
-func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) ([]LogRow, error) {
+func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) ([]logstore.Row, error) {
 	instances := query.Instances
 	if instances == nil {
 		instances = []string{}
@@ -95,16 +95,15 @@ func SearchLogs(ctx context.Context, pool *pgxpool.Pool, query LogSearchQuery) (
 	if query.HasCursor && !query.Backward {
 		slices.Reverse(rows)
 	}
-	logs := make([]LogRow, len(rows))
+	logs := make([]logstore.Row, len(rows))
 	for i, row := range rows {
-		logs[i] = LogRow{
-			ID:             row.ID,
-			ClientID:       row.ClientID,
-			ProjectID:      row.ProjectID,
-			InstanceName:   row.InstanceName,
-			OccurredAt:     row.OccurredAt,
-			SequenceNumber: row.SequenceNumber,
-			Message:        row.Message,
+		logs[i] = logstore.Row{
+			ID:         row.ID,
+			Scope:      logstore.Scope{ClientID: row.ClientID, ProjectID: row.ProjectID},
+			Instance:   row.InstanceName,
+			OccurredAt: row.OccurredAt,
+			Sequence:   row.SequenceNumber,
+			Message:    row.Message,
 		}
 	}
 	return logs, nil
@@ -121,7 +120,7 @@ func (db searchQueryDB) Query(ctx context.Context, query string, args ...any) (p
 	return db.DBTX.Query(ctx, query, append([]any{pgx.QueryExecModeCacheDescribe}, args...)...)
 }
 
-func GetLogAnchor(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID, id int64) (LogRow, error) {
+func GetLogAnchor(ctx context.Context, pool *pgxpool.Pool, projectID, clientID uuid.UUID, id int64) (logstore.Row, error) {
 	row, err := sqlc.New(pool).GetLogAnchor(ctx, sqlc.GetLogAnchorParams{
 		ID:        id,
 		ClientID:  clientID,
@@ -129,18 +128,17 @@ func GetLogAnchor(ctx context.Context, pool *pgxpool.Pool, projectID, clientID u
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return LogRow{}, err
+			return logstore.Row{}, err
 		}
-		return LogRow{}, fmt.Errorf("get log anchor: %w", err)
+		return logstore.Row{}, fmt.Errorf("get log anchor: %w", err)
 	}
-	return LogRow{
-		ID:             row.ID,
-		ClientID:       row.ClientID,
-		ProjectID:      row.ProjectID,
-		InstanceName:   row.InstanceName,
-		OccurredAt:     row.OccurredAt,
-		SequenceNumber: row.SequenceNumber,
-		Message:        row.Message,
+	return logstore.Row{
+		ID:         row.ID,
+		Scope:      logstore.Scope{ClientID: row.ClientID, ProjectID: row.ProjectID},
+		Instance:   row.InstanceName,
+		OccurredAt: row.OccurredAt,
+		Sequence:   row.SequenceNumber,
+		Message:    row.Message,
 	}, nil
 }
 

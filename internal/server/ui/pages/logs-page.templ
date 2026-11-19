@@ -637,7 +637,7 @@ templ LogPageLines(props LogsPageProps) {
 	}
 	for _, log := range props.LogPage.Logs {
 		@logs.LogLine(logs.LogLineProps{
-			LogLine:   log,
+			Row:       log,
 			Search:    search,
 			IsContext: props.LogLineId != nil && *props.LogLineId == strconv.FormatInt(log.ID, 10),
 		})

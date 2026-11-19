@@ -8,20 +8,19 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type LogWriter interface {
 	// On success, return one result per event in input order. A result describes
 	// an inserted event, a duplicate, or a rejected client. Writers must honor
 	// ctx; shutdown waits for their active call to exit.
-	CommitLogs(ctx context.Context, logs []db.IngestLog) ([]persistence.IngestLogResult, error)
+	CommitLogs(ctx context.Context, logs []logstore.Event) ([]persistence.IngestLogResult, error)
 }
 
 type Live interface {
-	AfterCommit(ctx context.Context, rows []types.StoredLog)
-	AfterUncertainCommit(rows []types.StoredLog)
+	AfterCommit(ctx context.Context, rows []logstore.Row)
+	AfterUncertainCommit(scopes []logstore.Scope)
 }
 
 type Options struct {

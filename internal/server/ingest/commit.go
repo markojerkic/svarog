@@ -11,15 +11,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	input := make([]db.IngestLog, len(batch))
+	input := make([]logstore.Event, len(batch))
 	for i, p := range batch {
 		input[i] = p.input
 	}
@@ -86,9 +85,6 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 }
 
 func rowDataError(err error) bool {
-	if errors.Is(err, db.ErrInvalidLogScope) {
-		return true
-	}
 	var pgError *pgconn.PgError
 	if !errors.As(err, &pgError) {
 		return false
@@ -120,26 +116,25 @@ func systemicSaveError(err error) bool {
 	}
 }
 
-func (s *Service) commitAndPublish(ctx context.Context, input []db.IngestLog) ([]persistence.IngestLogResult, error) {
+func (s *Service) commitAndPublish(ctx context.Context, input []logstore.Event) ([]persistence.IngestLogResult, error) {
 	results, err := s.writer.CommitLogs(ctx, input)
 	if err != nil {
 		log.Error("Error saving logs", "error", err)
 		if s.live != nil && uncertainCommit(err) {
-			rows := make([]types.StoredLog, len(input))
+			scopes := make([]logstore.Scope, len(input))
 			for i, event := range input {
-				rows[i] = event.Log
+				scopes[i] = event.Scope
 			}
-			s.live.AfterUncertainCommit(rows)
+			s.live.AfterUncertainCommit(scopes)
 		}
 		return nil, err
 	}
 	if s.live != nil && len(results) == len(input) {
-		rows := make([]types.StoredLog, 0, len(results))
+		rows := make([]logstore.Row, 0, len(results))
 		for i, result := range results {
 			if result.Status == persistence.IngestLogInserted {
-				row := input[i].Log
-				row.ID = result.ID
-				rows = append(rows, row)
+				event := input[i]
+				rows = append(rows, logstore.Row{ID: result.ID, Scope: event.Scope, Instance: event.Instance, OccurredAt: event.OccurredAt, Sequence: event.Sequence, Message: event.Message})
 			}
 		}
 		s.live.AfterCommit(ctx, rows)
@@ -153,5 +148,5 @@ func (s *Service) commitAndPublish(ctx context.Context, input []db.IngestLog) ([
 func uncertainCommit(err error) bool {
 	var pgError *pgconn.PgError
 	var connectError *pgconn.ConnectError
-	return !errors.Is(err, db.ErrInvalidLogScope) && !errors.As(err, &pgError) && !errors.As(err, &connectError) && !pgconn.SafeToRetry(err)
+	return !errors.As(err, &pgError) && !errors.As(err, &connectError) && !pgconn.SafeToRetry(err)
 }

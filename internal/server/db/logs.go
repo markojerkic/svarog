@@ -15,12 +15,12 @@ import (
 
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type LastCursor struct {
 	Timestamp      time.Time
-	SequenceNumber int
+	SequenceNumber int64
 	ID             int64
 	IsBackward     bool
 }
@@ -31,7 +31,7 @@ type LogRange struct {
 }
 
 type LogPage struct {
-	Logs           []types.StoredLog
+	Logs           []logstore.Row
 	Instances      *[]string
 	ForwardCursor  *LastCursor
 	BackwardCursor *LastCursor
@@ -52,7 +52,7 @@ type LogPageRequest struct {
 type LogService interface {
 	GetLogs(ctx context.Context, req LogPageRequest) (LogPage, error)
 	GetInstances(ctx context.Context, projectId string, clientId string) ([]string, error)
-	SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error)
+	SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]logstore.Row, error)
 }
 
 type PostgresLogService struct {
@@ -96,7 +96,7 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 			return LogPage{}, err
 		}
 		if found {
-			req.Instances = &[]string{anchor.InstanceName}
+			req.Instances = &[]string{anchor.Instance}
 			if req.Cursor == nil {
 				return self.logContext(ctx, req, anchor)
 			}
@@ -131,20 +131,20 @@ func (self *PostgresLogService) GetLogs(ctx context.Context, req LogPageRequest)
 		slog.Error("Error getting logs", "error", err)
 		return LogPage{}, err
 	}
-	return pageFromLogs(mapLogRows(rows), req), nil
+	return pageFromLogs(rows, req), nil
 }
 
-func (self *PostgresLogService) logContext(ctx context.Context, req LogPageRequest, anchor persistence.LogRow) (LogPage, error) {
+func (self *PostgresLogService) logContext(ctx context.Context, req LogPageRequest, anchor logstore.Row) (LogPage, error) {
 	query := persistence.LogReadQuery{
-		ProjectID:       anchor.ProjectID,
-		ClientID:        anchor.ClientID,
+		ProjectID:       anchor.Scope.ProjectID,
+		ClientID:        anchor.Scope.ClientID,
 		FilterInstances: true,
 		Instances:       *req.Instances,
 		PageSize:        int32(req.PageSize),
 		HasCursor:       true,
 		Backward:        true,
 		CursorAt:        anchor.OccurredAt,
-		CursorSequence:  anchor.SequenceNumber,
+		CursorSequence:  anchor.Sequence,
 		CursorID:        &anchor.ID,
 	}
 	applyLogRange(&query, req.Range)
@@ -158,7 +158,7 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 		return LogPage{}, err
 	}
 	page := LogPage{
-		Logs:       mapLogRows(append(append(newer, anchor), older...)),
+		Logs:       append(append(newer, anchor), older...),
 		Instances:  req.Instances,
 		IsLastPage: len(newer) == 0,
 	}
@@ -171,14 +171,14 @@ func (self *PostgresLogService) logContext(ctx context.Context, req LogPageReque
 	return page, nil
 }
 
-func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]types.StoredLog, error) {
+func (self *PostgresLogService) SearchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor) ([]logstore.Row, error) {
 	return self.searchLogs(ctx, query, projectId, clientId, instances, pageSize, lastCursor, nil)
 }
 
-func (self *PostgresLogService) searchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor, logRange *LogRange) ([]types.StoredLog, error) {
+func (self *PostgresLogService) searchLogs(ctx context.Context, query string, projectId string, clientId string, instances *[]string, pageSize int64, lastCursor *LastCursor, logRange *LogRange) ([]logstore.Row, error) {
 	projectID, clientID, ok := parseLogScope(projectId, clientId)
 	if !ok {
-		return []types.StoredLog{}, nil
+		return []logstore.Row{}, nil
 	}
 	if pageSize <= 0 || pageSize > math.MaxInt32 {
 		return nil, fmt.Errorf("invalid log page size %d", pageSize)
@@ -188,7 +188,7 @@ func (self *PostgresLogService) searchLogs(ctx context.Context, query string, pr
 		return nil, err
 	}
 	if len(parsed.Terms) == 0 {
-		return []types.StoredLog{}, nil
+		return []logstore.Row{}, nil
 	}
 	search := persistence.LogSearchQuery{
 		LogReadQuery: persistence.LogReadQuery{
@@ -219,29 +219,22 @@ func (self *PostgresLogService) searchLogs(ctx context.Context, query string, pr
 		slog.Error("Error searching logs", "error", err)
 		return nil, err
 	}
-	return mapLogRows(rows), nil
+	return rows, nil
 }
 
-var ErrInvalidLogScope = errors.New("invalid log project or client id")
-
 // CommitLogs returns one result per input after a successful write.
-func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog) ([]persistence.IngestLogResult, error) {
+func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []logstore.Event) ([]persistence.IngestLogResult, error) {
 	if len(logs) == 0 {
 		return nil, nil
 	}
 	input := make([]persistence.IngestLogInsert, len(logs))
 	for i, event := range logs {
-		log := event.Log
-		projectID, clientID, ok := parseLogScope(log.Client.ProjectId, log.Client.ClientId)
-		if !ok || projectID.String() != log.Client.ProjectId || clientID.String() != log.Client.ClientId {
-			return nil, fmt.Errorf("%w: project %q, client %q", ErrInvalidLogScope, log.Client.ProjectId, log.Client.ClientId)
-		}
-		input[i] = persistence.IngestLogInsert{ProjectID: projectID, EventKey: event.EventKey, Log: persistence.LogInsert{
-			ClientID:       clientID,
-			InstanceName:   log.Client.InstanceId,
-			OccurredAt:     log.Timestamp,
-			SequenceNumber: int64(log.SequenceNumber),
-			Message:        log.LogLine,
+		input[i] = persistence.IngestLogInsert{ProjectID: event.Scope.ProjectID, EventKey: event.Key, Log: persistence.LogInsert{
+			ClientID:       event.Scope.ClientID,
+			InstanceName:   event.Instance,
+			OccurredAt:     event.OccurredAt,
+			SequenceNumber: event.Sequence,
+			Message:        event.Message,
 		}}
 	}
 	return persistence.InsertIngestLogs(ctx, self.pool, input)
@@ -273,40 +266,22 @@ func applyLogRange(query *persistence.LogReadQuery, logRange *LogRange) {
 	query.RangeTo = logRange.To
 }
 
-func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (persistence.LogRow, bool, error) {
+func (self *PostgresLogService) logAnchor(ctx context.Context, projectID, clientID uuid.UUID, logLineID string) (logstore.Row, bool, error) {
 	id, err := strconv.ParseInt(logLineID, 10, 64)
 	if err != nil || id <= 0 {
-		return persistence.LogRow{}, false, nil
+		return logstore.Row{}, false, nil
 	}
 	anchor, err := persistence.GetLogAnchor(ctx, self.pool, projectID, clientID, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return persistence.LogRow{}, false, nil
+		return logstore.Row{}, false, nil
 	}
 	if err != nil {
-		return persistence.LogRow{}, false, err
+		return logstore.Row{}, false, err
 	}
 	return anchor, true, nil
 }
 
-func mapLogRows(rows []persistence.LogRow) []types.StoredLog {
-	logs := make([]types.StoredLog, len(rows))
-	for i, row := range rows {
-		logs[i] = types.StoredLog{
-			ID:             row.ID,
-			LogLine:        row.Message,
-			Timestamp:      row.OccurredAt,
-			SequenceNumber: int(row.SequenceNumber),
-			Client: types.StoredClient{
-				ProjectId:  row.ProjectID.String(),
-				ClientId:   row.ClientID.String(),
-				InstanceId: row.InstanceName,
-			},
-		}
-	}
-	return logs
-}
-
-func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
+func pageFromLogs(logs []logstore.Row, req LogPageRequest) LogPage {
 	if len(logs) == 0 {
 		return emptyLogPage(req)
 	}
@@ -327,10 +302,10 @@ func pageFromLogs(logs []types.StoredLog, req LogPageRequest) LogPage {
 	}
 }
 
-func logCursor(log types.StoredLog, backward bool) *LastCursor {
+func logCursor(log logstore.Row, backward bool) *LastCursor {
 	return &LastCursor{
-		Timestamp:      log.Timestamp,
-		SequenceNumber: log.SequenceNumber,
+		Timestamp:      log.OccurredAt,
+		SequenceNumber: log.Sequence,
 		ID:             log.ID,
 		IsBackward:     backward,
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestMassImport(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	lines := make([]db.IngestLog, count)
+	lines := make([]logstore.Event, count)
 	for i := range lines {
 		lines[i] = ingestLine(env, i, base.Add(time.Duration(i)*time.Millisecond))
 	}
@@ -35,9 +35,9 @@ func TestMassImport(t *testing.T) {
 	require.Len(t, got, count, "every committed line is readable")
 	requireNewestFirst(t, got)
 	for i, log := range got {
-		require.Equal(t, fmt.Sprintf("Log line %d", count-1-i), log.LogLine, "newest-first messages have no gaps")
-		require.Equal(t, count-1-i, log.SequenceNumber, "each message retains its sequence")
-		require.Equal(t, "web", log.Client.InstanceId, "ingest persists the hostname as the instance")
+		require.Equal(t, fmt.Sprintf("Log line %d", count-1-i), log.Message, "newest-first messages have no gaps")
+		require.Equal(t, int64(count-1-i), log.Sequence, "each message retains its sequence")
+		require.Equal(t, "web", log.Instance, "ingest persists the hostname as the instance")
 	}
 }
 
@@ -47,7 +47,7 @@ func TestOutOfOrderInsert(t *testing.T) {
 	defer cancel()
 	env := newIngestEnv(t, ctx)
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	lines := make([]db.IngestLog, 0, count)
+	lines := make([]logstore.Event, 0, count)
 	for i := 0; i < count; i += 2 {
 		lines = append(lines, ingestLine(env, i, at))
 	}
@@ -61,8 +61,8 @@ func TestOutOfOrderInsert(t *testing.T) {
 	requireNewestFirst(t, got)
 	require.Greater(t, got[0].ID, got[1].ID, "the highest odd sequence was inserted after its even neighbor")
 	for i, log := range got {
-		require.Equal(t, count-1-i, log.SequenceNumber, "logs follow sequence order rather than arrival order")
-		require.Equal(t, fmt.Sprintf("Log line %d", count-1-i), log.LogLine, "out-of-order ingestion preserves each message")
+		require.Equal(t, int64(count-1-i), log.Sequence, "logs follow sequence order rather than arrival order")
+		require.Equal(t, fmt.Sprintf("Log line %d", count-1-i), log.Message, "out-of-order ingestion preserves each message")
 	}
 }
 
@@ -98,7 +98,7 @@ func TestFindLoglinePage(t *testing.T) {
 	require.Equal(t, ids[target], page.Logs[300].ID, "logLine anchor is the middle row of the context")
 	requireNewestFirst(t, page.Logs)
 	for i, log := range page.Logs {
-		require.Equal(t, fmt.Sprintf("Log line %d", target+300-i), log.LogLine, "context walks through newer and older neighbors without gaps")
+		require.Equal(t, fmt.Sprintf("Log line %d", target+300-i), log.Message, "context walks through newer and older neighbors without gaps")
 	}
 }
 
@@ -177,17 +177,15 @@ func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 	}
 }
 
-func ingestLine(env ingestEnv, i int, at time.Time) db.IngestLog {
-	return db.IngestLog{
-		EventKey: logevent.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
-		Log: types.StoredLog{
-			LogLine: fmt.Sprintf("Log line %d", i), Timestamp: at, SequenceNumber: i,
-			Client: types.StoredClient{ProjectId: env.projectID, ClientId: env.clientID.String(), InstanceId: "web"},
-		},
+func ingestLine(env ingestEnv, i int, at time.Time) logstore.Event {
+	return logstore.Event{
+		Key:      logevent.MessageKey("logs."+env.projectID+"."+env.clientID.String(), []byte(fmt.Sprintf("fixture:%d:%s", i, at.Format(time.RFC3339Nano)))),
+		Scope:    logstore.Scope{ProjectID: uuid.MustParse(env.projectID), ClientID: env.clientID},
+		Instance: "web", OccurredAt: at, Sequence: int64(i), Message: fmt.Sprintf("Log line %d", i),
 	}
 }
 
-func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines []db.IngestLog) {
+func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines []logstore.Event) {
 	t.Helper()
 	for offset := 0; offset < len(lines); offset += 1000 {
 		_, err := env.logs.CommitLogs(ctx, lines[offset:min(offset+1000, len(lines))])
@@ -195,10 +193,10 @@ func commitIngestLines(t *testing.T, ctx context.Context, env ingestEnv, lines [
 	}
 }
 
-func pageNewestFirst(t *testing.T, ctx context.Context, env ingestEnv, pageSize int64) []types.StoredLog {
+func pageNewestFirst(t *testing.T, ctx context.Context, env ingestEnv, pageSize int64) []logstore.Row {
 	t.Helper()
 	var cursor *db.LastCursor
-	var all []types.StoredLog
+	var all []logstore.Row
 	seen := make(map[int64]bool)
 	for {
 		page, err := env.logs.GetLogs(ctx, db.LogPageRequest{
@@ -219,13 +217,13 @@ func pageNewestFirst(t *testing.T, ctx context.Context, env ingestEnv, pageSize 
 	}
 }
 
-func requireNewestFirst(t *testing.T, logs []types.StoredLog) {
+func requireNewestFirst(t *testing.T, logs []logstore.Row) {
 	t.Helper()
 	for i := 1; i < len(logs); i++ {
 		prev, cur := logs[i-1], logs[i]
-		ordered := prev.Timestamp.After(cur.Timestamp) ||
-			(prev.Timestamp.Equal(cur.Timestamp) && prev.SequenceNumber > cur.SequenceNumber) ||
-			(prev.Timestamp.Equal(cur.Timestamp) && prev.SequenceNumber == cur.SequenceNumber && prev.ID > cur.ID)
+		ordered := prev.OccurredAt.After(cur.OccurredAt) ||
+			(prev.OccurredAt.Equal(cur.OccurredAt) && prev.Sequence > cur.Sequence) ||
+			(prev.OccurredAt.Equal(cur.OccurredAt) && prev.Sequence == cur.Sequence && prev.ID > cur.ID)
 		require.True(t, ordered, "logs at indexes %d and %d must descend by timestamp, sequence, then id", i-1, i)
 	}
 }

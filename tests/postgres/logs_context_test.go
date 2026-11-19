@@ -44,7 +44,7 @@ func TestLogContext(t *testing.T) {
 		require.NoError(t, err, "opening a valid context must succeed")
 		require.NotEmpty(t, page.Logs, "context must contain the selected log")
 		for _, log := range page.Logs {
-			require.Equal(t, "api-1", log.Client.InstanceId, "context must exclude other instances even without an explicit instance parameter")
+			require.Equal(t, "api-1", log.Instance, "context must exclude other instances even without an explicit instance parameter")
 		}
 	})
 
@@ -100,7 +100,7 @@ func TestLogContext(t *testing.T) {
 				})
 				require.NoError(t, err, "context pagination without the original anchor must load")
 				for _, log := range page.Logs {
-					require.Equal(t, "api-1", log.Client.InstanceId, "every continuation must retain the anchor instance")
+					require.Equal(t, "api-1", log.Instance, "every continuation must retain the anchor instance")
 					found = append(found, log.ID)
 				}
 				cursor = page.BackwardCursor

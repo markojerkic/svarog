@@ -24,6 +24,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -69,7 +70,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	t.Cleanup(writePool.Close)
 	logService := db.NewLogService(writePool)
 	var lockTimedOut atomic.Bool
-	writer := ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+	writer := ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]store.IngestLogResult, error) {
 		results, err := logService.CommitLogs(ctx, input)
 		var pgError *pgconn.PgError
 		if errors.As(err, &pgError) && pgError.Code == "55P03" {
@@ -219,7 +220,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		var attempts atomic.Int32
 		opts := env.options
 		opts.AckWait = 300 * time.Millisecond
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]store.IngestLogResult, error) {
 			attempt := attempts.Add(1)
 			if attempt == 1 {
 				return nil, &pgconn.PgError{Code: "40001"}
@@ -353,9 +354,9 @@ func TestIngestCommitLifecycle(t *testing.T) {
 	t.Run("isolates a bad row but retains valid data on systemic SQL failure", func(t *testing.T) {
 		env := newIngestFixture(t)
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]store.IngestLogResult, error) {
 			for _, event := range input {
-				switch event.Log.LogLine {
+				switch event.Message {
 				case "bad":
 					return nil, &pgconn.PgError{Code: "54000", Message: "index entry too large"}
 				case "schema":
@@ -392,7 +393,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		env := newIngestFixture(t)
 		entered := make(chan struct{})
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]store.IngestLogResult, error) {
 			close(entered)
 			<-ctx.Done()
 			return nil, ctx.Err()
@@ -501,9 +502,9 @@ func TestIngestBrokerBootstrap(t *testing.T) {
 	})
 }
 
-type ingestWriterFunc func(context.Context, []db.IngestLog) ([]store.IngestLogResult, error)
+type ingestWriterFunc func(context.Context, []logstore.Event) ([]store.IngestLogResult, error)
 
-func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []logstore.Event) ([]store.IngestLogResult, error) {
 	return f(ctx, input)
 }
 
@@ -515,7 +516,7 @@ type ingestFixture struct {
 	writer    *db.PostgresLogService
 	options   ingest.Options
 	subject   string
-	scope     live.Scope
+	scope     logstore.Scope
 }
 
 func newIngestFixture(t *testing.T) ingestFixture {
@@ -540,7 +541,7 @@ func newIngestFixture(t *testing.T) ingestFixture {
 		ctx: ctx, pool: pool, container: container, conn: conn, writer: writer,
 		options: ingest.Options{Connection: conn, Pool: pool, Writer: writer},
 		subject: "logs." + project.ID.String() + "." + project.Clients[0].ID.String(),
-		scope:   live.Scope{ProjectID: project.ID, ClientID: project.Clients[0].ID},
+		scope:   logstore.Scope{ProjectID: project.ID, ClientID: project.Clients[0].ID},
 	}
 }
 

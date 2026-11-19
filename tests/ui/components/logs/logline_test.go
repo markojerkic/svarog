@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 )
 
 func TestLogLineColumnsStayLocaleNeutral(t *testing.T) {
 	at := time.Date(2026, 1, 2, 15, 4, 5, 123000000, time.FixedZone("CET", 3600))
 	var output bytes.Buffer
-	err := logs.LogLine(logs.LogLineProps{LogLine: types.StoredLog{Timestamp: at}}).Render(context.Background(), &output)
+	err := logs.LogLine(logs.LogLineProps{Row: logstore.Row{OccurredAt: at}}).Render(context.Background(), &output)
 	if err != nil {
 		t.Fatalf("Log line must render: %v", err)
 	}

@@ -19,17 +19,22 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/live"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
 type LogLine struct {
-	ID             string             `json:"id"`
-	Timestamp      int64              `json:"timestamp"`
-	Content        string             `json:"content"`
-	SequenceNumber int                `json:"sequenceNumber"`
-	Client         types.StoredClient `json:"client"`
+	ID             string        `json:"id"`
+	Timestamp      int64         `json:"timestamp"`
+	Content        string        `json:"content"`
+	SequenceNumber int64         `json:"sequenceNumber"`
+	Client         logLineClient `json:"client"`
+}
+
+type logLineClient struct {
+	ProjectID string `json:"projectId"`
+	ClientID  string `json:"clientId"`
+	Instance  string `json:"instanceId"`
 }
 
 type LogsRouter struct {
@@ -46,7 +51,7 @@ type LogsByClientBinding struct {
 	ClientId             string    `param:"clientId"`
 	CursorTime           *int64    `query:"cursorTime"`
 	CursorTimeUs         *int64    `query:"cursorTimeUs"`
-	CursorSequenceNumber *int      `query:"cursorSequenceNumber"`
+	CursorSequenceNumber *int64    `query:"cursorSequenceNumber"`
 	CursorID             *int64    `query:"cursorId"`
 	Direction            *string   `query:"direction"`
 	Instances            *[]string `query:"instance"`
@@ -323,10 +328,10 @@ func (self *LogsRouter) searchLogs(c *echo.Context) error {
 	for i, log := range logs {
 		mappedLogs[logsLen-i-1] = LogLine{
 			strconv.FormatInt(log.ID, 10),
-			log.Timestamp.UnixMilli(),
-			log.LogLine,
-			log.SequenceNumber,
-			log.Client,
+			log.OccurredAt.UnixMilli(),
+			log.Message,
+			log.Sequence,
+			logLineClient{ProjectID: log.Scope.ProjectID.String(), ClientID: log.Scope.ClientID.String(), Instance: log.Instance},
 		}
 	}
 

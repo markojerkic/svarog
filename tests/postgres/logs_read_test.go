@@ -11,7 +11,7 @@ import (
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
@@ -71,8 +71,8 @@ func TestReadLogs(t *testing.T) {
 			ClientId:  client,
 			PageSize:  1,
 			Cursor: &db.LastCursor{
-				Timestamp:      tieHigh.Timestamp,
-				SequenceNumber: tieHigh.SequenceNumber,
+				Timestamp:      tieHigh.OccurredAt,
+				SequenceNumber: tieHigh.Sequence,
 				ID:             tieHigh.ID,
 				IsBackward:     true,
 			},
@@ -84,8 +84,8 @@ func TestReadLogs(t *testing.T) {
 			ClientId:  client,
 			PageSize:  1,
 			Cursor: &db.LastCursor{
-				Timestamp:      tieHigh.Timestamp,
-				SequenceNumber: tieHigh.SequenceNumber,
+				Timestamp:      tieHigh.OccurredAt,
+				SequenceNumber: tieHigh.Sequence,
 				IsBackward:     true,
 			},
 		})
@@ -100,8 +100,8 @@ func TestReadLogs(t *testing.T) {
 			ClientId:  client,
 			PageSize:  2,
 			Cursor: &db.LastCursor{
-				Timestamp:      older.Timestamp,
-				SequenceNumber: older.SequenceNumber,
+				Timestamp:      older.OccurredAt,
+				SequenceNumber: older.Sequence,
 				ID:             older.ID,
 				IsBackward:     false,
 			},
@@ -227,21 +227,21 @@ func mustPage(t *testing.T, ctx context.Context, logs *db.PostgresLogService, re
 	return page
 }
 
-func messages(logs []types.StoredLog) []string {
+func messages(logs []logstore.Row) []string {
 	out := make([]string, len(logs))
 	for i, log := range logs {
-		out[i] = log.LogLine
+		out[i] = log.Message
 	}
 	return out
 }
 
-func findMessage(t *testing.T, logs []types.StoredLog, message string) types.StoredLog {
+func findMessage(t *testing.T, logs []logstore.Row, message string) logstore.Row {
 	t.Helper()
 	for _, log := range logs {
-		if log.LogLine == message {
+		if log.Message == message {
 			return log
 		}
 	}
 	t.Fatalf("log %s not found", message)
-	return types.StoredLog{}
+	return logstore.Row{}
 }

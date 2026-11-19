@@ -16,7 +16,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,12 +43,12 @@ func (s *logSearchStub) GetLogs(_ context.Context, req db.LogPageRequest) (db.Lo
 		return *s.page, nil
 	}
 	return db.LogPage{
-		Logs:       []types.StoredLog{{LogLine: "matching connection refused"}},
+		Logs:       []logstore.Row{{Message: "matching connection refused"}},
 		IsLastPage: req.Cursor == nil,
 	}, nil
 }
 
-func (s *logSearchStub) SearchLogs(ctx context.Context, search, project, client string, instances *[]string, pageSize int64, cursor *db.LastCursor) ([]types.StoredLog, error) {
+func (s *logSearchStub) SearchLogs(ctx context.Context, search, project, client string, instances *[]string, pageSize int64, cursor *db.LastCursor) ([]logstore.Row, error) {
 	page, err := s.GetLogs(ctx, db.LogPageRequest{
 		ProjectId: project, ClientId: client, Search: search, Instances: instances,
 		PageSize: pageSize, Cursor: cursor,
@@ -232,7 +232,7 @@ func TestLogCursorValidation(t *testing.T) {
 					return
 				}
 				require.Equal(t, time.UnixMicro(tc.micros), logs.request.Cursor.Timestamp, "cursor parsing must preserve timestamp precision and accept legacy links")
-				require.Equal(t, 2, logs.request.Cursor.SequenceNumber, "cursor parsing must preserve the sequence number")
+				require.Equal(t, int64(2), logs.request.Cursor.SequenceNumber, "cursor parsing must preserve the sequence number")
 				require.Equal(t, strings.Contains(tc.query, "direction=backward"), logs.request.Cursor.IsBackward, "cursor parsing must preserve the direction")
 				if strings.Contains(tc.query, "cursorId=7") {
 					require.Equal(t, int64(7), logs.request.Cursor.ID, "cursor parsing must preserve the row id tie breaker")

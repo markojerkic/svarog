@@ -14,16 +14,6 @@ type LogInsert struct {
 	Message        string
 }
 
-type LogRow struct {
-	ID             int64
-	ClientID       uuid.UUID
-	ProjectID      uuid.UUID
-	InstanceName   string
-	OccurredAt     time.Time
-	SequenceNumber int64
-	Message        string
-}
-
 type LogReadQuery struct {
 	ProjectID       uuid.UUID
 	ClientID        uuid.UUID

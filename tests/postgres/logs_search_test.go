@@ -11,7 +11,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
@@ -109,15 +109,15 @@ func TestSearchLogs(t *testing.T) {
 		needles := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, nil)
 		require.Equal(t, []string{"needle high"}, messages(needles), "same timestamp and sequence sorts the higher id first")
 		withID := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, &db.LastCursor{
-			Timestamp:      needles[0].Timestamp,
-			SequenceNumber: needles[0].SequenceNumber,
+			Timestamp:      needles[0].OccurredAt,
+			SequenceNumber: needles[0].Sequence,
 			ID:             needles[0].ID,
 			IsBackward:     true,
 		})
 		require.Equal(t, []string{"needle low"}, messages(withID), "cursor id returns the other row with the same timestamp and sequence")
 		withoutID := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, &db.LastCursor{
-			Timestamp:      needles[0].Timestamp,
-			SequenceNumber: needles[0].SequenceNumber,
+			Timestamp:      needles[0].OccurredAt,
+			SequenceNumber: needles[0].Sequence,
 			IsBackward:     true,
 		})
 		require.Empty(t, withoutID, "a cursor without id skips the tied row")
@@ -159,7 +159,7 @@ func TestSearchLogs(t *testing.T) {
 			require.NoError(t, err, "page links must contain the sequence number")
 			id, err := strconv.ParseInt(query.Get("cursorId"), 10, 64)
 			require.NoError(t, err, "page links must contain the unique row id")
-			req.Cursor = &db.LastCursor{Timestamp: time.UnixMicro(micros), SequenceNumber: sequence, ID: id, IsBackward: query.Get("direction") == "backward"}
+			req.Cursor = &db.LastCursor{Timestamp: time.UnixMicro(micros), SequenceNumber: int64(sequence), ID: id, IsBackward: query.Get("direction") == "backward"}
 		}
 		require.Equal(t, []int64{ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]}, found, "URL round trips must return every matching row exactly once in timestamp, sequence and id order")
 	})
@@ -195,7 +195,7 @@ func TestSearchLogs(t *testing.T) {
 	})
 }
 
-func mustSearch(t *testing.T, ctx context.Context, logs *db.PostgresLogService, search, projectID, clientID string, instances *[]string, pageSize int64, cursor *db.LastCursor) []types.StoredLog {
+func mustSearch(t *testing.T, ctx context.Context, logs *db.PostgresLogService, search, projectID, clientID string, instances *[]string, pageSize int64, cursor *db.LastCursor) []logstore.Row {
 	t.Helper()
 	found, err := logs.SearchLogs(ctx, search, projectID, clientID, instances, pageSize, cursor)
 	require.NoError(t, err, "search %q", search)

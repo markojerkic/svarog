@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/server/live"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func (s *LiveSuite) gateway() (*live.Logs, *nats.Conn) {
 	return gateway, conn
 }
 
-func open(t *testing.T, logs *live.Logs, scope live.Scope, instances ...string) *live.Session {
+func open(t *testing.T, logs *live.Logs, scope logstore.Scope, instances ...string) *live.Session {
 	t.Helper()
 	viewer, err := logs.Open(context.Background(), scope, live.Selector{Instances: instances})
 	require.NoError(t, err, "the authorized viewer must open after its broker subscriptions are ready")
@@ -51,12 +51,11 @@ func receive(t *testing.T, viewer *live.Session) string {
 	return string(message)
 }
 
-func row(scope live.Scope, instance string, id int64, message string) types.StoredLog {
-	return types.StoredLog{ID: id, Timestamp: time.Now(), SequenceNumber: int(id), LogLine: message,
-		Client: types.StoredClient{ProjectId: scope.ProjectID.String(), ClientId: scope.ClientID.String(), InstanceId: instance}}
+func row(scope logstore.Scope, instance string, id int64, message string) logstore.Row {
+	return logstore.Row{ID: id, OccurredAt: time.Now(), Sequence: id, Message: message, Scope: scope, Instance: instance}
 }
 
-func newScope() live.Scope { return live.Scope{ProjectID: uuid.New(), ClientID: uuid.New()} }
+func newScope() logstore.Scope { return logstore.Scope{ProjectID: uuid.New(), ClientID: uuid.New()} }
 
 func subscriptions(t *testing.T, conn *nats.Conn, count int) {
 	t.Helper()
@@ -69,7 +68,7 @@ func (s *LiveSuite) TestReplicaRoutingAndSharedInterest() {
 	first, conn := s.gateway()
 	second, _ := s.gateway()
 	scope := newScope()
-	otherScope := live.Scope{ProjectID: uuid.New(), ClientID: scope.ClientID}
+	otherScope := logstore.Scope{ProjectID: uuid.New(), ClientID: scope.ClientID}
 	instance := "host.a * > / č"
 	a := open(t, first, scope, instance)
 	b := open(t, first, scope, instance)
@@ -78,7 +77,7 @@ func (s *LiveSuite) TestReplicaRoutingAndSharedInterest() {
 	subscriptions(t, conn, 3)
 	remote := open(t, second, scope, instance, "")
 	foreign := open(t, second, otherScope)
-	s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{
+	s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{
 		row(scope, instance, 1, "selected source"), row(scope, "", 2, "unnamed source"),
 		row(scope, "not-selected", 3, "must not leak"), row(otherScope, instance, 4, "other project"),
 	})
@@ -99,7 +98,7 @@ func (s *LiveSuite) TestReplicaRoutingAndSharedInterest() {
 	}
 	all := open(t, first, scope)
 	subscriptions(t, conn, 1)
-	s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{row(scope, "new-host", 5, "wildcard source")})
+	s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{row(scope, "new-host", 5, "wildcard source")})
 	require.Contains(t, receive(t, all), "wildcard source", "an all-instances view must include newly appearing instances")
 	all.Close()
 	subscriptions(t, conn, 3)
@@ -118,7 +117,7 @@ func (s *LiveSuite) TestSubscriptionHandoverDoesNotLoseOrDuplicateRows() {
 	var publisher sync.WaitGroup
 	publisher.Go(func() {
 		for i := int64(1); i <= 60; i++ {
-			s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{row(scope, "host", i, fmt.Sprintf("message-%d", i))})
+			s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{row(scope, "host", i, fmt.Sprintf("message-%d", i))})
 			runtime.Gosched()
 		}
 	})
@@ -174,10 +173,10 @@ func (s *LiveSuite) TestStructuredAndRenderedBatchBudgets() {
 	t.Cleanup(func() { wire.Unsubscribe() })
 	require.NoError(t, s.NatsConn.Conn.FlushTimeout(time.Second), "wire observation must be active before publishing")
 	at := time.Now().Truncate(time.Microsecond).Add(123 * time.Nanosecond)
-	rows := make([]types.StoredLog, 205)
+	rows := make([]logstore.Row, 205)
 	for i := range rows {
 		rows[i] = row(scope, "host", int64(i+1), "<script>"+strings.Repeat("x", 1024))
-		rows[i].Timestamp = at
+		rows[i].OccurredAt = at
 	}
 	s.LiveLogs.AfterCommit(context.Background(), rows)
 	count := 0
@@ -221,13 +220,13 @@ func (s *LiveSuite) TestStructuredAndRenderedBatchBudgets() {
 	} {
 		separate := newScope()
 		oversized := open(t, gateway, separate, "host")
-		s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{row(separate, input.instance, 1, input.message)})
+		s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{row(separate, input.instance, 1, input.message)})
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		_, err := oversized.Next(ctx)
 		cancel()
 		require.ErrorIs(t, err, live.ErrLiveResync, "oversized HTML, structured payloads or subjects must invalidate the view without disconnecting the gateway")
 	}
-	s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{row(scope, "host", 206, "still connected")})
+	s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{row(scope, "host", 206, "still connected")})
 	require.Contains(t, receive(t, viewer), "still connected", "a rejected oversized subject must not break the broker connection or other client views")
 }
 
@@ -251,7 +250,7 @@ func (s *LiveSuite) TestSlowViewerAndConcurrentClose() {
 		}
 		healthyResult <- nil
 	}()
-	rows := make([]types.StoredLog, 24)
+	rows := make([]logstore.Row, 24)
 	for i := range rows {
 		rows[i] = row(scope, "host", int64(i+1), strings.Repeat("x", 35*1024))
 	}
@@ -274,7 +273,7 @@ func (s *LiveSuite) TestSlowViewerAndConcurrentClose() {
 	var publishers sync.WaitGroup
 	publishers.Go(func() {
 		for i := int64(25); i < 125; i++ {
-			s.LiveLogs.AfterCommit(context.Background(), []types.StoredLog{row(scope, "host", i, "in flight")})
+			s.LiveLogs.AfterCommit(context.Background(), []logstore.Row{row(scope, "host", i, "in flight")})
 		}
 	})
 	healthy.Close()
