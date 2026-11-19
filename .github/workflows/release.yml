@@ -65,18 +65,28 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Build server image
+      - name: Build server images
         run: |
-          docker build --pull -f cmd/server/Dockerfile \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            --label "org.opencontainers.image.version=${GITHUB_REF_NAME#v}" \
-            -t svarog-server:release .
-          docker save svarog-server:release | gzip -1 > "$RUNNER_TEMP/server-image.tar.gz"
+          for target in server server-embedded; do
+            docker build --pull -f cmd/server/Dockerfile --target "$target" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              --label "org.opencontainers.image.version=${GITHUB_REF_NAME#v}" \
+              -t "svarog-${target}:release" .
+            docker save "svarog-${target}:release" | gzip -1 > "$RUNNER_TEMP/${target}-image.tar.gz"
+          done
       - uses: actions/upload-artifact@v7
         with:
           name: server-image
           path: ${{ runner.temp }}/server-image.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          overwrite: true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: server-embedded-image
+          path: ${{ runner.temp }}/server-embedded-image.tar.gz
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -211,15 +221,22 @@ jobs:
           path: ${{ runner.temp }}
       - uses: actions/download-artifact@v8
         with:
+          name: server-embedded-image
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@v8
+        with:
           name: go-archives
           path: build/binaries
       - name: Prepare release images
         run: |
           repository="ghcr.io/${GITHUB_REPOSITORY,,}"
           server="$repository:$GITHUB_REF_NAME"
+          embedded="$repository-embedded:$GITHUB_REF_NAME"
           client="$repository-client:$GITHUB_REF_NAME"
           docker load -i "$RUNNER_TEMP/server-image.tar.gz"
           docker tag svarog-server:release "$server"
+          docker load -i "$RUNNER_TEMP/server-embedded-image.tar.gz"
+          docker tag svarog-server-embedded:release "$embedded"
           mkdir -p build/client-image
           tar -xzf build/binaries/svarog-client_linux_amd64.tar.gz -C build/client-image
           docker build -f cmd/client/Dockerfile --target release --platform linux/amd64 \
@@ -227,17 +244,18 @@ jobs:
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.version=${GITHUB_REF_NAME#v}" \
             -t "$client" build/client-image
-          printf 'SERVER_IMAGE=%s\nCLIENT_IMAGE=%s\n' "$server" "$client" >> "$GITHUB_ENV"
+          printf 'SERVER_IMAGE=%s\nEMBEDDED_IMAGE=%s\nCLIENT_IMAGE=%s\n' "$server" "$embedded" "$client" >> "$GITHUB_ENV"
       - name: Publish images
         env:
           REGISTRY_TOKEN: ${{ github.token }}
         run: |
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker push "$SERVER_IMAGE"
+          docker push "$EMBEDDED_IMAGE"
           docker push "$CLIENT_IMAGE"
           latest_tag=$(bash scripts/release-tag.sh --latest)
           if [[ "$GITHUB_REF_NAME" == "$latest_tag" ]]; then
-            for image in "$SERVER_IMAGE" "$CLIENT_IMAGE"; do
+            for image in "$SERVER_IMAGE" "$EMBEDDED_IMAGE" "$CLIENT_IMAGE"; do
               docker tag "$image" "${image%:*}:latest"
               docker push "${image%:*}:latest"
             done
