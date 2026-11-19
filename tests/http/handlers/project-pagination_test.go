@@ -8,26 +8,18 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	serverhttp "github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
 )
 
 type paginationProjectsStub struct {
-	projects.ProjectsService
-	pageCalls   int
-	searchCalls int
+	pageCalls int
 }
 
-func (s *paginationProjectsStub) GetProjectPage(context.Context, types.GetProjectPageInput) ([]projects.Project, int64, error) {
+func (s *paginationProjectsStub) Page(context.Context, projects.PageQuery) ([]projects.Project, int64, error) {
 	s.pageCalls++
 	return nil, 0, nil
-}
-
-func (s *paginationProjectsStub) SearchProjects(context.Context, projects.SearchProjectsRequest) ([]projects.Project, error) {
-	s.searchCalls++
-	return nil, nil
 }
 
 func TestProjectPaginationValidatedBeforeServiceAccess(t *testing.T) {
@@ -36,15 +28,14 @@ func TestProjectPaginationValidatedBeforeServiceAccess(t *testing.T) {
 			t.Run(path+"?"+query, func(t *testing.T) {
 				service := &paginationProjectsStub{}
 				e := echo.New()
-				e.Validator = assignmentValidator{}
-				handlers.NewProjectsRouter(service, serverauth.NatsCredentialService{}, e.Group("/admin"))
+				e.Validator = serverhttp.NewValidator()
+				handlers.NewProjectsRouter(projectRoutesStub{page: service.Page}, nil, e.Group("/admin"))
 
 				rec := httptest.NewRecorder()
 				e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+"?"+query, nil))
 
 				require.Equal(t, http.StatusBadRequest, rec.Code, "DTO validation must reject invalid project pagination")
-				require.Zero(t, service.pageCalls, "Invalid pagination must not reach project page persistence")
-				require.Zero(t, service.searchCalls, "Invalid pagination must not reach project search persistence")
+				require.Zero(t, service.pageCalls, "Invalid pagination must not reach project page or search persistence")
 			})
 		}
 	}

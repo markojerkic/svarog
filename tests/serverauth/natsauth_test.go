@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/types"
-	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -54,7 +53,7 @@ func (s *NatsAuthSuite) TestGenerateCredentialsRejectsInvalidMembership() {
 		assert.Empty(t, creds, "%s must not receive a credentials file", tc.name)
 	}
 
-	_, err := s.ProjectsService.UpdateProject(ctx, uuid.MustParse(projectID), "test-project-membership-client", nil)
+	_, err := s.ProjectsService.Update(ctx, uuid.MustParse(projectID), projects.ProjectInput{Name: "test-project-membership-client"})
 	require.NoError(t, err, "deactivate the real client before credential validation")
 	creds, err := s.NatsCredsService.GenerateUserCreds(ctx, serverauth.CredentialGenerationRequest{ProjectID: projectID, ClientID: clientID})
 	assert.Error(t, err, "inactive client UUID must not receive new credentials")
@@ -81,7 +80,7 @@ func (s *NatsAuthSuite) TestGenerateCredentialsWithExpiry() {
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectID,
 			ClientID:  clientID,
-			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
+			Expiry:    &expiryTime,
 		},
 	)
 	require.NoError(t, err, "generate expiring credentials for actual project and client UUIDs")
@@ -152,7 +151,7 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("", "", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("", "", existingProject{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "accountSeed is required")
 }
@@ -160,7 +159,7 @@ func (s *NatsAuthSuite) TestNewNatsCredentialServiceEmptySeed() {
 func (s *NatsAuthSuite) TestNewNatsCredentialServiceInvalidSeed() {
 	t := s.T()
 
-	_, err := serverauth.NewNatsCredentialService("invalid-seed", "", &testutils.NoopProjectService{})
+	_, err := serverauth.NewNatsCredentialService("invalid-seed", "", existingProject{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse account seed")
 }

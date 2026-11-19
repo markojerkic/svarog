@@ -19,8 +19,8 @@ func TestCommitLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "Idempotent", []string{"api", "retired"})
+	projectService := projects.NewPostgresProjectsService(pool, nil)
+	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "Idempotent", Clients: []string{"api", "retired"}})
 	require.NoError(t, err, "create a client for idempotent log writes")
 	clientID := clientByName(t, project, "api")
 	logs := logstore.New(pool)
@@ -120,9 +120,9 @@ func TestCommitLogs(t *testing.T) {
 
 	t.Run("reports mixed outcomes at the original input ordinals", func(t *testing.T) {
 		retiredID := clientByName(t, project, "retired")
-		_, err := projectService.UpdateProject(ctx, project.ID, project.Name, []string{"api"})
+		_, err := projectService.Update(ctx, project.ID, projects.ProjectInput{Name: project.Name, Clients: []string{"api"}})
 		require.NoError(t, err, "deactivate the retired client while keeping the API client active")
-		other, err := projectService.CreateProject(ctx, "Other ingest project", []string{"foreign"})
+		other, err := projectService.Create(ctx, projects.ProjectInput{Name: "Other ingest project", Clients: []string{"foreign"}})
 		require.NoError(t, err, "create an active client belonging to another project")
 
 		stored, fresh := line("mixed stored"), line("mixed new")

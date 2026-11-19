@@ -18,7 +18,7 @@ func TestLogContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "LogContext", []string{"api"})
+	project, err := projects.NewPostgresProjectsService(pool, nil).Create(ctx, projects.ProjectInput{Name: "LogContext", Clients: []string{"api"}})
 	require.NoError(t, err, "context fixtures must have a project and client")
 	clientID := project.Clients[0].ID
 	base := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)

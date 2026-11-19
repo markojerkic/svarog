@@ -16,10 +16,10 @@ func TestArchivePolicies(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectsService := projects.NewPostgresProjectsService(pool)
-	project, err := projectsService.CreateProject(ctx, "ArchivePolicies", []string{"api", "worker"})
+	projectsService := projects.NewPostgresProjectsService(pool, nil)
+	project, err := projectsService.Create(ctx, projects.ProjectInput{Name: "ArchivePolicies", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create project and clients for archive policies")
-	other, err := projectsService.CreateProject(ctx, "ArchivePoliciesOther", []string{"api"})
+	other, err := projectsService.Create(ctx, projects.ProjectInput{Name: "ArchivePoliciesOther", Clients: []string{"api"}})
 	require.NoError(t, err, "create a second project")
 	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(t.TempDir()))
 	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
@@ -101,7 +101,7 @@ func TestArchivePolicies(t *testing.T) {
 		want := archive.Policy{Enabled: true, ArchiveAfterWeeks: 6}
 		require.NoError(t, service.SetPolicy(ctx, inactive, want), "enable archiving before deactivation")
 		want.NextRunAt = nextArchiveRun(t, ctx, pool, inactive.ClientID)
-		_, err := projectsService.UpdateProject(ctx, other.ID, other.Name, nil)
+		_, err := projectsService.Update(ctx, other.ID, projects.ProjectInput{Name: other.Name})
 		require.NoError(t, err, "deactivate the client without removing history")
 		got, err := service.GetPolicy(ctx, inactive)
 		require.NoError(t, err, "inactive clients retain their policy")

@@ -13,7 +13,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/logstore"
@@ -26,7 +25,6 @@ const (
 )
 
 type projectAccessAuthStub struct {
-	auth.AuthService
 	allowed bool
 	err     error
 	calls   int
@@ -41,7 +39,6 @@ func (s *projectAccessAuthStub) UserHasAccessToProject(_ context.Context, userID
 }
 
 type projectAccessProjectsStub struct {
-	projects.ProjectsService
 	belongs       bool
 	err           error
 	calls         int
@@ -60,22 +57,22 @@ func (s *projectAccessProjectsStub) ClientBelongsToProject(_ context.Context, pr
 	return s.belongs, s.err
 }
 
-func (s *projectAccessProjectsStub) GetProjects(context.Context) ([]projects.Project, error) {
+func (s *projectAccessProjectsStub) All(context.Context) ([]projects.Project, error) {
 	s.allCalls++
 	return s.visible, nil
 }
 
-func (s *projectAccessProjectsStub) GetProjectsByIds(_ context.Context, ids []string) ([]projects.Project, error) {
+func (s *projectAccessProjectsStub) ByIDs(_ context.Context, ids []string) ([]projects.Project, error) {
 	s.assignedCalls++
 	s.assignedIDs = ids
 	return s.visible, nil
 }
 
-func (s *projectAccessProjectsStub) DeleteProject(context.Context, string, string) error {
+func (s *projectAccessProjectsStub) Delete(context.Context, string, string) error {
 	return s.deleteErr
 }
 
-func (s *projectAccessProjectsStub) GetProject(context.Context, string) (projects.Project, error) {
+func (s *projectAccessProjectsStub) Get(context.Context, string) (projects.Project, error) {
 	return projects.Project{}, nil
 }
 
@@ -187,10 +184,7 @@ func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 					e := echo.New()
 					group := loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: role})
 					a := &projectAccessAuthStub{allowed: deniedByOwnership}
-					var p projects.ProjectsService
-					if deniedByOwnership {
-						p = &projectAccessProjectsStub{belongs: false}
-					}
+					p := &projectAccessProjectsStub{}
 					// Nil log/hub dependencies prove neither is reached for either denial reason.
 					handlers.NewLogsRouter(nil, a, p, group)
 					handlers.NewWsConnectionRouter(nil, a, p, group)
@@ -283,8 +277,8 @@ func TestHomepageLoadsOnlyVisibleProjects(t *testing.T) {
 
 func TestDeleteProjectWithClientsReturnsConflict(t *testing.T) {
 	e := echo.New()
-	p := &projectAccessProjectsStub{deleteErr: errors.New(projects.ErrProjectHasClients)}
-	handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+	p := &projectAccessProjectsStub{deleteErr: projects.ErrHasClients}
+	handlers.NewProjectsRouter(projectRoutesStub{deleteProject: p.Delete}, nil, e.Group("/admin"))
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/projects/"+projectID, nil))
 	require.Equal(t, http.StatusConflict, rec.Code, "Projects with historical clients must return conflict, not internal server error")

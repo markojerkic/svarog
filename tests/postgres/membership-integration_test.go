@@ -13,9 +13,9 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -31,9 +31,9 @@ func TestActivePostgresMembership(t *testing.T) {
 	require.NoError(t, err, "create first project for active membership tests")
 	second, err := q.CreateProject(ctx, sqlc.CreateProjectParams{ID: uuid.New(), Name: "Second"})
 	require.NoError(t, err, "create second project for active membership tests")
-	user, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
+	user, _, err := service.CreateUser(ctx, auth.UserInput{
 		Username: "member", FirstName: "Original", LastName: "User", Role: "user",
-		ProjectIDs: []string{first.ID.String(), first.ID.String()},
+		ProjectIDs: []uuid.UUID{first.ID, first.ID},
 	})
 	require.NoError(t, err, "atomically create user, token and duplicate-safe memberships")
 	require.Equal(t, []string{first.ID.String()}, user.ProjectIDs, "creation returns actual deduplicated memberships")
@@ -74,23 +74,27 @@ func TestActivePostgresMembership(t *testing.T) {
 		require.NoError(t, err, "evaluate active project access: %s", scenario)
 		require.Equal(t, expected, access, scenario)
 	}
-	requireProjectError := func(t *testing.T, err error, scenario string) {
+	requireProjectError := func(t *testing.T, err error, projectID uuid.UUID, scenario string) {
 		t.Helper()
-		var apiError types.ApiError
+		if projectID != uuid.Nil {
+			require.ErrorIs(t, err, auth.ErrProjectSelectionMissing, scenario)
+			return
+		}
+		var apiError *validation.Error
 		require.ErrorAs(t, err, &apiError, scenario)
 		require.NotEmpty(t, apiError.Fields["projects"], "project assignment errors identify the projects field: %s", scenario)
 	}
 
 	t.Run("all user reads include actual memberships", func(t *testing.T) {
-		stored := user
-		stored.InitialLoginToken = ""
 		byID, err := service.GetUserByID(ctx, user.ID.String())
 		require.NoError(t, err, "load member by ID for edit form")
-		require.Equal(t, stored, byID, "ID lookup includes persisted project memberships and omits the one-time invitation")
+		require.Equal(t, user, byID, "ID lookup includes persisted project memberships and omits the one-time invitation")
 		byUsername, err := service.GetUserByUsername(ctx, user.Username)
 		require.NoError(t, err, "load member by username")
-		require.Equal(t, stored, byUsername, "username lookup includes persisted project memberships and omits the one-time invitation")
-		page, count, err := service.GetUserPage(ctx, types.GetUserPageInput{Size: 10, Search: "member"})
+		require.Equal(t, user, byUsername, "username lookup includes persisted project memberships and omits the one-time invitation")
+		pageQuery, err := auth.NewPageQuery("member", 0, 10)
+		require.NoError(t, err, "construct valid user search query")
+		page, count, err := service.GetUserPage(ctx, pageQuery)
 		require.NoError(t, err, "list membership-aware users")
 		require.EqualValues(t, 1, count, "searched user page counts the member")
 		require.Len(t, page, 1, "searched user page returns the member")
@@ -116,16 +120,16 @@ func TestActivePostgresMembership(t *testing.T) {
 		checkAccess(t, "not-a-uuid", first.ID.String(), false, "malformed user identifier cannot grant access")
 		checkAccess(t, admin.ID.String(), "not-a-uuid", false, "malformed project identifier is denied even for admin")
 		_, err = service.GetProjectIDsForUser(ctx, uuid.NewString())
-		require.EqualError(t, err, auth.ErrUserNotFound, "project ID lookup preserves missing-user error mapping")
+		require.ErrorIs(t, err, auth.ErrUserNotFound, "project ID lookup preserves missing-user error mapping")
 	})
 
 	t.Run("failed create leaves no user token or memberships", func(t *testing.T) {
-		for _, projectID := range []string{"not-a-uuid", uuid.NewString()} {
-			result, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
+		for _, projectID := range []uuid.UUID{uuid.Nil, uuid.New()} {
+			result, _, err := service.CreateUser(ctx, auth.UserInput{
 				Username: "rejected-member", FirstName: "Rejected", LastName: "User", Role: "user",
-				ProjectIDs: []string{first.ID.String(), projectID},
+				ProjectIDs: []uuid.UUID{first.ID, projectID},
 			})
-			requireProjectError(t, err, "invalid or missing project rejects user creation")
+			requireProjectError(t, err, projectID, "invalid or missing project rejects user creation")
 			require.Equal(t, auth.User{}, result, "failed user creation returns no persisted user")
 			_, err = q.GetUserByUsername(ctx, "rejected-member")
 			require.ErrorIs(t, err, pgx.ErrNoRows, "failed creation rolls back all user profile writes")
@@ -151,12 +155,12 @@ func TestActivePostgresMembership(t *testing.T) {
 	t.Run("failed update preserves profile token and memberships", func(t *testing.T) {
 		before, err := q.GetUserByID(ctx, user.ID)
 		require.NoError(t, err, "snapshot all profile fields before rejected update")
-		for _, projectID := range []string{"not-a-uuid", uuid.NewString()} {
-			result, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-				ID: user.ID.String(), Username: "rejected-rename", FirstName: "Rejected", LastName: "Changed", Role: "admin",
-				ProjectIDs: []string{second.ID.String(), projectID},
+		for _, projectID := range []uuid.UUID{uuid.Nil, uuid.New()} {
+			result, err := service.UpdateUser(ctx, user.ID, auth.UserInput{
+				Username: "rejected-rename", FirstName: "Rejected", LastName: "Changed", Role: "admin",
+				ProjectIDs: []uuid.UUID{second.ID, projectID},
 			})
-			requireProjectError(t, err, "invalid or missing project rejects profile and membership update")
+			requireProjectError(t, err, projectID, "invalid or missing project rejects profile and membership update")
 			require.Equal(t, auth.User{}, result, "failed update returns no updated user")
 			after, err := q.GetUserByID(ctx, user.ID)
 			require.NoError(t, err, "reload profile after rejected membership update")
@@ -168,14 +172,14 @@ func TestActivePostgresMembership(t *testing.T) {
 		var token []byte
 		require.NoError(t, pool.QueryRow(ctx, "SELECT token_hash FROM login_tokens WHERE user_id = $1", user.ID).Scan(&token), "reload login token after rejected profile updates")
 		require.Equal(t, originalToken, token, "rejected profile updates preserve login token")
-		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{ID: uuid.NewString(), Username: "missing-user", FirstName: "Missing", LastName: "User", Role: "user"})
-		require.EqualError(t, err, auth.ErrUserNotFound, "compound profile update preserves missing-user error mapping")
+		_, err = service.UpdateUser(ctx, uuid.New(), auth.UserInput{Username: "missing-user", FirstName: "Missing", LastName: "User", Role: "user"})
+		require.ErrorIs(t, err, auth.ErrUserNotFound, "compound profile update preserves missing-user error mapping")
 	})
 
 	t.Run("replace and clear assignments refresh access and auth context", func(t *testing.T) {
-		updated, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Updated", LastName: "User", Role: "user",
-			ProjectIDs: []string{second.ID.String(), second.ID.String()},
+		updated, err := service.UpdateUser(ctx, user.ID, auth.UserInput{
+			Username: user.Username, FirstName: "Updated", LastName: "User", Role: "user",
+			ProjectIDs: []uuid.UUID{second.ID, second.ID},
 		})
 		require.NoError(t, err, "replace profile and memberships atomically")
 		require.Equal(t, "Updated", updated.FirstName, "compound update persists profile change")
@@ -185,8 +189,8 @@ func TestActivePostgresMembership(t *testing.T) {
 		checkAccess(t, user.ID.String(), first.ID.String(), false, "removed membership immediately revokes access")
 		checkAccess(t, user.ID.String(), second.ID.String(), true, "new membership immediately grants access")
 		require.Equal(t, updated.ProjectIDs, currentUser(t).ProjectIDs, "existing session sees replaced memberships without another login")
-		cleared, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-			ID: user.ID.String(), Username: user.Username, FirstName: "Updated", LastName: "User", Role: "user", ProjectIDs: []string{},
+		cleared, err := service.UpdateUser(ctx, user.ID, auth.UserInput{
+			Username: user.Username, FirstName: "Updated", LastName: "User", Role: "user", ProjectIDs: []uuid.UUID{},
 		})
 		require.NoError(t, err, "empty project selection clears all memberships")
 		require.Empty(t, cleared.ProjectIDs, "cleared user has no assigned projects")
@@ -200,9 +204,9 @@ func TestActivePostgresMembership(t *testing.T) {
 		for _, project := range []sqlc.Project{first, second} {
 			go func() {
 				<-start
-				_, err := service.CreateOrUpdateUser(ctx, types.CreateUserForm{
-					ID: user.ID.String(), Username: user.Username, FirstName: project.Name, LastName: "User", Role: "user",
-					ProjectIDs: []string{project.ID.String()},
+				_, err := service.UpdateUser(ctx, user.ID, auth.UserInput{
+					Username: user.Username, FirstName: project.Name, LastName: "User", Role: "user",
+					ProjectIDs: []uuid.UUID{project.ID},
 				})
 				results <- err
 			}()
@@ -218,8 +222,7 @@ func TestActivePostgresMembership(t *testing.T) {
 	})
 
 	t.Run("delete user cascades memberships and denies access", func(t *testing.T) {
-		c := e.NewContext(httptest.NewRequest(http.MethodDelete, "/users", nil), httptest.NewRecorder())
-		require.NoError(t, service.DeleteUser(c, user.ID.String()), "delete user with active membership and session")
+		require.NoError(t, service.DeleteUser(ctx, user.ID.String()), "delete user with active membership and session")
 		var count int64
 		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM user_projects WHERE user_id = $1", user.ID).Scan(&count), "count memberships after active user deletion")
 		require.Zero(t, count, "user deletion cascades every project membership")

@@ -13,7 +13,6 @@ import (
 )
 
 type logoutAuthStub struct {
-	auth.AuthService
 }
 
 func (logoutAuthStub) Logout(*echo.Context) error {
@@ -22,7 +21,7 @@ func (logoutAuthStub) Logout(*echo.Context) error {
 
 func TestLogoutHXRedirectsToLogin(t *testing.T) {
 	e := echo.New()
-	handlers.NewAuthRouter(logoutAuthStub{}, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.RegisterLogout(logoutAuthStub{}, e.Group(""))
 	request := httptest.NewRequest(http.MethodGet, "/logout", nil)
 	request.Header.Set("HX-Request", "true")
 	response := httptest.NewRecorder()

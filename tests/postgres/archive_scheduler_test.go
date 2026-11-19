@@ -17,7 +17,7 @@ func TestArchiveSchedulerRunsDueClientsOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "ArchiveScheduler", []string{"api", "worker", "idle"})
+	project, err := projects.NewPostgresProjectsService(pool, nil).Create(ctx, projects.ProjectInput{Name: "ArchiveScheduler", Clients: []string{"api", "worker", "idle"}})
 	require.NoError(t, err, "create the scheduler fixture's project and clients")
 	service := archive.NewArchiveService(pool, archive.NewDiskStore(t.TempDir()))
 	api := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}

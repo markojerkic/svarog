@@ -1,71 +1,76 @@
 package auth
 
 import (
-	"context"
-	"errors"
 	"math"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 )
 
-func ValidateUserForm(ctx context.Context, form types.CreateUserForm) error {
-	fields := make(map[string]string)
+const (
+	UsernameMaxLength        = 255
+	UserProfileNameMaxLength = 255
+	UserSearchMaxLength      = 1024
+)
+
+func ValidateUserInput(input UserInput) error {
+	return validateUserInput(input, false)
+}
+
+func validateUserInput(input UserInput, invalidID bool) error {
+	fields := make(map[string]validation.Violation)
 	for _, field := range []struct {
 		name    string
 		value   string
 		maximum int
 	}{
-		{"username", form.Username, types.UsernameMaxLength},
-		{"firstName", form.FirstName, types.UserProfileNameMaxLength},
-		{"lastName", form.LastName, types.UserProfileNameMaxLength},
+		{"username", input.Username, UsernameMaxLength},
+		{"firstName", input.FirstName, UserProfileNameMaxLength},
+		{"lastName", input.LastName, UserProfileNameMaxLength},
 	} {
-		if message := userTextError(ctx, field.value, 3, field.maximum); message != "" {
-			fields[field.name] = message
+		if violation := userTextError(field.value, 3, field.maximum); violation.Key != "" {
+			fields[field.name] = violation
 		}
 	}
-	if form.ID != "" && !canonicalUserUUID(form.ID) {
-		fields["id"] = i18n.T(ctx, "users.invalid_id")
+	if invalidID {
+		fields["id"] = validation.Violation{Key: "users.invalid_id"}
 	}
-	if form.Role == "" {
-		fields["role"] = i18n.T(ctx, "validation.required")
-	} else if form.Role != string(USER) && form.Role != string(ADMIN) {
-		fields["role"] = i18n.Format(ctx, i18n.Message{
-			ID: "validation.one_of", Data: map[string]any{"Options": i18n.T(ctx, "users.role_user") + ", " + i18n.T(ctx, "users.role_admin")},
-		})
+	if input.Role == "" {
+		fields["role"] = validation.Violation{Key: "validation.required"}
+	} else if input.Role != USER && input.Role != ADMIN {
+		fields["role"] = validation.Violation{Key: "validation.one_of", Options: []string{"users.role_user", "users.role_admin"}}
 	}
-	for _, id := range form.ProjectIDs {
-		if !canonicalUserUUID(id) {
-			fields["projects"] = i18n.T(ctx, "projects.select_valid")
+	for _, id := range input.ProjectIDs {
+		if id == uuid.Nil {
+			fields["projects"] = validation.Violation{Key: "projects.select_valid"}
 			break
 		}
 	}
 	if len(fields) > 0 {
-		return types.NewApiError(i18n.T(ctx, "validation.failed"), fields)
+		return &validation.Error{Key: "validation.failed", Fields: fields}
 	}
 	return nil
 }
 
-func ValidateUserPage(ctx context.Context, query types.GetUserPageInput) error {
-	fields := make(map[string]string)
-	if query.Size < 1 || query.Size > 100 {
-		fields["size"] = i18n.T(ctx, "validation.invalid")
+func NewPageQuery(search string, page, size int64) (PageQuery, error) {
+	fields := make(map[string]validation.Violation)
+	if size < 1 || size > 100 {
+		fields["size"] = validation.Violation{Key: "validation.invalid"}
 	}
 	// ListUsers uses int32 LIMIT/OFFSET parameters. Validate before narrowing
 	// the integers or multiplying, rather than exposing a persistence error.
-	if query.Page < 0 || (query.Size > 0 && query.Page > math.MaxInt32/query.Size) {
-		fields["page"] = i18n.T(ctx, "validation.invalid")
+	if page < 0 || (size > 0 && page > math.MaxInt32/size) {
+		fields["page"] = validation.Violation{Key: "validation.invalid"}
 	}
-	if message := userTextError(ctx, query.Search, 0, types.UserSearchMaxLength); message != "" {
-		fields["search"] = message
+	if violation := userTextError(search, 0, UserSearchMaxLength); violation.Key != "" {
+		fields["search"] = violation
 	}
 	if len(fields) > 0 {
-		return types.NewApiError(i18n.T(ctx, "request.invalid_parameters"), fields)
+		return PageQuery{}, &validation.Error{Key: "request.invalid_parameters", Fields: fields}
 	}
-	return nil
+	return PageQuery{search: search, page: page, size: size}, nil
 }
 
 // ValidateNewPassword rejects a password whose meaningful content is shorter than 8
@@ -73,35 +78,30 @@ func ValidateUserPage(ctx context.Context, query types.GetUserPageInput) error {
 // The stored value is not trimmed: surrounding spaces in an otherwise long password stay significant.
 func ValidateNewPassword(password string) error {
 	if !utf8.ValidString(password) || strings.ContainsRune(password, '\x00') {
-		return errors.New(ErrPasswordBlank)
+		return ErrPasswordBlank
 	}
 	if utf8.RuneCountInString(strings.TrimSpace(password)) < 8 {
-		return errors.New(ErrPasswordBlank)
+		return ErrPasswordBlank
 	}
 	if len(password) > 72 {
-		return errors.New("Password must contain between 8 and 72 bytes")
+		return ErrPasswordTooLong
 	}
 	return nil
 }
 
-func userTextError(ctx context.Context, value string, minimum, maximum int) string {
+func userTextError(value string, minimum, maximum int) validation.Violation {
 	if !utf8.ValidString(value) || strings.ContainsRune(value, '\x00') {
-		return i18n.T(ctx, "validation.invalid")
+		return validation.Violation{Key: "validation.invalid"}
 	}
 	trimmed := strings.TrimSpace(value)
 	if minimum > 0 && trimmed == "" {
-		return i18n.T(ctx, "validation.required")
+		return validation.Violation{Key: "validation.required"}
 	}
 	if utf8.RuneCountInString(trimmed) < minimum {
-		return i18n.Format(ctx, i18n.Message{ID: "validation.min_length", Data: map[string]any{"Count": minimum}, Count: &minimum})
+		return validation.Violation{Key: "validation.min_length", Count: minimum}
 	}
 	if utf8.RuneCountInString(value) > maximum {
-		return i18n.Format(ctx, i18n.Message{ID: "validation.max_length", Data: map[string]any{"Count": maximum}, Count: &maximum})
+		return validation.Violation{Key: "validation.max_length", Count: maximum}
 	}
-	return ""
-}
-
-func canonicalUserUUID(value string) bool {
-	id, err := uuid.Parse(value)
-	return err == nil && id != uuid.Nil && id.String() == value
+	return validation.Violation{}
 }

@@ -18,8 +18,8 @@ func TestReadLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "LogsRead", []string{"api", "worker"})
+	projectService := projects.NewPostgresProjectsService(pool, nil)
+	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "LogsRead", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create project and clients")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
@@ -164,14 +164,14 @@ func TestReadLogs(t *testing.T) {
 	})
 
 	t.Run("inactive client stays readable", func(t *testing.T) {
-		inactiveProject, err := projectService.CreateProject(ctx, "LogsInactive", []string{"api"})
+		inactiveProject, err := projectService.Create(ctx, projects.ProjectInput{Name: "LogsInactive", Clients: []string{"api"}})
 		require.NoError(t, err, "the scoped log operation must succeed")
 		inactiveClient := clientByName(t, inactiveProject, "api")
 		_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{
 			Scope: logstore.Scope{ClientID: inactiveClient}, Instance: "web", OccurredAt: base, Sequence: 1, Message: "kept",
 		}})
 		require.NoError(t, err, "the scoped log operation must succeed")
-		_, err = projectService.UpdateProject(ctx, inactiveProject.ID, inactiveProject.Name, nil)
+		_, err = projectService.Update(ctx, inactiveProject.ID, projects.ProjectInput{Name: inactiveProject.Name})
 		require.NoError(t, err, "deactivate client while retaining its row")
 		page := mustPage(t, ctx, logs, logstore.PageQuery{
 			Scope: logstore.Scope{ProjectID: inactiveProject.ID, ClientID: inactiveClient},

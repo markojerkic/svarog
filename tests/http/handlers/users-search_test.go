@@ -10,17 +10,15 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
 )
 
 type usersSearchAuthStub struct {
-	auth.AuthService
-	query types.GetUserPageInput
+	query auth.PageQuery
 	users []auth.User
 }
 
-func (s *usersSearchAuthStub) GetUserPage(_ context.Context, query types.GetUserPageInput) ([]auth.User, int64, error) {
+func (s *usersSearchAuthStub) GetUserPage(_ context.Context, query auth.PageQuery) ([]auth.User, int64, error) {
 	s.query = query
 	return s.users, int64(len(s.users)), nil
 }
@@ -32,12 +30,12 @@ func TestUsersSearchKeepsTheUsersTable(t *testing.T) {
 	stub := &usersSearchAuthStub{users: []auth.User{user}}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewAuthRouter(stub, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.NewAuthRouter(userRoutesStub{page: stub.GetUserPage}, &assignmentProjectsStub{}, e.Group("/admin"))
 
 	matched := httptest.NewRecorder()
 	e.ServeHTTP(matched, httptest.NewRequest(http.MethodGet, "/admin/users?search=qa-demo-check", nil))
 	require.Equal(t, http.StatusOK, matched.Code, "User search must render the users page")
-	require.Equal(t, "qa-demo-check", stub.query.Search, "User search must filter by the submitted query")
+	require.Equal(t, "qa-demo-check", stub.query.Search(), "User search must filter by the submitted query")
 	body := matched.Body.String()
 	require.Contains(t, body, `hx-get="/admin/users"`, "Users search must request the users page")
 	require.NotContains(t, body, `hx-get="/admin/projects"`, "Users search must not target the projects endpoint")
@@ -58,7 +56,7 @@ func TestUsersSearchKeepsTheUsersTable(t *testing.T) {
 	stub.users = []auth.User{user}
 	cleared := httptest.NewRecorder()
 	e.ServeHTTP(cleared, httptest.NewRequest(http.MethodGet, "/admin/users?search=", nil))
-	require.Equal(t, "", stub.query.Search, "Clearing search must request an unfiltered user page")
+	require.Equal(t, "", stub.query.Search(), "Clearing search must request an unfiltered user page")
 	require.Contains(t, cleared.Body.String(), "qa-demo-check", "Clearing search must restore users, not projects")
 	require.NotContains(t, cleared.Body.String(), "Project name", "Clearing search must not show the projects table")
 }

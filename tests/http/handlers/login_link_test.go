@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"errors"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +17,6 @@ import (
 )
 
 type loginLinkAuthStub struct {
-	auth.AuthService
 	tokenLogins    []string
 	passwordLogins []string
 	tokenErr       error
@@ -34,11 +32,11 @@ func (s *loginLinkAuthStub) LoginWithToken(_ *echo.Context, token string) error 
 	return s.tokenErr
 }
 
-func newLoginLinkServer(service auth.AuthService) *echo.Echo {
+func newLoginLinkServer(service *loginLinkAuthStub) *echo.Echo {
 	e := echo.New()
 	e.Validator = serverhttp.NewValidator()
 	e.Use(middleware.LanguageMiddleware)
-	handlers.NewAuthRouter(service, nil, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.RegisterLogin(service, e.Group(""))
 	return e
 }
 
@@ -109,7 +107,7 @@ func TestLoginLinkIsConsumedOnlyByPost(t *testing.T) {
 	})
 
 	t.Run("invalid token does not log the user in", func(t *testing.T) {
-		stub := &loginLinkAuthStub{tokenErr: errors.New(auth.LoginTokenNotValid)}
+		stub := &loginLinkAuthStub{tokenErr: auth.ErrLoginTokenInvalid}
 		form := url.Values{"token": {token}}
 		request := httptest.NewRequest(http.MethodPost, "/login/token", strings.NewReader(form.Encode()))
 		request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)

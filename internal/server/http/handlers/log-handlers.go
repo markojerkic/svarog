@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
-	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
@@ -29,9 +28,14 @@ type LogReader interface {
 	Instances(ctx context.Context, scope logstore.Scope) ([]string, error)
 }
 
+type logProjects interface {
+	middleware.ClientOwnershipChecker
+	Get(ctx context.Context, id string) (projects.Project, error)
+}
+
 type LogsRouter struct {
 	logReader       LogReader
-	projectsService projects.ProjectsService
+	projectsService logProjects
 }
 
 const DEFAULT_PAGE_SIZE = 300
@@ -164,10 +168,7 @@ func ParseLogRange(fromDate, toDate string, offsetMin int) (pages.LogRange, erro
 }
 
 func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID string) string {
-	if self.projectsService == nil {
-		return ""
-	}
-	project, err := self.projectsService.GetProject(ctx, projectID)
+	project, err := self.projectsService.Get(ctx, projectID)
 	if err != nil {
 		slog.Debug("log page client name unavailable", "error", err)
 		return ""
@@ -311,7 +312,7 @@ func logSearchValidationError(c *echo.Context) error {
 	}))
 }
 
-func NewLogsRouter(logReader LogReader, authService auth.AuthService, projectsService projects.ProjectsService, e *echo.Group) *LogsRouter {
+func NewLogsRouter(logReader LogReader, authService middleware.ProjectAccessChecker, projectsService logProjects, e *echo.Group) *LogsRouter {
 	logsApi := e.Group("/logs/:projectId/:clientId", middleware.RequiresProjectAccessMiddleware(authService, projectsService))
 
 	logsRouter := &LogsRouter{

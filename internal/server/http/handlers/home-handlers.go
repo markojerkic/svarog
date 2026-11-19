@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -11,12 +12,17 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
-type HomeHandler struct {
-	group           *echo.Group
-	projectsService projects.ProjectsService
+type homeProjects interface {
+	assignedProjects
+	All(context.Context) ([]projects.Project, error)
 }
 
-func NewHomeHandler(group *echo.Group, projectsService projects.ProjectsService) *HomeHandler {
+type HomeHandler struct {
+	group           *echo.Group
+	projectsService homeProjects
+}
+
+func NewHomeHandler(group *echo.Group, projectsService homeProjects) *HomeHandler {
 	handler := &HomeHandler{group, projectsService}
 	handler.registerRoutes()
 	return handler
@@ -30,9 +36,9 @@ func (h *HomeHandler) homeHandler(c *echo.Context) error {
 	var visibleProjects []projects.Project
 	var err error
 	if user.Role == auth.ADMIN {
-		visibleProjects, err = h.projectsService.GetProjects(c.Request().Context())
+		visibleProjects, err = h.projectsService.All(c.Request().Context())
 	} else if len(user.ProjectIDs) > 0 {
-		visibleProjects, err = h.projectsService.GetProjectsByIds(c.Request().Context(), user.ProjectIDs)
+		visibleProjects, err = h.projectsService.ByIDs(c.Request().Context(), user.ProjectIDs)
 	}
 	if err != nil {
 		return err

@@ -15,36 +15,21 @@ import (
 	"github.com/labstack/echo/v5"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/sethvargo/go-password/password"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type AuthService interface {
-	Login(ctx *echo.Context, username string, password string) error
-	LoginWithToken(ctx *echo.Context, token string) error
-	Logout(ctx *echo.Context) error
-	ResetPassword(ctx context.Context, userId string, form types.ResetPasswordForm) error
-	GenerateLoginToken(ctx context.Context, userId string) (string, error)
-	DeleteUser(ctx *echo.Context, id string) error
-	GetCurrentUser(ctx *echo.Context) (LoggedInUser, error)
-	GetUserByID(ctx context.Context, id string) (User, error)
-	GetUserByUsername(ctx context.Context, username string) (User, error)
-	GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error)
-	CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error)
-	UserHasAccessToProject(ctx context.Context, userId, projectId string) (bool, error)
-	GetProjectIDsForUser(ctx context.Context, userId string) ([]string, error)
-}
-
 const SVAROG_SESSION = "svarog_session"
-const (
-	ErrUserNotFound     = "User not found"
-	UserAlreadyExists   = "User already exists"
-	LoginTokenNotValid  = "Login token not valid"
-	PasswordsDoNotMatch = "Passwords do not match"
-	ErrPasswordBlank    = "password must contain at least 8 non-space characters"
-	loginTokenDuration  = 24 * time.Hour
+const loginTokenDuration = 24 * time.Hour
+
+var (
+	ErrUserNotFound            = errors.New("User not found")
+	ErrUserExists              = errors.New("User already exists")
+	ErrLoginTokenInvalid       = errors.New("Login token not valid")
+	ErrPasswordBlank           = errors.New("password must contain at least 8 non-space characters")
+	ErrPasswordTooLong         = errors.New("Password must contain between 8 and 72 bytes")
+	ErrInvalidPassword         = errors.New("Invalid password")
+	ErrProjectSelectionMissing = errors.New("project selection missing")
 )
 
 type PostgresAuthService struct {
@@ -53,8 +38,6 @@ type PostgresAuthService struct {
 	sessionStore *PostgresSessionStore
 }
 
-var _ AuthService = (*PostgresAuthService)(nil)
-
 func NewPostgresAuthService(pool *pgxpool.Pool, sessionStore *PostgresSessionStore) *PostgresAuthService {
 	return &PostgresAuthService{pool: pool, queries: sqlc.New(pool), sessionStore: sessionStore}
 }
@@ -62,10 +45,10 @@ func NewPostgresAuthService(pool *pgxpool.Pool, sessionStore *PostgresSessionSto
 func (a *PostgresAuthService) Login(ctx *echo.Context, username, password string) error {
 	user, err := a.queries.GetUserByUsername(ctx.Request().Context(), username)
 	if err != nil {
-		return authError(ctx.Request().Context(), err)
+		return authError(err)
 	}
 	if !checkPasswordHash(password, user.PasswordHash) {
-		return errors.New("Invalid password")
+		return ErrInvalidPassword
 	}
 	sess, err := a.sessionStore.New(ctx.Request(), SVAROG_SESSION)
 	if err != nil {
@@ -87,7 +70,7 @@ func (a *PostgresAuthService) LoginWithToken(ctx *echo.Context, token string) er
 		q := a.queries.WithTx(tx)
 		userID, err := q.ConsumeLoginToken(c, tokenHash(token))
 		if errors.Is(err, pgx.ErrNoRows) {
-			return errors.New(LoginTokenNotValid)
+			return ErrLoginTokenInvalid
 		}
 		if err != nil {
 			return err
@@ -123,7 +106,7 @@ func (a *PostgresAuthService) GetCurrentUser(ctx *echo.Context) (LoggedInUser, e
 	}
 	userID, ok := sess.Values["user_id"].(string)
 	if !ok || userID == "" {
-		return LoggedInUser{}, errors.New(ErrUserNotFound)
+		return LoggedInUser{}, ErrUserNotFound
 	}
 	user, err := a.GetUserByID(ctx.Request().Context(), userID)
 	if err != nil {
@@ -138,11 +121,11 @@ func (a *PostgresAuthService) GetCurrentUser(ctx *echo.Context) (LoggedInUser, e
 func (a *PostgresAuthService) GetUserByID(ctx context.Context, id string) (User, error) {
 	userID, err := uuid.Parse(id)
 	if err != nil {
-		return User{}, errors.New(ErrUserNotFound)
+		return User{}, ErrUserNotFound
 	}
 	user, err := a.queries.GetUserByID(ctx, userID)
 	if err != nil {
-		return User{}, authError(ctx, err)
+		return User{}, authError(err)
 	}
 	return a.userWithProjects(ctx, user)
 }
@@ -150,22 +133,19 @@ func (a *PostgresAuthService) GetUserByID(ctx context.Context, id string) (User,
 func (a *PostgresAuthService) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	user, err := a.queries.GetUserByUsername(ctx, username)
 	if err != nil {
-		return User{}, authError(ctx, err)
+		return User{}, authError(err)
 	}
 	return a.userWithProjects(ctx, user)
 }
 
-func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
-	if err := ValidateUserPage(ctx, query); err != nil {
-		return nil, 0, err
-	}
+func (a *PostgresAuthService) GetUserPage(ctx context.Context, query PageQuery) ([]User, int64, error) {
 	rows, err := a.queries.ListUsers(ctx, sqlc.ListUsersParams{
-		Search: query.Search, PageSize: int32(query.Size), PageOffset: int32(query.Page * query.Size),
+		Search: query.Search(), PageSize: int32(query.Size()), PageOffset: int32(query.Page() * query.Size()),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	count, err := a.queries.CountUsers(ctx, query.Search)
+	count, err := a.queries.CountUsers(ctx, query.Search())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -183,60 +163,49 @@ func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUs
 	return users, count, nil
 }
 
-func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
-	if err := ValidateUserForm(ctx, form); err != nil {
-		return User{}, err
-	}
-	projectIDs := make([]uuid.UUID, 0, len(form.ProjectIDs))
-	for _, value := range form.ProjectIDs {
-		id, err := uuid.Parse(value)
-		if err != nil {
-			return User{}, types.NewApiError(i18n.T(ctx, "projects.invalid_id"), map[string]string{
-				"projects": i18n.T(ctx, "projects.select_valid"),
-			})
-		}
-		projectIDs = append(projectIDs, id)
-	}
-	if form.ID != "" {
-		id, err := uuid.Parse(form.ID)
-		if err != nil {
-			return User{}, errors.New(ErrUserNotFound)
-		}
-		user, err := persistence.UpdateUserProfileWithProjects(ctx, a.pool, persistence.UpdateUserProfileWithProjectsInput{
-			ID: id, Username: form.Username, FirstName: form.FirstName, LastName: form.LastName, Role: form.Role,
-			ProjectIDs: projectIDs,
-		})
-		if err != nil {
-			return User{}, authError(ctx, err)
-		}
-		return a.userWithProjects(ctx, user)
+func (a *PostgresAuthService) CreateUser(ctx context.Context, input UserInput) (User, string, error) {
+	if err := ValidateUserInput(input); err != nil {
+		return User{}, "", err
 	}
 	hash, err := hashPassword(generateRandomPassword())
 	if err != nil {
-		return User{}, err
+		return User{}, "", err
 	}
 	token := generateLoginToken()
 	user, err := persistence.CreateUserWithToken(ctx, a.pool, persistence.CreateUserWithTokenInput{
-		ID: uuid.New(), Username: form.Username, FirstName: form.FirstName, LastName: form.LastName,
-		Role: form.Role, PasswordHash: hash, NeedsPasswordReset: true,
+		ID: uuid.New(), Username: input.Username, FirstName: input.FirstName, LastName: input.LastName,
+		Role: string(input.Role), PasswordHash: hash, NeedsPasswordReset: true,
 		Token:      persistence.LoginTokenInput{Hash: tokenHash(token), ExpiresAt: time.Now().Add(loginTokenDuration)},
-		ProjectIDs: projectIDs,
+		ProjectIDs: input.ProjectIDs,
 	})
 	if err != nil {
-		return User{}, authError(ctx, err)
+		return User{}, "", authError(err)
 	}
 	created, err := a.userWithProjects(ctx, user)
 	if err != nil {
+		return User{}, "", err
+	}
+	return created, token, nil
+}
+
+func (a *PostgresAuthService) UpdateUser(ctx context.Context, id uuid.UUID, input UserInput) (User, error) {
+	if err := validateUserInput(input, id == uuid.Nil); err != nil {
 		return User{}, err
 	}
-	created.InitialLoginToken = token
-	return created, nil
+	user, err := persistence.UpdateUserProfileWithProjects(ctx, a.pool, persistence.UpdateUserProfileWithProjectsInput{
+		ID: id, Username: input.Username, FirstName: input.FirstName, LastName: input.LastName, Role: string(input.Role),
+		ProjectIDs: input.ProjectIDs,
+	})
+	if err != nil {
+		return User{}, authError(err)
+	}
+	return a.userWithProjects(ctx, user)
 }
 
 func (a *PostgresAuthService) GenerateLoginToken(ctx context.Context, userID string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
-		return "", errors.New(ErrUserNotFound)
+		return "", ErrUserNotFound
 	}
 	hash, err := hashPassword(generateRandomPassword())
 	if err != nil {
@@ -248,23 +217,20 @@ func (a *PostgresAuthService) GenerateLoginToken(ctx context.Context, userID str
 		Token: persistence.LoginTokenInput{Hash: tokenHash(token), ExpiresAt: time.Now().Add(loginTokenDuration)},
 	})
 	if err != nil {
-		return "", authError(ctx, err)
+		return "", authError(err)
 	}
 	return token, nil
 }
 
-func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, form types.ResetPasswordForm) error {
-	if form.Password != form.RepeatedPassword {
-		return errors.New(PasswordsDoNotMatch)
-	}
-	if err := ValidateNewPassword(form.Password); err != nil {
+func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, password string) error {
+	if err := ValidateNewPassword(password); err != nil {
 		return err
 	}
 	id, err := uuid.Parse(userID)
 	if err != nil {
-		return errors.New(ErrUserNotFound)
+		return ErrUserNotFound
 	}
-	hash, err := hashPassword(form.Password)
+	hash, err := hashPassword(password)
 	if err != nil {
 		return err
 	}
@@ -275,16 +241,16 @@ func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, 
 		}
 		return q.DeleteLoginTokensForUser(ctx, id)
 	})
-	return authError(ctx, err)
+	return authError(err)
 }
 
-func (a *PostgresAuthService) DeleteUser(ctx *echo.Context, id string) error {
+func (a *PostgresAuthService) DeleteUser(ctx context.Context, id string) error {
 	userID, err := uuid.Parse(id)
 	if err != nil {
-		return errors.New(ErrUserNotFound)
+		return ErrUserNotFound
 	}
-	_, err = a.queries.DeleteUser(ctx.Request().Context(), userID)
-	return authError(ctx.Request().Context(), err)
+	_, err = a.queries.DeleteUser(ctx, userID)
+	return authError(err)
 }
 
 func (a *PostgresAuthService) UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error) {
@@ -304,10 +270,10 @@ func (a *PostgresAuthService) UserHasAccessToProject(ctx context.Context, userID
 func (a *PostgresAuthService) GetProjectIDsForUser(ctx context.Context, userID string) ([]string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, errors.New(ErrUserNotFound)
+		return nil, ErrUserNotFound
 	}
 	if _, err := a.queries.GetUserByID(ctx, id); err != nil {
-		return nil, authError(ctx, err)
+		return nil, authError(err)
 	}
 	return a.projectIDsForUser(ctx, id)
 }
@@ -364,17 +330,15 @@ func toUser(user sqlc.User) User {
 	}
 }
 
-func authError(ctx context.Context, err error) error {
+func authError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New(ErrUserNotFound)
+		return ErrUserNotFound
 	}
 	if persistence.IsConstraintViolation(err, persistence.SQLStateUniqueViolation, "users_username_key") {
-		return errors.New(UserAlreadyExists)
+		return ErrUserExists
 	}
 	if persistence.IsConstraintViolation(err, persistence.SQLStateForeignKeyViolation, "user_projects_project_id_fkey") {
-		return types.NewApiError(i18n.T(ctx, "projects.not_found"), map[string]string{
-			"projects": i18n.T(ctx, "projects.selection_missing"),
-		})
+		return ErrProjectSelectionMissing
 	}
 	return err
 }

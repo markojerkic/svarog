@@ -11,7 +11,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/logstore"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +49,7 @@ func (p *ProjectsSuite) TestCreateProject() {
 	}
 
 	for i, tc := range testCases {
-		project, err := p.ProjectsService.CreateProject(context.Background(), tc.name, tc.clients)
+		project, err := p.ProjectsService.Create(context.Background(), projects.ProjectInput{Name: tc.name, Clients: tc.clients})
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 		} else {
@@ -72,7 +71,7 @@ func (p *ProjectsSuite) TestCreateProject() {
 func (p *ProjectsSuite) TestGetProject() {
 	t := p.Suite.T()
 
-	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", []string{"test client"})
+	project, err := p.ProjectsService.Create(context.Background(), projects.ProjectInput{Name: "test1", Clients: []string{"test client"}})
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
@@ -98,11 +97,11 @@ func (p *ProjectsSuite) TestGetProject() {
 	}
 
 	for i, tc := range testCases {
-		_, err = p.ProjectsService.GetProject(context.Background(), tc.id)
+		_, err = p.ProjectsService.Get(context.Background(), tc.id)
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d failed", i)
 			if err != nil {
-				assert.Equal(t, projects.ErrProjectNotFound, err.Error(), "Test case %d failed", i)
+				assert.ErrorIs(t, err, projects.ErrNotFound, "looking up a missing project should return not found (case %d)", i)
 			}
 		} else {
 			assert.NoError(t, err, "Test case %d failed", i)
@@ -113,25 +112,25 @@ func (p *ProjectsSuite) TestGetProject() {
 func (p *ProjectsSuite) TestDeleteProject() {
 	t := p.Suite.T()
 
-	project, err := p.ProjectsService.CreateProject(context.Background(), "test1", nil)
+	project, err := p.ProjectsService.Create(context.Background(), projects.ProjectInput{Name: "test1"})
 	if err != nil {
 		t.Fatalf("Could not create project: %s", err)
 	}
 
-	err = p.ProjectsService.DeleteProject(context.Background(), project.ID.String(), "")
+	err = p.ProjectsService.Delete(context.Background(), project.ID.String(), "")
 	require.NoError(t, err, "deleting a project without clients should succeed")
 
-	_, err = p.ProjectsService.GetProject(context.Background(), project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "deleted project should no longer exist")
+	_, err = p.ProjectsService.Get(context.Background(), project.ID.String())
+	assert.ErrorIs(t, err, projects.ErrNotFound, "deleted project should no longer exist")
 }
 
 func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	t := p.Suite.T()
 	ctx := context.Background()
 
-	project, err := p.ProjectsService.CreateProject(ctx, "test-project", nil)
+	project, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: "test-project"})
 	require.NoError(t, err, "creating a clientless project for membership cleanup should succeed")
-	otherProject, err := p.ProjectsService.CreateProject(ctx, "other-project", nil)
+	otherProject, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: "other-project"})
 	require.NoError(t, err, "Creating the project that should remain assigned after deletion should succeed")
 	queries := sqlc.New(p.PostgresPool)
 	userIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
@@ -144,9 +143,9 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 	}
 	require.NoError(t, queries.AddUserToProject(ctx, sqlc.AddUserToProjectParams{UserID: userIDs[2], ProjectID: otherProject.ID}), "assign third user to the project that should remain")
 
-	require.NoError(t, p.ProjectsService.DeleteProject(ctx, project.ID.String(), ""), "delete the clientless project with user memberships")
-	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "project should not exist after deletion")
+	require.NoError(t, p.ProjectsService.Delete(ctx, project.ID.String(), ""), "delete the clientless project with user memberships")
+	_, err = p.ProjectsService.Get(ctx, project.ID.String())
+	assert.ErrorIs(t, err, projects.ErrNotFound, "project should not exist after deletion")
 
 	for i, userID := range userIDs {
 		_, err := queries.GetUserByID(ctx, userID)
@@ -165,7 +164,7 @@ func (p *ProjectsSuite) TestDeleteProject_CleansUpUserReferences() {
 func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
 	t := p.T()
 	ctx := context.Background()
-	project, err := p.ProjectsService.CreateProject(ctx, "client-lifecycle", []string{"client"})
+	project, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: "client-lifecycle", Clients: []string{"client"}})
 	require.NoError(t, err, "create project with a client for lifecycle checks")
 	require.Len(t, project.Clients, 1, "created project should expose one active client")
 	client := project.Clients[0]
@@ -174,10 +173,10 @@ func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
 	assert.True(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), "*"), "wildcard credentials should recognize an existing project")
 	assert.False(t, p.ProjectsService.ProjectExists(ctx, uuid.NewString(), "*"), "wildcard credentials must not authorize a missing project")
 
-	updated, err := p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, nil)
+	updated, err := p.ProjectsService.Update(ctx, project.ID, projects.ProjectInput{Name: project.Name})
 	require.NoError(t, err, "removing a client from the form should deactivate it")
 	assert.Empty(t, updated.Clients, "updated project should hide inactive clients")
-	loaded, err := p.ProjectsService.GetProject(ctx, project.ID.String())
+	loaded, err := p.ProjectsService.Get(ctx, project.ID.String())
 	require.NoError(t, err, "load project after deactivating its client")
 	assert.Empty(t, loaded.Clients, "project reads should hide inactive clients")
 	assert.False(t, p.ProjectsService.ProjectExists(ctx, project.ID.String(), client.ID.String()), "inactive client UUID must not authorize credentials or ingestion")
@@ -188,7 +187,7 @@ func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
 	require.NoError(t, err, "deactivated client row must be retained")
 	assert.False(t, stored.IsActive, "omitted client should be persisted as inactive rather than deleted")
 
-	updated, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, []string{client.Name, client.Name})
+	updated, err = p.ProjectsService.Update(ctx, project.ID, projects.ProjectInput{Name: project.Name, Clients: []string{client.Name, client.Name}})
 	require.NoError(t, err, "restoring the same client name should reactivate its existing row")
 	require.Len(t, updated.Clients, 1, "duplicate submitted names should yield one reactivated client")
 	assert.Equal(t, client.ID, updated.Clients[0].ID, "reactivation must preserve the original client UUID")
@@ -198,14 +197,14 @@ func (p *ProjectsSuite) TestUpdateProject_DeactivatesAndReactivatesClients() {
 func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	t := p.T()
 	ctx := context.Background()
-	project, err := p.ProjectsService.CreateProject(ctx, "delete-with-history", []string{"api", "worker"})
+	project, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: "delete-with-history", Clients: []string{"api", "worker"}})
 	require.NoError(t, err, "create a project with clients that must be removable")
 	require.Len(t, project.Clients, 2, "both clients should be active before deletion")
 	apiID, workerID := project.Clients[0].ID, project.Clients[1].ID
 	if project.Clients[0].Name != "api" {
 		apiID, workerID = workerID, apiID
 	}
-	kept, err := p.ProjectsService.CreateProject(ctx, "kept-project", []string{"kept"})
+	kept, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: "kept-project", Clients: []string{"kept"}})
 	require.NoError(t, err, "create an unrelated project that deletion must not touch")
 
 	dir := t.TempDir()
@@ -227,20 +226,19 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	_, err = os.Stat(zipPath)
 	require.NoError(t, err, "the completed archive file should exist before project deletion")
 
-	_, err = p.ProjectsService.UpdateProject(ctx, project.ID, project.Name, []string{"api"})
+	_, err = p.ProjectsService.Update(ctx, project.ID, projects.ProjectInput{Name: project.Name, Clients: []string{"api"}})
 	require.NoError(t, err, "deactivate one client so deletion covers retained history")
-	loaded, err := p.ProjectsService.GetProject(ctx, project.ID.String())
+	loaded, err := p.ProjectsService.Get(ctx, project.ID.String())
 	require.NoError(t, err, "reload the project after deactivating a client")
 	assert.True(t, loaded.HasRetainedClients, "inactive clients still count as retained history")
 
-	service := projects.NewPostgresProjectsService(p.PostgresPool)
-	service.SetArchiveStore(disk)
+	service := projects.NewPostgresProjectsService(p.PostgresPool, disk)
 	for _, confirmation := range []string{"", "another-project", "DELETE-WITH-HISTORY"} {
-		require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), confirmation), projects.ErrProjectDeleteConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
+		require.ErrorIs(t, service.Delete(ctx, project.ID.String(), confirmation), projects.ErrConfirmationRequired, "missing or incorrect names must not delete a project with retained history")
 	}
-	renamed, err := service.UpdateProject(ctx, project.ID, "Živi projekt & arhive", nil)
+	renamed, err := service.Update(ctx, project.ID, projects.ProjectInput{Name: "Živi projekt & arhive"})
 	require.NoError(t, err, "rename the project and deactivate all clients before confirming deletion")
-	require.EqualError(t, service.DeleteProject(ctx, project.ID.String(), project.Name), projects.ErrProjectDeleteConfirmationRequired, "a stale name must not authorize deletion, even when every client is inactive")
+	require.ErrorIs(t, service.Delete(ctx, project.ID.String(), project.Name), projects.ErrConfirmationRequired, "a stale name must not authorize deletion, even when every client is inactive")
 	var retainedLogs, retainedArchives int
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedLogs), "count logs after rejected deletion attempts")
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM archives WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&retainedArchives), "count archives after rejected deletion attempts")
@@ -248,10 +246,10 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	require.Equal(t, 1, retainedArchives, "rejected deletion must preserve archive metadata")
 	_, err = os.Stat(zipPath)
 	require.NoError(t, err, "rejected deletion must preserve the archive file")
-	require.NoError(t, service.DeleteProject(ctx, project.ID.String(), renamed.Name), "the exact current name must permit deletion of the project and all its retained history")
+	require.NoError(t, service.Delete(ctx, project.ID.String(), renamed.Name), "the exact current name must permit deletion of the project and all its retained history")
 
-	_, err = p.ProjectsService.GetProject(ctx, project.ID.String())
-	assert.EqualError(t, err, projects.ErrProjectNotFound, "the deleted project should no longer exist")
+	_, err = p.ProjectsService.Get(ctx, project.ID.String())
+	assert.ErrorIs(t, err, projects.ErrNotFound, "the deleted project should no longer exist")
 	var clients, logs, archives int
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM clients WHERE project_id = $1", project.ID).Scan(&clients), "count leftover clients")
 	require.NoError(t, p.PostgresPool.QueryRow(ctx, "SELECT count(*) FROM logs WHERE client_id IN ($1, $2)", apiID, workerID).Scan(&logs), "count leftover logs")
@@ -261,11 +259,16 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 	assert.Zero(t, archives, "archive rows should be deleted with the project")
 	_, err = os.Stat(zipPath)
 	assert.ErrorIs(t, err, os.ErrNotExist, "the ZIP should be removed only after the database delete commits")
-	_, err = p.ProjectsService.GetProject(ctx, kept.ID.String())
+	_, err = p.ProjectsService.Get(ctx, kept.ID.String())
 	require.NoError(t, err, "deleting one project must leave an unrelated project in place")
 }
 
-func (p *ProjectsSuite) TestSearchProjects() {
+type projectPageInput struct {
+	Search     string
+	Page, Size int64
+}
+
+func (p *ProjectsSuite) TestProjectPageSearch() {
 	t := p.Suite.T()
 	ctx := context.Background()
 
@@ -286,13 +289,13 @@ func (p *ProjectsSuite) TestSearchProjects() {
 
 	// Create all test projects
 	for _, tp := range testProjects {
-		_, err := p.ProjectsService.CreateProject(ctx, tp.name, tp.clients)
+		_, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: tp.name, Clients: tp.clients})
 		assert.NoError(t, err, "Failed to create project: %s", tp.name)
 	}
 
 	testCases := []struct {
 		name          string
-		searchRequest projects.SearchProjectsRequest
+		searchRequest projectPageInput
 		expectedNames []string
 		expectedCount int
 		wantErr       bool
@@ -300,7 +303,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 	}{
 		{
 			name: "search for 'frontend' - case insensitive",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "frontend",
 				Page:   0,
 				Size:   10,
@@ -311,7 +314,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "search for 'api' - partial match",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "api",
 				Page:   0,
 				Size:   10,
@@ -322,7 +325,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "search for 'service' - single result",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "service",
 				Page:   0,
 				Size:   10,
@@ -333,7 +336,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "search for 'project' - multiple results",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "project",
 				Page:   0,
 				Size:   10,
@@ -343,7 +346,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "search for 'uppercase' - case insensitive",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "uppercase",
 				Page:   0,
 				Size:   10,
@@ -354,7 +357,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "search for 'nonexistent' - no results",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "nonexistent",
 				Page:   0,
 				Size:   10,
@@ -364,7 +367,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "pagination - page 0, size 2",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "",
 				Page:   0,
 				Size:   2,
@@ -374,7 +377,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "pagination - page 1, size 3",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "",
 				Page:   1,
 				Size:   3,
@@ -384,7 +387,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "regex special chars escaped - dot",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "special.chars",
 				Page:   0,
 				Size:   10,
@@ -395,7 +398,7 @@ func (p *ProjectsSuite) TestSearchProjects() {
 		},
 		{
 			name: "empty search - returns all within page size",
-			searchRequest: projects.SearchProjectsRequest{
+			searchRequest: projectPageInput{
 				Search: "",
 				Page:   0,
 				Size:   5,
@@ -406,7 +409,9 @@ func (p *ProjectsSuite) TestSearchProjects() {
 	}
 
 	for i, tc := range testCases {
-		results, err := p.ProjectsService.SearchProjects(ctx, tc.searchRequest)
+		query, err := projects.NewPageQuery(tc.searchRequest.Search, tc.searchRequest.Page, tc.searchRequest.Size)
+		require.NoError(t, err, "search parameters must form a valid project page")
+		results, _, err := p.ProjectsService.Page(ctx, query)
 
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d (%s) should return error", i, tc.name)
@@ -458,13 +463,13 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 
 	// Create all test projects
 	for _, tp := range testProjects {
-		_, err := p.ProjectsService.CreateProject(ctx, tp.name, tp.clients)
+		_, err := p.ProjectsService.Create(ctx, projects.ProjectInput{Name: tp.name, Clients: tp.clients})
 		assert.NoError(t, err, "Failed to create project: %s", tp.name)
 	}
 
 	testCases := []struct {
 		name          string
-		query         types.GetProjectPageInput
+		query         projectPageInput
 		expectedCount int
 		expectedTotal int64
 		expectedNames []string
@@ -472,7 +477,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 	}{
 		{
 			name: "first page with size 5",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 0,
 				Size: 5,
 			},
@@ -482,7 +487,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "second page with size 5",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 1,
 				Size: 5,
 			},
@@ -492,7 +497,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "third page with size 5",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 2,
 				Size: 5,
 			},
@@ -502,7 +507,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "page beyond available data",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 5,
 				Size: 5,
 			},
@@ -512,7 +517,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "page size 10",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 0,
 				Size: 10,
 			},
@@ -522,7 +527,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "page 1 with size 10",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 1,
 				Size: 10,
 			},
@@ -532,7 +537,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "all projects on single page",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 0,
 				Size: 20,
 			},
@@ -542,7 +547,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "page size 1",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Page: 0,
 				Size: 1,
 			},
@@ -552,7 +557,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search for 'project-1' - partial matches",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "project-1",
 				Page:   0,
 				Size:   10,
@@ -564,7 +569,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search for '-5' - single match",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "-5",
 				Page:   0,
 				Size:   10,
@@ -576,7 +581,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search for '11' - partial match",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "11",
 				Page:   0,
 				Size:   10,
@@ -588,7 +593,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search with pagination - page 0",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "project-",
 				Page:   0,
 				Size:   5,
@@ -599,7 +604,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search with pagination - page 1",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "project-",
 				Page:   1,
 				Size:   5,
@@ -610,7 +615,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search with no results",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "nonexistent",
 				Page:   0,
 				Size:   10,
@@ -621,7 +626,7 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 		},
 		{
 			name: "search case insensitive",
-			query: types.GetProjectPageInput{
+			query: projectPageInput{
 				Search: "PROJECT-5",
 				Page:   0,
 				Size:   10,
@@ -634,7 +639,9 @@ func (p *ProjectsSuite) TestGetProjectPage() {
 	}
 
 	for i, tc := range testCases {
-		results, totalCount, err := p.ProjectsService.GetProjectPage(ctx, tc.query)
+		query, err := projects.NewPageQuery(tc.query.Search, tc.query.Page, tc.query.Size)
+		require.NoError(t, err, "list parameters must form a valid project page")
+		results, totalCount, err := p.ProjectsService.Page(ctx, query)
 
 		if tc.wantErr {
 			assert.Error(t, err, "Test case %d (%s) should return error", i, tc.name)

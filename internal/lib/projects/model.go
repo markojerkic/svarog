@@ -1,9 +1,6 @@
 package projects
 
-import (
-	"github.com/google/uuid"
-	"github.com/markojerkic/svarog/internal/server/types"
-)
+import "github.com/google/uuid"
 
 type Project struct {
 	ID                 uuid.UUID `json:"id"`
@@ -26,10 +23,29 @@ func (p Project) ClientNames() []string {
 	return names
 }
 
-func (p *Project) ToCreateProjectForm() types.CreateProjectForm {
-	return types.CreateProjectForm{
-		ID:      p.ID.String(),
-		Name:    p.Name,
-		Clients: p.ClientNames(),
+type ProjectInput struct {
+	Name    string
+	Clients []string
+}
+
+// PageQuery is constructed by NewPageQuery. Its zero value is the default first page.
+type PageQuery struct {
+	search     string
+	page, size int64
+}
+
+func (q PageQuery) Search() string { return q.search }
+func (q PageQuery) Page() int64    { return q.page }
+
+func (q PageQuery) Size() int64 {
+	if q.size == 0 {
+		return 10
 	}
+	return q.size
+}
+
+// ClampPage moves to an earlier available page without changing the search or size.
+func (q PageQuery) ClampPage(maximum int64) PageQuery {
+	q.page = min(q.page, max(0, maximum))
+	return q
 }

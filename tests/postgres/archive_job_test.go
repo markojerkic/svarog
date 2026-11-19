@@ -30,8 +30,8 @@ func TestCreateArchiveForClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	pool := testutils.NewPostgresPool(t, ctx)
-	projectService := projects.NewPostgresProjectsService(pool)
-	project, err := projectService.CreateProject(ctx, "ArchiveJob", []string{"api", "worker", "write-failure"})
+	projectService := projects.NewPostgresProjectsService(pool, nil)
+	project, err := projectService.Create(ctx, projects.ProjectInput{Name: "ArchiveJob", Clients: []string{"api", "worker", "write-failure"}})
 	require.NoError(t, err, "create project and clients for the archive job")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
@@ -241,7 +241,7 @@ func TestArchiveInterruptedBuild(t *testing.T) {
 func newArchiveFixture(t *testing.T, ctx context.Context, name string) (*pgxpool.Pool, archive.Archiver, archive.Scope, string) {
 	t.Helper()
 	pool := testutils.NewPostgresPool(t, ctx)
-	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, name, []string{"api"})
+	project, err := projects.NewPostgresProjectsService(pool, nil).Create(ctx, projects.ProjectInput{Name: name, Clients: []string{"api"}})
 	require.NoError(t, err, "create the archive fixture's project and client")
 	dir := t.TempDir()
 	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}

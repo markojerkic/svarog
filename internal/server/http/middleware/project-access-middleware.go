@@ -1,18 +1,26 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/http/forms"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
-	"github.com/markojerkic/svarog/internal/server/types"
 )
 
-func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsService projects.ProjectsService) echo.MiddlewareFunc {
+type ProjectAccessChecker interface {
+	UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error)
+}
+
+type ClientOwnershipChecker interface {
+	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
+}
+
+func RequiresProjectAccessMiddleware(authService ProjectAccessChecker, projectsService ClientOwnershipChecker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			user, ok := c.Get(auth.UserKey.String()).(*auth.LoggedInUser)
@@ -25,7 +33,7 @@ func RequiresProjectAccessMiddleware(authService auth.AuthService, projectsServi
 			for _, id := range []string{projectID, clientID} {
 				parsed, err := uuid.Parse(id)
 				if err != nil || parsed == uuid.Nil || parsed.String() != id {
-					return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "auth.invalid_ids")})
+					return c.JSON(http.StatusBadRequest, forms.ApiError{Message: i18n.T(c.Request().Context(), "auth.invalid_ids")})
 				}
 			}
 

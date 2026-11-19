@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 )
 
 func (s *NatsAuthSuite) createTestProject(clientName string) (projectID string, clientID string, subject string) {
-	project, err := s.ProjectsService.CreateProject(context.Background(), "test-project-"+clientName, []string{clientName})
+	project, err := s.ProjectsService.Create(context.Background(), projects.ProjectInput{Name: "test-project-" + clientName, Clients: []string{clientName}})
 	require.NoError(s.T(), err, "create PostgreSQL project with client %s for credential tests", clientName)
 	require.Len(s.T(), project.Clients, 1, "credential test project should have one active client")
 	projectID = project.ID.String()
@@ -66,7 +66,7 @@ func (s *NatsAuthSuite) TestConnectWithExpiredCredentials() {
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
 			ClientID:  clientID,
-			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
+			Expiry:    &expiryTime,
 		},
 	)
 	require.NoError(t, err)
@@ -281,7 +281,7 @@ func (s *NatsAuthSuite) TestCredentialsWithLongExpiry() {
 		serverauth.CredentialGenerationRequest{
 			ProjectID: projectId,
 			ClientID:  clientID,
-			Expiry:    types.NullableDate{Time: expiryTime, Valid: true},
+			Expiry:    &expiryTime,
 		},
 	)
 	require.NoError(t, err)

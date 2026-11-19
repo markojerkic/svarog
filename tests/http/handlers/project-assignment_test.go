@@ -18,9 +18,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
-	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/internal/server/ui/components/combobox"
 	usercomponents "github.com/markojerkic/svarog/internal/server/ui/components/users"
 	"github.com/stretchr/testify/require"
@@ -33,14 +31,13 @@ func (assignmentValidator) Validate(value interface{}) error {
 }
 
 type assignmentProjectsStub struct {
-	projects.ProjectsService
 	all         []projects.Project
 	loadedIDs   []string
 	lookupCalls int
 	searchCalls int
 }
 
-func (s *assignmentProjectsStub) GetProjectsByIds(_ context.Context, ids []string) ([]projects.Project, error) {
+func (s *assignmentProjectsStub) ByIDs(_ context.Context, ids []string) ([]projects.Project, error) {
 	s.lookupCalls++
 	s.loadedIDs = ids
 	var selected []projects.Project
@@ -54,34 +51,38 @@ func (s *assignmentProjectsStub) GetProjectsByIds(_ context.Context, ids []strin
 	return selected, nil
 }
 
-func (s *assignmentProjectsStub) SearchProjects(_ context.Context, request projects.SearchProjectsRequest) ([]projects.Project, error) {
+func (s *assignmentProjectsStub) Page(_ context.Context, request projects.PageQuery) ([]projects.Project, int64, error) {
 	s.searchCalls++
 	var matches []projects.Project
 	for _, project := range s.all {
-		if strings.Contains(strings.ToLower(project.Name), strings.ToLower(request.Search)) {
+		if strings.Contains(strings.ToLower(project.Name), strings.ToLower(request.Search())) {
 			matches = append(matches, project)
 		}
 	}
-	start := int(request.Page * request.Size)
+	start := int(request.Page() * request.Size())
 	if start >= len(matches) {
-		return nil, nil
+		return nil, int64(len(matches)), nil
 	}
-	end := min(start+int(request.Size), len(matches))
-	return matches[start:end], nil
+	end := min(start+int(request.Size()), len(matches))
+	return matches[start:end], int64(len(matches)), nil
 }
 
 type assignmentAuthStub struct {
-	auth.AuthService
 	user      auth.User
-	submitted types.CreateUserForm
+	submitted auth.UserInput
 }
 
 func (s *assignmentAuthStub) GetUserByID(context.Context, string) (auth.User, error) {
 	return s.user, nil
 }
 
-func (s *assignmentAuthStub) CreateOrUpdateUser(_ context.Context, form types.CreateUserForm) (auth.User, error) {
-	s.submitted = form
+func (s *assignmentAuthStub) CreateUser(_ context.Context, input auth.UserInput) (auth.User, string, error) {
+	s.submitted = input
+	return s.user, "", nil
+}
+
+func (s *assignmentAuthStub) UpdateUser(_ context.Context, _ uuid.UUID, input auth.UserInput) (auth.User, error) {
+	s.submitted = input
 	return s.user, nil
 }
 
@@ -157,7 +158,7 @@ func TestProjectAssignmentSearchPreservesSelectionsAcrossSearchAndPagination(t *
 	}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+	handlers.NewProjectsRouter(projectRoutesStub{byIDs: p.ByIDs, page: p.Page}, nil, e.Group("/admin"))
 	selectedIDs := []string{
 		alreadyAssigned.ID.String(),
 		outsideSearch.ID.String(),
@@ -244,7 +245,7 @@ func TestProjectAssignmentSearchRejectsInvalidSelectedIDsBeforeQueries(t *testin
 			p := &assignmentProjectsStub{}
 			e := echo.New()
 			e.Validator = assignmentValidator{}
-			handlers.NewProjectsRouter(p, serverauth.NatsCredentialService{}, e.Group("/admin"))
+			handlers.NewProjectsRouter(projectRoutesStub{byIDs: p.ByIDs, page: p.Page}, nil, e.Group("/admin"))
 			rec := httptest.NewRecorder()
 
 			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/projects/search?projects="+url.QueryEscape(id), nil))
@@ -271,7 +272,7 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 	}
 	e := echo.New()
 	e.Validator = assignmentValidator{}
-	handlers.NewAuthRouter(a, p, e.Group("/admin"), e.Group(""), e.Group(""))
+	handlers.NewAuthRouter(userRoutesStub{get: a.GetUserByID, create: a.CreateUser, update: a.UpdateUser}, p, e.Group("/admin"))
 	edit := httptest.NewRecorder()
 
 	e.ServeHTTP(edit, httptest.NewRequest(http.MethodGet, "/admin/users/"+a.user.ID.String()+"/edit", nil))
@@ -292,13 +293,8 @@ func TestCreateAndEditAssignmentFormsIncludeLiveSelectionInRequests(t *testing.T
 
 			err := usercomponents.NewUserForm(usercomponents.NewUserFormProps{
 				FormID: formID,
-				Value: types.CreateUserForm{
-					Projects: []combobox.Option{
-						{
-							Value: project.ID.String(),
-							Name:  project.Name,
-						},
-					},
+				Projects: []combobox.Option{
+					{Value: project.ID.String(), Name: project.Name},
 				},
 			}).Render(context.Background(), &rendered)
 
