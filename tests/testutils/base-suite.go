@@ -14,7 +14,6 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/lib/util"
-	"github.com/markojerkic/svarog/internal/server/config"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/logstore"
@@ -54,7 +53,10 @@ type BaseSuiteConfig struct {
 
 // DefaultBaseSuiteConfig returns sensible defaults
 func DefaultBaseSuiteConfig() BaseSuiteConfig {
-	env := config.ServerEnv{}
+	var env struct {
+		NatsAccountSeed string `env:"NATS_ACCOUNT_SEED"`
+		natsconn.ExternalConfig
+	}
 	if err := dotenv.Load("../../.env"); err != nil {
 		panic(err)
 	}
@@ -65,8 +67,8 @@ func DefaultBaseSuiteConfig() BaseSuiteConfig {
 	return BaseSuiteConfig{
 		ConfigPath:      "../../nats-server.conf",
 		NatsAccountSeed: env.NatsAccountSeed,
-		NatsJwt:         env.NatsServerUserJWT,
-		NatsSeed:        env.NatsServerUserSeed,
+		NatsJwt:         env.UserJWT,
+		NatsSeed:        env.UserSeed,
 	}
 }
 

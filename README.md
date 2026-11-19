@@ -13,10 +13,17 @@ NATS JetStream; the server stores it in PostgreSQL and streams new lines to the 
 
 ## Server
 
+- `ghcr.io/markojerkic/svarog` connects to an external NATS broker and supports multiple replicas.
+- `ghcr.io/markojerkic/svarog-embedded` runs NATS JetStream in the server process and supports exactly one replica.
+
+Both images are published with `vX.Y.Z` and `latest` tags and use PostgreSQL.
+
+### External NATS
+
 [docker-compose.prod.yml](docker-compose.prod.yml) runs the server and an
 authenticated NATS server. PostgreSQL is not included and must already exist.
 
-### NATS credentials
+#### NATS credentials
 
 From a checkout of this repository, run:
 
@@ -50,9 +57,9 @@ NATS_SERVER_USER_JWT=...
 NATS_SERVER_USER_SEED=...
 ```
 
-Server and deployment defaults below are for production Compose. To override
-a server setting that `docker-compose.prod.yml` does not read from `.env`,
-set it explicitly in the `svarog` service's `environment`. The development
+Server and deployment defaults below are for external-NATS production Compose.
+Set any additional server settings explicitly in the `svarog` service's
+`environment` in `docker-compose.prod.yml`. The development
 stack uses `.env`; the demo stack uses `.env.log-demo`.
 
 | Variable                                                                  | Default                              | Purpose                                                                                                                                                                                                                                         |
@@ -125,6 +132,75 @@ Migrations run on startup. A fresh database gets the user `admin` /
 The web UI listens on `127.0.0.1` by default. A reverse proxy in front of it
 must forward WebSocket upgrades for live logs and, when it terminates TLS, send
 `X-Forwarded-Proto: https` so session cookies are marked secure.
+
+### Embedded NATS
+
+The embedded image uses the same PostgreSQL, session, archive and logging
+settings. It generates the NATS operator and `$SYS` account on every start.
+Use HTTP `/login` for health checks. The broker exposes only the NATS client
+listener. `SVAROG_CONN_STRING` enables self-logging in both server modes. In
+embedded mode it connects to the server's own broker, so its `host:port` must
+be reachable from inside the container. When the published port differs from
+`NATS_LISTEN_PORT`, as in the Compose example below, replace the copied URL's
+`host:port` with `localhost:4222`.
+
+| Variable            | Default                | Purpose                                                                                         |
+| ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `NATS_ACCOUNT_SEED` | Required               | APP account seed from `nats-setup` or the existing deployment. Used to sign client credentials. |
+| `NATS_PUBLIC_ADDR`  | Required               | Client-facing `host:port` written into generated connection URLs.                               |
+| `NATS_LISTEN_HOST`  | `0.0.0.0`              | Address the embedded broker listens on.                                                         |
+| `NATS_LISTEN_PORT`  | `4222`                 | Port the embedded broker listens on.                                                            |
+| `NATS_STORE_DIR`    | `/var/lib/svarog/nats` | Persistent JetStream storage directory.                                                         |
+
+The embedded image generates its broker configuration internally and omits
+`NATS_ADDR`, `NATS_SERVER_USER_JWT`, `NATS_SERVER_USER_SEED` and `nats-server.conf`.
+
+The embedded listener has no TLS option. Log contents travel in plaintext, so
+keep the listener on a private network or behind an encrypted tunnel.
+
+The broker accepts any user JWT signed by the APP account key. That includes
+the `NATS_SERVER_USER_JWT` that `nats-setup` creates, which may publish and
+subscribe to every subject and never expires. Keep it secret after switching to
+the embedded image. Revocations and signing keys of a customized external
+account are not carried over. For such an account, use a new
+`NATS_ACCOUNT_SEED` and reissue client connection URLs.
+
+[docker-compose.embedded.yml](docker-compose.embedded.yml) runs the embedded
+image with its own PostgreSQL and volumes for JetStream and disk archives. Set
+`SESSION_SECRET`, `NATS_ACCOUNT_SEED` and a URL-safe `POSTGRES_PASSWORD` in
+`.env.embedded`:
+
+```bash
+docker compose --env-file .env.embedded -f docker-compose.embedded.yml up -d --pull always
+```
+
+The Compose stack publishes HTTP at `127.0.0.1:1325` and NATS at
+`127.0.0.1:4223`. PostgreSQL stays on the Compose network. Override
+`SVAROG_HTTP_BIND`, `SVAROG_HTTP_PORT`, `SVAROG_NATS_BIND` and `SVAROG_NATS_PORT`
+to change the host bindings. Compose advertises `localhost` and the published
+NATS port by default. For remote clients, set `SVAROG_EMBEDDED_NATS_PUBLIC_ADDR`
+to their reachable `host:port`. Set `SVAROG_VERSION` to pin the image tag.
+
+Run exactly one embedded replica. A second broker that opens the same
+`NATS_STORE_DIR` fails to start. Use the external-NATS image with
+[docker-compose.lb.yml](docker-compose.lb.yml) so committed logs reach live views
+across replicas. JetStream data lives under
+`$NATS_STORE_DIR/jetstream/<account public key>/`. Changing `NATS_ACCOUNT_SEED`
+abandons the old stream and invalidates previously issued connection URLs.
+
+#### Switch from external to embedded NATS
+
+1. Stop log producers. Restart the external-NATS Svarog server without
+   `SVAROG_CONN_STRING`, so its own shutdown record is ingested rather than left
+   on the old broker.
+2. Wait until `nats consumer info LOGS log-processor` reports
+   `Unprocessed Messages: 0` and `Outstanding Acks: 0`.
+3. Stop the external-NATS Svarog server and the external NATS server, so no
+   client can publish to the old broker.
+4. Start the embedded image with the existing PostgreSQL database, archive
+   storage and APP account seed, and an empty embedded JetStream store.
+5. If the client-facing `host:port` changed, update client connection URLs.
+   Resume log producers once the embedded server is healthy.
 
 ## Client
 
@@ -225,8 +301,14 @@ credentials in production.
 ```bash
 bun install --frozen-lockfile
 task dev   # PostgreSQL, NATS and the server with hot reload on http://localhost:7331
-task       # Build server and client images tagged :local
+task       # Build both server images and the client image tagged :local
 ```
+
+Use `task build` for the external-NATS binary (`/tmp/svarog-server`) or
+`task build CMD=server-embedded` for the embedded binary (`/tmp/svarog-server-embedded`).
+Pass `OUT=/path/to/binary` to choose the output path. To run the locally built
+embedded image with Compose, set `SVAROG_VERSION=local` in `.env.embedded` and
+start the stack without `--pull always`.
 
 To generate demo logs, paste client connection URLs into `.env.log-demo`:
 
