@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
-	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/sethvargo/go-password/password"
 	"golang.org/x/crypto/bcrypt"
@@ -159,7 +159,7 @@ func (a *PostgresAuthService) GetUserByUsername(ctx context.Context, username st
 }
 
 func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUserPageInput) ([]User, int64, error) {
-	if err := ValidateUserPage(ctx, query); err != nil {
+	if err := ValidateUserPage(query); err != nil {
 		return nil, 0, err
 	}
 	rows, err := a.queries.ListUsers(ctx, sqlc.ListUsersParams{
@@ -187,16 +187,16 @@ func (a *PostgresAuthService) GetUserPage(ctx context.Context, query types.GetUs
 }
 
 func (a *PostgresAuthService) CreateOrUpdateUser(ctx context.Context, form types.CreateUserForm) (User, error) {
-	if err := ValidateUserForm(ctx, form); err != nil {
+	if err := ValidateUserForm(form); err != nil {
 		return User{}, err
 	}
 	projectIDs := make([]uuid.UUID, 0, len(form.ProjectIDs))
 	for _, value := range form.ProjectIDs {
 		id, err := uuid.Parse(value)
 		if err != nil {
-			return User{}, types.NewApiError(i18n.T(ctx, "projects.invalid_id"), map[string]string{
-				"projects": i18n.T(ctx, "projects.select_valid"),
-			})
+			return User{}, &validation.Error{Key: "projects.invalid_id", Fields: map[string]validation.Violation{
+				"projects": {Key: "projects.select_valid"},
+			}}
 		}
 		projectIDs = append(projectIDs, id)
 	}

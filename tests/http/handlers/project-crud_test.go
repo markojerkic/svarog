@@ -20,15 +20,19 @@ import (
 
 type projectCRUDStub struct {
 	projects.ProjectsService
-	saved      projects.Project
-	rows       []projects.Project
-	count      int64
-	queries    []types.GetProjectPageInput
-	writeCalls int
-	saveError  error
+	saved         projects.Project
+	rows          []projects.Project
+	count         int64
+	queries       []types.GetProjectPageInput
+	writeCalls    int
+	saveError     error
+	validateInput bool
 }
 
-func (s *projectCRUDStub) CreateOrUpdateProject(context.Context, types.CreateProjectForm) (projects.Project, error) {
+func (s *projectCRUDStub) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (projects.Project, error) {
+	if s.validateInput {
+		return projects.NewPostgresProjectsService(nil).CreateOrUpdateProject(ctx, form)
+	}
 	s.writeCalls++
 	return s.saved, s.saveError
 }
@@ -38,7 +42,10 @@ func (s *projectCRUDStub) DeleteProject(context.Context, string, string) error {
 	return nil
 }
 
-func (s *projectCRUDStub) GetProjectPage(_ context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
+func (s *projectCRUDStub) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]projects.Project, int64, error) {
+	if s.validateInput {
+		return projects.NewPostgresProjectsService(nil).GetProjectPage(ctx, query)
+	}
 	s.queries = append(s.queries, query)
 	if query.Page*query.Size >= s.count {
 		return nil, s.count, nil
@@ -121,7 +128,7 @@ func TestProjectInvalidFormAndMissingEditReturnClientErrors(t *testing.T) {
 		{form: url.Values{"name": {strings.Repeat("Ž", 256)}}, code: http.StatusBadRequest},
 		{form: url.Values{"name": {"Projekt"}, "id": {uuid.NewString()}}, err: projects.ErrNotFound, code: http.StatusNotFound},
 	} {
-		service := &projectCRUDStub{saveError: tc.err}
+		service := &projectCRUDStub{saveError: tc.err, validateInput: tc.code == http.StatusBadRequest}
 		rec := projectCRUDRequest(t, service, http.MethodPost, "/admin/projects", "", tc.form, true)
 		require.Equal(t, tc.code, rec.Code, "Invalid IDs and text must be client errors; nonexistent edited projects must be 404")
 		if tc.code == http.StatusBadRequest {
@@ -134,7 +141,7 @@ func TestProjectInvalidFormAndMissingEditReturnClientErrors(t *testing.T) {
 func TestInvalidProjectListRequestsRenderLocalizedHTMLOrKeepTheHTMXView(t *testing.T) {
 	for _, query := range []string{"page=abc", "page=-1", "page=9223372036854775807", "search=%00"} {
 		for _, hx := range []bool{false, true} {
-			service := &projectCRUDStub{}
+			service := &projectCRUDStub{validateInput: true}
 			rec := projectCRUDRequest(t, service, http.MethodGet, "/admin/projects?"+query, "", nil, hx)
 			require.Equal(t, http.StatusBadRequest, rec.Code, "Malformed project list parameters must not cause server errors")
 			require.Empty(t, service.queries, "Malformed parameters must be rejected before querying persistence")

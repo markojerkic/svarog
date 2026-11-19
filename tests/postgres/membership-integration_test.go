@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
@@ -80,7 +81,7 @@ func TestActivePostgresMembership(t *testing.T) {
 			require.ErrorIs(t, err, auth.ErrProjectSelectionMissing, scenario)
 			return
 		}
-		var apiError types.ApiError
+		var apiError *validation.Error
 		require.ErrorAs(t, err, &apiError, scenario)
 		require.NotEmpty(t, apiError.Fields["projects"], "project assignment errors identify the projects field: %s", scenario)
 	}

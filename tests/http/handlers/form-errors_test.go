@@ -14,6 +14,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func (invalidAssignmentAuthStub) CreateOrUpdateUser(context.Context, types.Creat
 type invalidProjectFormStub struct{ projects.ProjectsService }
 
 func (invalidProjectFormStub) CreateOrUpdateProject(context.Context, types.CreateProjectForm) (projects.Project, error) {
-	return projects.Project{}, types.NewApiError("Client name is required", map[string]string{"clients": "Client names must not be blank"})
+	return projects.Project{}, &validation.Error{Key: "validation.failed", Fields: map[string]validation.Violation{"clients": {Key: "projects.clients_blank"}}}
 }
 
 func TestUserAssignmentErrorsPreserveFormIdentity(t *testing.T) {

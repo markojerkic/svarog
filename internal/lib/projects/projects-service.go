@@ -67,7 +67,7 @@ func (p *PostgresProjectsService) SetArchiveStore(store ArchiveContentDeleter) {
 }
 
 func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, form types.CreateProjectForm) (Project, error) {
-	if err := ValidateProjectForm(ctx, form); err != nil {
+	if err := validateProjectID(form.ID); err != nil {
 		return Project{}, err
 	}
 	if form.ID == "" {
@@ -81,7 +81,7 @@ func (p *PostgresProjectsService) CreateOrUpdateProject(ctx context.Context, for
 }
 
 func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string, clients []string) (Project, error) {
-	if err := validateProject(ctx, name, clients); err != nil {
+	if err := validateProject(name, clients); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.CreateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
@@ -94,7 +94,7 @@ func (p *PostgresProjectsService) CreateProject(ctx context.Context, name string
 }
 
 func (p *PostgresProjectsService) UpdateProject(ctx context.Context, id uuid.UUID, name string, clients []string) (Project, error) {
-	if err := validateProject(ctx, name, clients); err != nil {
+	if err := validateProject(name, clients); err != nil {
 		return Project{}, err
 	}
 	row, err := persistence.UpdateProjectWithClients(ctx, p.pool, persistence.ProjectWithClientsInput{
@@ -143,7 +143,7 @@ func (p *PostgresProjectsService) GetProjectsByIds(ctx context.Context, ids []st
 }
 
 func (p *PostgresProjectsService) GetProjectPage(ctx context.Context, query types.GetProjectPageInput) ([]Project, int64, error) {
-	if err := ValidateProjectPage(ctx, query); err != nil {
+	if err := ValidateProjectPage(query); err != nil {
 		return nil, 0, err
 	}
 	rows, err := p.queries.ListProjects(ctx, sqlc.ListProjectsParams{

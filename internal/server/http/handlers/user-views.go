@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -55,14 +54,13 @@ func userMutationQuery(c *echo.Context) (types.GetUserPageInput, error) {
 			}
 		}
 	}
-	return query, auth.ValidateUserPage(c.Request().Context(), query)
+	return query, auth.ValidateUserPage(query)
 }
 
 func (a *AuthRouter) renderUsersPage(c *echo.Context, query types.GetUserPageInput, mutation bool, loginURL string) error {
 	users, count, err := a.authService.GetUserPage(c.Request().Context(), query)
 	if err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return userPageError(c, http.StatusBadRequest, apiErr.Message)
 		}
 		slog.Error("Error loading users page", "error", err)

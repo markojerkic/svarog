@@ -42,11 +42,10 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, types.ApiError{Message: i18n.T(c.Request().Context(), "validation.failed")})
 	}
 
-	if err := projects.ValidateProjectPage(c.Request().Context(), types.GetProjectPageInput{
+	if err := projects.ValidateProjectPage(types.GetProjectPageInput{
 		Search: request.Search, Page: request.Page, Size: request.Size,
 	}); err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return c.JSON(http.StatusBadRequest, apiErr)
 		}
 		return err
@@ -83,8 +82,7 @@ func (p *ProjectsRouter) searchProjects(c *echo.Context) error {
 
 	results, err := p.projectsService.SearchProjects(c.Request().Context(), request)
 	if err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return c.JSON(http.StatusBadRequest, apiErr)
 		}
 		slog.Error("Error fetching projects", "error", err)
@@ -136,9 +134,6 @@ func (p *ProjectsRouter) getProjects(c *echo.Context) error {
 			return projectPageError(c, http.StatusBadRequest, apiErr.Message)
 		}
 		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "projects.invalid_pagination"))
-	}
-	if err := projects.ValidateProjectPage(c.Request().Context(), query); err != nil {
-		return projectPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
 	return p.renderProjectsPage(c, query, false)
 }
@@ -230,17 +225,6 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 
 		return err
 	}
-	if err := projects.ValidateProjectForm(c.Request().Context(), createProjectForm); err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
-			htmx.Reswap(c, htmx.ReswapProps{Swap: "outerHTML", Target: "this", Select: "form"})
-			return utils.Render(c, http.StatusBadRequest, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
-				ApiError: apiErr, Value: createProjectForm,
-			}))
-		}
-		return err
-	}
-
 	project, err := p.projectsService.CreateOrUpdateProject(c.Request().Context(), createProjectForm)
 	if err != nil {
 		htmx.Reswap(c, htmx.ReswapProps{
@@ -261,8 +245,7 @@ func (p *ProjectsRouter) createProject(c *echo.Context) error {
 				ApiError: types.ApiError{Message: i18n.T(c.Request().Context(), "projects.not_found")}, Value: createProjectForm,
 			}))
 		}
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return utils.Render(c, http.StatusBadRequest, projectcomponents.NewProjectForm(projectcomponents.NewProjectFormProps{
 				ApiError: apiErr,
 				Value:    createProjectForm,

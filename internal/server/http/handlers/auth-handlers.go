@@ -191,9 +191,6 @@ func (a *AuthRouter) getUsersPage(c *echo.Context) error {
 	if err := utils.Validate(c, &query); err != nil {
 		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
 	}
-	if err := auth.ValidateUserPage(c.Request().Context(), query); err != nil {
-		return userPageError(c, http.StatusBadRequest, i18n.T(c.Request().Context(), "request.invalid_parameters"))
-	}
 	return a.renderUsersPage(c, query, false, "")
 }
 
@@ -253,13 +250,6 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 		}
 		return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
 	}
-	if err := auth.ValidateUserForm(c.Request().Context(), createUserForm); err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
-			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
-		}
-		return err
-	}
 
 	slog.Debug("Creating user", "user", createUserForm)
 	user, err := a.authService.CreateOrUpdateUser(c.Request().Context(), createUserForm)
@@ -278,8 +268,7 @@ func (a *AuthRouter) createOrUpdateUser(c *echo.Context) error {
 				i18n.T(ctx, "projects.not_found"), map[string]string{"projects": i18n.T(ctx, "projects.selection_missing")},
 			))
 		}
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return a.renderUserFormError(c, http.StatusBadRequest, createUserForm, apiErr)
 		}
 

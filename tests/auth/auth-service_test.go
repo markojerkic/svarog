@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/auth"
-	"github.com/markojerkic/svarog/internal/server/i18n"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestPostgresAuthRejectsInvalidInputBeforeDatabaseAccess(t *testing.T) {
 		ProjectIDs: []string{uuid.NewString(), "not-a-uuid"},
 	})
 
-	var apiError types.ApiError
+	var apiError *validation.Error
 	require.ErrorAs(t, err, &apiError, "Invalid project UUID should be rejected before database access")
 	require.NotEmpty(t, apiError.Fields["projects"], "Invalid project UUID should identify the projects validation field")
 
@@ -59,7 +59,7 @@ func TestPostgresAuthRejectsInvalidInputBeforeDatabaseAccess(t *testing.T) {
 
 func TestUserProfileValidationBeforeDatabaseAccess(t *testing.T) {
 	service := auth.NewPostgresAuthService(nil, nil)
-	ctx := i18n.WithLanguage(context.Background(), i18n.Croatian)
+	ctx := context.Background()
 	for _, tc := range []struct {
 		name  string
 		field string
@@ -99,13 +99,13 @@ func TestUserProfileValidationBeforeDatabaseAccess(t *testing.T) {
 				form.ProjectIDs = []string{tc.value}
 			}
 			_, err := service.CreateOrUpdateUser(ctx, form)
-			var apiErr types.ApiError
+			var apiErr *validation.Error
 			require.ErrorAs(t, err, &apiErr, "Invalid user input must fail as a typed client error before hashing or database access")
 			require.NotEmpty(t, apiErr.Fields[tc.field], "Validation must identify the rejected user field")
-			require.Equal(t, "Podaci nisu ispravni.", apiErr.Message, "Validation errors must use the request language")
+			require.Equal(t, "validation.failed", apiErr.Key, "Profile violations must use the validation summary at the HTTP boundary")
 		})
 	}
-	require.NoError(t, auth.ValidateUserForm(ctx, types.CreateUserForm{
+	require.NoError(t, auth.ValidateUserForm(types.CreateUserForm{
 		Username: strings.Repeat("Ž", 255), FirstName: strings.Repeat("ć", 255), LastName: "Čačić 👩‍💻", Role: "admin",
 	}), "Names at the Unicode character boundary must remain accepted")
 }
@@ -117,11 +117,11 @@ func TestUserSearchAndPaginationValidation(t *testing.T) {
 		{Size: 0}, {Size: 101}, {Size: 10, Search: "\x00"}, {Size: 10, Search: strings.Repeat("Ž", 1025)},
 	} {
 		_, _, err := service.GetUserPage(context.Background(), query)
-		var apiErr types.ApiError
+		var apiErr *validation.Error
 		require.ErrorAs(t, err, &apiErr, "Invalid paging and search must fail as client errors before PostgreSQL access")
 	}
-	require.NoError(t, auth.ValidateUserPage(context.Background(), types.GetUserPageInput{Page: math.MaxInt32 / 100, Size: 100}), "The largest safe int32 offset must remain valid")
-	require.Error(t, auth.ValidateUserPage(context.Background(), types.GetUserPageInput{Page: math.MaxInt32/100 + 1, Size: 100}), "An offset beyond int32 must be rejected before narrowing")
+	require.NoError(t, auth.ValidateUserPage(types.GetUserPageInput{Page: math.MaxInt32 / 100, Size: 100}), "The largest safe int32 offset must remain valid")
+	require.Error(t, auth.ValidateUserPage(types.GetUserPageInput{Page: math.MaxInt32/100 + 1, Size: 100}), "An offset beyond int32 must be rejected before narrowing")
 }
 
 func FuzzUserProfileTextValidation(f *testing.F) {
@@ -129,11 +129,11 @@ func FuzzUserProfileTextValidation(f *testing.F) {
 		f.Add(value)
 	}
 	f.Fuzz(func(t *testing.T, value string) {
-		err := auth.ValidateUserForm(context.Background(), types.CreateUserForm{
+		err := auth.ValidateUserForm(types.CreateUserForm{
 			Username: "fuzz-user", FirstName: value, LastName: value, Role: "user",
 		})
 		if strings.ContainsRune(value, '\x00') || !utf8.ValidString(value) || utf8.RuneCountInString(strings.TrimSpace(value)) < 3 || utf8.RuneCountInString(value) > 255 {
-			var apiErr types.ApiError
+			var apiErr *validation.Error
 			require.ErrorAs(t, err, &apiErr, "Invalid profile text must always produce a typed validation error")
 			require.NotEmpty(t, apiErr.Fields["firstName"], "Invalid names must never reach PostgreSQL text fields")
 		}

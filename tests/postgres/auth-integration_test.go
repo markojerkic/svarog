@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/validation"
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/markojerkic/svarog/tests/testutils"
@@ -124,7 +125,7 @@ func TestActivePostgresAuth(t *testing.T) {
 		_, err = service.CreateOrUpdateUser(ctx, types.CreateUserForm{
 			ID: user.ID.String(), Username: user.Username, FirstName: "Rejected", LastName: "User", Role: "admin", ProjectIDs: []string{"not-a-uuid"},
 		})
-		var apiError types.ApiError
+		var apiError *validation.Error
 		require.ErrorAs(t, err, &apiError, "reject malformed project UUID before profile update")
 		require.NotEmpty(t, apiError.Fields["projects"], "invalid project UUID reports a projects field error")
 		again, err := service.GetUserByID(ctx, user.ID.String())

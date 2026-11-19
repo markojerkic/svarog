@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -53,14 +52,13 @@ func projectMutationQuery(c *echo.Context) (types.GetProjectPageInput, error) {
 			}
 		}
 	}
-	return query, projects.ValidateProjectPage(c.Request().Context(), query)
+	return query, projects.ValidateProjectPage(query)
 }
 
 func (p *ProjectsRouter) renderProjectsPage(c *echo.Context, query types.GetProjectPageInput, mutation bool) error {
 	items, count, err := p.projectsService.GetProjectPage(c.Request().Context(), query)
 	if err != nil {
-		var apiErr types.ApiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := validationResponse(c.Request().Context(), err); ok {
 			return projectPageError(c, http.StatusBadRequest, apiErr.Message)
 		}
 		slog.Error("Error loading project page", "error", err)

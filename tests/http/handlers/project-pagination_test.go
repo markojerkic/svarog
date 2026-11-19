@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	serverhttp "github.com/markojerkic/svarog/internal/server/http"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/types"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestProjectPaginationValidatedBeforeServiceAccess(t *testing.T) {
 			t.Run(path+"?"+query, func(t *testing.T) {
 				service := &paginationProjectsStub{}
 				e := echo.New()
-				e.Validator = assignmentValidator{}
+				e.Validator = serverhttp.NewValidator()
 				handlers.NewProjectsRouter(service, serverauth.NatsCredentialService{}, e.Group("/admin"))
 
 				rec := httptest.NewRecorder()
