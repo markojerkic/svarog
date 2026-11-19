@@ -10,13 +10,14 @@ RUN go mod download
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN task build:assets
+# The shared build cache lets both server targets reuse compiled packages.
+RUN --mount=type=cache,target=/root/.cache/go-build task build:assets
 
 FROM build-assets AS build-server
-RUN task build:binary CMD=server OUT=/app/build/server
+RUN --mount=type=cache,target=/root/.cache/go-build task build:binary CMD=server OUT=/app/build/server
 
 FROM build-assets AS build-server-embedded
-RUN task build:binary CMD=server-embedded OUT=/app/build/server-embedded
+RUN --mount=type=cache,target=/root/.cache/go-build task build:binary CMD=server-embedded OUT=/app/build/server-embedded
 
 FROM alpine:3.24.3 AS runtime
 
