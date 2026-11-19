@@ -10,11 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type publishJob struct {
-	rows  []types.StoredLog
+	rows  []logstore.Row
 	bytes int
 }
 
@@ -30,10 +30,10 @@ type Logs struct {
 	conn          *nats.Conn
 	mu            sync.Mutex
 	closeOnce     sync.Once
-	groups        map[Scope]*watchGroup
+	groups        map[logstore.Scope]*watchGroup
 	closed        bool
 	publish       chan publishJob
-	invalidations chan Scope
+	invalidations chan logstore.Scope
 	updates       chan renderJob
 	publishRows   int
 	publishBytes  int
@@ -46,9 +46,9 @@ type Logs struct {
 func New(conn *nats.Conn) *Logs {
 	l := &Logs{
 		conn:          conn,
-		groups:        make(map[Scope]*watchGroup),
+		groups:        make(map[logstore.Scope]*watchGroup),
 		publish:       make(chan publishJob, maxQueueJobs),
-		invalidations: make(chan Scope, maxQueueJobs),
+		invalidations: make(chan logstore.Scope, maxQueueJobs),
 		updates:       make(chan renderJob, maxQueueJobs),
 		done:          make(chan struct{}),
 	}
@@ -81,13 +81,13 @@ func New(conn *nats.Conn) *Logs {
 
 // AfterCommit accepts a bounded copy, regardless of this replica's viewers.
 // Failure is a live-view failure, never a reason to retry a committed insert.
-func (l *Logs) AfterCommit(ctx context.Context, rows []types.StoredLog) {
+func (l *Logs) AfterCommit(ctx context.Context, rows []logstore.Row) {
 	if len(rows) == 0 {
 		return
 	}
 	size := 0
 	for _, row := range rows {
-		size += len(row.LogLine) + len(row.Client.InstanceId) + 256
+		size += len(row.Message) + len(row.Instance) + 256
 	}
 	l.mu.Lock()
 	if l.closed {
@@ -111,13 +111,17 @@ func (l *Logs) AfterCommit(ctx context.Context, rows []types.StoredLog) {
 // AfterUncertainCommit is for a write whose outcome is unknown. The rows may be
 // committed without publication, and a retry will not publish existing rows,
 // so matching views must stop visibly instead of silently missing them.
-func (l *Logs) AfterUncertainCommit(rows []types.StoredLog) {
-	l.invalidateRows(rows)
+func (l *Logs) AfterUncertainCommit(scopes []logstore.Scope) {
+	unique := make(map[logstore.Scope]struct{})
+	for _, scope := range scopes {
+		unique[scope] = struct{}{}
+	}
+	l.invalidateScopes(unique)
 }
 
 // Open waits for broker readiness. ctx bounds opening, not the lifetime of
-// the returned Session; its owner must Close it. Scope must already be authorized.
-func (l *Logs) Open(ctx context.Context, scope Scope, selector Selector) (*Session, error) {
+// the returned Session; its owner must Close it. logstore.Scope must already be authorized.
+func (l *Logs) Open(ctx context.Context, scope logstore.Scope, selector Selector) (*Session, error) {
 	if scope.ProjectID == uuid.Nil || scope.ClientID == uuid.Nil {
 		return nil, errors.New("invalid live log scope")
 	}

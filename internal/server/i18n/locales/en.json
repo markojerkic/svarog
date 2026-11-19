@@ -51,7 +51,6 @@
   "users.id_required": { "other": "User ID is required" },
   "users.invalid_id": { "other": "Invalid user ID." },
   "logs.invalid_cursor": { "other": "Invalid log cursor" },
-  "logs.ids_required": { "other": "No project id or client id" },
   "auth.invalid_ids": { "other": "Project and client IDs must be canonical UUIDs" },
   "common.save": { "other": "Save" },
   "common.edit": { "other": "Edit" },

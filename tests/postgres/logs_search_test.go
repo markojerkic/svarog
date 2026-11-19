@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/stretchr/testify/require"
@@ -26,140 +25,125 @@ func TestSearchLogs(t *testing.T) {
 	require.NoError(t, err, "create project and clients for log search")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
-	logs := db.NewLogService(pool, nil)
+	logs := logstore.New(pool)
 	base := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 
-	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base, SequenceNumber: 1, Message: "older connection refused"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(5 * time.Second), SequenceNumber: 2, Message: "foo only"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(10 * time.Second), SequenceNumber: 5, Message: "needle low"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(10 * time.Second), SequenceNumber: 5, Message: "needle high"},
-		{ClientID: apiID, InstanceName: "api", OccurredAt: base.Add(20 * time.Second), SequenceNumber: 8, Message: "connection timeout"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(30 * time.Second), SequenceNumber: 9, Message: "Error code 500"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(40 * time.Second), SequenceNumber: 10, Message: "foo-bar happened"},
-		{ClientID: workerID, InstanceName: "other-host", OccurredAt: base, SequenceNumber: 1, Message: "connection refused elsewhere"},
-		{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(50 * time.Second), SequenceNumber: 11, Message: "SocketTimeoutException id=1 Čekanje"},
+	_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base, Sequence: 1, Message: "older connection refused"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(5 * time.Second), Sequence: 2, Message: "foo only"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(10 * time.Second), Sequence: 5, Message: "needle low"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(10 * time.Second), Sequence: 5, Message: "needle high"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "api", OccurredAt: base.Add(20 * time.Second), Sequence: 8, Message: "connection timeout"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(30 * time.Second), Sequence: 9, Message: "Error code 500"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(40 * time.Second), Sequence: 10, Message: "foo-bar happened"},
+		{Scope: logstore.Scope{ClientID: workerID}, Instance: "other-host", OccurredAt: base, Sequence: 1, Message: "connection refused elsewhere"},
+		{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(50 * time.Second), Sequence: 11, Message: "SocketTimeoutException id=1 Čekanje"},
 	})
 	require.NoError(t, err, "insert searchable logs")
 
-	api := project.ID.String()
-	client := apiID.String()
+	scope := logstore.Scope{ProjectID: project.ID, ClientID: apiID}
 
-	t.Run("GetLogs renders the first search page", func(t *testing.T) {
+	t.Run("Page returns the first search page", func(t *testing.T) {
 		instance := []string{"web", "api"}
-		anchor := "invalid-anchor"
-		page, err := logs.GetLogs(ctx, db.LogPageRequest{
-			ProjectId: api, ClientId: client, Search: "connection",
-			Instances: &instance, PageSize: 1, LogLineId: &anchor,
+		page, err := logs.Page(ctx, logstore.PageQuery{
+			Scope: scope, Search: parsedSearch(t, "connection"),
+			Instances: instance, Limit: 1,
 		})
-		require.NoError(t, err, "search through GetLogs must succeed without using the log anchor")
-		require.Equal(t, []string{"connection timeout"}, messages(page.Logs), "the first search page must contain only the newest matching log within the page limit")
-		require.NotNil(t, page.BackwardCursor, "search must reuse the existing page model")
-		lastPage, err := logs.GetLogs(ctx, db.LogPageRequest{
-			ProjectId: api, ClientId: client, Search: "connection", Instances: &instance, PageSize: 3,
+		require.NoError(t, err, "search through Page must succeed")
+		require.Equal(t, []string{"connection timeout"}, messages(page.Rows), "the first search page must contain only the newest matching log within the page limit")
+		require.NotNil(t, page.Older, "search must reuse the existing page model")
+		lastPage, err := logs.Page(ctx, logstore.PageQuery{
+			Scope: scope, Search: parsedSearch(t, "connection"), Instances: instance, Limit: 3,
 		})
 		require.NoError(t, err, "a partial search page must load successfully")
-		require.Len(t, lastPage.Logs, 2, "the partial page must contain both matching logs")
-		require.Nil(t, lastPage.BackwardCursor, "a partial page must not offer another older page")
+		require.Len(t, lastPage.Rows, 2, "the partial page must contain both matching logs")
+		require.Nil(t, lastPage.Older, "a partial page must not offer another older page")
 	})
 
 	t.Run("both words are required and other clients stay hidden", func(t *testing.T) {
-		found := mustSearch(t, ctx, logs, "connection refused", api, client, nil, 10, nil)
+		found := mustSearch(t, ctx, logs, "connection refused", scope, nil, 10, nil, nil)
 		require.Equal(t, []string{"older connection refused"}, messages(found), "search requires every word and ignores another client's match")
-		oneWord := mustSearch(t, ctx, logs, "connection", api, client, nil, 10, nil)
+		oneWord := mustSearch(t, ctx, logs, "connection", scope, nil, 10, nil, nil)
 		require.Equal(t, []string{"connection timeout", "older connection refused"}, messages(oneWord), "a single word matches every client log containing it, newest first")
-		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "error", api, client, nil, 10, nil)), "simple text search is case insensitive")
-		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "err", api, client, nil, 10, nil)), "a prefix must match inside a word")
-		require.Equal(t, []string{"connection timeout"}, messages(mustSearch(t, ctx, logs, "time CONNECT", api, client, nil, 10, nil)), "all substrings must match regardless of order and case")
-		require.Equal(t, []string{"SocketTimeoutException id=1 Čekanje"}, messages(mustSearch(t, ctx, logs, "cept id=1 čEK", api, client, nil, 10, nil)), "interior substrings, short extra terms and Croatian letters must match literally")
+		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "error", scope, nil, 10, nil, nil)), "simple text search is case insensitive")
+		require.Equal(t, []string{"Error code 500"}, messages(mustSearch(t, ctx, logs, "err", scope, nil, 10, nil, nil)), "a prefix must match inside a word")
+		require.Equal(t, []string{"connection timeout"}, messages(mustSearch(t, ctx, logs, "time CONNECT", scope, nil, 10, nil, nil)), "all substrings must match regardless of order and case")
+		require.Equal(t, []string{"SocketTimeoutException id=1 Čekanje"}, messages(mustSearch(t, ctx, logs, "cept id=1 čEK", scope, nil, 10, nil, nil)), "interior substrings, short extra terms and Croatian letters must match literally")
 	})
 
 	t.Run("hyphen is not an exclusion operator", func(t *testing.T) {
-		require.Equal(t, []string{"foo-bar happened"}, messages(mustSearch(t, ctx, logs, "foo-bar", api, client, nil, 10, nil)), "a hyphenated query matches the log that contains both words")
-		require.Equal(t, []string{"foo-bar happened", "foo only"}, messages(mustSearch(t, ctx, logs, "foo", api, client, nil, 10, nil)), "either side of a hyphen remains searchable")
-		require.Equal(t, []string{"foo-bar happened"}, messages(mustSearch(t, ctx, logs, "bar", api, client, nil, 10, nil)), "the word after a hyphen is not treated as excluded")
+		require.Equal(t, []string{"foo-bar happened"}, messages(mustSearch(t, ctx, logs, "foo-bar", scope, nil, 10, nil, nil)), "a hyphenated query matches the log that contains both words")
+		require.Equal(t, []string{"foo-bar happened", "foo only"}, messages(mustSearch(t, ctx, logs, "foo", scope, nil, 10, nil, nil)), "either side of a hyphen remains searchable")
+		require.Equal(t, []string{"foo-bar happened"}, messages(mustSearch(t, ctx, logs, "bar", scope, nil, 10, nil, nil)), "the word after a hyphen is not treated as excluded")
 	})
 
 	t.Run("forward search returns the nearest matching rows", func(t *testing.T) {
-		cursor := &db.LastCursor{Timestamp: base, SequenceNumber: 0}
-		page := mustSearch(t, ctx, logs, "foo", api, client, nil, 1, cursor)
+		cursor := &logstore.Cursor{OccurredAt: base, Sequence: 0, ID: 1}
+		page := mustSearch(t, ctx, logs, "foo", scope, nil, 1, nil, cursor)
 		require.Equal(t, []string{"foo only"}, messages(page), "forward search must not jump over a nearer match to the latest matching row")
 	})
 
 	t.Run("empty query and wrong scope return nothing", func(t *testing.T) {
-		require.Empty(t, mustSearch(t, ctx, logs, "", api, client, nil, 10, nil), "an empty search matches no logs")
-		require.Empty(t, mustSearch(t, ctx, logs, "   ", api, client, nil, 10, nil), "a blank search matches no logs")
-		require.Empty(t, mustSearch(t, ctx, logs, "connection", uuid.New().String(), client, nil, 10, nil), "a client from another project is not searchable")
-		require.Empty(t, mustSearch(t, ctx, logs, "connection", api, "marko", nil, 10, nil), "an invalid client id returns no logs")
-	})
-
-	t.Run("search needs an indexable term", func(t *testing.T) {
-		for _, query := range []string{"id", "ab cd", "a-b-c", "%_", "id=1"} {
-			_, err := logs.SearchLogs(ctx, query, api, client, nil, 10, nil)
-			require.Error(t, err, "query %q must be rejected without three consecutive letters or digits", query)
-		}
+		require.Empty(t, mustSearch(t, ctx, logs, "", scope, nil, 10, nil, nil), "an empty search matches no logs")
+		require.Empty(t, mustSearch(t, ctx, logs, "   ", scope, nil, 10, nil, nil), "a blank search matches no logs")
+		require.Empty(t, mustSearch(t, ctx, logs, "connection", logstore.Scope{ProjectID: uuid.New(), ClientID: apiID}, nil, 10, nil, nil), "a client from another project is not searchable")
+		require.Empty(t, mustSearch(t, ctx, logs, "connection", logstore.Scope{ProjectID: project.ID}, nil, 10, nil, nil), "an invalid client id returns no logs")
 	})
 
 	t.Run("instance filter and cursor id", func(t *testing.T) {
 		apiInstance := []string{"api"}
-		require.Equal(t, []string{"connection timeout"}, messages(mustSearch(t, ctx, logs, "connection", api, client, &apiInstance, 10, nil)), "instance filter keeps only the named instance")
+		require.Equal(t, []string{"connection timeout"}, messages(mustSearch(t, ctx, logs, "connection", scope, apiInstance, 10, nil, nil)), "instance filter keeps only the named instance")
 		empty := []string{}
-		require.Empty(t, mustSearch(t, ctx, logs, "connection", api, client, &empty, 10, nil), "an empty instance list matches nothing")
+		require.Empty(t, mustSearch(t, ctx, logs, "connection", scope, empty, 10, nil, nil), "an empty instance list matches nothing")
 
-		needles := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, nil)
+		needles := mustSearch(t, ctx, logs, "needle", scope, nil, 1, nil, nil)
 		require.Equal(t, []string{"needle high"}, messages(needles), "same timestamp and sequence sorts the higher id first")
-		withID := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, &db.LastCursor{
-			Timestamp:      needles[0].Timestamp,
-			SequenceNumber: needles[0].SequenceNumber,
-			ID:             needles[0].ID,
-			IsBackward:     true,
-		})
+		withID := mustSearch(t, ctx, logs, "needle", scope, nil, 1, &logstore.Cursor{
+			OccurredAt: needles[0].OccurredAt,
+			Sequence:   needles[0].Sequence,
+			ID:         needles[0].ID,
+		}, nil)
 		require.Equal(t, []string{"needle low"}, messages(withID), "cursor id returns the other row with the same timestamp and sequence")
-		withoutID := mustSearch(t, ctx, logs, "needle", api, client, nil, 1, &db.LastCursor{
-			Timestamp:      needles[0].Timestamp,
-			SequenceNumber: needles[0].SequenceNumber,
-			IsBackward:     true,
-		})
-		require.Empty(t, withoutID, "a cursor without id skips the tied row")
 	})
 
 	t.Run("pagination links preserve microseconds and tied rows", func(t *testing.T) {
 		at := base.Add(time.Minute)
-		ids, err := store.InsertLogs(ctx, pool, []store.LogInsert{
-			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(100 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken oldest"},
-			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 2, Message: "pagingtoken tie low"},
-			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 2, Message: "pagingtoken tie high"},
-			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(300 * time.Microsecond), SequenceNumber: 3, Message: "pagingtoken higher sequence"},
-			{ClientID: apiID, InstanceName: "web", OccurredAt: at.Add(700 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken newer"},
-			{ClientID: apiID, InstanceName: "api", OccurredAt: at.Add(900 * time.Microsecond), SequenceNumber: 1, Message: "pagingtoken newest"},
-			{ClientID: apiID, InstanceName: "ignored", OccurredAt: at.Add(time.Millisecond), SequenceNumber: 9, Message: "pagingtoken excluded instance"},
-			{ClientID: workerID, InstanceName: "web", OccurredAt: at.Add(time.Millisecond), SequenceNumber: 9, Message: "pagingtoken excluded client"},
+		ids, err := testutils.InsertLogFixtures(ctx, pool, []logstore.Row{
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: at.Add(100 * time.Microsecond), Sequence: 1, Message: "pagingtoken oldest"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "api", OccurredAt: at.Add(300 * time.Microsecond), Sequence: 2, Message: "pagingtoken tie low"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: at.Add(300 * time.Microsecond), Sequence: 2, Message: "pagingtoken tie high"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "api", OccurredAt: at.Add(300 * time.Microsecond), Sequence: 3, Message: "pagingtoken higher sequence"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: at.Add(700 * time.Microsecond), Sequence: 1, Message: "pagingtoken newer"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "api", OccurredAt: at.Add(900 * time.Microsecond), Sequence: 1, Message: "pagingtoken newest"},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "ignored", OccurredAt: at.Add(time.Millisecond), Sequence: 9, Message: "pagingtoken excluded instance"},
+			{Scope: logstore.Scope{ClientID: workerID}, Instance: "web", OccurredAt: at.Add(time.Millisecond), Sequence: 9, Message: "pagingtoken excluded client"},
 		})
 		require.NoError(t, err, "insert log rows with sub-millisecond timestamps and tied sequence numbers")
 		instances := []string{"web", "api"}
-		req := db.LogPageRequest{ProjectId: api, ClientId: client, Search: "pagingtoken", Instances: &instances, PageSize: 1}
+		req := logstore.PageQuery{Scope: scope, Search: parsedSearch(t, "pagingtoken"), Instances: instances, Limit: 1}
 		var found []int64
 		for i := 0; i < 10; i++ {
-			page, err := logs.GetLogs(ctx, req)
+			page, err := logs.Page(ctx, req)
 			require.NoError(t, err, "every search page must load successfully")
-			if len(page.Logs) == 0 {
-				require.Nil(t, page.BackwardCursor, "the last empty page must stop pagination")
+			if len(page.Rows) == 0 {
+				require.Nil(t, page.Older, "the last empty page must stop pagination")
 				break
 			}
-			found = append(found, page.Logs[0].ID)
-			u, err := url.Parse((pages.LogsPageProps{ProjectId: api, ClientId: client}).ToPath(&instances, page.BackwardCursor, "backward", req.Search))
+			found = append(found, page.Rows[0].ID)
+			u, err := url.Parse((pages.LogsPageProps{ProjectId: scope.ProjectID.String(), ClientId: scope.ClientID.String()}).ToPath(&instances, page.Older, "backward", "pagingtoken"))
 			require.NoError(t, err, "pagination must generate a valid URL")
 			query := u.Query()
-			require.Equal(t, req.Search, query.Get("search"), "every page link must preserve the executed query")
+			require.Equal(t, "pagingtoken", query.Get("search"), "every page link must preserve the executed query")
 			require.Equal(t, instances, query["instance"], "every page link must preserve all instance filters")
 			require.False(t, query.Has("cursorTime"), "new page links must not use lossy millisecond timestamps")
 			micros, err := strconv.ParseInt(query.Get("cursorTimeUs"), 10, 64)
 			require.NoError(t, err, "page links must contain a microsecond timestamp")
-			sequence, err := strconv.Atoi(query.Get("cursorSequenceNumber"))
+			sequence, err := strconv.ParseInt(query.Get("cursorSequenceNumber"), 10, 64)
 			require.NoError(t, err, "page links must contain the sequence number")
 			id, err := strconv.ParseInt(query.Get("cursorId"), 10, 64)
 			require.NoError(t, err, "page links must contain the unique row id")
-			req.Cursor = &db.LastCursor{Timestamp: time.UnixMicro(micros), SequenceNumber: sequence, ID: id, IsBackward: query.Get("direction") == "backward"}
+			require.Equal(t, "backward", query.Get("direction"), "the loader must continue toward older results")
+			req.Older = &logstore.Cursor{OccurredAt: time.UnixMicro(micros), Sequence: sequence, ID: id}
 		}
 		require.Equal(t, []int64{ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]}, found, "URL round trips must return every matching row exactly once in timestamp, sequence and id order")
 	})
@@ -168,36 +152,42 @@ func TestSearchLogs(t *testing.T) {
 		inactiveProject, err := projectService.CreateProject(ctx, "LogsSearchInactive", []string{"api"})
 		require.NoError(t, err, "create project for inactive search")
 		inactiveClient := clientByName(t, inactiveProject, "api")
-		_, err = store.InsertLogs(ctx, pool, []store.LogInsert{{
-			ClientID: inactiveClient, InstanceName: "web", OccurredAt: base, SequenceNumber: 1, Message: "kept secret",
+		_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{
+			Scope: logstore.Scope{ClientID: inactiveClient}, Instance: "web", OccurredAt: base, Sequence: 1, Message: "kept secret",
 		}})
 		require.NoError(t, err, "insert a log before deactivating the client")
 		_, err = projectService.UpdateProject(ctx, inactiveProject.ID, inactiveProject.Name, nil)
 		require.NoError(t, err, "deactivate client while retaining its row")
-		found := mustSearch(t, ctx, logs, "secret", inactiveProject.ID.String(), inactiveClient.String(), nil, 10, nil)
+		found := mustSearch(t, ctx, logs, "secret", logstore.Scope{ProjectID: inactiveProject.ID, ClientID: inactiveClient}, nil, 10, nil, nil)
 		require.Equal(t, []string{"kept secret"}, messages(found), "deactivating a client does not hide its logs from search")
 	})
 
 	t.Run("punctuation is literal in primary and additional terms", func(t *testing.T) {
 		literal := `literal 100% foo_bar C:\logs\app "quoted" key=value -danger`
-		_, err := store.InsertLogs(ctx, pool, []store.LogInsert{
-			{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(time.Hour), Message: literal},
-			{ClientID: apiID, InstanceName: "web", OccurredAt: base.Add(2 * time.Hour), Message: `literal 1000 fooXbar C:logsapp unquoted key:value danger`},
-			{ClientID: workerID, InstanceName: "other-host", OccurredAt: base.Add(3 * time.Hour), Message: literal},
+		_, err := testutils.InsertLogFixtures(ctx, pool, []logstore.Row{
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(time.Hour), Message: literal},
+			{Scope: logstore.Scope{ClientID: apiID}, Instance: "web", OccurredAt: base.Add(2 * time.Hour), Message: `literal 1000 fooXbar C:logsapp unquoted key:value danger`},
+			{Scope: logstore.Scope{ClientID: workerID}, Instance: "other-host", OccurredAt: base.Add(3 * time.Hour), Message: literal},
 		})
 		require.NoError(t, err, "insert literal-search logs and lookalikes in both clients")
 		for _, query := range []string{`100%`, `foo_bar`, `C:\logs\app`, `"quoted"`, `key=value`, `-danger`, `literal 100%`, `literal foo_bar`, `literal C:\logs\app`} {
 			t.Run(query, func(t *testing.T) {
-				found := mustSearch(t, ctx, logs, query, api, client, nil, 10, nil)
+				found := mustSearch(t, ctx, logs, query, scope, nil, 10, nil, nil)
 				require.Equal(t, []string{literal}, messages(found), "punctuation in %q must not become wildcards, operators or token separators", query)
 			})
 		}
 	})
 }
 
-func mustSearch(t *testing.T, ctx context.Context, logs *db.PostgresLogService, search, projectID, clientID string, instances *[]string, pageSize int64, cursor *db.LastCursor) []types.StoredLog {
+func mustSearch(t *testing.T, ctx context.Context, logs *logstore.Store, search string, scope logstore.Scope, instances []string, limit int, older, newer *logstore.Cursor) []logstore.Row {
 	t.Helper()
-	found, err := logs.SearchLogs(ctx, search, projectID, clientID, instances, pageSize, cursor)
-	require.NoError(t, err, "search %q", search)
-	return found
+	page := mustPage(t, ctx, logs, logstore.PageQuery{Scope: scope, Instances: instances, Limit: limit, Older: older, Newer: newer, Search: parsedSearch(t, search)})
+	return page.Rows
+}
+
+func parsedSearch(t *testing.T, text string) *logsearch.Query {
+	t.Helper()
+	query, err := logsearch.Parse(text)
+	require.NoError(t, err, "the test query %q must be valid", text)
+	return &query
 }

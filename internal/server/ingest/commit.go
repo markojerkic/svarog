@@ -4,21 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/jackc/pgx/v5/pgconn"
 
-	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	input := make([]db.IngestLog, len(batch))
+	input := make([]logstore.Event, len(batch))
 	for i, p := range batch {
 		input[i] = p.input
 	}
@@ -29,32 +26,25 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 			return err
 		}
 		attemptCtx, cancel := context.WithTimeout(ctx, dbWait)
-		results, err := s.writer.CommitLogs(attemptCtx, input)
-		cancel()
+		results, err := s.writer.Commit(attemptCtx, input)
 		if err == nil {
-			if len(results) != len(batch) {
-				return fmt.Errorf("ingest writer returned %d outcomes for %d deliveries", len(results), len(batch))
+			err = s.completeBatch(attemptCtx, batch, results)
+			cancel()
+			return err
+		}
+		cancel()
+		log.Error("Error saving logs", "error", err)
+		if s.live != nil && errors.Is(err, logstore.ErrUncertain) {
+			scopes := make([]logstore.Scope, len(input))
+			for i, event := range input {
+				scopes[i] = event.Scope
 			}
-			for i, p := range batch {
-				result := results[i]
-				if result.Ordinal != int64(i+1) {
-					return fmt.Errorf("ingest writer returned ordinal %d for delivery %d", result.Ordinal, i+1)
-				}
-				switch result.Status {
-				case persistence.IngestLogInserted, persistence.IngestLogDuplicate:
-					s.finish(p, "acknowledge", p.message.Ack)
-				case persistence.IngestLogRejectedClient:
-					s.reject(p, rejectInactive)
-				default:
-					return fmt.Errorf("ingest writer returned unknown outcome %d for delivery %d", result.Status, i+1)
-				}
-			}
-			return nil
+			s.live.AfterUncertainCommit(scopes)
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if rowDataError(err) {
+		if errors.Is(err, logstore.ErrRowData) {
 			if len(batch) > 1 {
 				mid := len(batch) / 2
 				if err := s.commitBatch(ctx, batch[:mid]); err != nil {
@@ -65,11 +55,11 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 			s.reject(batch[0], rejectData)
 			return nil
 		}
-		if retryClientDelete && persistence.IsConstraintViolation(err, persistence.SQLStateForeignKeyViolation, "logs_client_id_fkey") {
+		if retryClientDelete && errors.Is(err, logstore.ErrClientDeleted) {
 			// A committed delete can invalidate the statement snapshot. Retry once
 			// with a fresh snapshot so the join can reject the missing client.
 			retryClientDelete = false
-		} else if systemicSaveError(err) {
+		} else if errors.Is(err, logstore.ErrSystemic) || errors.Is(err, logstore.ErrClientDeleted) {
 			return fmt.Errorf("systemic ingest write failure; deliveries left unacknowledged: %w", err)
 		}
 		log.Warn("Log commit failed; retrying without ACK", "error", err, "count", len(batch), "retry_in", delay)
@@ -84,37 +74,30 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 	}
 }
 
-func rowDataError(err error) bool {
-	if errors.Is(err, db.ErrInvalidLogScope) {
-		return true
+func (s *Service) completeBatch(ctx context.Context, batch []*pendingLog, results []logstore.Result) error {
+	if len(results) != len(batch) {
+		return fmt.Errorf("ingest writer returned %d outcomes for %d deliveries", len(results), len(batch))
 	}
-	var pgError *pgconn.PgError
-	if !errors.As(err, &pgError) {
-		return false
-	}
-	switch pgError.Code {
-	case "22001", "22003", "22007", "22008", "22021", "22023", "22P02", "22P05":
-		return true
-	case "54000":
-		// Not every program-limit error is row-specific (for example, stack
-		// depth or an overly complex statement must not discard valid logs).
-		return strings.Contains(pgError.Message, "index row") || strings.Contains(pgError.Message, "index entry") || strings.Contains(pgError.Message, "string is too long for tsvector")
-	case "23514":
-		return pgError.ConstraintName == "logs_sequence_number_check" || pgError.ConstraintName == "logs_event_key_check"
-	default:
-		return false
-	}
-}
 
-func systemicSaveError(err error) bool {
-	var pgError *pgconn.PgError
-	if !errors.As(err, &pgError) || len(pgError.Code) < 2 {
-		return false
+	var rows []logstore.Row
+	for i, delivery := range batch {
+		result := results[i]
+		switch result.Outcome {
+		case logstore.Inserted:
+			s.finish(delivery, "acknowledge", delivery.message.Ack)
+			if s.live != nil {
+				rows = append(rows, result.Row)
+			}
+		case logstore.Duplicate:
+			s.finish(delivery, "acknowledge", delivery.message.Ack)
+		case logstore.RejectedClient:
+			s.reject(delivery, rejectInactive)
+		default:
+			return fmt.Errorf("ingest writer returned unknown outcome %d for delivery %d", result.Outcome, i+1)
+		}
 	}
-	switch pgError.Code[:2] {
-	case "22", "23", "42", "28", "3D", "3F", "0A", "54", "XX":
-		return true
-	default:
-		return false
+	if len(rows) > 0 {
+		s.live.AfterCommit(ctx, rows)
 	}
+	return nil
 }

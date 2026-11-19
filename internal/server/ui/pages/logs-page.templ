@@ -3,7 +3,7 @@ package pages
 import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
 import "github.com/markojerkic/svarog/internal/server/ui/components/badge"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
-import "github.com/markojerkic/svarog/internal/server/db"
+import "github.com/markojerkic/svarog/internal/server/logstore"
 import "fmt"
 import "context"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
@@ -21,7 +21,8 @@ import "github.com/markojerkic/svarog/internal/lib/logsearch"
 import "github.com/markojerkic/svarog/internal/server/ui/components/archives"
 
 type LogsPageProps struct {
-	LogPage            db.LogPage
+	LogPage            logstore.Page
+	IsLastPage         bool
 	Range              *LogRange
 	ClientId           string
 	ProjectId          string
@@ -52,7 +53,7 @@ func LogColumns(value string) (showTime, showInstance bool) {
 }
 
 func (p LogsPageProps) IsLive() bool {
-	return p.Search == "" && p.LogLineId == nil && p.LogPage.IsLastPage && p.Range == nil
+	return p.Search == "" && p.LogLineId == nil && p.IsLastPage && p.Range == nil
 }
 
 func (p LogsPageProps) LivePath() string {
@@ -103,7 +104,7 @@ templ LogsPage(props LogsPageProps) {
 				data-log-live?={ props.IsLive() }
 			>
 				@LogPageLines(props)
-				if len(props.LogPage.Logs) == 0 {
+				if len(props.LogPage.Rows) == 0 {
 					if props.Search != "" {
 						<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
 							{ i18n.T(ctx, "logs.no_results") }
@@ -632,18 +633,18 @@ templ InstanceFilter(props LogsPageProps) {
 templ LogPageLines(props LogsPageProps) {
 	// HTTP validation has already accepted the query; prepare it once per page.
 	{{ search, _ := logsearch.Parse(props.Search) }}
-	if props.LogPage.ForwardCursor != nil {
-		@LogPageLoader(props, props.LogPage.ForwardCursor, "forward", "logs.load_newer")
+	if props.LogPage.Newer != nil {
+		@LogPageLoader(props, props.LogPage.Newer, "forward", "logs.load_newer")
 	}
-	for _, log := range props.LogPage.Logs {
+	for _, log := range props.LogPage.Rows {
 		@logs.LogLine(logs.LogLineProps{
-			LogLine:   log,
+			Row:       log,
 			Search:    search,
 			IsContext: props.LogLineId != nil && *props.LogLineId == strconv.FormatInt(log.ID, 10),
 		})
 	}
-	if props.LogPage.BackwardCursor != nil {
-		@LogPageLoader(props, props.LogPage.BackwardCursor, "backward", "logs.load_older")
+	if props.LogPage.Older != nil {
+		@LogPageLoader(props, props.LogPage.Older, "backward", "logs.load_older")
 	}
 	if props.IsLive() {
 		<div
@@ -654,7 +655,7 @@ templ LogPageLines(props LogsPageProps) {
 	}
 }
 
-templ LogPageLoader(props LogsPageProps, cursor *db.LastCursor, direction, label string) {
+templ LogPageLoader(props LogsPageProps, cursor *logstore.Cursor, direction, label string) {
 	<div
 		data-log-page={ direction }
 		hx-get={ props.ToPath(props.Instances, cursor, direction, props.Search) }

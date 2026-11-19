@@ -9,9 +9,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
-	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 )
@@ -121,7 +122,8 @@ func TestLogsPageLiveState(t *testing.T) {
 			props := pages.LogsPageProps{
 				ProjectId: "project", ClientId: "client", Search: tc.search,
 				Instances: tc.instances, LogLineId: tc.logLineId,
-				LogPage: db.LogPage{IsLastPage: tc.isLastPage, BackwardCursor: &db.LastCursor{}},
+				IsLastPage: tc.isLastPage,
+				LogPage:    logstore.Page{Older: &logstore.Cursor{OccurredAt: time.Unix(100, 0), ID: 1}},
 			}
 			if err := pages.LogsPage(props).Render(context.Background(), &output); err != nil {
 				t.Fatalf("Logs page must render successfully: %v", err)

@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 )
 
@@ -62,12 +62,12 @@ func (l *Logs) render(group *watchGroup, batch committedBatch) {
 		return true
 	}
 	for _, row := range batch.Rows {
-		stored := types.StoredLog{
-			ID: row.ID, Timestamp: time.UnixMicro(row.OccurredUs), SequenceNumber: row.Sequence, LogLine: row.Message,
-			Client: types.StoredClient{ProjectId: batch.ProjectID, ClientId: batch.ClientID, InstanceId: batch.Instance},
+		stored := logstore.Row{
+			ID: row.ID, OccurredAt: time.UnixMicro(row.OccurredUs), Sequence: row.Sequence, Message: row.Message,
+			Scope: group.scope, Instance: batch.Instance,
 		}
 		var rendered bytes.Buffer
-		if err := logs.LogLine(logs.LogLineProps{LogLine: stored}).Render(context.Background(), &rendered); err != nil || rendered.Len()+overhead > maxBatchBytes {
+		if err := logs.LogLine(logs.LogLineProps{Row: stored}).Render(context.Background(), &rendered); err != nil || rendered.Len()+overhead > maxBatchBytes {
 			fail()
 			return
 		}

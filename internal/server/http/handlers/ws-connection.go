@@ -17,6 +17,7 @@ import (
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type WsRouter struct {
@@ -127,7 +128,7 @@ func (self *WsRouter) connectionHandler(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	subscription, err := self.liveLogs.Open(c.Request().Context(), live.Scope{ProjectID: projectID, ClientID: clientID}, selector)
+	subscription, err := self.liveLogs.Open(c.Request().Context(), logstore.Scope{ProjectID: projectID, ClientID: clientID}, selector)
 	if err != nil {
 		conn.Close()
 		slog.Error("Could not subscribe to live logs", "error", err)

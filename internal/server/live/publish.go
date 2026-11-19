@@ -7,21 +7,12 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 
-	"github.com/markojerkic/svarog/internal/server/types"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 type sourceScope struct {
-	scope    Scope
+	scope    logstore.Scope
 	instance string
-}
-
-func storedScope(row types.StoredLog) (Scope, error) {
-	projectID, projectErr := uuid.Parse(row.Client.ProjectId)
-	clientID, clientErr := uuid.Parse(row.Client.ClientId)
-	if projectErr != nil || clientErr != nil || projectID == uuid.Nil || clientID == uuid.Nil {
-		return Scope{}, fmt.Errorf("invalid committed log scope")
-	}
-	return Scope{ProjectID: projectID, ClientID: clientID}, nil
 }
 
 func (l *Logs) publishLoop() {
@@ -32,14 +23,9 @@ func (l *Logs) publishLoop() {
 		case scope := <-l.invalidations:
 			l.invalidate(scope)
 		case job := <-l.publish:
-			groups := make(map[sourceScope][]types.StoredLog)
+			groups := make(map[sourceScope][]logstore.Row)
 			for _, row := range job.rows {
-				scope, err := storedScope(row)
-				if err != nil {
-					warnPublish(err)
-					continue
-				}
-				source := sourceScope{scope: scope, instance: row.Client.InstanceId}
+				source := sourceScope{scope: row.Scope, instance: row.Instance}
 				groups[source] = append(groups[source], row)
 			}
 			for source, rows := range groups {
@@ -56,7 +42,7 @@ func (l *Logs) publishLoop() {
 	}
 }
 
-func (l *Logs) publishSource(source sourceScope, rows []types.StoredLog) error {
+func (l *Logs) publishSource(source sourceScope, rows []logstore.Row) error {
 	// Base64 expands the name. Bound it before building a subject, so an
 	// untrusted oversized hostname cannot exceed the broker's control line.
 	if len(source.instance) > maxInstanceBytes {
@@ -85,7 +71,7 @@ func (l *Logs) publishSource(source sourceScope, rows []types.StoredLog) error {
 		if len(payload) > limit {
 			return fmt.Errorf("committed live batch exceeds payload limit")
 		}
-		if err := l.conn.Publish(source.scope.prefix()+instanceToken(source.instance), payload); err != nil {
+		if err := l.conn.Publish(subjectPrefix(source.scope)+instanceToken(source.instance), payload); err != nil {
 			return err
 		}
 		batch.ID = uuid.NewString()
@@ -94,7 +80,7 @@ func (l *Logs) publishSource(source sourceScope, rows []types.StoredLog) error {
 		return nil
 	}
 	for _, row := range rows {
-		committed := committedRow{ID: row.ID, OccurredUs: row.Timestamp.UnixMicro(), Sequence: row.SequenceNumber, Message: row.LogLine}
+		committed := committedRow{ID: row.ID, OccurredUs: row.OccurredAt.UnixMicro(), Sequence: row.Sequence, Message: row.Message}
 		encoded, err := json.Marshal(committed)
 		if err != nil {
 			return err
@@ -114,14 +100,15 @@ func (l *Logs) publishSource(source sourceScope, rows []types.StoredLog) error {
 	return flush()
 }
 
-func (l *Logs) invalidateRows(rows []types.StoredLog) {
-	scopes := make(map[Scope]struct{})
+func (l *Logs) invalidateRows(rows []logstore.Row) {
+	scopes := make(map[logstore.Scope]struct{})
 	for _, row := range rows {
-		scope, err := storedScope(row)
-		if err == nil {
-			scopes[scope] = struct{}{}
-		}
+		scopes[row.Scope] = struct{}{}
 	}
+	l.invalidateScopes(scopes)
+}
+
+func (l *Logs) invalidateScopes(scopes map[logstore.Scope]struct{}) {
 	for scope := range scopes {
 		// Even the overflow path must not perform broker I/O on the database
 		// caller. A bounded control queue keeps invalidation best effort too.
@@ -135,11 +122,11 @@ func (l *Logs) invalidateRows(rows []types.StoredLog) {
 	}
 }
 
-func (l *Logs) invalidate(scope Scope) {
+func (l *Logs) invalidate(scope logstore.Scope) {
 	batch := committedBatch{Version: 1, ID: uuid.NewString(), ProjectID: scope.ProjectID.String(), ClientID: scope.ClientID.String(), Resync: true}
 	payload, err := json.Marshal(batch)
 	if err == nil {
-		err = l.conn.Publish(scope.prefix()+"r", payload)
+		err = l.conn.Publish(subjectPrefix(scope)+"r", payload)
 	}
 	if err != nil {
 		log.Warn("Could not invalidate committed live log views", "error", err)

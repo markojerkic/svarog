@@ -7,8 +7,8 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/google/uuid"
 	"github.com/markojerkic/svarog/internal/lib/logevent"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
 
 const (
@@ -28,11 +28,6 @@ var (
 	ErrInvalidSelector = errors.New("invalid live log instance selection")
 	ErrClosed          = errors.New("live logs are closed")
 )
-
-type Scope struct {
-	ProjectID uuid.UUID
-	ClientID  uuid.UUID
-}
 
 // An empty selection watches all instances; []string{""} watches the unnamed
 // instance. Open copies the selection, so callers retain ownership of it.
@@ -63,7 +58,7 @@ func (s Selector) matches(instance string) bool {
 	return len(s.Instances) == 0 || slices.Contains(s.Instances, instance)
 }
 
-func (s Scope) prefix() string {
+func subjectPrefix(s logstore.Scope) string {
 	return "committed.logs." + s.ProjectID.String() + "." + s.ClientID.String() + "."
 }
 
@@ -74,7 +69,7 @@ func instanceToken(instance string) string {
 type committedRow struct {
 	ID         int64  `json:"id,string"`
 	OccurredUs int64  `json:"occurredUs,string"`
-	Sequence   int    `json:"sequence,string"`
+	Sequence   int64  `json:"sequence,string"`
 	Message    string `json:"message"`
 }
 

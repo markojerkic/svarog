@@ -184,7 +184,6 @@ function trimLiveRows(container, totalBytes) {
   }
   const last = rows.at(-1);
   const url = new URL(loader.getAttribute("hx-get"), document.baseURI);
-  url.searchParams.delete("cursorTime");
   url.searchParams.set("cursorTimeUs", (BigInt(last.dataset.timestamp) / 1000n).toString());
   url.searchParams.set("cursorSequenceNumber", last.dataset.sequence || "0");
   url.searchParams.set("cursorId", last.dataset.logId);

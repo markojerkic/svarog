@@ -138,71 +138,6 @@ func (q *Queries) InsertIngestLogs(ctx context.Context, arg InsertIngestLogsPara
 	return items, nil
 }
 
-const insertLogs = `-- name: InsertLogs :many
-WITH input AS (
-    SELECT
-        nextval(pg_get_serial_sequence('logs', 'id')) AS id,
-        c.client_id,
-        i.instance_name,
-        o.occurred_at,
-        s.sequence_number,
-        m.message,
-        c.ordinality
-    FROM unnest($1::uuid[]) WITH ORDINALITY AS c(client_id, ordinality)
-    JOIN unnest($2::text[]) WITH ORDINALITY AS i(instance_name, ordinality) USING (ordinality)
-    JOIN unnest($3::timestamptz[]) WITH ORDINALITY AS o(occurred_at, ordinality) USING (ordinality)
-    JOIN unnest($4::bigint[]) WITH ORDINALITY AS s(sequence_number, ordinality) USING (ordinality)
-    JOIN unnest($5::text[]) WITH ORDINALITY AS m(message, ordinality) USING (ordinality)
-),
-inserted AS (
-    INSERT INTO logs (
-        id, client_id, instance_name, occurred_at, sequence_number, message
-    )
-    OVERRIDING SYSTEM VALUE
-    SELECT id, client_id, instance_name, occurred_at, sequence_number, message
-    FROM input
-    RETURNING id
-)
-SELECT input.id
-FROM input
-JOIN inserted ON inserted.id = input.id
-ORDER BY input.ordinality
-`
-
-type InsertLogsParams struct {
-	ClientIds       []uuid.UUID
-	InstanceNames   []string
-	OccurredAt      []time.Time
-	SequenceNumbers []int64
-	Messages        []string
-}
-
-func (q *Queries) InsertLogs(ctx context.Context, arg InsertLogsParams) ([]int64, error) {
-	rows, err := q.db.Query(ctx, insertLogs,
-		arg.ClientIds,
-		arg.InstanceNames,
-		arg.OccurredAt,
-		arg.SequenceNumbers,
-		arg.Messages,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listInstances = `-- name: ListInstances :many
 WITH RECURSIVE scope AS (
     SELECT c.id FROM clients c
@@ -278,36 +213,13 @@ WHERE c.project_id = $1
     NOT $8::bool
     OR (
       $9::bool
-      AND $10::bool
-      AND $11::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          <= ($12, $13::bigint, $14::bigint)
-    )
-    OR (
-      $9::bool
-      AND NOT $10::bool
-      AND NOT $11::bool
-      AND (l.occurred_at, l.sequence_number)
-          < ($12, $13::bigint)
-    )
-    OR (
-      $9::bool
-      AND NOT $10::bool
-      AND $11::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < ($12, $13::bigint, $14::bigint)
+          < ($10, $11::bigint, $12::bigint)
     )
     OR (
       NOT $9::bool
-      AND NOT $11::bool
-      AND (l.occurred_at, l.sequence_number)
-          > ($12, $13::bigint)
-    )
-    OR (
-      NOT $9::bool
-      AND $11::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          > ($12, $13::bigint, $14::bigint)
+          > ($10, $11::bigint, $12::bigint)
     )
   )
 ORDER BY
@@ -315,7 +227,7 @@ ORDER BY
   CASE WHEN $8::bool AND NOT $9::bool THEN l.sequence_number END ASC,
   CASE WHEN $8::bool AND NOT $9::bool THEN l.id END ASC,
   l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $15
+LIMIT $13
 `
 
 type ListLogsParams struct {
@@ -328,8 +240,6 @@ type ListLogsParams struct {
 	RangeTo         time.Time
 	HasCursor       bool
 	Backward        bool
-	Inclusive       bool
-	HasCursorID     bool
 	CursorAt        time.Time
 	CursorSequence  int64
 	CursorID        int64
@@ -357,8 +267,6 @@ func (q *Queries) ListLogs(ctx context.Context, arg ListLogsParams) ([]ListLogsR
 		arg.RangeTo,
 		arg.HasCursor,
 		arg.Backward,
-		arg.Inclusive,
-		arg.HasCursorID,
 		arg.CursorAt,
 		arg.CursorSequence,
 		arg.CursorID,
@@ -414,36 +322,13 @@ WHERE c.project_id = $1
     NOT $10::bool
     OR (
       $11::bool
-      AND $12::bool
-      AND $13::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          <= ($14, $15::bigint, $16::bigint)
-    )
-    OR (
-      $11::bool
-      AND NOT $12::bool
-      AND NOT $13::bool
-      AND (l.occurred_at, l.sequence_number)
-          < ($14, $15::bigint)
-    )
-    OR (
-      $11::bool
-      AND NOT $12::bool
-      AND $13::bool
-      AND (l.occurred_at, l.sequence_number, l.id)
-          < ($14, $15::bigint, $16::bigint)
+          < ($12, $13::bigint, $14::bigint)
     )
     OR (
       NOT $11::bool
-      AND NOT $13::bool
-      AND (l.occurred_at, l.sequence_number)
-          > ($14, $15::bigint)
-    )
-    OR (
-      NOT $11::bool
-      AND $13::bool
       AND (l.occurred_at, l.sequence_number, l.id)
-          > ($14, $15::bigint, $16::bigint)
+          > ($12, $13::bigint, $14::bigint)
     )
   )
 ORDER BY
@@ -451,7 +336,7 @@ ORDER BY
   CASE WHEN $10::bool AND NOT $11::bool THEN l.sequence_number END ASC,
   CASE WHEN $10::bool AND NOT $11::bool THEN l.id END ASC,
   l.occurred_at DESC, l.sequence_number DESC, l.id DESC
-LIMIT $17
+LIMIT $15
 `
 
 type SearchLogsParams struct {
@@ -466,8 +351,6 @@ type SearchLogsParams struct {
 	RangeTo           time.Time
 	HasCursor         bool
 	Backward          bool
-	Inclusive         bool
-	HasCursorID       bool
 	CursorAt          time.Time
 	CursorSequence    int64
 	CursorID          int64
@@ -497,8 +380,6 @@ func (q *Queries) SearchLogs(ctx context.Context, arg SearchLogsParams) ([]Searc
 		arg.RangeTo,
 		arg.HasCursor,
 		arg.Backward,
-		arg.Inclusive,
-		arg.HasCursorID,
 		arg.CursorAt,
 		arg.CursorSequence,
 		arg.CursorID,

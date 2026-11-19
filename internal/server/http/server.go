@@ -12,14 +12,13 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/live"
 )
 
 type HttpServer struct {
-	logService              db.LogService
+	logReader               handlers.LogReader
 	sessionStore            sessions.Store
 	authService             auth.AuthService
 	projectsService         projects.ProjectsService
@@ -32,7 +31,7 @@ type HttpServer struct {
 }
 
 type HttpServerOptions struct {
-	LogService              db.LogService
+	LogReader               handlers.LogReader
 	SessionStore            sessions.Store
 	AuthService             auth.AuthService
 	ProjectsService         projects.ProjectsService
@@ -66,7 +65,7 @@ func (self *HttpServer) Start() error {
 	handlers.NewLanguageRouter(publicApi)
 	handlers.NewHomeHandler(privateApi, self.projectsService)
 	handlers.NewProjectsRouter(self.projectsService, *self.natsCredentialService, adminApi)
-	handlers.NewLogsRouter(self.logService, self.authService, self.projectsService, privateApi)
+	handlers.NewLogsRouter(self.logReader, self.authService, self.projectsService, privateApi)
 	handlers.NewArchiveRouter(self.archiver, self.archiveSchedulerEnabled, self.authService, self.projectsService, privateApi)
 	handlers.NewAuthRouter(self.authService, self.projectsService, adminApi, privateApi, publicApi)
 	handlers.NewWsConnectionRouter(self.liveLogs, self.authService, self.projectsService, privateApi)
@@ -89,7 +88,7 @@ func (self *HttpServer) Shutdown(ctx context.Context) error {
 
 func NewServer(options HttpServerOptions) *HttpServer {
 	server := &HttpServer{
-		logService:              options.LogService,
+		logReader:               options.LogReader,
 		sessionStore:            options.SessionStore,
 		server:                  &stdhttp.Server{Addr: fmt.Sprintf(":%d", options.ServerPort)},
 		authService:             options.AuthService,

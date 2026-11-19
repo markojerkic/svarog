@@ -19,11 +19,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	"github.com/markojerkic/svarog/internal/lib/projects"
-	store "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/rpc"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/ingest"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/tests/testutils"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -67,17 +66,17 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	writePool, err := pgxpool.NewWithConfig(ctx, writeConfig)
 	require.NoError(t, err, "use a short PostgreSQL lock timeout for retry coverage")
 	t.Cleanup(writePool.Close)
-	logService := db.NewLogService(writePool, liveLogs)
+	logService := logstore.New(writePool)
 	var lockTimedOut atomic.Bool
-	writer := ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
-		results, err := logService.CommitLogs(ctx, input)
+	writer := ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]logstore.Result, error) {
+		results, err := logService.Commit(ctx, input)
 		var pgError *pgconn.PgError
 		if errors.As(err, &pgError) && pgError.Code == "55P03" {
 			lockTimedOut.Store(true)
 		}
 		return results, err
 	})
-	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: writer})
+	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: writer, Live: liveLogs})
 	require.NoError(t, err, "prepare durable log ingestion before publishing")
 	runCtx, stop := context.WithCancel(ctx)
 	ingestDone := make(chan error, 1)
@@ -219,7 +218,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		var attempts atomic.Int32
 		opts := env.options
 		opts.AckWait = 300 * time.Millisecond
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]logstore.Result, error) {
 			attempt := attempts.Add(1)
 			if attempt == 1 {
 				return nil, &pgconn.PgError{Code: "40001"}
@@ -229,7 +228,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 			}
 			select {
 			case <-release:
-				return env.writer.CommitLogs(ctx, input)
+				return env.writer.Commit(ctx, input)
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}
@@ -299,7 +298,8 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		arm.Store(true)
 
 		opts := env.options
-		opts.Writer = db.NewLogService(writerPool, liveLogs)
+		opts.Writer = logstore.New(writerPool)
+		opts.Live = liveLogs
 		runIngest(t, env.ctx, opts)
 		publishIngestEvent(t, env, "committed but its result was lost")
 		nextCtx, cancel := context.WithTimeout(env.ctx, 15*time.Second)
@@ -351,19 +351,22 @@ func TestIngestCommitLifecycle(t *testing.T) {
 
 	t.Run("isolates a bad row but retains valid data on systemic SQL failure", func(t *testing.T) {
 		env := newIngestFixture(t)
-		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
-			for _, event := range input {
-				switch event.Log.LogLine {
-				case "bad":
-					return nil, &pgconn.PgError{Code: "54000", Message: "index entry too large"}
-				case "schema":
-					return nil, &pgconn.PgError{Code: "42P01", Message: "relation missing"}
-				}
-			}
-			return env.writer.CommitLogs(ctx, input)
-		})
-		running := runIngest(t, env.ctx, opts)
+		_, err := env.pool.Exec(env.ctx, `
+   CREATE FUNCTION fail_test_log_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+   BEGIN
+    IF NEW.message = 'bad' THEN
+     RAISE EXCEPTION USING ERRCODE = '54000', MESSAGE = 'index entry too large';
+    ELSIF NEW.message = 'schema' THEN
+     RAISE EXCEPTION USING ERRCODE = '42P01', MESSAGE = 'relation missing';
+    END IF;
+    RETURN NEW;
+   END;
+   $$;
+   CREATE TRIGGER fail_test_log_insert BEFORE INSERT ON logs
+   FOR EACH ROW EXECUTE FUNCTION fail_test_log_insert();
+  `)
+		require.NoError(t, err, "inject PostgreSQL row data and schema errors through the real writer")
+		running := runIngest(t, env.ctx, env.options)
 		publishIngestEvent(t, env, "left")
 		publishIngestEvent(t, env, "bad")
 		publishIngestEvent(t, env, "right")
@@ -381,6 +384,8 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		info, err := env.conn.JetStream.Stream(env.ctx, "LOGS")
 		require.NoError(t, err, "inspect durable backlog after a systemic failure")
 		require.Equal(t, uint64(1), info.CachedInfo().State.Msgs, "the valid event remains in the broker without ACK or Term")
+		_, err = env.pool.Exec(env.ctx, "DROP TRIGGER fail_test_log_insert ON logs")
+		require.NoError(t, err, "restore inserts before recovering the retained event")
 		runIngest(t, env.ctx, env.options)
 		waitIngestEmpty(t, env)
 		require.NoError(t, env.pool.QueryRow(env.ctx, "SELECT count(*) FROM logs").Scan(&count), "read logs after recovery")
@@ -391,7 +396,7 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		env := newIngestFixture(t)
 		entered := make(chan struct{})
 		opts := env.options
-		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+		opts.Writer = ingestWriterFunc(func(ctx context.Context, input []logstore.Event) ([]logstore.Result, error) {
 			close(entered)
 			<-ctx.Done()
 			return nil, ctx.Err()
@@ -500,9 +505,9 @@ func TestIngestBrokerBootstrap(t *testing.T) {
 	})
 }
 
-type ingestWriterFunc func(context.Context, []db.IngestLog) ([]store.IngestLogResult, error)
+type ingestWriterFunc func(context.Context, []logstore.Event) ([]logstore.Result, error)
 
-func (f ingestWriterFunc) CommitLogs(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
+func (f ingestWriterFunc) Commit(ctx context.Context, input []logstore.Event) ([]logstore.Result, error) {
 	return f(ctx, input)
 }
 
@@ -511,10 +516,10 @@ type ingestFixture struct {
 	pool      *pgxpool.Pool
 	container *natscontainer.NATSContainer
 	conn      *natsconn.NatsConnection
-	writer    *db.PostgresLogService
+	writer    *logstore.Store
 	options   ingest.Options
 	subject   string
-	scope     live.Scope
+	scope     logstore.Scope
 }
 
 func newIngestFixture(t *testing.T) ingestFixture {
@@ -534,12 +539,12 @@ func newIngestFixture(t *testing.T) ingestFixture {
 	conn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{NatsAddr: url, EnableJetStream: true})
 	require.NoError(t, err, "connect without implicitly changing stream configuration")
 	t.Cleanup(conn.Close)
-	writer := db.NewLogService(pool, nil)
+	writer := logstore.New(pool)
 	return ingestFixture{
 		ctx: ctx, pool: pool, container: container, conn: conn, writer: writer,
 		options: ingest.Options{Connection: conn, Pool: pool, Writer: writer},
 		subject: "logs." + project.ID.String() + "." + project.Clients[0].ID.String(),
-		scope:   live.Scope{ProjectID: project.ID, ClientID: project.Clients[0].ID},
+		scope:   logstore.Scope{ProjectID: project.ID, ClientID: project.Clients[0].ID},
 	}
 }
 

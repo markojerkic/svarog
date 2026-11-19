@@ -14,9 +14,9 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
-	"github.com/markojerkic/svarog/internal/server/db"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	"github.com/markojerkic/svarog/internal/server/http/middleware"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,12 +80,16 @@ func (s *projectAccessProjectsStub) GetProject(context.Context, string) (project
 }
 
 type projectAccessLogsStub struct {
-	db.LogService
+	handlers.LogReader
 	calls int
 }
 
-func (s *projectAccessLogsStub) GetInstances(context.Context, string, string) ([]string, error) {
+func (s *projectAccessLogsStub) Page(context.Context, logstore.PageQuery) (logstore.Page, error) {
 	s.calls++
+	return logstore.Page{Rows: []logstore.Row{{Message: "authorized log"}}}, nil
+}
+
+func (s *projectAccessLogsStub) Instances(context.Context, logstore.Scope) ([]string, error) {
 	return []string{"instance"}, nil
 }
 
@@ -177,8 +181,6 @@ func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 		for _, deniedByOwnership := range []bool{false, true} {
 			for _, path := range []string{
 				"/logs/" + projectID + "/" + clientID,
-				"/logs/" + projectID + "/" + clientID + "/search",
-				"/logs/" + projectID + "/" + clientID + "/instances",
 				"/ws/" + projectID + "/" + clientID,
 			} {
 				t.Run(fmt.Sprintf("%s%s/ownership=%t", role, path, deniedByOwnership), func(t *testing.T) {
@@ -213,11 +215,11 @@ func TestProjectAccessIsRecheckedOnEveryRequest(t *testing.T) {
 	p := &projectAccessProjectsStub{belongs: true}
 	logs := &projectAccessLogsStub{}
 	handlers.NewLogsRouter(logs, a, p, group)
-	path := "/logs/" + projectID + "/" + clientID + "/instances"
+	path := "/logs/" + projectID + "/" + clientID
 	allowed := httptest.NewRecorder()
 	e.ServeHTTP(allowed, httptest.NewRequest(http.MethodGet, path, nil))
-	require.Equal(t, http.StatusOK, allowed.Code, "An assigned user must be allowed to query instances")
-	require.Contains(t, allowed.Body.String(), "instance", "Authorized requests must reach the log service")
+	require.Equal(t, http.StatusOK, allowed.Code, "An assigned user must be allowed to read the log page")
+	require.Contains(t, allowed.Body.String(), "authorized log", "Authorized requests must render rows from the log reader")
 
 	a.allowed = false
 	denied := httptest.NewRecorder()

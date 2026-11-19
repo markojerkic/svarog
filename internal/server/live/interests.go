@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/nats-io/nats.go"
 )
 
@@ -18,7 +19,7 @@ type sourceSubscription struct {
 
 type watchGroup struct {
 	owner      *Logs
-	scope      Scope
+	scope      logstore.Scope
 	change     sync.Mutex // serialize broker changes for this client only
 	mu         sync.Mutex
 	viewers    map[*Session]Selector
@@ -48,15 +49,15 @@ func (g *watchGroup) reconcile(parent context.Context) error {
 			break
 		}
 		for _, instance := range selector.Instances {
-			desired[g.scope.prefix()+instanceToken(instance)] = struct{}{}
+			desired[subjectPrefix(g.scope)+instanceToken(instance)] = struct{}{}
 		}
 	}
 	if all {
-		desired = map[string]struct{}{g.scope.prefix() + "*": {}}
+		desired = map[string]struct{}{subjectPrefix(g.scope) + "*": {}}
 	} else {
 		// Exact-source viewers must also learn about a publisher failure
 		// affecting a whole committed client batch.
-		desired[g.scope.prefix()+"r"] = struct{}{}
+		desired[subjectPrefix(g.scope)+"r"] = struct{}{}
 	}
 	changed := len(desired) != len(g.subscriptions)
 	for subject := range desired {
@@ -148,7 +149,7 @@ func (g *watchGroup) receive(message *nats.Msg) {
 		g.fail(ErrLiveResync)
 		return
 	}
-	if message.Subject != g.scope.prefix()+instanceToken(batch.Instance) || len(batch.Rows) == 0 {
+	if message.Subject != subjectPrefix(g.scope)+instanceToken(batch.Instance) || len(batch.Rows) == 0 {
 		g.fail(ErrLiveResync)
 		return
 	}
