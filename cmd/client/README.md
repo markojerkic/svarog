@@ -16,6 +16,12 @@ your-app | ./svarog-client "PASTE_GENERATED_CONNECTION_URL"
 Copy the connection URL from the Svarog web UI. For Linux arm64, replace `amd64`
 with `arm64` in the download URL.
 
+The CLI sends up to 32 records and 4 MiB of encoded data at a time while waiting
+for JetStream acknowledgements. When the separate 16-slot queue fills, it
+pauses reads from stdin, applying backpressure to the input pipe. On EOF or
+shutdown it waits up to 30 seconds for JetStream to acknowledge accepted logs
+and exits with an error if the drain fails.
+
 ## Build locally
 
 From the repository root, using the Go version specified in `go.mod`:

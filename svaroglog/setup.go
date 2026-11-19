@@ -23,7 +23,9 @@ var (
 
 // Setup configures global [slog] and standard [log] using SVAROG_CONN_STRING or an
 // explicit [WithConnectionString] option. Defaults are INFO, an INFO text console
-// on stderr, and a five-second drain. It does not install signal handlers.
+// on stderr, a best-effort queue of 1024 records or 16 MiB of encoded data,
+// and a five-second drain. Use WithDropQueueCapacity(0) for blocking admission.
+// Setup does not install signal handlers.
 //
 // Canceling lifetime starts shutdown independently of blocked logging calls.
 // The returned cleanup also starts shutdown, waits for its result, and is safe to
@@ -43,10 +45,11 @@ func Setup(lifetime context.Context, options ...Option) (func() error, error) {
 		return nil, err
 	}
 	config := setupConfig{
-		connectionString: os.Getenv("SVAROG_CONN_STRING"),
-		level:            slog.LevelInfo,
-		console:          slog.NewTextHandler(os.Stderr, nil),
-		drainTimeout:     5 * time.Second,
+		connectionString:  os.Getenv("SVAROG_CONN_STRING"),
+		level:             slog.LevelInfo,
+		console:           slog.NewTextHandler(os.Stderr, nil),
+		drainTimeout:      5 * time.Second,
+		dropQueueCapacity: svarogclient.DefaultDropQueueCapacity,
 	}
 	for _, option := range options {
 		if option == nil {

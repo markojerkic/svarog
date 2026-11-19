@@ -214,54 +214,201 @@ func TestSharedClientDelivery(t *testing.T) {
 		}
 	})
 
-	t.Run("a lost acknowledgement retries unchanged data and backpressures producers", func(t *testing.T) {
+	t.Run("the window applies backpressure and shutdown waits for every acknowledgement", func(t *testing.T) {
 		connectionURL, stream, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
-		subscription, err := broker.nc.SubscribeSync(subject)
-		require.NoError(t, err, "observe publish attempts without replacing the real JetStream broker")
-		defer subscription.Unsubscribe()
-		require.NoError(t, broker.nc.Flush(), "install observation before the first publish")
+		subscription := broker.observePublications(t, subject)
+		client := newClient(t, connectionURL)
+
+		window := make([]*nats.Msg, 32)
+		for i := range window {
+			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "in flight"}), "admit each record in the publication window")
+			window[i] = nextPublication(t, subscription)
+		}
+
+		for range 16 {
+			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "queued"}), "accept exactly sixteen entries beyond the full window")
+		}
+		blocked := make(chan error, 1)
+		go func() { blocked <- client.Enqueue(svarogclient.Entry{Message: "waiting for space"}) }()
+		select {
+		case err := <-blocked:
+			t.Fatalf("a full window and queue must block admission; returned %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+		broker.acknowledge(t, stream, window[0])
+		select {
+		case err := <-blocked:
+			require.NoError(t, err, "one acknowledgement must free a window slot and let a blocked producer proceed")
+		case <-time.After(time.Second):
+			t.Fatal("the window must advance without waiting for all its acknowledgements")
+		}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- client.Shutdown(ctx) }()
+		for _, message := range window[1:] {
+			broker.acknowledge(t, stream, message)
+		}
+		// Hold the penultimate acknowledgement while delivering the last one.
+		for range 15 {
+			broker.acknowledge(t, stream, nextPublication(t, subscription))
+		}
+		held := nextPublication(t, subscription)
+		broker.acknowledge(t, stream, nextPublication(t, subscription))
+		select {
+		case err := <-done:
+			t.Fatalf("shutdown must wait for the outstanding acknowledgement; returned %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+		broker.acknowledge(t, stream, held)
+		select {
+		case err := <-done:
+			require.NoError(t, err, "shutdown must succeed once every accepted entry is acknowledged")
+		case <-ctx.Done():
+			t.Fatal("shutdown must finish after the final outstanding acknowledgement")
+		}
+	})
+
+	t.Run("lost acknowledgements retry only unconfirmed entries in order", func(t *testing.T) {
+		connectionURL, stream, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		subscription := broker.observePublications(t, subject)
 		client := newClient(t, connectionURL)
 		// Retry diagnostics must stay local even while global logging uses this client.
 		installLogger(t, client)
-		require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "first"}), "accept the original message locally")
-		first, err := subscription.NextMsg(5 * time.Second)
-		require.NoError(t, err, "the first attempt must reach the broker despite its lost acknowledgement")
+
+		for range 3 {
+			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "original"}), "admit a sequence of entries before any of them is acknowledged")
+		}
+		first := nextPublication(t, subscription)
+		confirmed := nextPublication(t, subscription)
+		third := nextPublication(t, subscription)
+		broker.acknowledge(t, stream, confirmed)
 		require.Eventually(t, func() bool {
 			info, err := stream.Info(broker.ctx)
-			return err == nil && info.State.Msgs == 1
-		}, 3*time.Second, 10*time.Millisecond, "the broker must store the first attempt before acknowledgements are enabled")
-
-		for i := range 16 {
-			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: fmt.Sprintf("queued %d", i)}), "the fixed-size queue must accept its remaining capacity")
-		}
-		blocked := make(chan error, 1)
-		go func() { blocked <- client.Enqueue(svarogclient.Entry{Message: "waited for space"}) }()
-		select {
-		case err := <-blocked:
-			t.Fatalf("a producer must block instead of dropping or bypassing a full queue; returned %v", err)
-		case <-time.After(100 * time.Millisecond):
-		}
+			return err == nil && info.State.Msgs == 3
+		}, 3*time.Second, 10*time.Millisecond, "the broker must store all first attempts before real acknowledgements are restored")
 
 		info, err := stream.Info(broker.ctx)
-		require.NoError(t, err, "read the stream before restoring acknowledgements")
+		require.NoError(t, err, "read the original stream configuration")
 		config := info.Config
 		config.NoAck = false
 		_, err = broker.js.UpdateStream(broker.ctx, config)
-		require.NoError(t, err, "restore acknowledgements without deleting the already stored message")
-		retried, err := subscription.NextMsg(8 * time.Second)
-		require.NoError(t, err, "an uncertain publish must be retried rather than discarded")
-		require.Equal(t, first.Data, retried.Data, "retry must preserve timestamp, sequence, truncation and all encoded bytes")
-		require.Equal(t, first.Header.Get(jetstream.MsgIDHeader), retried.Header.Get(jetstream.MsgIDHeader), "a lost acknowledgement must not create a new event identity")
-		select {
-		case err := <-blocked:
-			require.NoError(t, err, "the waiting producer must be admitted after publishing resumes")
-		case <-time.After(5 * time.Second):
-			t.Fatal("publishing recovery must release the producer blocked by backpressure")
+		require.NoError(t, err, "restore acknowledgements without deleting stored messages")
+		for _, original := range []*nats.Msg{first, third} {
+			retried := nextPublication(t, subscription)
+			require.Equal(t, original.Data, retried.Data, "retry must preserve exact data and the admission order of unconfirmed entries")
+			require.Equal(t, original.Header.Get(jetstream.MsgIDHeader), retried.Header.Get(jetstream.MsgIDHeader), "a lost acknowledgement must preserve event identity")
 		}
 		shutdownClient(t, client)
+		_, err = subscription.NextMsg(100 * time.Millisecond)
+		require.ErrorIs(t, err, nats.ErrTimeout, "the already acknowledged entry and retry diagnostics must not be published")
 		info, err = stream.Info(broker.ctx)
 		require.NoError(t, err, "read final retained messages after a successful drain")
-		require.EqualValues(t, 18, info.State.Msgs, "all accepted events must persist exactly once within broker deduplication, without retry diagnostics entering the stream")
+		require.EqualValues(t, 3, info.State.Msgs, "broker deduplication must retain exactly one copy of each accepted event")
+	})
+
+	t.Run("reconnect resends the whole unconfirmed window after an immediate send failure", func(t *testing.T) {
+		connectionURL, stream, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		subscription := broker.observePublications(t, subject)
+		proxyURL, firstConnection, allowReconnect := broker.interruptibleProxy(t, connectionURL)
+		reconnectFailed := make(reconnectDiagnostics, 1)
+		client, err := svarogclient.New(svarogclient.Options{ConnectionString: proxyURL, Diagnostics: reconnectFailed})
+		require.NoError(t, err, "start the client through the interruptible proxy")
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = client.Shutdown(ctx)
+		})
+
+		originals := make([]*nats.Msg, 4)
+		for i := range originals {
+			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "before disconnect"}), "admit multiple entries without a broker acknowledgement")
+			originals[i] = nextPublication(t, subscription)
+		}
+		require.Eventually(t, func() bool {
+			info, err := stream.Info(broker.ctx)
+			return err == nil && info.State.Msgs == uint64(len(originals))
+		}, 3*time.Second, 10*time.Millisecond, "store the whole window while acknowledgements are disabled")
+		config := stream.CachedInfo().Config
+		config.NoAck = false
+		_, err = broker.js.UpdateStream(broker.ctx, config)
+		require.NoError(t, err, "enable acknowledgements for publications made after reconnect")
+
+		require.NoError(t, (<-firstConnection).Close(), "drop the TCP connection with all four publications still unconfirmed")
+		select {
+		case <-reconnectFailed:
+			close(allowReconnect)
+		case <-time.After(8 * time.Second):
+			t.Fatal("the first resend must fail immediately while the reconnect buffer is disabled and the proxy rejects new connections")
+		}
+		for _, original := range originals {
+			retried := nextPublication(t, subscription)
+			require.Equal(t, original.Data, retried.Data, "resend every unconfirmed entry in admission order with its original bytes")
+			require.Equal(t, original.Header.Get(jetstream.MsgIDHeader), retried.Header.Get(jetstream.MsgIDHeader), "preserve the original event identity after reconnect")
+		}
+		shutdownClient(t, client)
+		info, err := stream.Info(broker.ctx)
+		require.NoError(t, err, "read the stream after every accepted entry has been acknowledged")
+		require.EqualValues(t, len(originals), info.State.Msgs, "reconnect and retry must retain exactly one copy of every accepted entry")
+		for i, original := range originals {
+			stored, err := stream.GetMsg(broker.ctx, uint64(i+1))
+			require.NoError(t, err, "each accepted entry must remain readable after reconnect")
+			require.Equal(t, original.Data, stored.Data, "deduplication must retain the original payload at each sequence")
+		}
+	})
+
+	t.Run("drop mode bounds the window and queue by encoded bytes and counts rejections", func(t *testing.T) {
+		connectionURL, _, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
+		subscription := broker.observePublications(t, subject)
+		diagnostics, err := os.Create(filepath.Join(t.TempDir(), "diagnostics.log"))
+		require.NoError(t, err, "capture diagnostics without sharing a mutable buffer with the publisher")
+		t.Cleanup(func() { _ = diagnostics.Close() })
+		client, err := svarogclient.New(svarogclient.Options{
+			ConnectionString: connectionURL, DropQueueCapacity: 20, Diagnostics: diagnostics,
+		})
+		require.NoError(t, err, "create a best-effort sender with diagnostic output captured separately")
+		t.Cleanup(func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			_ = client.Shutdown(ctx)
+		})
+
+		// JSON escapes '<' to six bytes. Four payloads fit in 4 MiB,
+		// and sixteen fit in the queue's separate 16 MiB budget.
+		large := svarogclient.Entry{Message: strings.Repeat("<", 170_000)}
+		for range 4 {
+			require.NoError(t, client.Enqueue(large), "admit one large entry into the window")
+			nextPublication(t, subscription)
+		}
+		for range 16 {
+			require.NoError(t, client.Enqueue(large), "the queue must retain sixteen near-limit payloads")
+		}
+		require.ErrorIs(t, client.Enqueue(large), svarogclient.ErrQueueFull, "encoded bytes must bound admission even when queue slots remain")
+		for range 4 {
+			require.NoError(t, client.Enqueue(svarogclient.Entry{Message: "small"}), "a byte-limit rejection must leave free slots available for smaller records")
+		}
+		for range 100 {
+			require.ErrorIs(t, client.Enqueue(svarogclient.Entry{Message: "extra"}), svarogclient.ErrQueueFull, "a full drop-mode queue must reject every excess record")
+		}
+		// The next eligible rejection makes the accumulated count visible.
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		<-timer.C
+		require.ErrorIs(t, client.Enqueue(svarogclient.Entry{Message: "later"}), svarogclient.ErrQueueFull, "the queue must stay full without acknowledgements")
+		for range 7 {
+			require.ErrorIs(t, client.Enqueue(svarogclient.Entry{Message: "before shutdown"}), svarogclient.ErrQueueFull, "count a final burst inside the reporting interval")
+		}
+		_, err = subscription.NextMsg(100 * time.Millisecond)
+		require.ErrorIs(t, err, nats.ErrTimeout, "the byte limit must prevent a fifth large publication while acknowledgements are outstanding")
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		require.ErrorIs(t, client.Shutdown(ctx), context.DeadlineExceeded, "shutdown must report that in-flight and queued entries could not drain")
+		report, err := os.ReadFile(diagnostics.Name())
+		require.NoError(t, err, "read the diagnostic summaries after shutdown")
+		require.Equal(t, 3, bytes.Count(report, []byte("Log entries were not accepted")), "only the first, interval and shutdown summaries must be emitted")
+		require.Contains(t, string(report), "dropped=101", "the next report must include rejections suppressed in the preceding interval")
+		require.Contains(t, string(report), "dropped=7 ", "shutdown must report the final burst without another rejection after the interval")
 	})
 
 	t.Run("permanent rejection cannot masquerade as a successful drain", func(t *testing.T) {
@@ -280,42 +427,40 @@ func TestLoggingSetupLifecycle(t *testing.T) {
 	preserveLogger(t)
 	broker := newClientBroker(t)
 
-	t.Run("best effort logging keeps the console usable when the queue fills", func(t *testing.T) {
+	t.Run("default logging drops excess records without blocking the console", func(t *testing.T) {
 		connectionURL, _, subject := broker.stream(t, jetstream.StreamConfig{NoAck: true})
-		subscription, err := broker.nc.SubscribeSync(subject)
-		require.NoError(t, err)
-		defer subscription.Unsubscribe()
-		require.NoError(t, broker.nc.Flush())
-
+		subscription := broker.observePublications(t, subject)
 		var console bytes.Buffer
-		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-		defer cancel()
-		closeLogging, err := svaroglog.Setup(ctx,
-			svaroglog.WithConnectionString(connectionURL), svaroglog.WithDropQueueCapacity(20),
+		closeLogging, err := svaroglog.Setup(t.Context(),
+			svaroglog.WithConnectionString(connectionURL),
 			svaroglog.WithConsole(slog.NewTextHandler(&console, nil)), svaroglog.WithDrainTimeout(100*time.Millisecond))
-		require.NoError(t, err)
-		defer closeLogging()
+		require.NoError(t, err, "setup must start with best-effort forwarding by default")
+		t.Cleanup(func() { _ = closeLogging() })
 
-		handler := slog.Default().Handler()
-		send := func(message string) error {
-			return handler.Handle(ctx, slog.NewRecord(time.Now(), slog.LevelInfo, message, 0))
+		logger := slog.Default()
+		for range 32 {
+			logger.Info("in flight")
+			nextPublication(t, subscription)
 		}
-		// Each '<' occupies six bytes in the wire JSON: 16 payloads fit in
-		// 16 MiB, but a 17th does not, even though record slots are available.
-		large := strings.Repeat("<", 170_000)
-		require.NoError(t, send(large))
-		_, err = subscription.NextMsg(5 * time.Second)
-		require.NoError(t, err, "the unacknowledged payload must already be out of the queue")
-		for range 16 {
-			require.NoError(t, send(large))
+		produced := make(chan error, 1)
+		go func() {
+			handler := logger.Handler()
+			for range 1024 {
+				if err := handler.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "accepted", 0)); err != nil {
+					produced <- err
+					return
+				}
+			}
+			produced <- handler.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "dropped", 0))
+		}()
+		select {
+		case err := <-produced:
+			require.ErrorIs(t, err, svarogclient.ErrQueueFull, "the default queue must drop excess logs instead of blocking")
+		case <-time.After(2 * time.Second):
+			t.Fatal("a full default logging queue must never wait for the broker")
 		}
-		require.ErrorIs(t, send(large), svarogclient.ErrQueueFull)
-		for range 4 {
-			require.NoError(t, send("small"), "a byte-limit rejection must leave room for smaller records")
-		}
-		require.ErrorIs(t, send("over slot limit"), svarogclient.ErrQueueFull)
-		require.Equal(t, 23, bytes.Count(console.Bytes(), []byte("\n")), "both kinds of dropped record must still reach the console")
-		require.ErrorIs(t, closeLogging(), context.DeadlineExceeded)
+		require.Contains(t, console.String(), "msg=dropped", "the dropped record must still reach the configured console")
+		require.ErrorIs(t, closeLogging(), context.DeadlineExceeded, "the deadline must report accepted entries that were not acknowledged")
 	})
 
 	t.Run("environment setup drains and restores derived global loggers", func(t *testing.T) {
@@ -373,13 +518,14 @@ func TestLoggingSetupLifecycle(t *testing.T) {
 		require.NoError(t, broker.nc.Flush(), "observe the first message before filling the queue")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		closeLogging, err := svaroglog.Setup(ctx, svaroglog.WithConnectionString(connectionURL), svaroglog.WithConsole(nil), svaroglog.WithDrainTimeout(100*time.Millisecond))
+		closeLogging, err := svaroglog.Setup(ctx, svaroglog.WithConnectionString(connectionURL), svaroglog.WithDropQueueCapacity(0), svaroglog.WithConsole(nil), svaroglog.WithDrainTimeout(100*time.Millisecond))
 		require.NoError(t, err, "an explicit connection URL must override the environment without waiting for broker acknowledgements")
 		t.Cleanup(func() { _ = closeLogging() })
 		logger := slog.Default()
-		logger.Info("in flight")
-		_, err = subscription.NextMsg(5 * time.Second)
-		require.NoError(t, err, "the first accepted message must reach the broker before the queue fills")
+		for range 32 {
+			logger.Info("in flight")
+			nextPublication(t, subscription)
+		}
 		for range 16 {
 			logger.Info("queued")
 		}
@@ -530,6 +676,89 @@ func (b clientBroker) stream(t *testing.T, config jetstream.StreamConfig) (strin
 	require.NoError(t, err, "create a test-owned stream for an isolated client subject")
 	connectionURL := fmt.Sprintf("svarog://%s/%s?token=%s", b.host, subject, url.QueryEscape(b.token))
 	return connectionURL, stream, subject
+}
+
+func (b clientBroker) observePublications(t *testing.T, subject string) *nats.Subscription {
+	t.Helper()
+	subscription, err := b.nc.SubscribeSync(subject)
+	require.NoError(t, err, "observe publish attempts on the real NATS broker")
+	t.Cleanup(func() { _ = subscription.Unsubscribe() })
+	require.NoError(t, b.nc.Flush(), "install observation before the first publish")
+	return subscription
+}
+
+// The initial connection is observable and later connections are rejected until
+// the test has seen the publisher try to resend with the reconnect buffer off.
+func (b clientBroker) interruptibleProxy(t *testing.T, connectionURL string) (string, <-chan net.Conn, chan struct{}) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err, "listen on loopback for the client's broker traffic")
+	t.Cleanup(func() { _ = listener.Close() })
+	proxyURL, err := url.Parse(connectionURL)
+	require.NoError(t, err, "reuse the generated subject and credentials through the proxy")
+	proxyURL.Host = listener.Addr().String()
+	firstConnection := make(chan net.Conn, 1)
+	allowReconnect := make(chan struct{})
+	relay := func(dst, src net.Conn) {
+		defer dst.Close()
+		defer src.Close()
+		_, _ = io.Copy(dst, src)
+	}
+	go func() {
+		for first := true; ; first = false {
+			incoming, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			if !first {
+				select {
+				case <-allowReconnect:
+				default:
+					_ = incoming.Close()
+					continue
+				}
+			}
+			upstream, err := net.DialTimeout("tcp", b.host, time.Second)
+			if err != nil {
+				_ = incoming.Close()
+				continue
+			}
+			go relay(upstream, incoming)
+			go relay(incoming, upstream)
+			if first {
+				firstConnection <- incoming
+			}
+		}
+	}()
+	return proxyURL.String(), firstConnection, allowReconnect
+}
+
+type reconnectDiagnostics chan struct{}
+
+func (d reconnectDiagnostics) Write(line []byte) (int, error) {
+	if bytes.Contains(line, []byte("Retrying unconfirmed log publications")) &&
+		bytes.Contains(line, []byte(nats.ErrReconnectBufExceeded.Error())) {
+		select {
+		case d <- struct{}{}:
+		default:
+		}
+	}
+	return len(line), nil
+}
+
+func nextPublication(t *testing.T, subscription *nats.Subscription) *nats.Msg {
+	t.Helper()
+	msg, err := subscription.NextMsg(8 * time.Second)
+	require.NoError(t, err, "the expected publication must reach NATS")
+	return msg
+}
+
+// The NoAck stream stores messages but leaves each reply under test control.
+func (b clientBroker) acknowledge(t *testing.T, stream jetstream.Stream, msg *nats.Msg) {
+	t.Helper()
+	require.NotEmpty(t, msg.Reply, "the publication must provide a reply subject for its acknowledgement")
+	require.NoError(t, b.nc.Publish(msg.Reply, fmt.Appendf(nil, `{"stream":%q,"seq":1}`, stream.CachedInfo().Config.Name)),
+		"send an acknowledgement only for the chosen publication")
 }
 
 func newClient(t *testing.T, connectionURL string) *svarogclient.Client {

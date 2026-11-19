@@ -53,7 +53,7 @@ func loadEnv() types.ServerEnv {
 }
 
 func selfLogQueueCapacity(raw string) int {
-	const defaultCapacity = 1024
+	const defaultCapacity = svarogclient.DefaultDropQueueCapacity
 	if raw == "" {
 		return defaultCapacity
 	}

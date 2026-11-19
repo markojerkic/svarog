@@ -20,8 +20,11 @@ import (
 )
 
 const (
-	blockingQueueCapacity = 16
-	maxDropQueueBytes     = 16 << 20
+	blockingQueueCapacity   = 16
+	maxDropQueueBytes       = 16 << 20
+	rejectionReportInterval = time.Second
+	// DefaultDropQueueCapacity is shared by the Go logging adapter and server.
+	DefaultDropQueueCapacity = 1024
 	// MaxDropQueueCapacity also bounds the channel allocation when entries are small.
 	MaxDropQueueCapacity = 65_536
 )
@@ -65,10 +68,15 @@ type Client struct {
 
 	admission   sync.Mutex
 	sequence    int
-	queuedBytes int // protected by admission; excludes the payload being published
+	queuedBytes int // protected by admission; excludes the publication window
 	stopOnce    sync.Once
 	stateMu     sync.Mutex
 	err         error
+
+	rejectionMu   sync.Mutex
+	lastReport    time.Time
+	rejected      uint64
+	lastRejection error
 }
 
 // New validates local configuration and starts a background publisher. It does
@@ -138,14 +146,34 @@ func New(options Options) (*Client, error) {
 // Success means local acceptance, not broker or database persistence.
 // Shutdown unblocks waiting callers.
 // Rejections are also reported locally because slog discards handler errors.
+// Rejections are counted and diagnostics are rate limited in both modes.
 func (c *Client) Enqueue(entry Entry) error {
 	truncated, err := c.accept(entry)
 	if err != nil {
-		c.logger.Error("Log entry was not accepted", "error", err)
+		c.reportRejections(err)
 	} else if truncated {
 		c.logger.Warn("Encoded log line exceeded the payload limit and was truncated", "limit", logevent.MaxPayloadBytes)
 	}
 	return err
+}
+
+// reportRejections records a rejection and reports it when the interval allows.
+// A nil error flushes the pending summary when the publisher stops.
+func (c *Client) reportRejections(err error) {
+	c.rejectionMu.Lock()
+	if err != nil {
+		c.rejected++
+		c.lastRejection = err
+	}
+	now := time.Now()
+	if c.rejected == 0 || (err != nil && now.Sub(c.lastReport) < rejectionReportInterval) {
+		c.rejectionMu.Unlock()
+		return
+	}
+	count, latest := c.rejected, c.lastRejection
+	c.rejected, c.lastRejection, c.lastReport = 0, nil, now
+	c.rejectionMu.Unlock()
+	c.logger.Error("Log entries were not accepted", "dropped", count, "latest_error", latest)
 }
 
 func (c *Client) accept(entry Entry) (bool, error) {
