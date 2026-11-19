@@ -12,6 +12,7 @@ import (
 
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
@@ -29,7 +30,7 @@ func (s *Service) commitBatch(ctx context.Context, batch []*pendingLog) error {
 			return err
 		}
 		attemptCtx, cancel := context.WithTimeout(ctx, dbWait)
-		results, err := s.writer.CommitLogs(attemptCtx, input)
+		results, err := s.commitAndPublish(attemptCtx, input)
 		cancel()
 		if err == nil {
 			if len(results) != len(batch) {
@@ -117,4 +118,40 @@ func systemicSaveError(err error) bool {
 	default:
 		return false
 	}
+}
+
+func (s *Service) commitAndPublish(ctx context.Context, input []db.IngestLog) ([]persistence.IngestLogResult, error) {
+	results, err := s.writer.CommitLogs(ctx, input)
+	if err != nil {
+		log.Error("Error saving logs", "error", err)
+		if s.live != nil && uncertainCommit(err) {
+			rows := make([]types.StoredLog, len(input))
+			for i, event := range input {
+				rows[i] = event.Log
+			}
+			s.live.AfterUncertainCommit(rows)
+		}
+		return nil, err
+	}
+	if s.live != nil && len(results) == len(input) {
+		rows := make([]types.StoredLog, 0, len(results))
+		for i, result := range results {
+			if result.Status == persistence.IngestLogInserted {
+				row := input[i].Log
+				row.ID = result.ID
+				rows = append(rows, row)
+			}
+		}
+		s.live.AfterCommit(ctx, rows)
+	}
+	return results, nil
+}
+
+// A backend error rolls the statement back. Connect and SafeToRetry errors
+// happen before the statement reaches the server. Any other write failure can
+// leave the outcome unknown.
+func uncertainCommit(err error) bool {
+	var pgError *pgconn.PgError
+	var connectError *pgconn.ConnectError
+	return !errors.Is(err, db.ErrInvalidLogScope) && !errors.As(err, &pgError) && !errors.As(err, &connectError) && !pgconn.SafeToRetry(err)
 }

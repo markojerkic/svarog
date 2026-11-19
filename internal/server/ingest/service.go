@@ -20,6 +20,7 @@ type Service struct {
 	connection *natsconn.NatsConnection
 	consumer   jetstream.Consumer
 	writer     LogWriter
+	live       Live
 	ackWait    time.Duration
 	stop       chan struct{}
 	done       chan struct{}
@@ -50,7 +51,7 @@ func Open(ctx context.Context, opts Options) (*Service, error) {
 	}
 	return &Service{
 		connection: opts.Connection, consumer: consumer,
-		writer: opts.Writer, ackWait: opts.AckWait,
+		writer: opts.Writer, live: opts.Live, ackWait: opts.AckWait,
 		stop: make(chan struct{}), done: make(chan struct{}),
 		pending: make(map[*pendingLog]struct{}), rejected: make(map[rejectReason]uint64),
 	}, nil

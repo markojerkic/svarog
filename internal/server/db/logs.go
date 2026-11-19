@@ -9,15 +9,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
-	"github.com/markojerkic/svarog/internal/server/live"
 	"github.com/markojerkic/svarog/internal/server/types"
 )
 
@@ -59,8 +56,7 @@ type LogService interface {
 }
 
 type PostgresLogService struct {
-	pool     *pgxpool.Pool
-	liveLogs *live.Logs
+	pool *pgxpool.Pool
 }
 
 var _ LogService = &PostgresLogService{}
@@ -228,8 +224,7 @@ func (self *PostgresLogService) searchLogs(ctx context.Context, query string, pr
 
 var ErrInvalidLogScope = errors.New("invalid log project or client id")
 
-// CommitLogs returns one result per input after a successful write. Live
-// delivery is best effort and must never turn a commit into a retry.
+// CommitLogs returns one result per input after a successful write.
 func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog) ([]persistence.IngestLogResult, error) {
 	if len(logs) == 0 {
 		return nil, nil
@@ -249,47 +244,11 @@ func (self *PostgresLogService) CommitLogs(ctx context.Context, logs []IngestLog
 			Message:        log.LogLine,
 		}}
 	}
-	results, err := persistence.InsertIngestLogs(ctx, self.pool, input)
-	if err != nil {
-		log.Error("Error saving logs", "error", err)
-		if self.liveLogs != nil && uncertainCommit(err) {
-			rows := make([]types.StoredLog, len(logs))
-			for i := range logs {
-				rows[i] = logs[i].Log
-			}
-			self.liveLogs.AfterUncertainCommit(rows)
-		}
-		return nil, err
-	}
-	if self.liveLogs != nil {
-		newRows := make([]types.StoredLog, 0, len(results))
-		for i, row := range results {
-			if row.Status == persistence.IngestLogInserted {
-				log := logs[i].Log
-				log.ID = row.ID
-				newRows = append(newRows, log)
-			}
-		}
-		self.liveLogs.AfterCommit(ctx, newRows)
-	}
-	return results, nil
+	return persistence.InsertIngestLogs(ctx, self.pool, input)
 }
 
-// uncertainCommit reports whether a failed write may still have committed. A
-// backend error rolls the statement back, a connect error and pgx's
-// SafeToRetry errors happen before the statement reaches the server; any other
-// failure, such as a lost connection or canceled read, leaves the outcome unknown.
-func uncertainCommit(err error) bool {
-	var pgError *pgconn.PgError
-	var connectError *pgconn.ConnectError
-	return !errors.As(err, &pgError) && !errors.As(err, &connectError) && !pgconn.SafeToRetry(err)
-}
-
-func NewLogService(pool *pgxpool.Pool, liveLogs *live.Logs) *PostgresLogService {
-	return &PostgresLogService{
-		pool:     pool,
-		liveLogs: liveLogs,
-	}
+func NewLogService(pool *pgxpool.Pool) *PostgresLogService {
+	return &PostgresLogService{pool: pool}
 }
 
 func parseLogScope(projectID, clientID string) (uuid.UUID, uuid.UUID, bool) {

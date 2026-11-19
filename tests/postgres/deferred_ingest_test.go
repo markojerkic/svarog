@@ -172,7 +172,7 @@ func newIngestEnv(t *testing.T, ctx context.Context) ingestEnv {
 	project, err := projects.NewPostgresProjectsService(pool).CreateProject(ctx, "MassImport", []string{"api"})
 	require.NoError(t, err, "create the import project and client")
 	return ingestEnv{
-		pool: pool, logs: db.NewLogService(pool, nil),
+		pool: pool, logs: db.NewLogService(pool),
 		projectID: project.ID.String(), clientID: clientByName(t, project, "api"),
 	}
 }

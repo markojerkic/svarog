@@ -35,7 +35,7 @@ func TestLogContext(t *testing.T) {
 	require.NoError(t, err, "context fixtures must interleave two instances around the anchor")
 	anchorID := ids[10]
 	anchor := strconv.FormatInt(anchorID, 10)
-	logs := db.NewLogService(pool, nil)
+	logs := db.NewLogService(pool)
 	instances := []string{"api-1"}
 	request := db.LogPageRequest{ProjectId: project.ID.String(), ClientId: clientID.String(), PageSize: 2, LogLineId: &anchor}
 

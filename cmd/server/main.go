@@ -186,7 +186,7 @@ func runServer(env types.ServerEnv) error {
 	defer liveLogs.Close()
 
 	sessionStore := auth.NewPostgresSessionStore(postgresPool, []byte(env.SessionSecret))
-	logsService := db.NewLogService(postgresPool, liveLogs)
+	logsService := db.NewLogService(postgresPool)
 
 	authService := auth.NewPostgresAuthService(postgresPool, sessionStore)
 
@@ -196,7 +196,7 @@ func runServer(env types.ServerEnv) error {
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	ingestService, err := ingest.Open(startupCtx, ingest.Options{
-		Connection: natsConn, Pool: postgresPool, Writer: logsService,
+		Connection: natsConn, Pool: postgresPool, Writer: logsService, Live: liveLogs,
 		StreamMaxBytes: env.IngestStreamMaxBytes, AckWait: env.IngestAckWait,
 		AllowRetentionMigration: env.IngestAllowRetentionMigration,
 	})

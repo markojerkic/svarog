@@ -133,7 +133,7 @@ func (s *BaseSuite) setupNats(ctx context.Context) error {
 	}
 	s.NatsConn = natsConn
 	if _, err := ingest.Open(ctx, ingest.Options{
-		Connection: natsConn, Pool: s.PostgresPool, Writer: db.NewLogService(s.PostgresPool, nil),
+		Connection: natsConn, Pool: s.PostgresPool, Writer: db.NewLogService(s.PostgresPool),
 	}); err != nil {
 		return fmt.Errorf("prepare test log stream: %w", err)
 	}

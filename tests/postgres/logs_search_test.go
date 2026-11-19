@@ -26,7 +26,7 @@ func TestSearchLogs(t *testing.T) {
 	require.NoError(t, err, "create project and clients for log search")
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
-	logs := db.NewLogService(pool, nil)
+	logs := db.NewLogService(pool)
 	base := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 
 	_, err = store.InsertLogs(ctx, pool, []store.LogInsert{

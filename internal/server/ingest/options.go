@@ -9,6 +9,7 @@ import (
 	"github.com/markojerkic/svarog/internal/lib/natsconn"
 	persistence "github.com/markojerkic/svarog/internal/persistence/postgres"
 	"github.com/markojerkic/svarog/internal/server/db"
+	"github.com/markojerkic/svarog/internal/server/types"
 )
 
 type LogWriter interface {
@@ -18,10 +19,16 @@ type LogWriter interface {
 	CommitLogs(ctx context.Context, logs []db.IngestLog) ([]persistence.IngestLogResult, error)
 }
 
+type Live interface {
+	AfterCommit(ctx context.Context, rows []types.StoredLog)
+	AfterUncertainCommit(rows []types.StoredLog)
+}
+
 type Options struct {
 	Connection              *natsconn.NatsConnection
 	Pool                    *pgxpool.Pool
 	Writer                  LogWriter
+	Live                    Live
 	StreamMaxBytes          int64 // Zero preserves an existing finite limit; new streams default to 1 GiB.
 	AckWait                 time.Duration
 	AllowRetentionMigration bool // Only after backup/preflight and stopping all old writers.

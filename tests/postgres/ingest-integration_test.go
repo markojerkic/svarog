@@ -67,7 +67,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 	writePool, err := pgxpool.NewWithConfig(ctx, writeConfig)
 	require.NoError(t, err, "use a short PostgreSQL lock timeout for retry coverage")
 	t.Cleanup(writePool.Close)
-	logService := db.NewLogService(writePool, liveLogs)
+	logService := db.NewLogService(writePool)
 	var lockTimedOut atomic.Bool
 	writer := ingestWriterFunc(func(ctx context.Context, input []db.IngestLog) ([]store.IngestLogResult, error) {
 		results, err := logService.CommitLogs(ctx, input)
@@ -77,7 +77,7 @@ func TestPostgresClientsIngestIntoPostgresLogs(t *testing.T) {
 		}
 		return results, err
 	})
-	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: writer})
+	ingestService, err := ingest.Open(ctx, ingest.Options{Connection: conn, Pool: pool, Writer: writer, Live: liveLogs})
 	require.NoError(t, err, "prepare durable log ingestion before publishing")
 	runCtx, stop := context.WithCancel(ctx)
 	ingestDone := make(chan error, 1)
@@ -299,7 +299,8 @@ func TestIngestCommitLifecycle(t *testing.T) {
 		arm.Store(true)
 
 		opts := env.options
-		opts.Writer = db.NewLogService(writerPool, liveLogs)
+		opts.Writer = db.NewLogService(writerPool)
+		opts.Live = liveLogs
 		runIngest(t, env.ctx, opts)
 		publishIngestEvent(t, env, "committed but its result was lost")
 		nextCtx, cancel := context.WithTimeout(env.ctx, 15*time.Second)
@@ -534,7 +535,7 @@ func newIngestFixture(t *testing.T) ingestFixture {
 	conn, err := natsconn.NewNatsConnection(natsconn.NatsConnectionConfig{NatsAddr: url, EnableJetStream: true})
 	require.NoError(t, err, "connect without implicitly changing stream configuration")
 	t.Cleanup(conn.Close)
-	writer := db.NewLogService(pool, nil)
+	writer := db.NewLogService(pool)
 	return ingestFixture{
 		ctx: ctx, pool: pool, container: container, conn: conn, writer: writer,
 		options: ingest.Options{Connection: conn, Pool: pool, Writer: writer},
