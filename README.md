@@ -155,9 +155,20 @@ be reachable from inside the container. When the published port differs from
 The embedded image generates its broker configuration internally and omits
 `NATS_ADDR`, `NATS_SERVER_USER_JWT`, `NATS_SERVER_USER_SEED` and `nats-server.conf`.
 
+The embedded listener has no TLS option. Log contents travel in plaintext, so
+keep the listener on a private network or behind an encrypted tunnel.
+
+The broker accepts any user JWT signed by the APP account key. That includes
+the `NATS_SERVER_USER_JWT` that `nats-setup` creates, which may publish and
+subscribe to every subject and never expires. Keep it secret after switching to
+the embedded image. Revocations and signing keys of a customized external
+account are not carried over. For such an account, use a new
+`NATS_ACCOUNT_SEED` and reissue client connection URLs.
+
 [docker-compose.embedded.yml](docker-compose.embedded.yml) runs the embedded
 image with its own PostgreSQL and volumes for JetStream and disk archives. Set
-`SESSION_SECRET` and `NATS_ACCOUNT_SEED` in `.env.embedded`:
+`SESSION_SECRET`, `NATS_ACCOUNT_SEED` and a URL-safe `POSTGRES_PASSWORD` in
+`.env.embedded`:
 
 ```bash
 docker compose --env-file .env.embedded -f docker-compose.embedded.yml up -d --pull always
@@ -170,7 +181,8 @@ to change the host bindings. Compose advertises `localhost` and the published
 NATS port by default. For remote clients, set `SVAROG_EMBEDDED_NATS_PUBLIC_ADDR`
 to their reachable `host:port`. Set `SVAROG_VERSION` to pin the image tag.
 
-Run exactly one embedded replica. Use the external-NATS image with
+Run exactly one embedded replica. A second broker that opens the same
+`NATS_STORE_DIR` fails to start. Use the external-NATS image with
 [docker-compose.lb.yml](docker-compose.lb.yml) so committed logs reach live views
 across replicas. JetStream data lives under
 `$NATS_STORE_DIR/jetstream/<account public key>/`. Changing `NATS_ACCOUNT_SEED`
@@ -178,11 +190,16 @@ abandons the old stream and invalidates previously issued connection URLs.
 
 #### Switch from external to embedded NATS
 
-1. Stop log producers and wait for ingest to acknowledge every pending message.
-2. Stop the external-NATS Svarog server. Start the embedded image with the
-   existing PostgreSQL database, archive storage and APP account seed. Start
-   with an empty embedded JetStream store.
-3. If the client-facing `host:port` changed, update client connection URLs.
+1. Stop log producers. Restart the external-NATS Svarog server without
+   `SVAROG_CONN_STRING`, so its own shutdown record is ingested rather than left
+   on the old broker.
+2. Wait until `nats consumer info LOGS log-processor` reports
+   `Unprocessed Messages: 0` and `Outstanding Acks: 0`.
+3. Stop the external-NATS Svarog server and the external NATS server, so no
+   client can publish to the old broker.
+4. Start the embedded image with the existing PostgreSQL database, archive
+   storage and APP account seed, and an empty embedded JetStream store.
+5. If the client-facing `host:port` changed, update client connection URLs.
    Resume log producers once the embedded server is healthy.
 
 ## Client
