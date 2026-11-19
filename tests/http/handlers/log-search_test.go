@@ -73,7 +73,7 @@ func TestLogsPageSearch(t *testing.T) {
 				e.ServeHTTP(rec, req)
 
 				require.Equal(t, http.StatusOK, rec.Code, "search must render an HTML page")
-				require.Contains(t, rec.Header().Get("Content-Type"), "text/html", "the UI must receive HTML rather than the JSON search response")
+				require.Contains(t, rec.Header().Get("Content-Type"), "text/html", "the log page must return HTML")
 				require.Equal(t, uuid.MustParse(projectID), logs.request.Scope.ProjectID, "search must use the authorized project")
 				require.Equal(t, uuid.MustParse(clientID), logs.request.Scope.ClientID, "search must use the authorized client")
 				require.Equal(t, handlers.DEFAULT_PAGE_SIZE, logs.request.Limit, "search must use the existing page size")
@@ -166,89 +166,81 @@ func TestLogsPageLiveModes(t *testing.T) {
 }
 
 func TestLogSearchValidation(t *testing.T) {
-	for _, route := range []string{"", "/search"} {
-		for _, hx := range []bool{false, true} {
-			for _, query := range []string{"id", "ab cd", "a-b-c", "%_", "id=1"} {
-				t.Run(fmt.Sprintf("%s/%s/htmx=%t", route, query, hx), func(t *testing.T) {
-					e := echo.New()
-					logs := &logSearchStub{}
-					handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
-					req := httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+route+"?search="+url.QueryEscape(query), nil)
-					if hx {
-						req.Header.Set("HX-Request", "true")
-					}
-					rec := httptest.NewRecorder()
-					e.ServeHTTP(rec, req)
-					require.Equal(t, http.StatusBadRequest, rec.Code, "both search endpoints must reject queries without an indexable term")
-					require.Zero(t, logs.logCalls, "invalid search must not execute a potentially unbounded log query")
-					if route == "" && hx {
-						require.Equal(t, "none", rec.Header().Get("HX-Reswap"), "invalid search must preserve the current results")
-						require.Contains(t, rec.Header().Get("HX-Trigger"), "three consecutive", "invalid search must explain how to correct the query")
-					} else {
-						require.Contains(t, rec.Body.String(), "three consecutive", "direct and API requests must explain the search validation failure")
-					}
-				})
-			}
+	for _, hx := range []bool{false, true} {
+		for _, query := range []string{"id", "ab cd", "a-b-c", "%_", "id=1"} {
+			t.Run(fmt.Sprintf("%s/htmx=%t", query, hx), func(t *testing.T) {
+				e := echo.New()
+				logs := &logSearchStub{}
+				handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+				req := httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+"?search="+url.QueryEscape(query), nil)
+				if hx {
+					req.Header.Set("HX-Request", "true")
+				}
+				rec := httptest.NewRecorder()
+				e.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusBadRequest, rec.Code, "the log page must reject queries without an indexable term")
+				require.Zero(t, logs.logCalls, "invalid search must not execute a potentially unbounded log query")
+				if hx {
+					require.Equal(t, "none", rec.Header().Get("HX-Reswap"), "invalid search must preserve the current results")
+					require.Contains(t, rec.Header().Get("HX-Trigger"), "three consecutive", "invalid search must explain how to correct the query")
+				} else {
+					require.Contains(t, rec.Body.String(), "three consecutive", "direct requests must explain the search validation failure")
+				}
+			})
 		}
 	}
 }
 
 func TestLogCursorValidation(t *testing.T) {
-	for _, route := range []string{"", "/search"} {
-		for _, tc := range []struct {
-			name   string
-			query  string
-			status int
-			micros int64
-		}{
-			{"microseconds", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", 200, 1791979200123456},
-			{"legacy milliseconds", "cursorTime=1791979200123&cursorSequenceNumber=2&cursorId=7&direction=forward", 400, 0},
-			{"forward direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=forward", 200, 1791979200123456},
-			{"missing ID", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"missing direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7", 400, 0},
-			{"invalid direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&direction=sideways", 400, 0},
-			{"missing sequence", "cursorTimeUs=1791979200123456&direction=backward", 400, 0},
-			{"missing timestamp", "cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"ambiguous timestamp", "cursorTime=123&cursorTimeUs=123000&cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"nonpositive timestamp", "cursorTimeUs=0&cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"invalid timestamp", "cursorTimeUs=invalid&cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"timestamp overflow", "cursorTime=9223372036854775807&cursorSequenceNumber=2&direction=backward", 400, 0},
-			{"invalid id", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=-1&direction=backward", 400, 0},
-		} {
-			t.Run(route+"/"+tc.name, func(t *testing.T) {
-				e := echo.New()
-				logs := &logSearchStub{}
-				handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
-				req := httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+route+"?search=connection&"+tc.query, nil)
-				req.Header.Set("HX-Request", "true")
-				req.Header.Set("HX-Request-Type", "partial")
-				rec := httptest.NewRecorder()
-				e.ServeHTTP(rec, req)
-				require.Equal(t, tc.status, rec.Code, "both log endpoints must validate cursor parameters")
-				if tc.status != http.StatusOK {
-					require.Zero(t, logs.logCalls, "invalid cursors must be rejected before querying logs")
-					return
-				}
-				cursor := logs.request.Older
-				if strings.Contains(tc.query, "direction=backward") {
-					require.Nil(t, logs.request.Newer, "backward navigation uses only the older cursor")
-				} else {
-					require.Nil(t, logs.request.Older, "forward navigation uses only the newer cursor")
-					cursor = logs.request.Newer
-				}
-				require.NotNil(t, cursor, "a complete cursor must reach the reader")
-				require.Equal(t, time.UnixMicro(tc.micros), cursor.OccurredAt, "cursor parsing must preserve microsecond precision")
-				require.Equal(t, int64(2), cursor.Sequence, "cursor parsing must preserve the sequence number")
-				require.Equal(t, int64(7), cursor.ID, "cursor parsing must preserve the row id tie breaker")
-				require.Zero(t, logs.instanceCalls, "pagination fragments must not reload filter choices")
-				if route == "" {
-					require.NotContains(t, rec.Body.String(), "<html", "pagination must return only log rows")
-					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search pagination must never connect a WebSocket")
-				} else {
-					require.Contains(t, rec.Header().Get("Content-Type"), "application/json", "the existing search API must keep its JSON response")
-				}
-			})
-		}
+	for _, tc := range []struct {
+		name   string
+		query  string
+		status int
+		micros int64
+	}{
+		{"microseconds", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=backward", 200, 1791979200123456},
+		{"legacy milliseconds", "cursorTime=1791979200123&cursorSequenceNumber=2&cursorId=7&direction=forward", 400, 0},
+		{"forward direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=forward", 200, 1791979200123456},
+		{"missing ID", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&direction=backward", 400, 0},
+		{"missing direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7", 400, 0},
+		{"invalid direction", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=7&direction=sideways", 400, 0},
+		{"missing sequence", "cursorTimeUs=1791979200123456&cursorId=7&direction=backward", 400, 0},
+		{"missing timestamp", "cursorSequenceNumber=2&cursorId=7&direction=backward", 400, 0},
+		{"ambiguous timestamp", "cursorTime=123&cursorTimeUs=123000&cursorSequenceNumber=2&cursorId=7&direction=backward", 400, 0},
+		{"nonpositive timestamp", "cursorTimeUs=0&cursorSequenceNumber=2&cursorId=7&direction=backward", 400, 0},
+		{"invalid timestamp", "cursorTimeUs=invalid&cursorSequenceNumber=2&cursorId=7&direction=backward", 400, 0},
+		{"timestamp overflow", "cursorTimeUs=9223372036854775808&cursorSequenceNumber=2&cursorId=7&direction=backward", 400, 0},
+		{"invalid id", "cursorTimeUs=1791979200123456&cursorSequenceNumber=2&cursorId=-1&direction=backward", 400, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+			logs := &logSearchStub{}
+			handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true}, loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+			req := httptest.NewRequest(http.MethodGet, "/logs/"+projectID+"/"+clientID+"?search=connection&"+tc.query, nil)
+			req.Header.Set("HX-Request", "true")
+			req.Header.Set("HX-Request-Type", "partial")
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			require.Equal(t, tc.status, rec.Code, "the log page must validate cursor parameters")
+			if tc.status != http.StatusOK {
+				require.Zero(t, logs.logCalls, "invalid cursors must be rejected before querying logs")
+				return
+			}
+			cursor := logs.request.Older
+			if strings.Contains(tc.query, "direction=backward") {
+				require.Nil(t, logs.request.Newer, "backward navigation uses only the older cursor")
+			} else {
+				require.Nil(t, logs.request.Older, "forward navigation uses only the newer cursor")
+				cursor = logs.request.Newer
+			}
+			require.NotNil(t, cursor, "a complete cursor must reach the reader")
+			require.Equal(t, time.UnixMicro(tc.micros), cursor.OccurredAt, "cursor parsing must preserve microsecond precision")
+			require.Equal(t, int64(2), cursor.Sequence, "cursor parsing must preserve the sequence number")
+			require.Equal(t, int64(7), cursor.ID, "cursor parsing must preserve the row id tie breaker")
+			require.Zero(t, logs.instanceCalls, "pagination fragments must not reload filter choices")
+			require.NotContains(t, rec.Body.String(), "<html", "pagination must return only log rows")
+			require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search pagination must never connect a WebSocket")
+		})
 	}
 }
 
@@ -346,6 +338,6 @@ func TestLogSearchKeepsPreciseRange(t *testing.T) {
 	} {
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+invalid, nil))
-		require.Equal(t, http.StatusBadRequest, rec.Code, invalid)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "invalid interval %q must be rejected", invalid)
 	}
 }

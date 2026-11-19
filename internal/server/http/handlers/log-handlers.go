@@ -23,20 +23,6 @@ import (
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
 )
 
-type LogLine struct {
-	ID             string        `json:"id"`
-	Timestamp      int64         `json:"timestamp"`
-	Content        string        `json:"content"`
-	SequenceNumber int64         `json:"sequenceNumber"`
-	Client         logLineClient `json:"client"`
-}
-
-type logLineClient struct {
-	ProjectID string `json:"projectId"`
-	ClientID  string `json:"clientId"`
-	Instance  string `json:"instanceId"`
-}
-
 type LogReader interface {
 	Page(ctx context.Context, query logstore.PageQuery) (logstore.Page, error)
 	Around(ctx context.Context, scope logstore.Scope, id int64, limit int, bounds *logstore.TimeRange) (logstore.Page, bool, error)
@@ -46,8 +32,6 @@ type LogReader interface {
 type LogsRouter struct {
 	logReader       LogReader
 	projectsService projects.ProjectsService
-	parentRouter    *echo.Group
-	api             *echo.Group
 }
 
 const DEFAULT_PAGE_SIZE = 300
@@ -196,22 +180,6 @@ func (self *LogsRouter) logClientName(ctx context.Context, projectID, clientID s
 	return ""
 }
 
-func (self *LogsRouter) instancesByClientHandler(c *echo.Context) error {
-	projectId := c.Param("projectId")
-	clientId := c.Param("clientId")
-	if projectId == "" || clientId == "" {
-		return c.JSON(400, i18n.T(c.Request().Context(), "logs.ids_required"))
-	}
-	slog.Debug("Getting instances by client", "projectId", projectId, "clientId", clientId)
-
-	instances, err := self.logReader.Instances(c.Request().Context(), logScope(projectId, clientId))
-	if err != nil {
-		return err
-	}
-
-	return c.JSON(200, instances)
-}
-
 func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	var params LogsByClientBinding
 
@@ -235,7 +203,7 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	}
 	parsedSearch, err := logsearch.Parse(params.Search)
 	if err != nil {
-		return logSearchValidationError(c, false)
+		return logSearchValidationError(c)
 	}
 	if params.Search != "" {
 		params.LogLineId = nil
@@ -330,52 +298,8 @@ func (self *LogsRouter) readPage(ctx context.Context, query logstore.PageQuery, 
 	return page, latest, err
 }
 
-func (self *LogsRouter) searchLogs(c *echo.Context) error {
-	var params LogsByClientBinding
-
-	err := c.Bind(&params)
-	if err != nil {
-		slog.Error("Bindings for logs by client not correct", "error", err)
-		return c.JSON(400, i18n.T(c.Request().Context(), "errors.400_title"))
-	}
-	params.Search = strings.TrimSpace(params.Search)
-	parsedSearch, err := logsearch.Parse(params.Search)
-	if err != nil {
-		return logSearchValidationError(c, true)
-	}
-
-	nextCursor, err := params.cursor()
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, i18n.T(c.Request().Context(), "logs.invalid_cursor"))
-	}
-
-	slog.Debug("next", "cursor", nextCursor)
-	page, err := self.logReader.Page(c.Request().Context(), params.pageQuery(nextCursor, &parsedSearch, nil))
-
-	if err != nil {
-		return err
-	}
-
-	logsLen := len(page.Rows)
-	mappedLogs := make([]LogLine, logsLen)
-	for i, log := range page.Rows {
-		mappedLogs[logsLen-i-1] = LogLine{
-			strconv.FormatInt(log.ID, 10),
-			log.OccurredAt.UnixMilli(),
-			log.Message,
-			log.Sequence,
-			logLineClient{ProjectID: log.Scope.ProjectID.String(), ClientID: log.Scope.ClientID.String(), Instance: log.Instance},
-		}
-	}
-
-	return c.JSON(200, mappedLogs)
-}
-
-func logSearchValidationError(c *echo.Context, jsonResponse bool) error {
+func logSearchValidationError(c *echo.Context) error {
 	message := i18n.T(c.Request().Context(), "logs.search_too_short")
-	if jsonResponse {
-		return c.JSON(http.StatusBadRequest, message)
-	}
 	if htmx.IsHXRequest(c) {
 		htmx.AddErrorToast(c, message)
 		c.Response().Header().Set("HX-Reswap", "none")
@@ -393,13 +317,9 @@ func NewLogsRouter(logReader LogReader, authService auth.AuthService, projectsSe
 	logsRouter := &LogsRouter{
 		logReader:       logReader,
 		projectsService: projectsService,
-		parentRouter:    e,
-		api:             logsApi,
 	}
 
-	logsRouter.api.GET("", logsRouter.logsByClientHandler)
-	logsRouter.api.GET("/instances", logsRouter.instancesByClientHandler)
-	logsRouter.api.GET("/search", logsRouter.searchLogs)
+	logsApi.GET("", logsRouter.logsByClientHandler)
 
 	return logsRouter
 }
