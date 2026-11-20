@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/archive"
+	"github.com/markojerkic/svarog/internal/lib/archivelink"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/oauth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
@@ -29,6 +30,7 @@ type HttpServer struct {
 	natsCredentialService   *serverauth.NatsCredentialService
 	liveLogs                *live.Logs
 	oauth                   *oauth.Service
+	archiveLinks            *archivelink.Signer
 
 	server *stdhttp.Server
 }
@@ -44,6 +46,8 @@ type HttpServerOptions struct {
 	LiveLogs                *live.Logs
 	// OAuth enables the MCP endpoint and its authorization server when non-nil.
 	OAuth *oauth.Service
+	// ArchiveLinks signs the archive download links issued by MCP tools.
+	ArchiveLinks *archivelink.Signer
 
 	ServerPort int
 }
@@ -91,15 +95,19 @@ func (self *HttpServer) Start() error {
 // authenticates every request with an OAuth access token instead of a cookie.
 func (self *HttpServer) registerMCP(e *echo.Echo, privateApi *echo.Group) {
 	handlers.RegisterOAuth(self.oauth, e, privateApi)
+	handlers.RegisterArchiveLinks(e, self.archiveLinks, self.authService, self.projectsService, self.archiver)
 	resourceMetadata := echo.WrapHandler(mcpserver.NewResourceMetadataHandler(self.oauth.Issuer(), self.oauth.Resource()))
 	e.GET(mcpserver.ResourceMetadataPath, resourceMetadata)
 	e.OPTIONS(mcpserver.ResourceMetadataPath, resourceMetadata)
 	e.Any(mcpserver.Path, echo.WrapHandler(mcpserver.NewHandler(mcpserver.Options{
-		Issuer:   self.oauth.Issuer(),
-		Resource: self.oauth.Resource(),
-		Tokens:   self.oauth,
-		Users:    self.authService,
-		Projects: self.projectsService,
+		Issuer:       self.oauth.Issuer(),
+		Resource:     self.oauth.Resource(),
+		Tokens:       self.oauth,
+		Users:        self.authService,
+		Projects:     self.projectsService,
+		Logs:         self.logReader,
+		Archives:     self.archiver,
+		ArchiveLinks: self.archiveLinks,
 	})))
 }
 
@@ -125,6 +133,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		natsCredentialService:   options.NatsCredentialService,
 		liveLogs:                options.LiveLogs,
 		oauth:                   options.OAuth,
+		archiveLinks:            options.ArchiveLinks,
 	}
 
 	return server

@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
-
 	"log/slog"
+	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/markojerkic/svarog/internal/lib/archivelink"
 	"github.com/markojerkic/svarog/internal/server/i18n"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/internal/server/ui/utils"
@@ -32,7 +33,11 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 		slog.Debug("HTTP error", "code", code, "message", message)
 	}
 
-	slog.Error("HTTP error", "code", code, "error", err, "path", c.Request().URL.Path)
+	path := c.Request().URL.Path
+	if strings.HasPrefix(path, archivelink.Path) {
+		path = archivelink.Path + ":token"
+	}
+	slog.Error("HTTP error", "code", code, "error", err, "path", path)
 
 	props := pages.ErrorPageProps{
 		StatusCode: code,

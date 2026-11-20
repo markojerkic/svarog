@@ -210,6 +210,9 @@
   "archives.invalid_cursor": { "other": "Neispravna pozicija u arhivama." },
   "archives.not_found": { "other": "Arhiva nije pronađena." },
   "archives.unavailable": { "other": "Sadržaj arhive nije dostupan." },
+  "archives.download_link_invalid": {
+    "other": "Ova poveznica za preuzimanje nije valjana ili je istekla, ili više nemate pristup arhivi. Zatražite novu poveznicu."
+  },
   "projects.description": { "other": "Upravljajte projektima i klijentima koji šalju logove." },
   "projects.search": { "other": "Pretraži projekte" },
   "projects.search_placeholder": { "other": "Pretraži projekte..." },

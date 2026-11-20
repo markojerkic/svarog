@@ -8,14 +8,25 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
+	"github.com/markojerkic/svarog/internal/lib/archive"
+	"github.com/markojerkic/svarog/internal/lib/archivelink"
 	svarogauth "github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/lib/oauth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/server/logstore"
 )
+
+// instructions tell the model how the tools fit together.
+const instructions = `Svarog stores log lines from clients grouped into projects. Each client can run several named instances.
+Start with list_projects to find project and client IDs. search_logs finds lines; every line has a link.
+get_log_context takes a link (or IDs) and returns the surrounding lines of the same instance.
+Results list lines from oldest to newest; pass older_cursor or newer_cursor to get_log_page to move through history.
+Old lines may have been moved to archives: list_archives and get_archive_download_link (administrators only).`
 
 const (
 	Path                 = "/mcp"
@@ -28,27 +39,58 @@ type AccessTokens interface {
 
 type Users interface {
 	GetUserByID(ctx context.Context, id string) (svarogauth.User, error)
+	UserHasAccessToProject(ctx context.Context, userID, projectID string) (bool, error)
 }
 
 type Projects interface {
 	All(ctx context.Context) ([]projects.Project, error)
 	ByIDs(ctx context.Context, ids []string) ([]projects.Project, error)
+	ClientsForProjects(ctx context.Context, projectIDs []uuid.UUID) ([]projects.ProjectClient, error)
+	ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error)
+}
+
+type LogReader interface {
+	Page(ctx context.Context, query logstore.PageQuery) (logstore.Page, error)
+	Around(ctx context.Context, scope logstore.Scope, id int64, limit int, bounds *logstore.TimeRange) (logstore.Page, bool, error)
+	Instances(ctx context.Context, scope logstore.Scope) ([]string, error)
+}
+
+type Archives interface {
+	List(ctx context.Context, scope archive.Scope, query archive.ListQuery) (archive.Page, error)
+	Get(ctx context.Context, scope archive.Scope, archiveID uuid.UUID) (archive.Archive, error)
+}
+
+type ArchiveLinks interface {
+	Sign(claims archivelink.Claims) string
 }
 
 type Options struct {
-	// Issuer is the OAuth authorization server, and Resource is this endpoint's URL.
-	Issuer   string
-	Resource string
-	Tokens   AccessTokens
-	Users    Users
-	Projects Projects
+	// Issuer is the OAuth authorization server and the public base URL of
+	// links; Resource is this endpoint's URL.
+	Issuer       string
+	Resource     string
+	Tokens       AccessTokens
+	Users        Users
+	Projects     Projects
+	Logs         LogReader
+	Archives     Archives
+	ArchiveLinks ArchiveLinks
 }
 
 // NewHandler serves MCP over stateless Streamable HTTP, so any replica can
 // answer any request. Every request needs an access token issued for Resource.
 func NewHandler(options Options) http.Handler {
-	server := mcp.NewServer(&mcp.Implementation{Name: "svarog", Title: "Svarog", Version: version()}, nil)
-	registerTools(server, &tools{users: options.Users, projects: options.Projects})
+	server := mcp.NewServer(&mcp.Implementation{Name: "svarog", Title: "Svarog", Version: version()}, &mcp.ServerOptions{
+		Instructions: instructions,
+	})
+	registerTools(server, &tools{
+		baseURL:      options.Issuer,
+		users:        options.Users,
+		projects:     options.Projects,
+		logs:         options.Logs,
+		archives:     options.Archives,
+		archiveLinks: options.ArchiveLinks,
+	})
 
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },

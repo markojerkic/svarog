@@ -15,6 +15,15 @@ type Client struct {
 	Name string    `json:"name"`
 }
 
+// ProjectClient is a client of any status. Inactive clients keep their
+// retained logs readable.
+type ProjectClient struct {
+	ID        uuid.UUID
+	ProjectID uuid.UUID
+	Name      string
+	Active    bool
+}
+
 func (p Project) ClientNames() []string {
 	names := make([]string, len(p.Clients))
 	for i, client := range p.Clients {

@@ -51,6 +51,10 @@ SELECT * FROM clients WHERE project_id = $1 AND is_active ORDER BY lower(name), 
 SELECT * FROM clients WHERE project_id = ANY(sqlc.arg(project_ids)::uuid[]) AND is_active
 ORDER BY lower(name), id;
 
+-- name: ListClientsForProjects :many
+SELECT * FROM clients WHERE project_id = ANY(sqlc.arg(project_ids)::uuid[])
+ORDER BY lower(name), id;
+
 -- name: DeactivateClient :one
 UPDATE clients SET is_active = false, updated_at = now()
 WHERE id = $1 AND project_id = $2 RETURNING *;

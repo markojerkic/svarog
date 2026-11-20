@@ -143,7 +143,7 @@ func (a *App) Run() (runErr error) {
 	}
 	projectsService := projects.NewPostgresProjectsService(postgresPool, archiveStore)
 	archiver := archive.NewArchiveService(postgresPool, archiveStore)
-	oauthService, err := newOAuthService(env.PublicURL, postgresPool)
+	oauthService, archiveLinks, err := newMCPAuth(env.PublicURL, env.SessionSecret, postgresPool)
 	if err != nil {
 		return fmt.Errorf("configure MCP authorization: %w", err)
 	}
@@ -242,6 +242,7 @@ func (a *App) Run() (runErr error) {
 			NatsCredentialService:   natsCredService,
 			LiveLogs:                liveLogs,
 			OAuth:                   oauthService,
+			ArchiveLinks:            archiveLinks,
 		})
 
 	// Background work stops in gracefulShutdown's order, not directly on a signal.

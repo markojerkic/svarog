@@ -139,24 +139,18 @@ func (a *Service) List(ctx context.Context, scope Scope, query ListQuery) (Page,
 	return page, nil
 }
 
-func (a *Service) Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (Download, error) {
-	if err := validateScope(scope); err != nil {
-		return Download{}, err
-	}
-	if archiveID == uuid.Nil {
-		return Download{}, fmt.Errorf("%w: archive ID is required", ErrInvalidInput)
-	}
-	if _, err := getPolicy(ctx, a.pool, scope); err != nil {
-		return Download{}, err
-	}
-	record, err := sqlc.New(a.pool).GetReadyArchive(ctx, sqlc.GetReadyArchiveParams{
-		ProjectID: scope.ProjectID, ClientID: scope.ClientID, ID: archiveID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Download{}, ErrArchiveNotFound
-	}
+func (a *Service) Get(ctx context.Context, scope Scope, archiveID uuid.UUID) (Archive, error) {
+	record, err := a.readyArchive(ctx, scope, archiveID)
 	if err != nil {
-		return Download{}, fmt.Errorf("get archive: %w", err)
+		return Archive{}, err
+	}
+	return publicArchive(record), nil
+}
+
+func (a *Service) Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (Download, error) {
+	record, err := a.readyArchive(ctx, scope, archiveID)
+	if err != nil {
+		return Download{}, err
 	}
 	if a.store == nil {
 		return Download{}, ErrNotConfigured
@@ -169,6 +163,28 @@ func (a *Service) Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (D
 		return Download{}, fmt.Errorf("%w: %w", ErrArchiveUnavailable, err)
 	}
 	return Download{Archive: publicArchive(record), Content: content}, nil
+}
+
+func (a *Service) readyArchive(ctx context.Context, scope Scope, archiveID uuid.UUID) (sqlc.Archive, error) {
+	if err := validateScope(scope); err != nil {
+		return sqlc.Archive{}, err
+	}
+	if archiveID == uuid.Nil {
+		return sqlc.Archive{}, fmt.Errorf("%w: archive ID is required", ErrInvalidInput)
+	}
+	if _, err := getPolicy(ctx, a.pool, scope); err != nil {
+		return sqlc.Archive{}, err
+	}
+	record, err := sqlc.New(a.pool).GetReadyArchive(ctx, sqlc.GetReadyArchiveParams{
+		ProjectID: scope.ProjectID, ClientID: scope.ClientID, ID: archiveID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Archive{}, ErrArchiveNotFound
+	}
+	if err != nil {
+		return sqlc.Archive{}, fmt.Errorf("get archive: %w", err)
+	}
+	return record, nil
 }
 
 func getPolicy(ctx context.Context, db sqlc.DBTX, scope Scope) (Policy, error) {

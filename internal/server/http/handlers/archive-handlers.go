@@ -147,6 +147,11 @@ func (a *ArchiveRouter) downloadArchive(c *echo.Context) error {
 	if err != nil {
 		return archiveDownloadError(c, err)
 	}
+	return writeArchiveDownload(c, download, archiveID)
+}
+
+// writeArchiveDownload streams the ZIP and closes it.
+func writeArchiveDownload(c *echo.Context, download archive.Download, archiveID uuid.UUID) error {
 	defer download.Content.Close()
 
 	name := archiveAttachmentName(download.Archive.FileName, archiveID.String())
@@ -159,7 +164,7 @@ func (a *ArchiveRouter) downloadArchive(c *echo.Context) error {
 		header.Set("Content-Length", strconv.FormatInt(download.Archive.SizeBytes, 10))
 	}
 	c.Response().WriteHeader(http.StatusOK)
-	_, err = io.Copy(c.Response(), download.Content)
+	_, err := io.Copy(c.Response(), download.Content)
 	return err
 }
 

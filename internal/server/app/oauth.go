@@ -1,30 +1,36 @@
 package app
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/markojerkic/svarog/internal/lib/archivelink"
 	"github.com/markojerkic/svarog/internal/lib/oauth"
 	"github.com/markojerkic/svarog/internal/server/mcpserver"
 )
 
-// newOAuthService returns nil when PUBLIC_URL is unset: OAuth needs a stable
-// issuer URL, so the MCP endpoint is disabled without one.
-func newOAuthService(publicURL string, pool *pgxpool.Pool) (*oauth.Service, error) {
+// newMCPAuth returns nil services when PUBLIC_URL is unset: OAuth needs a
+// stable issuer URL, so the MCP endpoint is disabled without one.
+func newMCPAuth(publicURL, sessionSecret string, pool *pgxpool.Pool) (*oauth.Service, *archivelink.Signer, error) {
 	if publicURL == "" {
 		slog.Info("PUBLIC_URL not set; MCP endpoint disabled")
-		return nil, nil
+		return nil, nil, nil
 	}
 	issuer, err := oauth.ParsePublicURL(publicURL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if sessionSecret == "" {
+		return nil, nil, errors.New("SESSION_SECRET is required to sign archive download links")
 	}
 	slog.Info("MCP endpoint enabled", "url", issuer+mcpserver.Path)
-	return oauth.NewService(oauth.Options{
+	service := oauth.NewService(oauth.Options{
 		Pool:     pool,
 		Issuer:   issuer,
 		Resource: issuer + mcpserver.Path,
 		Clients:  oauth.NewMetadataDocumentResolver(),
-	}), nil
+	})
+	return service, archivelink.NewSigner(sessionSecret), nil
 }

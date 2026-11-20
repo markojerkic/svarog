@@ -1,18 +1,24 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/archive"
+	"github.com/markojerkic/svarog/internal/lib/archivelink"
 	"github.com/markojerkic/svarog/internal/lib/auth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
+	"github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,6 +104,65 @@ func TestArchiveDownloadStreamsOnlyTheRequestedArchive(t *testing.T) {
 	server.ServeHTTP(missingResponse, missing)
 	require.Equal(t, http.StatusNotFound, missingResponse.Code, "A download for another archive must not return this archive")
 	require.NotContains(t, missingResponse.Body.String(), "zip-bytes", "A missing archive must not leak another archive's content")
+}
+
+type archiveLinkAuth struct {
+	archiveAccessAuth
+	user auth.User
+}
+
+func (a *archiveLinkAuth) GetUserByID(context.Context, string) (auth.User, error) {
+	return a.user, nil
+}
+
+func TestSignedArchiveDownload(t *testing.T) {
+	users := &archiveLinkAuth{user: auth.User{ID: uuid.New(), Role: auth.ADMIN}}
+	content := &trackingReader{Reader: strings.NewReader("zip-bytes")}
+	archiveID := uuid.New()
+	stub := &archiveHTTPStub{download: archive.Download{
+		Archive: archive.Archive{ID: archiveID, FileName: "archive.zip", SizeBytes: 9},
+		Content: content,
+	}}
+	signer := archivelink.NewSigner("archive-download-test-secret")
+	claims := archivelink.Claims{
+		UserID: users.user.ID, ProjectID: uuid.New(), ClientID: uuid.New(), ArchiveID: archiveID,
+		ExpiresAt: time.Now().Add(archivelink.TTL),
+	}
+	token := signer.Sign(claims)
+	server := echo.New()
+	server.HTTPErrorHandler = middleware.CustomHTTPErrorHandler
+	handlers.RegisterArchiveLinks(server, signer, users, archiveAccessProjects{}, stub)
+
+	download := func(token string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, archivelink.Path+token, nil)
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		return response
+	}
+
+	response := download(token)
+	require.Equal(t, http.StatusOK, response.Code, "A valid signed link must work without a session")
+	require.Equal(t, "zip-bytes", response.Body.String(), "The signed link must stream the archive")
+
+	stub.opened = uuid.Nil
+	users.user.Role = auth.USER
+	require.Equal(t, http.StatusNotFound, download(token).Code, "Losing the administrator role must invalidate a previously issued link")
+	users.user.Role = auth.ADMIN
+	claims.ExpiresAt = time.Now().Add(-time.Minute)
+	require.Equal(t, http.StatusNotFound, download(signer.Sign(claims)).Code, "An expired link must be rejected")
+	claims.ExpiresAt = time.Now().Add(archivelink.TTL)
+	otherToken := archivelink.NewSigner("another-secret").Sign(claims)
+	require.Equal(t, http.StatusNotFound, download(otherToken).Code, "A link with an invalid signature must be rejected")
+	require.Equal(t, uuid.Nil, stub.opened, "Rejected links must never open an archive")
+
+	var logs bytes.Buffer
+	originalLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(originalLogger) })
+	stub.openErr = errors.New("archive store failed")
+	require.Equal(t, http.StatusInternalServerError, download(token).Code, "A storage failure must return a server error")
+	require.Contains(t, logs.String(), "archive store failed", "Storage failures must be recorded for diagnosis")
+	require.NotContains(t, logs.String(), token, "HTTP error logs must not expose the signed link")
 }
 
 type trackingReader struct {

@@ -27,6 +27,8 @@ type Archiver interface {
 	Create(ctx context.Context, scope Scope) (CreateResult, error)
 	// List returns completed archives ordered by CreatedAt DESC, ID DESC.
 	List(ctx context.Context, scope Scope, query ListQuery) (Page, error)
+	// Get returns a completed archive's description without opening its content.
+	Get(ctx context.Context, scope Scope, archiveID uuid.UUID) (Archive, error)
 	// Open returns completed archive content. The caller must close it and
 	// handle read errors; the stream does not promise seeking or Range support.
 	Open(ctx context.Context, scope Scope, archiveID uuid.UUID) (Download, error)

@@ -433,6 +433,38 @@ func (q *Queries) ListAllProjects(ctx context.Context) ([]Project, error) {
 	return items, nil
 }
 
+const listClientsForProjects = `-- name: ListClientsForProjects :many
+SELECT id, project_id, name, is_active, created_at, updated_at FROM clients WHERE project_id = ANY($1::uuid[])
+ORDER BY lower(name), id
+`
+
+func (q *Queries) ListClientsForProjects(ctx context.Context, projectIds []uuid.UUID) ([]Client, error) {
+	rows, err := q.db.Query(ctx, listClientsForProjects, projectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Client
+	for rows.Next() {
+		var i Client
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectArchiveObjects = `-- name: ListProjectArchiveObjects :many
 SELECT a.storage_backend, a.object_key
 FROM archives a

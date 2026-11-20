@@ -159,6 +159,19 @@ func (p *PostgresProjectsService) ProjectExists(ctx context.Context, projectID, 
 	return err == nil && exists
 }
 
+// ClientsForProjects lists every client of the projects, including inactive ones.
+func (p *PostgresProjectsService) ClientsForProjects(ctx context.Context, projectIDs []uuid.UUID) ([]ProjectClient, error) {
+	rows, err := p.queries.ListClientsForProjects(ctx, projectIDs)
+	if err != nil {
+		return nil, err
+	}
+	clients := make([]ProjectClient, len(rows))
+	for i, row := range rows {
+		clients[i] = ProjectClient{ID: row.ID, ProjectID: row.ProjectID, Name: row.Name, Active: row.IsActive}
+	}
+	return clients, nil
+}
+
 func (p *PostgresProjectsService) ClientBelongsToProject(ctx context.Context, projectID, clientID string) (bool, error) {
 	project, err := uuid.Parse(projectID)
 	if err != nil {
