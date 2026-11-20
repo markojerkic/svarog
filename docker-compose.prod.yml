@@ -12,6 +12,7 @@ services:
     environment:
       POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL to the existing PostgreSQL database}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      PUBLIC_URL: ${PUBLIC_URL:-}
       HTTP_SERVER_PORT: "1323"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SVAROG_CONN_STRING: ${SVAROG_CONN_STRING:-}

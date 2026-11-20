@@ -373,5 +373,26 @@
     "other": "Poslužitelj je primio neispravan odgovor drugog poslužitelja."
   },
   "errors.503_message": { "other": "Usluga je privremeno nedostupna. Pokušajte ponovno kasnije." },
-  "errors.unexpected": { "other": "Došlo je do neočekivane pogreške." }
+  "errors.unexpected": { "other": "Došlo je do neočekivane pogreške." },
+  "oauth.consent_title": { "other": "Dopustiti pristup?" },
+  "oauth.consent_description": {
+    "other": "{{.Client}} traži pristup Svarogu kao korisnik {{.User}}."
+  },
+  "oauth.consent_permission": {
+    "other": "Moći će čitati projekte i logove kojima imate pristup."
+  },
+  "oauth.consent_application_id": { "other": "ID aplikacije" },
+  "oauth.consent_redirect": { "other": "Preusmjerava na" },
+  "oauth.consent_local_warning": {
+    "other": "Ova aplikacija radi na vašem računalu. Dopustite pristup samo ako ste sami pokrenuli povezivanje."
+  },
+  "oauth.allow": { "other": "Dopusti" },
+  "oauth.deny": { "other": "Odbij" },
+  "oauth.invalid_client": { "other": "Aplikaciju koja traži pristup nije moguće provjeriti." },
+  "oauth.invalid_request": {
+    "other": "Zahtjev za autorizaciju je nepotpun ili njegova povratna adresa nije registrirana."
+  },
+  "oauth.client_unavailable": {
+    "other": "Podaci o aplikaciji trenutačno nisu dostupni. Pokušajte ponovno kasnije."
+  }
 }

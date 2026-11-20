@@ -167,7 +167,10 @@ func (a *loginRouter) loginPage(c *echo.Context) error {
 }
 
 func (a *passwordRouter) resetPasswordPage(c *echo.Context) error {
-	redirect := c.QueryParam("redirect")
+	var redirect string
+	if c.QueryParams().Has("redirect") {
+		redirect = loginRedirect(c.QueryParam("redirect"))
+	}
 	return utils.Render(c, http.StatusOK, authpages.ResetPasswordPage(authpages.ResetPasswordPageProps{
 		Redirect: redirect,
 	}))
@@ -199,11 +202,8 @@ func (a *passwordRouter) resetPassword(c *echo.Context) error {
 		return resetPasswordError(c, err)
 	}
 
-	redirect := c.FormValue("redirect")
-	if redirect != "" {
-		return utils.HxRedirect(c, redirect)
-	}
-	return utils.HxRedirect(c, "/")
+	// The return target must stay on Svarog, as after login.
+	return utils.HxRedirect(c, loginRedirect(c.FormValue("redirect")))
 }
 
 func resetPasswordError(c *echo.Context, err error) error {

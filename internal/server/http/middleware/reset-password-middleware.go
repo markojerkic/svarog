@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"log/slog"
+	"net/http"
+	"net/url"
 
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/auth"
@@ -21,9 +23,20 @@ func RestPasswordMiddleware() echo.MiddlewareFunc {
 			if user.NeedsPasswordReset && c.Path() != "/reset-password" {
 				slog.Debug("User needs password reset, redirecting to reset password page")
 				htmx.AddWarningToast(c, i18n.T(c.Request().Context(), "auth.reset_required"))
-				return htmx.Redirect(c, "/reset-password")
+				return htmx.Redirect(c, resetPasswordURL(c.Request()))
 			}
 			return next(c)
 		}
 	}
+}
+
+// resetPasswordURL returns to the requested page after the reset, so an OAuth
+// authorization request survives a forced password change.
+func resetPasswordURL(request *http.Request) string {
+	if request.Method != http.MethodGet || request.URL.RequestURI() == "/" {
+		return "/reset-password"
+	}
+	query := url.Values{}
+	query.Set("redirect", request.URL.RequestURI())
+	return "/reset-password?" + query.Encode()
 }

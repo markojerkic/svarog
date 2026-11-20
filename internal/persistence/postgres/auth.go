@@ -78,6 +78,10 @@ func ReplaceLoginToken(ctx context.Context, pool *pgxpool.Pool, input ReplaceLog
 		}); err != nil {
 			return fmt.Errorf("replace login token: %w", err)
 		}
+		// Replacing the credentials also disconnects the user's MCP clients.
+		if err := queries.DeleteOAuthGrantsForUser(ctx, input.UserID); err != nil {
+			return fmt.Errorf("revoke OAuth grants: %w", err)
+		}
 		return nil
 	})
 	if err != nil {

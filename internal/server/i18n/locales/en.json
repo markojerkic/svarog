@@ -357,5 +357,24 @@
   "errors.503_message": {
     "other": "The service is temporarily unavailable. Please try again later."
   },
-  "errors.unexpected": { "other": "An unexpected error occurred." }
+  "errors.unexpected": { "other": "An unexpected error occurred." },
+  "oauth.consent_title": { "other": "Allow access?" },
+  "oauth.consent_description": { "other": "{{.Client}} wants to access Svarog as {{.User}}." },
+  "oauth.consent_permission": {
+    "other": "It will be able to read the projects and logs you have access to."
+  },
+  "oauth.consent_application_id": { "other": "Application ID" },
+  "oauth.consent_redirect": { "other": "Redirects to" },
+  "oauth.consent_local_warning": {
+    "other": "This application runs on your computer. Allow access only if you started the connection yourself."
+  },
+  "oauth.allow": { "other": "Allow" },
+  "oauth.deny": { "other": "Deny" },
+  "oauth.invalid_client": { "other": "The application requesting access could not be verified." },
+  "oauth.invalid_request": {
+    "other": "The authorization request is incomplete or its return address is not registered."
+  },
+  "oauth.client_unavailable": {
+    "other": "The application's details could not be loaded. Please try again later."
+  }
 }

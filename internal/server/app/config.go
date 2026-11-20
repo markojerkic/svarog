@@ -16,6 +16,7 @@ type Config struct {
 	LogQueueCapacity              string        `env:"SVAROG_LOG_QUEUE_CAPACITY"`
 	PostgresURL                   string        `env:"POSTGRES_URL" envDefault:"postgres://svarog:svarog@localhost:5434/svarog?sslmode=disable"`
 	ServerDnsName                 string        `env:"SERVER_DNS_NAME"`
+	PublicURL                     string        `env:"PUBLIC_URL"`
 	HttpServerPort                int           `env:"HTTP_SERVER_PORT"`
 	SessionSecret                 string        `env:"SESSION_SECRET"`
 	ArchiveDir                    string        `env:"ARCHIVE_DIR"`

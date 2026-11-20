@@ -239,6 +239,10 @@ func (a *PostgresAuthService) ResetPassword(ctx context.Context, userID string, 
 		if _, err := q.UpdateUserPassword(ctx, sqlc.UpdateUserPasswordParams{ID: id, PasswordHash: hash, NeedsPasswordReset: false}); err != nil {
 			return err
 		}
+		// A new password also disconnects the user's MCP clients.
+		if err := q.DeleteOAuthGrantsForUser(ctx, id); err != nil {
+			return err
+		}
 		return q.DeleteLoginTokensForUser(ctx, id)
 	})
 	return authError(err)

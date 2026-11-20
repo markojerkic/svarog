@@ -1,0 +1,91 @@
+package auth
+
+import "github.com/markojerkic/svarog/internal/server/ui/pages"
+import "github.com/markojerkic/svarog/internal/server/ui/components/alert"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/card"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+
+type OAuthConsentPageProps struct {
+	ClientName string
+	// ClientID is the full metadata document URL; clients on one host differ only by path.
+	ClientID      string
+	ClientHost    string
+	RedirectHost  string
+	LocalRedirect bool
+	Username      string
+	Action        string
+	Fields        []OAuthField
+}
+
+// OAuthField carries one authorization request parameter through the form.
+type OAuthField struct {
+	Name  string
+	Value string
+}
+
+// The language switcher is omitted because it would leave the authorization request.
+templ OAuthConsentPage(p OAuthConsentPageProps) {
+	@pages.BaseLayout(pages.BaseProps{Title: i18n.T(ctx, "oauth.consent_title")}) {
+		<div class="flex min-h-svh flex-col items-center justify-center gap-6 overflow-auto bg-muted/40 p-6">
+			<div class="flex items-center gap-2 text-sm font-semibold">
+				<img src="/assets/logo.png" alt="" class="size-7"/>
+				Svarog
+			</div>
+			@card.Card(card.Props{Class: "w-full max-w-md [--card-spacing:--spacing(6)]"}) {
+				@card.Header() {
+					@card.Title() {
+						<h1 class="text-xl font-semibold tracking-tight">{ i18n.T(ctx, "oauth.consent_title") }</h1>
+					}
+					@card.Description() {
+						{ i18n.Format(ctx, i18n.Message{
+							ID:   "oauth.consent_description",
+							Data: map[string]any{"Client": p.ClientName, "User": p.Username},
+						}) }
+					}
+				}
+				@card.Content() {
+					<div class="space-y-4">
+						<p class="text-sm">{ i18n.T(ctx, "oauth.consent_permission") }</p>
+						<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+							<dt class="text-muted-foreground">{ i18n.T(ctx, "oauth.consent_application_id") }</dt>
+							<dd class="min-w-0 break-all">
+								<span class="font-medium">{ p.ClientHost }</span>
+								<span class="block text-xs text-muted-foreground">{ p.ClientID }</span>
+							</dd>
+							<dt class="text-muted-foreground">{ i18n.T(ctx, "oauth.consent_redirect") }</dt>
+							<dd class="min-w-0 break-all font-medium">{ p.RedirectHost }</dd>
+						</dl>
+						if p.LocalRedirect {
+							@alert.Alert() {
+								@icon.TriangleAlert(icon.Props{Class: "size-4"})
+								@alert.Description() {
+									{ i18n.T(ctx, "oauth.consent_local_warning") }
+								}
+							}
+						}
+						<form method="post" action={ templ.SafeURL(p.Action) } hx-boost="false" class="flex justify-end gap-2">
+							for _, field := range p.Fields {
+								<input type="hidden" name={ field.Name } value={ field.Value }/>
+							}
+							@button.Button(button.Props{
+								Type:       button.TypeSubmit,
+								Variant:    button.VariantOutline,
+								Attributes: templ.Attributes{"name": "decision", "value": "deny"},
+							}) {
+								{ i18n.T(ctx, "oauth.deny") }
+							}
+							@button.Button(button.Props{
+								Type:       button.TypeSubmit,
+								Attributes: templ.Attributes{"name": "decision", "value": "allow"},
+							}) {
+								{ i18n.T(ctx, "oauth.allow") }
+							}
+						</form>
+					</div>
+				}
+			}
+		</div>
+	}
+}

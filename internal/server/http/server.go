@@ -10,11 +10,13 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/lib/auth"
+	"github.com/markojerkic/svarog/internal/lib/oauth"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/markojerkic/svarog/internal/server/http/handlers"
 	customMiddleware "github.com/markojerkic/svarog/internal/server/http/middleware"
 	"github.com/markojerkic/svarog/internal/server/live"
+	"github.com/markojerkic/svarog/internal/server/mcpserver"
 )
 
 type HttpServer struct {
@@ -26,6 +28,7 @@ type HttpServer struct {
 	archiveSchedulerEnabled bool
 	natsCredentialService   *serverauth.NatsCredentialService
 	liveLogs                *live.Logs
+	oauth                   *oauth.Service
 
 	server *stdhttp.Server
 }
@@ -39,6 +42,8 @@ type HttpServerOptions struct {
 	ArchiveSchedulerEnabled bool
 	NatsCredentialService   *serverauth.NatsCredentialService
 	LiveLogs                *live.Logs
+	// OAuth enables the MCP endpoint and its authorization server when non-nil.
+	OAuth *oauth.Service
 
 	ServerPort int
 }
@@ -72,11 +77,30 @@ func (self *HttpServer) Start() error {
 	handlers.RegisterPasswordReset(self.authService, privateApi)
 	handlers.RegisterLogin(self.authService, publicApi)
 	handlers.NewWsConnectionRouter(self.liveLogs, self.authService, self.projectsService, privateApi)
+	if self.oauth != nil {
+		self.registerMCP(e, privateApi)
+	}
 
 	e.Static("/assets", "internal/server/ui/assets", customMiddleware.AssetsCacheMiddleware)
 
 	self.server.Handler = e
 	return self.server.ListenAndServe()
+}
+
+// registerMCP serves the MCP endpoint outside the session middleware: it
+// authenticates every request with an OAuth access token instead of a cookie.
+func (self *HttpServer) registerMCP(e *echo.Echo, privateApi *echo.Group) {
+	handlers.RegisterOAuth(self.oauth, e, privateApi)
+	resourceMetadata := echo.WrapHandler(mcpserver.NewResourceMetadataHandler(self.oauth.Issuer(), self.oauth.Resource()))
+	e.GET(mcpserver.ResourceMetadataPath, resourceMetadata)
+	e.OPTIONS(mcpserver.ResourceMetadataPath, resourceMetadata)
+	e.Any(mcpserver.Path, echo.WrapHandler(mcpserver.NewHandler(mcpserver.Options{
+		Issuer:   self.oauth.Issuer(),
+		Resource: self.oauth.Resource(),
+		Tokens:   self.oauth,
+		Users:    self.authService,
+		Projects: self.projectsService,
+	})))
 }
 
 func (self *HttpServer) Shutdown(ctx context.Context) error {
@@ -100,6 +124,7 @@ func NewServer(options HttpServerOptions) *HttpServer {
 		archiveSchedulerEnabled: options.ArchiveSchedulerEnabled,
 		natsCredentialService:   options.NatsCredentialService,
 		liveLogs:                options.LiveLogs,
+		oauth:                   options.OAuth,
 	}
 
 	return server

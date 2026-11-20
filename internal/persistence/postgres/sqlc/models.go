@@ -64,6 +64,23 @@ type LoginToken struct {
 	ExpiresAt time.Time
 }
 
+type OauthGrant struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	ClientID         string
+	RedirectUri      string
+	Resource         string
+	Scope            string
+	CodeHash         []byte
+	CodeChallenge    string
+	CodeExpiresAt    time.Time
+	AccessTokenHash  []byte
+	AccessExpiresAt  pgtype.Timestamptz
+	RefreshTokenHash []byte
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
+}
+
 type Project struct {
 	ID        uuid.UUID
 	Name      string
