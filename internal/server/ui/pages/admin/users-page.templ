@@ -71,19 +71,19 @@ templ UsersListPage(props UsersListPageProps) {
 			</div>
 			<div class="table-wrapper space-y-4">
 				<div class="overflow-hidden rounded-xl border">
-					@table.Table(table.Props{Class: "table-fixed [&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
+					@table.Table(table.Props{Class: "table-fixed [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td:not(:last-child)]:px-4"}) {
 						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
 							{ i18n.T(ctx, "users.list_caption") }
 						}
 						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
 							@table.Row() {
-								@table.Head(table.HeadProps{Class: "w-1/3"}) {
+								@table.Head(table.HeadProps{Class: "sm:w-1/3"}) {
 									{ i18n.T(ctx, "auth.username") }
 								}
-								@table.Head() {
+								@table.Head(table.HeadProps{Class: "hidden sm:table-cell"}) {
 									{ i18n.T(ctx, "users.name") }
 								}
-								@table.Head(table.HeadProps{Class: "w-36"}) {
+								@table.Head(table.HeadProps{Class: "w-28 sm:w-36"}) {
 									{ i18n.T(ctx, "users.role") }
 								}
 								@table.Head(table.HeadProps{Class: "w-12"}) {
@@ -118,9 +118,10 @@ templ UsersTableBody(props UsersListPageProps) {
 				Attributes: templ.Attributes{"data-user-id": user.ID.String()},
 			}) {
 				@table.Cell(table.CellProps{Class: "font-medium"}) {
-					<span class="block truncate" title={ user.Username }>{ user.Username }</span>
+					<span class="block max-sm:whitespace-normal max-sm:wrap-anywhere sm:truncate" title={ user.Username }>{ user.Username }</span>
+					<span class="block whitespace-normal wrap-anywhere font-normal text-muted-foreground sm:hidden">{ user.FirstName } { user.LastName }</span>
 				}
-				@table.Cell(table.CellProps{Class: "text-muted-foreground"}) {
+				@table.Cell(table.CellProps{Class: "hidden text-muted-foreground sm:table-cell"}) {
 					<span class="block truncate" title={ user.FirstName + " " + user.LastName }>{ user.FirstName + " " + user.LastName }</span>
 				}
 				@table.Cell() {
@@ -132,7 +133,7 @@ templ UsersTableBody(props UsersListPageProps) {
 						}
 					}
 				}
-				@table.Cell() {
+				@table.Cell(table.CellProps{Class: "px-0 text-center"}) {
 					@userActions(user)
 				}
 			}

@@ -71,16 +71,16 @@ templ ProjectsListPage(props ProjectsListPageProps) {
 			</div>
 			<div class="table-wrapper space-y-4">
 				<div class="overflow-hidden rounded-xl border">
-					@table.Table(table.Props{Class: "table-fixed [&_th]:px-4 [&_td]:px-4 [&_td]:py-3"}) {
+					@table.Table(table.Props{Class: "table-fixed [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td:not(:last-child)]:px-4"}) {
 						@table.Caption(table.CaptionProps{Class: "sr-only"}) {
 							{ i18n.T(ctx, "projects.list_caption") }
 						}
 						@table.Header(table.HeaderProps{Class: "bg-muted/50"}) {
 							@table.Row() {
-								@table.Head(table.HeadProps{Class: "w-2/5"}) {
+								@table.Head(table.HeadProps{Class: "sm:w-2/5"}) {
 									{ i18n.T(ctx, "projects.name") }
 								}
-								@table.Head() {
+								@table.Head(table.HeadProps{Class: "hidden sm:table-cell"}) {
 									{ i18n.T(ctx, "projects.clients") }
 								}
 								@table.Head(table.HeadProps{Class: "w-12"}) {
@@ -115,13 +115,17 @@ templ ProjectsTableBody(props ProjectsListPageProps) {
 			@table.Row(table.RowProps{
 				Attributes: templ.Attributes{"data-project-id": project.ID.String()},
 			}) {
+				{{ clientNames := strings.Join(project.ClientNames(), ", ") }}
 				@table.Cell(table.CellProps{Class: "font-medium"}) {
-					<span class="block truncate" title={ project.Name }>{ project.Name }</span>
+					<span class="block max-sm:whitespace-normal max-sm:wrap-anywhere sm:truncate" title={ project.Name }>{ project.Name }</span>
+					if clientNames != "" {
+						<span class="block whitespace-normal wrap-anywhere font-normal text-muted-foreground sm:hidden">{ clientNames }</span>
+					}
 				}
-				@table.Cell(table.CellProps{Class: "text-muted-foreground"}) {
-					<span class="block truncate" title={ strings.Join(project.ClientNames(), ", ") }>{ strings.Join(project.ClientNames(), ", ") }</span>
+				@table.Cell(table.CellProps{Class: "hidden text-muted-foreground sm:table-cell"}) {
+					<span class="block truncate" title={ clientNames }>{ clientNames }</span>
 				}
-				@table.Cell() {
+				@table.Cell(table.CellProps{Class: "px-0 text-center"}) {
 					@projectActions(project)
 				}
 			}

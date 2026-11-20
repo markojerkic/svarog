@@ -187,7 +187,7 @@ templ LogsHeaderActions(props LogsPageProps) {
 			}
 		}
 	} else if !props.IsLive() {
-		<span class="shrink-0 whitespace-nowrap text-xs text-muted-foreground max-md:max-w-24 max-md:truncate" title={ i18n.T(ctx, "logs.not_live") }>
+		<span data-log-view-status class="whitespace-nowrap text-xs text-muted-foreground md:shrink-0" title={ i18n.T(ctx, "logs.not_live") }>
 			if props.Search != "" {
 				{ i18n.T(ctx, "logs.search_results") }
 			} else {
@@ -197,7 +197,8 @@ templ LogsHeaderActions(props LogsPageProps) {
 	} else {
 		<span
 			id="log-live-status"
-			class="shrink-0 whitespace-nowrap text-xs text-muted-foreground"
+			data-log-view-status
+			class="whitespace-nowrap text-xs text-muted-foreground md:shrink-0"
 			role="status"
 			data-live-label={ i18n.T(ctx, "logs.live") }
 			data-stale-label={ i18n.T(ctx, "logs.live_interrupted") }
