@@ -8,6 +8,13 @@ window.templ.lifecycle.register("#log-search-trigger", {
   },
 });
 
+document.addEventListener("click", (event) => {
+  const toggle = event.target.closest(".log-panel-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(toggle.getAttribute("aria-expanded") !== "true"));
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (
     event.defaultPrevented ||
@@ -30,7 +37,12 @@ document.addEventListener("keydown", (event) => {
   }
 
   const trigger = document.getElementById("log-search-trigger");
-  if (!trigger || !trigger.getClientRects().length) return;
+  if (!trigger) return;
+  if (!trigger.getClientRects().length) {
+    const toggle = document.querySelector('.log-panel-toggle[aria-expanded="false"]');
+    if (!toggle?.getClientRects().length) return;
+    toggle.click();
+  }
   event.preventDefault();
   trigger.click();
 });
