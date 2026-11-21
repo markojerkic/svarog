@@ -1,4 +1,5 @@
 const logColumnsCookie = "svarog_log_columns";
+const logWrapLinesCookie = "svarog_log_wrap_lines";
 const locale = document.documentElement.lang || undefined;
 const dateFormatter = new Intl.DateTimeFormat(locale, {
   year: "numeric",
@@ -48,19 +49,29 @@ window.templ.lifecycle.register("#log-scroll-container", {
   },
 });
 
+function saveLogPreference(name, value) {
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${name}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+}
+
 document.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-log-column]");
+  const button = event.target.closest("[data-log-option]");
   if (!button) return;
   const container = document.getElementById("log-scroll-container");
   if (!container) return;
-  const column = button.dataset.logColumn;
-  const enabled = container.toggleAttribute(`data-show-${column}`);
-  document.querySelectorAll(`[data-log-column="${column}"]`).forEach((el) => {
+  const option = button.dataset.logOption;
+  const enabled = button.getAttribute("aria-pressed") !== "true";
+  if (option === "wrap") {
+    container.dataset.wrapLines = String(enabled);
+    saveLogPreference(logWrapLinesCookie, String(enabled));
+  } else {
+    container.toggleAttribute(`data-show-${option}`, enabled);
+    const columns = ["time", "instance"].filter((name) =>
+      container.hasAttribute(`data-show-${name}`),
+    );
+    saveLogPreference(logColumnsCookie, columns.join(","));
+  }
+  document.querySelectorAll(`[data-log-option="${option}"]`).forEach((el) => {
     el.setAttribute("aria-pressed", String(enabled));
   });
-  const columns = ["time", "instance"].filter((name) =>
-    container.hasAttribute(`data-show-${name}`),
-  );
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${logColumnsCookie}=${columns.join(",")}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
 });
