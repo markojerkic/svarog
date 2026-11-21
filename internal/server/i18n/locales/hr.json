@@ -101,6 +101,7 @@
   "logs.instance": { "other": "Instanca" },
   "logs.show_time": { "other": "Prikaži vrijeme" },
   "logs.show_instance": { "other": "Prikaži instancu" },
+  "logs.wrap_lines": { "other": "Prelamaj retke" },
   "logs.last_15_minutes": { "other": "Zadnjih 15 min" },
   "logs.last_hour": { "other": "Zadnji sat" },
   "logs.today": { "other": "Danas" },

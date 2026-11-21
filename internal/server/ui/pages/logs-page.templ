@@ -37,9 +37,18 @@ type LogsPageProps struct {
 	ReturnInstances    *[]string
 	ShowTime           bool
 	ShowInstance       bool
+	WrapLines          *bool
 }
 
 const LogColumnsCookie = "svarog_log_columns"
+const LogWrapLinesCookie = "svarog_log_wrap_lines"
+
+func (p LogsPageProps) wrapLines(mobile bool) bool {
+	if p.WrapLines == nil {
+		return mobile
+	}
+	return *p.WrapLines
+}
 
 // Columns stay hidden unless the cookie lists them.
 func LogColumns(value string) (showTime, showInstance bool) {
@@ -124,6 +133,9 @@ templ LogsPage(props LogsPageProps) {
 					data-log-client-id={ props.ClientId }
 					data-show-time?={ props.ShowTime }
 					data-show-instance?={ props.ShowInstance }
+					if props.WrapLines != nil {
+						data-wrap-lines={ strconv.FormatBool(*props.WrapLines) }
+					}
 					data-log-live?={ props.IsLive() }
 				>
 					@LogPageLines(props)
@@ -163,13 +175,13 @@ templ LogsPage(props LogsPageProps) {
 	</script>
 }
 
-templ logColumnMenuItem(column string, pressed bool, label string) {
+templ logViewMenuItem(option string, pressed bool, label string) {
 	@button.Button(button.Props{
 		Variant: button.VariantGhost,
 		Size:    button.SizeSm,
 		Class:   "w-full justify-start gap-2 aria-pressed:bg-accent aria-pressed:text-accent-foreground",
 		Attributes: templ.Attributes{
-			"data-log-column": column,
+			"data-log-option": option,
 			"aria-pressed":    strconv.FormatBool(pressed),
 		},
 	}) {
@@ -552,13 +564,25 @@ templ logDisplay(props LogsPageProps) {
 			Align: popover.AlignEnd,
 			Class: "w-fit gap-1",
 		}) {
-			@logColumnMenuItem("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
+			@logViewMenuItem("time", props.ShowTime, i18n.T(ctx, "logs.show_time")) {
 				@icon.Clock(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
 			}
-			@logColumnMenuItem("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
+			@logViewMenuItem("instance", props.ShowInstance, i18n.T(ctx, "logs.show_instance")) {
 				@icon.Server(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
 			}
+			<div class="hidden md:block">
+				@logWrapMenuItem(props.wrapLines(false))
+			</div>
+			<div class="md:hidden">
+				@logWrapMenuItem(props.wrapLines(true))
+			</div>
 		}
+	}
+}
+
+templ logWrapMenuItem(pressed bool) {
+	@logViewMenuItem("wrap", pressed, i18n.T(ctx, "logs.wrap_lines")) {
+		@icon.TextWrap(icon.Props{Class: "size-3.5", Attributes: templ.Attributes{"aria-hidden": "true"}})
 	}
 }
 

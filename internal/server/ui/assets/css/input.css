@@ -178,7 +178,20 @@
   background-color: var(--log-context-bg);
 }
 
-/* Phone logs use wrapped messages and keep the menu on the metadata line. */
+@media (width >= 48rem) {
+  #log-scroll-container[data-wrap-lines="true"] > pre[data-timestamp] {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  #log-scroll-container[data-wrap-lines="true"] [data-log-message] {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Phone logs wrap by default and keep the menu on the metadata line. */
 @media (width < 48rem) {
   #log-scroll-container {
     overflow-x: clip;
@@ -225,12 +238,17 @@
     white-space: nowrap;
   }
 
-  #log-scroll-container > pre[data-timestamp] [data-log-message] {
+  #log-scroll-container [data-log-message] {
     grid-column: 1 / -1;
     grid-row: 2;
     min-width: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  #log-scroll-container[data-wrap-lines="false"] [data-log-message] {
+    white-space: pre;
+    overflow-x: auto;
   }
 
   #log-scroll-container > pre[data-timestamp] [data-log-menu-trigger] {
