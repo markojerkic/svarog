@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
+
+	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 )
 
 // ErrExpiryNotInFuture means the requested credential expiry is not strictly after the current time.
@@ -85,39 +86,31 @@ func (s *NatsCredentialService) GenerateUserCreds(ctx context.Context, generatio
 		return "", ErrExpiryNotInFuture
 	}
 
-	topic := fmt.Sprintf("logs.%s.%s", generationRequest.ProjectID, generationRequest.ClientID)
-	return s.generateUserCreds(generationRequest.ProjectID, []string{topic}, []string{}, generationRequest.Expiry)
-}
-
-func (s *NatsCredentialService) generateUserCreds(username string, pubAllowed []string, subAllowed []string, expiry *time.Time) (string, error) {
 	userKp, err := nkeys.CreateUser()
 	if err != nil {
 		return "", fmt.Errorf("failed to create user key pair: %w", err)
 	}
+	defer userKp.Wipe()
 
-	userPub, _ := userKp.PublicKey()
-	userSeed, _ := userKp.Seed()
+	userPub, err := userKp.PublicKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user public key: %w", err)
+	}
+	userSeed, err := userKp.Seed()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user seed: %w", err)
+	}
 
 	claims := jwt.NewUserClaims(userPub)
-	claims.Name = username
+	claims.Name = generationRequest.ProjectID
 	claims.IssuerAccount = s.accountPublicKey
 
-	if expiry != nil {
-		claims.Expires = expiry.Unix()
+	if generationRequest.Expiry != nil {
+		claims.Expires = generationRequest.Expiry.Unix()
 	}
 
-	// Publish Permissions
-	if len(pubAllowed) > 0 {
-		claims.Permissions.Pub.Allow.Add(pubAllowed...)
-	}
-	// Subscribe Permissions
-	if len(subAllowed) > 0 {
-		claims.Permissions.Sub.Allow.Add(subAllowed...)
-	}
-	claims.Permissions.Resp = &jwt.ResponsePermission{
-		MaxMsgs: 1,
-		Expires: time.Minute * 5,
-	}
+	claims.Permissions.Pub.Allow.Add(fmt.Sprintf("logs.%s.%s", generationRequest.ProjectID, generationRequest.ClientID))
+	claims.Permissions.Sub.Allow.Add(config.PublisherInboxPrefix(userPub) + ".>")
 
 	userJwt, err := claims.Encode(s.accountKeyPair)
 	if err != nil {

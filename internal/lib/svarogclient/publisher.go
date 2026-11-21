@@ -8,9 +8,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 )
 
 const (
@@ -191,6 +192,7 @@ func (c *Client) retry(p *publisher, window []publication) error {
 func (c *Client) connect() (*nats.Conn, jetstream.JetStream, error) {
 	options := []nats.Option{
 		nats.UserCredentialBytes([]byte(c.config.Creds)),
+		nats.CustomInboxPrefix(c.inboxPrefix),
 		nats.Timeout(connectTimeout),
 		nats.SetCustomDialer(&contextDialer{ctx: c.ctx}),
 		// nats.go's own lookup cannot be canceled; DialContext resolves instead.

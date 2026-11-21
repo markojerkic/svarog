@@ -56,6 +56,7 @@ type Options struct {
 
 type Client struct {
 	config       config.ClientConfig
+	inboxPrefix  string
 	instanceID   string
 	logger       *slog.Logger
 	dropWhenFull bool
@@ -100,7 +101,11 @@ func New(options Options) (*Client, error) {
 	if err != nil {
 		return nil, errors.New("credentials must contain a user NKEY seed")
 	}
+	userPub, err := key.PublicKey()
 	key.Wipe()
+	if err != nil || !nkeys.IsValidPublicUserKey(userPub) {
+		return nil, errors.New("credentials must contain a user NKEY seed")
+	}
 
 	diagnostics := options.Diagnostics
 	if diagnostics == nil {
@@ -129,6 +134,7 @@ func New(options Options) (*Client, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
 		config:       cfg,
+		inboxPrefix:  config.PublisherInboxPrefix(userPub),
 		instanceID:   instanceID,
 		logger:       logger,
 		dropWhenFull: options.DropQueueCapacity > 0,

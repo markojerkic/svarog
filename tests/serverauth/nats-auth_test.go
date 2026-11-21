@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/markojerkic/svarog/internal/lib/projects"
-	"github.com/markojerkic/svarog/internal/lib/serverauth"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/markojerkic/svarog/internal/lib/projects"
+	"github.com/markojerkic/svarog/internal/lib/serverauth"
+	"github.com/markojerkic/svarog/internal/lib/svarogclient/config"
 )
 
 func (s *NatsAuthSuite) createTestProject(clientName string) (projectID string, clientID string, subject string) {
@@ -150,43 +152,47 @@ func (s *NatsAuthSuite) TestPublishToAllowedTopic() {
 	assert.NoError(t, err)
 }
 
-func (s *NatsAuthSuite) TestPublishToDisallowedTopic() {
+func (s *NatsAuthSuite) TestPublisherPermissions() {
 	t := s.T()
+	projectID, clientID, topic := s.createTestProject("publisher")
+	_, _, otherTopic := s.createTestProject("other-publisher")
+	for _, id := range []string{clientID, "*"} {
+		req := serverauth.CredentialGenerationRequest{ProjectID: projectID, ClientID: id}
+		creds, err := s.NatsCredsService.GenerateUserCreds(t.Context(), req)
+		require.NoError(t, err)
+		claims := userClaims(t, creds)
+		require.Nil(t, claims.Permissions.Resp, "publishers must not get temporary reply permissions")
+		second, err := s.NatsCredsService.GenerateUserCreds(t.Context(), req)
+		require.NoError(t, err)
+		otherInbox := config.PublisherInboxPrefix(userClaims(t, second).Subject) + ".ack"
 
-	// Create a project with a client
-	projectId, clientID, _ := s.createTestProject("my-client")
-
-	creds, err := s.NatsCredsService.GenerateUserCreds(
-		context.Background(),
-		serverauth.CredentialGenerationRequest{
-			ProjectID: projectId,
-			ClientID:  clientID,
-		},
-	)
-	require.NoError(t, err)
-
-	jwt, seed, err := serverauth.ParseCredsFile(creds)
-	assert.NoError(t, err)
-	nc, err := s.connectWithCredentials(jwt, seed)
-	require.NoError(t, err)
-	defer nc.Close()
-
-	// Try to publish to a different topic - should fail
-	err = nc.Publish("logs.other.client", []byte("test message"))
-	require.NoError(t, err) // Publish itself doesn't fail
-
-	// Flush will fail or trigger permission error
-	err = nc.Flush()
-	// The connection may be closed due to permission violation
-	if err == nil {
-		// Give NATS time to process and close connection if needed
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Check if we received a permission error or connection was closed
-	lastErr := nc.LastError()
-	if lastErr != nil {
-		assert.Contains(t, lastErr.Error(), "Permissions Violation")
+		denied := make(chan error, 1)
+		nc, err := nats.Connect(s.NatsAddr, nats.UserCredentialBytes([]byte(creds)),
+			nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) { denied <- err }))
+		require.NoError(t, err)
+		t.Cleanup(nc.Close)
+		requireDenial := func(subject string) {
+			t.Helper()
+			select {
+			case err := <-denied:
+				require.ErrorIs(t, err, nats.ErrPermissionViolation)
+				require.ErrorContains(t, err, subject)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("broker did not reject unauthorized subject %q", subject)
+			}
+		}
+		require.NoError(t, nc.Publish(otherTopic, []byte("test")))
+		requireDenial(otherTopic)
+		if id != "*" {
+			sibling := "logs." + projectID + ".sibling"
+			require.NoError(t, nc.Publish(sibling, []byte("test")))
+			requireDenial(sibling)
+		}
+		for _, subject := range []string{topic, otherTopic, "logs.>", "_INBOX.>", otherInbox} {
+			_, err := nc.SubscribeSync(subject)
+			require.NoError(t, err)
+			requireDenial(subject)
+		}
 	}
 }
 
@@ -323,7 +329,8 @@ func (s *NatsAuthSuite) TestJetStreamPublishWithGeneratedConnString() {
 	require.NoError(t, err)
 
 	// Connect to NATS
-	nc, err := s.connectWithCredentials(jwt, seed)
+	nc, err := nats.Connect(s.NatsAddr, nats.UserJWTAndSeed(jwt, seed),
+		nats.CustomInboxPrefix(config.PublisherInboxPrefix(userClaims(t, creds).Subject)))
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -332,9 +339,10 @@ func (s *NatsAuthSuite) TestJetStreamPublishWithGeneratedConnString() {
 	require.NoError(t, err, "should create JetStream context")
 
 	// Publish to JetStream - this requires subscribe permissions for PubAck
-	// This is the critical test that would have caught the permissions bug
 	testMessage := []byte(`{"message":"test log line","level":"info"}`)
-	pubAck, err := js.Publish(context.Background(), topic, testMessage)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	pubAck, err := js.Publish(ctx, topic, testMessage)
 	require.NoError(t, err, "JetStream publish should succeed with correct permissions")
 	assert.NotNil(t, pubAck, "should receive PubAck from JetStream")
 

@@ -16,6 +16,12 @@ type ClientConfig struct {
 	connString string
 }
 
+// PublisherInboxPrefix isolates JetStream acknowledgements by credential, even
+// when multiple credentials are issued for the same project and client.
+func PublisherInboxPrefix(userPublicKey string) string {
+	return "_INBOX." + userPublicKey
+}
+
 func NewClientConfig(connString string) (ClientConfig, error) {
 	url, err := url.Parse(connString)
 	if err != nil {
