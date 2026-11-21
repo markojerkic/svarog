@@ -138,7 +138,7 @@ func TestArchiveManualCreationFailures(t *testing.T) {
 	}
 }
 
-func TestArchiveManualCreationRequiresAuthorizedAdmin(t *testing.T) {
+func TestArchiveCreationAndSearchRequireAuthorizedAdmin(t *testing.T) {
 	admin := &auth.LoggedInUser{ID: uuid.NewString(), Role: auth.ADMIN}
 	for _, test := range []struct {
 		name     string
@@ -159,15 +159,16 @@ func TestArchiveManualCreationRequiresAuthorizedAdmin(t *testing.T) {
 				&projectAccessAuthStub{allowed: test.allowed},
 				&projectAccessProjectsStub{belongs: test.belongs},
 				loggedInGroup(server, test.user))
-			request := httptest.NewRequest(http.MethodPost, "/logs/"+projectID+"/"+clientID+"/archives/create", nil)
-			request.Header.Set("HX-Request", "true")
-			response := httptest.NewRecorder()
-			server.ServeHTTP(response, request)
-
-			require.Empty(t, stub.calls, "Unauthorized requests must never reach archive creation or list operations")
-			require.Equal(t, http.StatusOK, response.Code, "Denied HTMX requests must return the existing redirect response status")
-			require.Equal(t, test.redirect, response.Header().Get("HX-Redirect"), "Unauthorized manual creation must fully navigate away instead of swapping into the private URL")
-			require.Empty(t, response.Header().Get("HX-Location"), "Authorization failures must not use HX-Location")
+			for _, action := range []string{"create", "search"} {
+				request := httptest.NewRequest(http.MethodPost, "/logs/"+projectID+"/"+clientID+"/archives/"+action, nil)
+				request.Header.Set("HX-Request", "true")
+				response := httptest.NewRecorder()
+				server.ServeHTTP(response, request)
+				require.Empty(t, stub.calls)
+				require.Equal(t, http.StatusOK, response.Code)
+				require.Equal(t, test.redirect, response.Header().Get("HX-Redirect"), "Unauthorized %s must navigate away", action)
+				require.Empty(t, response.Header().Get("HX-Location"))
+			}
 		})
 	}
 }

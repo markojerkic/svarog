@@ -15,6 +15,13 @@ templ Panel(props PanelProps) {
 		@ViewSwitch(props.Settings.ProjectID, props.Settings.ClientID, "archives")
 		@Rule(props.Settings)
 		@RunControl(props.Settings)
+		@button.Button(button.Props{
+			Href: ArchivePanelURL(props.Settings.ProjectID, props.Settings.ClientID) + "/search",
+			Variant: button.VariantOutline, Attributes: templ.Attributes{"hx-boost": "false"},
+		}) {
+			@icon.Search(icon.Props{Class: "size-4"})
+			{ i18n.T(ctx, "archives.search") }
+		}
 		@ArchiveList(props.Settings.ProjectID, props.Settings.ClientID, props.Page)
 	</div>
 }

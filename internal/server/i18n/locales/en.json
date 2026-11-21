@@ -142,6 +142,23 @@
   "logs.link_copied": { "other": "Copied log line link to clipboard" },
   "logs.copy_failed": { "other": "Could not copy log link. Try again." },
   "archives.title": { "other": "Archiving" },
+  "archives.search": { "other": "Search archived logs" },
+  "archives.search_hint": {
+    "other": "Choose a time range in your local time zone. Leave the text blank to browse all archived logs in that range."
+  },
+  "archives.search_text": { "other": "Message text (optional)" },
+  "archives.search_summary": {
+    "other": "Archives searched: {{.Archives}}. Showing {{.Shown}} of {{.Total}} matches, newest first."
+  },
+  "archives.search_no_archives": {
+    "other": "No archives cover this time range. Choose a different range."
+  },
+  "archives.search_limit": {
+    "other": "Search not completed: the scan limit was reached. Narrow the time range or download the archive."
+  },
+  "archives.search_failed": {
+    "other": "Search not completed: an archive could not be read or verified. No partial results are shown."
+  },
   "archives.tabs": { "other": "Archiving sections" },
   "archives.show_archives": { "other": "Archives" },
   "archives.settings": { "other": "Settings" },

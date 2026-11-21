@@ -1,0 +1,88 @@
+package pages
+
+import "time"
+import "github.com/markojerkic/svarog/internal/lib/archive"
+import "github.com/markojerkic/svarog/internal/lib/logsearch"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/components/archives"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+import "github.com/markojerkic/svarog/internal/server/ui/components/input"
+import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
+
+type ArchiveSearchProps struct {
+	ProjectID, ClientID      string
+	FromLocal, ToLocal, Text string
+	Query                    logsearch.Query
+	ErrorKey                 string
+	Result                   *archive.SearchResult
+}
+
+templ ArchiveSearch(p ArchiveSearchProps) {
+	{{ logPath := "/logs/" + p.ProjectID + "/" + p.ClientID }}
+	@AdminLayout(AdminLayoutProps{Title: i18n.T(ctx, "archives.search"), CurrentPath: logPath}) {
+		<div class="space-y-6">
+			<div class="space-y-3">
+				<a class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" href={ templ.SafeURL(logPath) }>
+					@icon.ArrowLeft(icon.Props{Class: "size-4"})
+					{ i18n.T(ctx, "logs.back_to_live") }
+				</a>
+				<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "archives.search") }</h1>
+				<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.search_hint") }</p>
+			</div>
+			<form id="archive-search-form" method="post" action={ templ.SafeURL(archives.ArchivePanelURL(p.ProjectID, p.ClientID) + "/search") } hx-boost="false" class="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4">
+				<input type="hidden" name="fromAt"/>
+				<input type="hidden" name="toAt"/>
+				<label class="grid grow gap-2 text-sm font-medium sm:grow-0">
+					{ i18n.T(ctx, "logs.time_from") }
+					@input.Input(input.Props{Type: "datetime-local", Name: "fromLocal", Value: p.FromLocal, Required: true, Attributes: templ.Attributes{"data-log-time-from": "", "step": "1"}})
+				</label>
+				<label class="grid grow gap-2 text-sm font-medium sm:grow-0">
+					{ i18n.T(ctx, "logs.time_to") }
+					@input.Input(input.Props{Type: "datetime-local", Name: "toLocal", Value: p.ToLocal, Required: true, Attributes: templ.Attributes{"data-log-time-to": "", "step": "1"}})
+				</label>
+				<label class="grid grow gap-2 text-sm font-medium">
+					{ i18n.T(ctx, "archives.search_text") }
+					@input.Input(input.Props{Type: "search", Name: "text", Value: p.Text, Placeholder: i18n.T(ctx, "logs.search_placeholder"), Attributes: templ.Attributes{"maxlength": archive.MaxSearchText}})
+				</label>
+				@button.Button(button.Props{Type: button.TypeSubmit}) {
+					@icon.Search(icon.Props{Class: "size-4"})
+					{ i18n.T(ctx, "logs.run_search") }
+				}
+			</form>
+			if p.ErrorKey != "" {
+				<p role="alert" class="rounded-lg border border-destructive/40 p-4 text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
+			} else if p.Result != nil {
+				<section class="space-y-3" aria-labelledby="archive-results">
+					<h2 id="archive-results" class="font-semibold">{ i18n.T(ctx, "logs.search_results") }</h2>
+					if p.Result.ArchivesScanned == 0 {
+						<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.search_no_archives") }</p>
+					} else {
+						<p class="text-sm text-muted-foreground">{ i18n.Format(ctx, i18n.Message{ID: "archives.search_summary", Data: map[string]any{"Archives": p.Result.ArchivesScanned, "Shown": len(p.Result.Hits), "Total": p.Result.TotalMatches}}) }</p>
+						if len(p.Result.Hits) == 0 {
+							<p class="text-sm">{ i18n.T(ctx, "logs.no_results") }</p>
+						} else {
+							<ol class="divide-y rounded-xl border bg-card">
+								for _, hit := range p.Result.Hits {
+									<li class="space-y-1 px-4 py-3">
+										<div class="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+											<time datetime={ hit.OccurredAt.Format(time.RFC3339Nano) } class="tabular-nums">{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
+											<span class="break-all font-medium text-foreground">
+												if hit.Instance == "" {
+													{ i18n.T(ctx, "logs.unnamed_instance") }
+												} else {
+													{ hit.Instance }
+												}
+											</span>
+										</div>
+										<pre class="whitespace-pre-wrap break-all font-mono text-sm leading-6">@logs.LogLineText(hit.Message, p.Query)</pre>
+									</li>
+								}
+							</ol>
+						}
+					}
+				</section>
+			}
+		</div>
+	}
+}

@@ -57,7 +57,11 @@ document.addEventListener(
   "submit",
   (event) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || form.id !== "log-time-range-form") return;
+    if (
+      !(form instanceof HTMLFormElement) ||
+      !form.matches("#log-time-range-form, #archive-search-form")
+    )
+      return;
     const preset = form.dataset.rangePreset;
     const fromInput = form.querySelector("[data-log-time-from]");
     const toInput = form.querySelector("[data-log-time-to]");
@@ -84,6 +88,12 @@ document.addEventListener(
     }
     form.elements.fromAt.value = from.toISOString();
     form.elements.toAt.value = to.toISOString();
+    if (form.id === "archive-search-form") {
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      button.textContent = window.svarogI18n("logs.searching", "Searching");
+      form.setAttribute("aria-busy", "true");
+    }
   },
   true,
 );

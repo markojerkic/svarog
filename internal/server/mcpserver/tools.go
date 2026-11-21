@@ -39,7 +39,7 @@ func registerTools(server *mcp.Server, t *tools) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "search_logs",
 		Title: "Search logs",
-		Description: "Return the newest log lines of a client that match the filters, listed from oldest to newest. " +
+		Description: "Return the newest unarchived log lines of a client that match the filters, listed from oldest to newest. " +
 			"The query is a list of space-separated literal terms; a line matches when it contains all of them, ignoring case. " +
 			"Without a query, the newest lines are returned. Messages longer than 2000 characters are truncated; " +
 			"get_log_context returns the full anchor line. Use older_cursor with get_log_page for earlier matches.",
@@ -64,10 +64,18 @@ func registerTools(server *mcp.Server, t *tools) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "list_archives",
 		Title: "List log archives",
-		Description: "List a client's completed log archives, newest first. Archived lines are removed from search. " +
+		Description: "List a client's completed log archives, newest first. Use search_archived_logs to search their contents. " +
 			"Requires the administrator role.",
 		Annotations: readOnly(),
 	}, t.listArchives)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:  "search_archived_logs",
+		Title: "Search archived logs",
+		Description: "Search a client's completed archives for messages in [from, to). Requires the administrator role. " +
+			"Returns total matches and up to the newest 200 matching records, listed from oldest to newest. " +
+			"Messages longer than 2000 characters are truncated. Narrow the time range if the scan limit is exceeded.",
+		Annotations: readOnly(),
+	}, t.searchArchivedLogs)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "get_archive_download_link",
 		Title: "Get archive download link",
