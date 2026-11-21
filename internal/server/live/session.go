@@ -40,7 +40,7 @@ func (s *Session) enqueue(message []byte) {
 		}
 	}
 	s.mu.Unlock()
-	s.fail(ErrLiveResync)
+	s.fail(ErrViewerQueueFull)
 }
 
 func (s *Session) Next(ctx context.Context) ([]byte, error) {

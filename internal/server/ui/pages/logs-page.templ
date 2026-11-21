@@ -82,13 +82,14 @@ templ LogsPage(props LogsPageProps) {
 				@InstanceFilter(props)
 			}
 			if props.IsLive() {
-				<div id="log-paused-notice" hidden class="shrink-0 rounded-lg border bg-muted p-3 text-sm" role="status">
-					{ i18n.T(ctx, "logs.paused_notice") }
-					<a class="underline underline-offset-4" href={ templ.SafeURL(props.LivePath()) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.back_to_live") }</a>
-				</div>
 				<div id="log-live-notice" hidden class="shrink-0 rounded-lg border bg-muted p-3 text-sm" role="status">
-					<p>{ i18n.T(ctx, "logs.live_incomplete") }</p>
-					<a class="underline underline-offset-4" href={ templ.SafeURL(props.LivePath()) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.refresh_live") }</a>
+					<p
+						data-paused={ i18n.T(ctx, "logs.paused_notice") }
+						data-memory={ i18n.T(ctx, "logs.memory_notice") }
+						data-disconnected={ i18n.T(ctx, "logs.disconnected_notice") }
+						data-resync={ i18n.T(ctx, "logs.live_incomplete") }
+					></p>
+					<a class="underline underline-offset-4" href={ templ.SafeURL(props.LivePath()) } hx-target="body" hx-swap="innerHTML" hx-sync="body:replace">{ i18n.T(ctx, "logs.open_latest") }</a>
 				</div>
 				<template id="log-live-older-loader">
 					@LogPageLoader(props, nil, "backward", "logs.load_older")
@@ -201,8 +202,10 @@ templ LogsHeaderActions(props LogsPageProps) {
 			class="whitespace-nowrap text-xs text-muted-foreground md:shrink-0"
 			role="status"
 			data-live-label={ i18n.T(ctx, "logs.live") }
-			data-stale-label={ i18n.T(ctx, "logs.live_interrupted") }
+			data-disconnected-label={ i18n.T(ctx, "logs.disconnected") }
+			data-resync-label={ i18n.T(ctx, "logs.live_interrupted") }
 			data-paused-label={ i18n.T(ctx, "logs.paused") }
+			data-memory-label={ i18n.T(ctx, "logs.memory_paused") }
 		>{ i18n.T(ctx, "logs.connecting") }</span>
 		@button.Button(button.Props{
 			Variant: button.VariantGhost, Size: button.SizeSm,
@@ -650,7 +653,7 @@ templ LogPageLines(props LogsPageProps) {
 	if props.IsLive() {
 		<div
 			hx-ws:connect={ props.WebSocketPath() }
-			hx-config="ws.pauseOnBackground:false ws.reconnect:false"
+			hx-config="ws.pauseOnBackground:false ws.reconnectMaxAttempts:6"
 			data-log-stream
 		></div>
 	}

@@ -114,10 +114,18 @@
   "logs.live": { "other": "Uživo" },
   "logs.live_interrupted": { "other": "Praćenje prekinuto" },
   "logs.paused": { "other": "Pauzirano" },
+  "logs.memory_paused": { "other": "Pauzirano zbog memorije" },
+  "logs.disconnected": { "other": "Veza prekinuta" },
   "logs.pause": { "other": "Pauziraj" },
   "logs.connecting": { "other": "Povezivanje…" },
   "logs.paused_notice": {
     "other": "Praćenje je pauzirano. Nastavak otvara najnovije logove. Pomakni se prema gore za starije retke."
+  },
+  "logs.memory_notice": {
+    "other": "Praćenje je pauzirano radi ograničenja potrošnje memorije. Prikazani retci ostaju dostupni za čitanje."
+  },
+  "logs.disconnected_notice": {
+    "other": "Veza je zatvorena. Za ponovno povezivanje otvori najnovije logove."
   },
   "logs.date_range": { "other": "Raspon datuma" },
   "logs.apply_range": { "other": "Prikaži" },
@@ -129,9 +137,9 @@
   "logs.clear_instance_filters": { "other": "Ukloni sve filtre instanci" },
   "logs.load_older": { "other": "Učitaj starije logove" },
   "logs.live_incomplete": {
-    "other": "Praćenje uživo je zaustavljeno kako bi ovaj prikaz ostao stabilan. Dio logova možda nedostaje. Osvježite prikaz za najnovije logove."
+    "other": "Poslužitelj više ne može jamčiti da su svi retci prikazani. Za nastavak otvori najnovije logove."
   },
-  "logs.refresh_live": { "other": "Osvježi praćenje uživo" },
+  "logs.open_latest": { "other": "Otvori najnovije logove" },
   "logs.invalid_instances": {
     "other": "Odabrano je previše instanci ili su njihova imena preduga."
   },
