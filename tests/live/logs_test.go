@@ -261,6 +261,7 @@ func (s *LiveSuite) TestSlowViewerAndConcurrentClose() {
 	for {
 		_, err := slow.Next(ctx)
 		if err != nil {
+			require.ErrorIs(t, err, live.ErrViewerQueueFull, "a full viewer queue must be distinguishable from other resyncs")
 			require.ErrorIs(t, err, live.ErrLiveResync, "a viewer exceeding its queue byte limit must require refresh")
 			break
 		}

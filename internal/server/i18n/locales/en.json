@@ -113,10 +113,18 @@
   "logs.live": { "other": "Live" },
   "logs.live_interrupted": { "other": "Live interrupted" },
   "logs.paused": { "other": "Paused" },
+  "logs.memory_paused": { "other": "Paused at memory limit" },
+  "logs.disconnected": { "other": "Disconnected" },
   "logs.pause": { "other": "Pause" },
   "logs.connecting": { "other": "Connecting…" },
   "logs.paused_notice": {
     "other": "Live updates are paused. Resuming opens the latest logs. Scroll up for older logs."
+  },
+  "logs.memory_notice": {
+    "other": "Live updates are paused to limit memory use. The rows already shown are still available to read."
+  },
+  "logs.disconnected_notice": {
+    "other": "The connection is closed. Open the latest logs to reconnect."
   },
   "logs.date_range": { "other": "Date range" },
   "logs.apply_range": { "other": "Show" },
@@ -128,9 +136,9 @@
   "logs.clear_instance_filters": { "other": "Clear all instance filters" },
   "logs.load_older": { "other": "Load older logs" },
   "logs.live_incomplete": {
-    "other": "Live updates stopped to keep this view stable. Some logs may be missing. Refresh to load the latest logs."
+    "other": "The server can no longer guarantee that this view includes every row. Open the latest logs to resume."
   },
-  "logs.refresh_live": { "other": "Refresh live logs" },
+  "logs.open_latest": { "other": "Open latest logs" },
   "logs.invalid_instances": {
     "other": "Too many instances were selected, or their names are too long."
   },

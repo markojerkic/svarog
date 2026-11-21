@@ -332,6 +332,16 @@
   backdrop-filter: blur(1px);
 }
 
+body:has(#log-scroll-container[data-live-state="reconnecting"]) {
+  #htmx-global-indicator {
+    opacity: 1;
+    visibility: visible;
+  }
+  #log-live-status {
+    visibility: hidden;
+  }
+}
+
 /* The native search clear sits in this slot. Hide it while the request spinner is there. */
 #log-search-form.htmx-request #log-search-input {
   padding-right: 1.75rem;
