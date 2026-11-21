@@ -144,6 +144,23 @@
   "logs.link_copied": { "other": "Poveznica na redak loga kopirana je u međuspremnik." },
   "logs.copy_failed": { "other": "Poveznicu na log nije moguće kopirati. Pokušajte ponovno." },
   "archives.title": { "other": "Arhiviranje" },
+  "archives.search": { "other": "Pretraži arhivirane zapise" },
+  "archives.search_hint": {
+    "other": "Odaberite raspon u svojoj vremenskoj zoni. Za prikaz svih arhiviranih zapisa u tom razdoblju ostavite tekst praznim."
+  },
+  "archives.search_text": { "other": "Tekst poruke (neobvezno)" },
+  "archives.search_summary": {
+    "other": "Broj pretraženih arhiva: {{.Archives}}. Prikazano {{.Shown}} od {{.Total}} pogodaka, od najnovijeg."
+  },
+  "archives.search_no_archives": {
+    "other": "Nema arhiva za odabrano razdoblje. Odaberite drugi raspon."
+  },
+  "archives.search_limit": {
+    "other": "Pretraga nije dovršena jer je dosegnuto ograničenje. Suzite vremenski raspon ili preuzmite arhivu."
+  },
+  "archives.search_failed": {
+    "other": "Pretraga nije dovršena: arhivu nije moguće pročitati ili provjeriti. Djelomični rezultati nisu prikazani."
+  },
   "archives.tabs": { "other": "Odjeljci arhiviranja" },
   "archives.show_archives": { "other": "Arhive" },
   "archives.settings": { "other": "Postavke" },

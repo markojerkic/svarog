@@ -158,3 +158,14 @@ WHERE c.project_id = sqlc.arg(project_id)
   AND a.client_id = sqlc.arg(client_id)
   AND a.id = sqlc.arg(id)
   AND a.status = 'ready';
+
+-- name: ListSearchArchives :many
+SELECT a.id, a.size_bytes
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = sqlc.arg(project_id) AND a.client_id = sqlc.arg(client_id)
+  AND a.status = 'ready'
+  AND a.from_at < sqlc.arg(range_end)::timestamptz
+  AND a.to_at >= sqlc.arg(range_start)::timestamptz
+ORDER BY a.to_at DESC, a.id DESC
+LIMIT sqlc.arg(candidate_limit)::int;

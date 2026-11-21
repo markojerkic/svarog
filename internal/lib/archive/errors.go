@@ -8,4 +8,5 @@ var (
 	ErrArchiveNotFound    = errors.New("archive not found")
 	ErrNotConfigured      = errors.New("archiving is not configured")
 	ErrArchiveUnavailable = errors.New("archive content is unavailable")
+	ErrSearchLimit        = errors.New("archive search exceeds the scan budget")
 )

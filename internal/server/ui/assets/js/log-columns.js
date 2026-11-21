@@ -14,6 +14,16 @@ const timeFormatter = new Intl.DateTimeFormat(locale, {
 });
 const observers = new WeakMap();
 
+// The form takes local dates. Keep archive results in that same zone, with the
+// precise UTC instant available on hover and as the no-JS fallback.
+window.templ.lifecycle.register('section[aria-labelledby="archive-results"] time[datetime]', {
+  init(time) {
+    const date = new Date(time.dateTime);
+    time.title = time.textContent.trim();
+    time.textContent = `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
+  },
+});
+
 function formatLogRow(row) {
   if (!(row instanceof Element) || !row.matches("pre[data-timestamp]")) return;
   const time = row.querySelector("[data-log-time]");

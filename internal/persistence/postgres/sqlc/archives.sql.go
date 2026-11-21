@@ -436,6 +436,57 @@ func (q *Queries) ListReadyArchives(ctx context.Context, arg ListReadyArchivesPa
 	return items, nil
 }
 
+const listSearchArchives = `-- name: ListSearchArchives :many
+SELECT a.id, a.size_bytes
+FROM archives a
+JOIN clients c ON c.id = a.client_id
+WHERE c.project_id = $1 AND a.client_id = $2
+  AND a.status = 'ready'
+  AND a.from_at < $3::timestamptz
+  AND a.to_at >= $4::timestamptz
+ORDER BY a.to_at DESC, a.id DESC
+LIMIT $5::int
+`
+
+type ListSearchArchivesParams struct {
+	ProjectID      uuid.UUID
+	ClientID       uuid.UUID
+	RangeEnd       time.Time
+	RangeStart     time.Time
+	CandidateLimit int32
+}
+
+type ListSearchArchivesRow struct {
+	ID        uuid.UUID
+	SizeBytes pgtype.Int8
+}
+
+func (q *Queries) ListSearchArchives(ctx context.Context, arg ListSearchArchivesParams) ([]ListSearchArchivesRow, error) {
+	rows, err := q.db.Query(ctx, listSearchArchives,
+		arg.ProjectID,
+		arg.ClientID,
+		arg.RangeEnd,
+		arg.RangeStart,
+		arg.CandidateLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSearchArchivesRow
+	for rows.Next() {
+		var i ListSearchArchivesRow
+		if err := rows.Scan(&i.ID, &i.SizeBytes); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markArchiveReady = `-- name: MarkArchiveReady :execrows
 UPDATE archives
 SET status = 'ready',
