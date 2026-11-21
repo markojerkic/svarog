@@ -63,7 +63,10 @@ document.addEventListener("htmx:ws:close", function (evt) {
 
 function setLiveStatus(state) {
   const status = document.getElementById("log-live-status");
-  if (status) status.textContent = status.dataset[`${state}Label`];
+  if (status) {
+    status.textContent = status.dataset[`${state}Label`];
+    status.dataset.state = state;
+  }
 }
 
 function stopLiveLogs(container, state = "stale") {

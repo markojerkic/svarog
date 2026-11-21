@@ -1,0 +1,231 @@
+/* Use the space left by the application sidebar, rather than the window width. */
+[data-slot="sidebar-inset"]:has(.log-workspace) {
+  container: log-view / inline-size;
+}
+
+.log-workspace {
+  display: grid;
+  grid-template:
+    "identity prefs" auto
+    "filters filters" auto
+    "stream stream" minmax(0, 1fr) / minmax(0, 1fr) auto;
+  height: 100%;
+  --log-pad: 1.25rem;
+}
+.log-identity,
+.log-preferences,
+.log-mode,
+.log-field-control {
+  display: flex;
+  align-items: center;
+}
+.log-identity,
+.log-preferences {
+  min-height: 3.5rem;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.log-identity {
+  grid-area: identity;
+  min-width: 0;
+  flex-wrap: wrap;
+  padding: 0.5rem 0 0.5rem var(--log-pad);
+}
+.log-identity h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  max-width: min(100%, 26ch);
+}
+.log-mode {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+[data-log-view-status] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+[data-log-view-status]::before {
+  content: "";
+  border-radius: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  background: currentColor;
+}
+#log-live-status[data-state="live"]::before {
+  background: #168354;
+}
+.log-preferences {
+  grid-area: prefs;
+  padding-inline: 0.5rem var(--log-pad);
+  justify-content: end;
+}
+.log-filters {
+  grid-area: filters;
+  min-width: 0;
+  padding: 0.75rem var(--log-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+}
+#log-filter-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.log-filter-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.log-search-field {
+  flex: 1 1 11rem;
+  max-width: 27rem;
+}
+.log-field-control {
+  min-width: 0;
+  border: 1px solid var(--input);
+  background: var(--background);
+  border-radius: var(--radius-md);
+}
+.log-field-control > button {
+  min-width: 0;
+  flex: 1;
+  justify-content: start;
+}
+.log-clear {
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.75rem;
+  align-self: stretch;
+  color: var(--muted-foreground);
+  border-left: 1px solid var(--border);
+}
+.log-clear:hover {
+  color: var(--foreground);
+}
+.log-count {
+  padding: 0 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--secondary);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.log-instance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.log-instance-chips [data-slot="badge"] {
+  max-width: 100%;
+}
+.log-panel-toggle,
+.log-field-label,
+.log-panel-instances {
+  display: none;
+}
+.log-workspace #logs-container {
+  grid-area: stream;
+  min-width: 0;
+  padding: 0.85rem var(--log-pad) var(--log-pad);
+}
+
+@container log-view (max-width: 44rem) {
+  .log-workspace {
+    --log-pad: 0.75rem;
+  }
+  .log-identity {
+    gap: 0.25rem;
+  }
+  .log-preferences {
+    align-items: start;
+    padding-top: 0.65rem;
+  }
+  .log-mode {
+    flex-basis: 100%;
+    padding-left: 0.375rem;
+  }
+  .log-search-field {
+    max-width: none;
+  }
+  .log-filters {
+    padding: 0.4rem var(--log-pad);
+    max-height: 47dvh;
+    overflow-y: auto;
+  }
+  .log-instance-picker,
+  .log-clear-all-instances {
+    display: none;
+  }
+  .log-panel-instances,
+  .log-field-label {
+    display: block;
+  }
+  .log-field-label {
+    margin-bottom: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 550;
+  }
+  .log-instances-field,
+  .log-instance-chips {
+    border-top: 1px solid var(--border);
+    padding-top: 0.75rem;
+  }
+  .log-panel-instances input {
+    accent-color: var(--primary);
+  }
+  .log-panel-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.25rem;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 550;
+  }
+  .log-filter-summary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+  .log-panel-toggle[aria-expanded="true"] .log-filter-summary {
+    display: none;
+  }
+  .log-panel-toggle svg {
+    flex-shrink: 0;
+  }
+  .log-panel-instances .log-instance-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .log-panel-toggle svg:last-child {
+    margin-left: auto;
+  }
+  .log-panel-toggle[aria-expanded="true"] svg:last-child {
+    rotate: 180deg;
+  }
+  .log-panel-toggle[aria-expanded="false"] + #log-filter-fields {
+    display: none;
+  }
+  #log-filter-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.5rem 0.25rem;
+    gap: 0.75rem;
+  }
+  .log-workspace #logs-container {
+    padding: 0.5rem;
+  }
+}
