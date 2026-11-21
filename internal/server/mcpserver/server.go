@@ -23,10 +23,11 @@ import (
 
 // instructions tell the model how the tools fit together.
 const instructions = `Svarog stores log lines from clients grouped into projects. Each client can run several named instances.
-Start with list_projects to find project and client IDs. search_logs finds lines; every line has a link.
+Start with list_projects to find project and client IDs. search_logs finds unarchived lines; every line it returns has a link.
 get_log_context takes a link (or IDs) and returns the surrounding lines of the same instance.
-Results list lines from oldest to newest; pass older_cursor or newer_cursor to get_log_page to move through history.
-Old lines may have been moved to archives: list_archives and get_archive_download_link (administrators only).`
+Results list lines from oldest to newest. For unarchived lines, pass older_cursor or newer_cursor to get_log_page to move through history.
+Archive tools are for administrators only. Use search_archived_logs to search completed archives by time range. Its rows have ZIP entry and line locations instead of log links or cursors.
+Use list_archives for archive metadata and get_archive_download_link when the ZIP itself is needed.`
 
 const (
 	Path                 = "/mcp"
@@ -57,6 +58,7 @@ type LogReader interface {
 
 type Archives interface {
 	List(ctx context.Context, scope archive.Scope, query archive.ListQuery) (archive.Page, error)
+	Search(ctx context.Context, scope archive.Scope, query archive.SearchQuery) (archive.SearchResult, error)
 	Get(ctx context.Context, scope archive.Scope, archiveID uuid.UUID) (archive.Archive, error)
 }
 

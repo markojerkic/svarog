@@ -70,6 +70,9 @@ func (t *tools) listArchives(ctx context.Context, request *mcp.CallToolRequest, 
 		return nil, listArchivesOutput{}, err
 	}
 	page, err := t.archives.List(ctx, scope, query)
+	if errors.Is(err, archive.ErrInvalidInput) {
+		return nil, listArchivesOutput{}, errInvalidArchiveCursor
+	}
 	if err != nil {
 		return nil, listArchivesOutput{}, archiveFailure(ctx, "list archives", err)
 	}
@@ -86,7 +89,7 @@ func (t *tools) listArchives(ctx context.Context, request *mcp.CallToolRequest, 
 type archiveLinkInput struct {
 	ProjectID string `json:"project_id" jsonschema:"project UUID from list_projects"`
 	ClientID  string `json:"client_id" jsonschema:"client UUID from list_projects"`
-	ArchiveID string `json:"archive_id" jsonschema:"archive ID from list_archives"`
+	ArchiveID string `json:"archive_id" jsonschema:"archive ID from list_archives or search_archived_logs"`
 }
 
 type archiveLinkOutput struct {
@@ -98,7 +101,7 @@ type archiveLinkOutput struct {
 func (t *tools) getArchiveDownloadLink(ctx context.Context, request *mcp.CallToolRequest, input archiveLinkInput) (*mcp.CallToolResult, archiveLinkOutput, error) {
 	archiveID, err := uuid.Parse(input.ArchiveID)
 	if err != nil || archiveID == uuid.Nil {
-		return nil, archiveLinkOutput{}, errors.New("archive_id must be an ID from list_archives")
+		return nil, archiveLinkOutput{}, errors.New("archive_id must be an ID from list_archives or search_archived_logs")
 	}
 	user, err := t.currentUser(ctx, request)
 	if err != nil {
@@ -143,8 +146,6 @@ func archiveFailure(ctx context.Context, action string, err error) error {
 		return errNotAccessible
 	case errors.Is(err, archive.ErrNotConfigured):
 		return errors.New("archive storage is not configured on this server")
-	case errors.Is(err, archive.ErrInvalidInput):
-		return errInvalidArchiveCursor
 	default:
 		return toolFailure(ctx, action, err)
 	}
