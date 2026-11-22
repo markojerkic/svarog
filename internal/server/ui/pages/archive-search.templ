@@ -37,9 +37,9 @@ func (p ArchiveSearchProps) searchURL(cursor string) string {
 
 templ ArchiveSearch(p ArchiveSearchProps) {
 	{{ logPath := "/logs/" + p.ProjectID + "/" + p.ClientID }}
-	@adminShell(AdminLayoutProps{Title: i18n.T(ctx, "archives.search"), CurrentPath: logPath, AdminAction: archives.Trigger(p.ProjectID, p.ClientID)}) {
+	@adminShell(AdminLayoutProps{Title: i18n.T(ctx, "archives.search"), CurrentPath: logPath}) {
 		<section class="log-workspace">
-			@logWorkspaceHeader(i18n.T(ctx, "archives.search"), p.Display) {
+			@logWorkspaceHeader(i18n.T(ctx, "archives.search"), p.Display, archives.Trigger(p.ProjectID, p.ClientID)) {
 				@button.Button(button.Props{Href: logPath, Variant: button.VariantGhost, Size: button.SizeSm}) {
 					@icon.Radio(icon.Props{Class: "size-3.5"})
 					{ i18n.T(ctx, "logs.back_to_live") }

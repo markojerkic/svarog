@@ -86,7 +86,6 @@ type NavItem struct {
 type AdminLayoutProps struct {
 	Title       string
 	CurrentPath string
-	AdminAction templ.Component
 }
 
 func isActivePath(currentPath, menuPath string) bool {
@@ -158,11 +157,6 @@ templ adminShell(props AdminLayoutProps) {
 									}) {
 										@icon.Users(icon.Props{Class: "size-4"})
 										<span>{ i18n.T(ctx, "nav.users") }</span>
-									}
-								}
-								if props.AdminAction != nil {
-									@sidebar.MenuItem() {
-										@props.AdminAction
 									}
 								}
 							}

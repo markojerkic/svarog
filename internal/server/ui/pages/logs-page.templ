@@ -91,9 +91,9 @@ templ LogsPage(props LogsPageProps) {
 	if props.ClientName != "" {
 		{{ title = props.ClientName }}
 	}
-	@adminShell(AdminLayoutProps{Title: title, CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), AdminAction: archives.Trigger(props.ProjectId, props.ClientId)}) {
+	@adminShell(AdminLayoutProps{Title: title, CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)}) {
 		<section class="log-workspace">
-			@logWorkspaceHeader(title, props.LogDisplayOptions) {
+			@logWorkspaceHeader(title, props.LogDisplayOptions, archives.Trigger(props.ProjectId, props.ClientId)) {
 				@logMode(props)
 			}
 			<section class="log-filters" aria-label={ i18n.T(ctx, "logs.filters") }>
@@ -144,7 +144,7 @@ templ LogsPage(props LogsPageProps) {
 	}
 }
 
-templ logWorkspaceHeader(title string, display LogDisplayOptions) {
+templ logWorkspaceHeader(title string, display LogDisplayOptions, archiveTrigger templ.Component) {
 	<header class="log-identity">
 		@sidebar.Trigger()
 		<h1 title={ title }>{ title }</h1>
@@ -152,6 +152,9 @@ templ logWorkspaceHeader(title string, display LogDisplayOptions) {
 </div>
 	</header>
 	<div class="log-preferences">
+		if archiveTrigger != nil && auth.IsAdmin(ctx) {
+			@archiveTrigger
+		}
 		@logDisplay(display)
 		@components.LanguageSwitcher()
 	</div>
