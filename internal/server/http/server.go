@@ -20,8 +20,13 @@ import (
 	"github.com/markojerkic/svarog/internal/server/mcpserver"
 )
 
+type LogReader interface {
+	handlers.LogReader
+	mcpserver.LogReader
+}
+
 type HttpServer struct {
-	logReader               handlers.LogReader
+	logReader               LogReader
 	sessionStore            sessions.Store
 	authService             *auth.PostgresAuthService
 	projectsService         *projects.PostgresProjectsService
@@ -36,7 +41,7 @@ type HttpServer struct {
 }
 
 type HttpServerOptions struct {
-	LogReader               handlers.LogReader
+	LogReader               LogReader
 	SessionStore            sessions.Store
 	AuthService             *auth.PostgresAuthService
 	ProjectsService         *projects.PostgresProjectsService

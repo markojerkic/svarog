@@ -25,7 +25,8 @@ import (
 type LogReader interface {
 	Page(ctx context.Context, query logstore.PageQuery) (logstore.Page, error)
 	Around(ctx context.Context, scope logstore.Scope, id int64, limit int, bounds *logstore.TimeRange) (logstore.Page, bool, error)
-	Instances(ctx context.Context, scope logstore.Scope) ([]string, error)
+	InstanceOptions(ctx context.Context, scope logstore.Scope, term, unnamedLabel string, after *logstore.InstanceCursor) (logstore.InstanceOptions, error)
+	InstanceHues(ctx context.Context, scope logstore.Scope, names []string) (map[string]float64, error)
 }
 
 type logProjects interface {
@@ -271,12 +272,42 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 		}
 	}
 	props.ClientName = self.logClientName(c.Request().Context(), params.ProjectId, params.ClientId)
-	props.AvailableInstances, err = self.logReader.Instances(ctx, query.Scope)
+	props.InstanceOptions, err = self.logReader.InstanceOptions(ctx, query.Scope, "", i18n.T(ctx, "logs.unnamed_instance"), nil)
 	if err != nil {
 		return err
 	}
-
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
+}
+
+func (self *LogsRouter) instanceHues(c *echo.Context) error {
+	var names []string
+	if err := c.Bind(&names); err != nil || len(names) > DEFAULT_PAGE_SIZE {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	hues, err := self.logReader.InstanceHues(c.Request().Context(), logScope(c.Param("projectId"), c.Param("clientId")), names)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, hues)
+}
+
+func (self *LogsRouter) instanceOptions(c *echo.Context) error {
+	q := c.QueryParams()
+	var after *logstore.InstanceCursor
+	if q.Has("afterDay") || q.Has("afterName") {
+		day := q.Get("afterDay")
+		if _, err := time.Parse(time.DateOnly, day); err != nil || !q.Has("afterName") {
+			return c.NoContent(http.StatusBadRequest)
+		}
+		after = &logstore.InstanceCursor{Day: day, Name: q.Get("afterName")}
+	}
+	ctx := c.Request().Context()
+	page, err := self.logReader.InstanceOptions(ctx, logScope(c.Param("projectId"), c.Param("clientId")),
+		strings.TrimSpace(q.Get("q")), i18n.T(ctx, "logs.unnamed_instance"), after)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, page)
 }
 
 func (self *LogsRouter) readPage(ctx context.Context, query logstore.PageQuery, logLineID *string) (logstore.Page, bool, error) {
@@ -326,6 +357,8 @@ func NewLogsRouter(logReader LogReader, authService middleware.ProjectAccessChec
 	}
 
 	logsApi.GET("", logsRouter.logsByClientHandler)
+	logsApi.GET("/instances", logsRouter.instanceOptions)
+	logsApi.POST("/instance-hues", logsRouter.instanceHues)
 
 	return logsRouter
 }

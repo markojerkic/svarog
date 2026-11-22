@@ -86,8 +86,12 @@ func (s *projectAccessLogsStub) Page(context.Context, logstore.PageQuery) (logst
 	return logstore.Page{Rows: []logstore.Row{{Message: "authorized log"}}}, nil
 }
 
-func (s *projectAccessLogsStub) Instances(context.Context, logstore.Scope) ([]string, error) {
-	return []string{"instance"}, nil
+func (s *projectAccessLogsStub) InstanceOptions(context.Context, logstore.Scope, string, string, *logstore.InstanceCursor) (logstore.InstanceOptions, error) {
+	return logstore.InstanceOptions{Names: []string{"instance"}}, nil
+}
+
+func (s *projectAccessLogsStub) InstanceHues(context.Context, logstore.Scope, []string) (map[string]float64, error) {
+	return nil, nil
 }
 
 func loggedInGroup(e *echo.Echo, user *auth.LoggedInUser) *echo.Group {
@@ -176,11 +180,14 @@ func TestProjectAccessMiddleware(t *testing.T) {
 func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 	for _, role := range []auth.Role{auth.USER, auth.ADMIN} {
 		for _, deniedByOwnership := range []bool{false, true} {
-			for _, path := range []string{
-				"/logs/" + projectID + "/" + clientID,
-				"/ws/" + projectID + "/" + clientID,
+			logPath := "/logs/" + projectID + "/" + clientID
+			for _, route := range []struct{ method, path string }{
+				{http.MethodGet, logPath},
+				{http.MethodGet, logPath + "/instances"},
+				{http.MethodPost, logPath + "/instance-hues"},
+				{http.MethodGet, "/ws/" + projectID + "/" + clientID},
 			} {
-				t.Run(fmt.Sprintf("%s%s/ownership=%t", role, path, deniedByOwnership), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s%s/ownership=%t", role, route.path, deniedByOwnership), func(t *testing.T) {
 					e := echo.New()
 					group := loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: role})
 					a := &projectAccessAuthStub{allowed: deniedByOwnership}
@@ -188,7 +195,7 @@ func TestDeniedProjectRoutesNeverTouchLogsOrHub(t *testing.T) {
 					// Nil log/hub dependencies prove neither is reached for either denial reason.
 					handlers.NewLogsRouter(nil, a, p, group)
 					handlers.NewWsConnectionRouter(nil, a, p, group)
-					req := httptest.NewRequest(http.MethodGet, path, nil)
+					req := httptest.NewRequest(route.method, route.path, nil)
 					req.Header.Set("HX-Request", "true")
 					rec := httptest.NewRecorder()
 					e.ServeHTTP(rec, req)

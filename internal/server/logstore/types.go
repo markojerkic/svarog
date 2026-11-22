@@ -12,6 +12,16 @@ type Scope struct {
 	ClientID  uuid.UUID
 }
 
+type InstanceCursor struct {
+	Day  string `json:"day"`
+	Name string `json:"name"`
+}
+
+type InstanceOptions struct {
+	Names []string        `json:"names"`
+	Next  *InstanceCursor `json:"next"`
+}
+
 type Row struct {
 	ID         int64
 	Scope      Scope

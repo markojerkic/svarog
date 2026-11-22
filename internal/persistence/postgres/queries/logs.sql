@@ -302,5 +302,41 @@ WITH RECURSIVE scope AS (
         ORDER BY l.instance_name
         LIMIT 1
     ) next_name
+), palette AS (
+    SELECT instance_name,
+           (row_number() OVER (ORDER BY instance_name) - 1) * 360::float8 / count(*) OVER () AS hue
+    FROM names
 )
-SELECT instance_name FROM names ORDER BY instance_name;
+SELECT instance_name, hue::float8 AS hue FROM palette
+WHERE sqlc.narg(visible_names)::text[] IS NULL OR instance_name = ANY(sqlc.narg(visible_names)::text[])
+ORDER BY instance_name;
+
+-- name: ListInstanceOptions :many
+-- The first entry for each name in logs_client_instance_order_idx is its latest log.
+WITH RECURSIVE scope AS (
+    SELECT c.id FROM clients c
+    WHERE c.id = sqlc.arg(client_id) AND c.project_id = sqlc.arg(project_id)
+), latest(instance_name, occurred_at) AS (
+    (
+        SELECT l.instance_name, l.occurred_at FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+        ORDER BY l.instance_name, l.occurred_at DESC LIMIT 1
+    )
+    UNION ALL
+    SELECT n.instance_name, n.occurred_at FROM latest prev
+    CROSS JOIN LATERAL (
+        SELECT l.instance_name, l.occurred_at FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope) AND l.instance_name > prev.instance_name
+        ORDER BY l.instance_name, l.occurred_at DESC LIMIT 1
+    ) n
+), options AS (
+    SELECT instance_name, (occurred_at AT TIME ZONE 'UTC')::date AS last_day
+    FROM latest
+    WHERE strpos(lower(COALESCE(NULLIF(instance_name, ''), sqlc.arg(unnamed_label)::text)), lower(sqlc.arg(term)::text)) > 0
+)
+SELECT instance_name, last_day FROM options
+WHERE sqlc.narg(after_day)::date IS NULL OR last_day < sqlc.narg(after_day)
+   OR (last_day = sqlc.narg(after_day)
+       AND (lower(instance_name), instance_name) > (lower(sqlc.arg(after_name)::text), sqlc.arg(after_name)::text))
+ORDER BY last_day DESC, lower(instance_name), instance_name
+LIMIT sqlc.arg(page_size);

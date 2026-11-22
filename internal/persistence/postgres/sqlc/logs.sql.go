@@ -139,11 +139,85 @@ func (q *Queries) InsertIngestLogs(ctx context.Context, arg InsertIngestLogsPara
 	return items, nil
 }
 
+const listInstanceOptions = `-- name: ListInstanceOptions :many
+WITH RECURSIVE scope AS (
+    SELECT c.id FROM clients c
+    WHERE c.id = $4 AND c.project_id = $5
+), latest(instance_name, occurred_at) AS (
+    (
+        SELECT l.instance_name, l.occurred_at FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope)
+        ORDER BY l.instance_name, l.occurred_at DESC LIMIT 1
+    )
+    UNION ALL
+    SELECT n.instance_name, n.occurred_at FROM latest prev
+    CROSS JOIN LATERAL (
+        SELECT l.instance_name, l.occurred_at FROM logs l
+        WHERE l.client_id = (SELECT scope.id FROM scope) AND l.instance_name > prev.instance_name
+        ORDER BY l.instance_name, l.occurred_at DESC LIMIT 1
+    ) n
+), options AS (
+    SELECT instance_name, (occurred_at AT TIME ZONE 'UTC')::date AS last_day
+    FROM latest
+    WHERE strpos(lower(COALESCE(NULLIF(instance_name, ''), $6::text)), lower($7::text)) > 0
+)
+SELECT instance_name, last_day FROM options
+WHERE $1::date IS NULL OR last_day < $1
+   OR (last_day = $1
+       AND (lower(instance_name), instance_name) > (lower($2::text), $2::text))
+ORDER BY last_day DESC, lower(instance_name), instance_name
+LIMIT $3
+`
+
+type ListInstanceOptionsParams struct {
+	AfterDay     pgtype.Date
+	AfterName    string
+	PageSize     int32
+	ClientID     uuid.UUID
+	ProjectID    uuid.UUID
+	UnnamedLabel string
+	Term         string
+}
+
+type ListInstanceOptionsRow struct {
+	InstanceName string
+	LastDay      pgtype.Date
+}
+
+// The first entry for each name in logs_client_instance_order_idx is its latest log.
+func (q *Queries) ListInstanceOptions(ctx context.Context, arg ListInstanceOptionsParams) ([]ListInstanceOptionsRow, error) {
+	rows, err := q.db.Query(ctx, listInstanceOptions,
+		arg.AfterDay,
+		arg.AfterName,
+		arg.PageSize,
+		arg.ClientID,
+		arg.ProjectID,
+		arg.UnnamedLabel,
+		arg.Term,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListInstanceOptionsRow
+	for rows.Next() {
+		var i ListInstanceOptionsRow
+		if err := rows.Scan(&i.InstanceName, &i.LastDay); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInstances = `-- name: ListInstances :many
 WITH RECURSIVE scope AS (
     SELECT c.id FROM clients c
-    WHERE c.id = $1
-      AND c.project_id = $2
+    WHERE c.id = $2
+      AND c.project_id = $3
 ), names(instance_name) AS (
     (
         SELECT l.instance_name FROM logs l
@@ -161,30 +235,42 @@ WITH RECURSIVE scope AS (
         ORDER BY l.instance_name
         LIMIT 1
     ) next_name
+), palette AS (
+    SELECT instance_name,
+           (row_number() OVER (ORDER BY instance_name) - 1) * 360::float8 / count(*) OVER () AS hue
+    FROM names
 )
-SELECT instance_name FROM names ORDER BY instance_name
+SELECT instance_name, hue::float8 AS hue FROM palette
+WHERE $1::text[] IS NULL OR instance_name = ANY($1::text[])
+ORDER BY instance_name
 `
 
 type ListInstancesParams struct {
-	ClientID  uuid.UUID
-	ProjectID uuid.UUID
+	VisibleNames []string
+	ClientID     uuid.UUID
+	ProjectID    uuid.UUID
+}
+
+type ListInstancesRow struct {
+	InstanceName string
+	Hue          float64
 }
 
 // Seek to the next distinct instance using logs_client_instance_order_idx.
 // Work scales with the number of instances rather than the number of log rows.
-func (q *Queries) ListInstances(ctx context.Context, arg ListInstancesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listInstances, arg.ClientID, arg.ProjectID)
+func (q *Queries) ListInstances(ctx context.Context, arg ListInstancesParams) ([]ListInstancesRow, error) {
+	rows, err := q.db.Query(ctx, listInstances, arg.VisibleNames, arg.ClientID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []ListInstancesRow
 	for rows.Next() {
-		var instance_name string
-		if err := rows.Scan(&instance_name); err != nil {
+		var i ListInstancesRow
+		if err := rows.Scan(&i.InstanceName, &i.Hue); err != nil {
 			return nil, err
 		}
-		items = append(items, instance_name)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

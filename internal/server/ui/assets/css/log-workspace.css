@@ -206,10 +206,6 @@
   .log-panel-toggle svg {
     flex-shrink: 0;
   }
-  .log-panel-instances .log-instance-options {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .log-panel-toggle svg:last-child {
     margin-left: auto;
   }

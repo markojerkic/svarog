@@ -32,7 +32,7 @@ type LogsPageProps struct {
 	Instances          *[]string
 	Search             string
 	LogLineId          *string
-	AvailableInstances []string
+	InstanceOptions    logstore.InstanceOptions
 	ReturnSearch       string
 	ReturnInstances    *[]string
 	ShowTime           bool
@@ -130,7 +130,7 @@ templ LogsPage(props LogsPageProps) {
 				<div
 					class="flex min-h-0 flex-1 flex-col-reverse overflow-auto rounded-xl border bg-card p-2 font-mono text-[13px] leading-6"
 					id="log-scroll-container"
-					data-log-instances={ templ.JSONString(props.AvailableInstances) }
+					data-instance-hues-url={ fmt.Sprintf("/logs/%s/%s/instance-hues", props.ProjectId, props.ClientId) }
 					data-log-client-id={ props.ClientId }
 					data-show-time?={ props.ShowTime }
 					data-show-instance?={ props.ShowInstance }
@@ -461,18 +461,6 @@ func clearLogInstancesPath(props LogsPageProps) string {
 	return props.ToPath(nil, nil, "", props.Search)
 }
 
-func logInstanceOptions(props LogsPageProps) []string {
-	options := slices.Clone(props.AvailableInstances)
-	if props.Instances != nil {
-		for _, instance := range *props.Instances {
-			if !slices.Contains(options, instance) {
-				options = append(options, instance)
-			}
-		}
-	}
-	return options
-}
-
 func logInstanceLabel(ctx context.Context, instance string) string {
 	if instance == "" {
 		return i18n.T(ctx, "logs.unnamed_instance")
@@ -510,6 +498,9 @@ templ instanceFilterForm(props LogsPageProps, id string) {
 	<form
 		id={ id }
 		data-log-instance-form
+		data-options-url={ fmt.Sprintf("/logs/%s/%s/instances", props.ProjectId, props.ClientId) }
+		data-next={ templ.JSONString(props.InstanceOptions.Next) }
+		data-unnamed={ i18n.T(ctx, "logs.unnamed_instance") }
 		method="get"
 		action={ templ.SafeURL(fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)) }
 		hx-boost="true"
@@ -523,14 +514,29 @@ templ instanceFilterForm(props LogsPageProps, id string) {
 			<input type="hidden" name="search" value={ props.Search }/>
 		}
 		@logs.QueryFields(props.Range.Query())
-		<div class="log-instance-options max-h-52 overflow-auto">
-			for _, instance := range logInstanceOptions(props) {
-				<label class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
-					<input type="checkbox" name="instance" value={ instance } checked?={ active && slices.Contains(*props.Instances, instance) }/>
-					<span class="wrap-anywhere">{ logInstanceLabel(ctx, instance) }</span>
-				</label>
+		<div data-selected-instances>
+			if active {
+				for _, instance := range *props.Instances {
+					if !slices.Contains(props.InstanceOptions.Names, instance) {
+						<input type="hidden" name="instance" value={ instance }/>
+					}
+				}
 			}
 		</div>
+		<input type="search" aria-label={ i18n.T(ctx, "logs.find_instance") } placeholder={ i18n.T(ctx, "logs.find_instance") } class="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"/>
+		<template>
+			@instanceOption("", false)
+		</template>
+		<div class="log-instance-options max-h-40 overflow-y-auto overscroll-contain">
+			<div data-instance-rows>
+				for _, instance := range props.InstanceOptions.Names {
+					@instanceOption(instance, active && slices.Contains(*props.Instances, instance))
+				}
+			</div>
+			<button type="button" data-more hidden?={ props.InstanceOptions.Next == nil } class="w-full rounded-md py-1.5 text-sm underline">{ i18n.T(ctx, "logs.more_instances") }</button>
+		</div>
+		<p data-no-instances role="status" hidden?={ len(props.InstanceOptions.Names) != 0 } class="text-xs text-muted-foreground">{ i18n.T(ctx, "logs.no_instances_found") }</p>
+		<p data-instance-error role="status" hidden class="text-xs text-destructive">{ i18n.T(ctx, "logs.instance_load_failed") }</p>
 		<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "logs.no_instance_selection") }</p>
 		<div class="flex flex-wrap items-center justify-end gap-2">
 			if active {
@@ -548,6 +554,13 @@ templ instanceFilterForm(props LogsPageProps, id string) {
 			}
 		</div>
 	</form>
+}
+
+templ instanceOption(name string, checked bool) {
+	<label class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
+		<input type="checkbox" name="instance" value={ name } checked?={ checked }/>
+		<span class="wrap-anywhere">{ logInstanceLabel(ctx, name) }</span>
+	</label>
 }
 
 templ logDisplay(props LogsPageProps) {

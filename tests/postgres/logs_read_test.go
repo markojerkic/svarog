@@ -112,6 +112,9 @@ func TestReadLogs(t *testing.T) {
 		instances, err := logs.Instances(ctx, scope)
 		require.NoError(t, err, "the scoped log operation must succeed")
 		require.Equal(t, []string{"api", "web"}, instances, "instance names must be sorted and distinct")
+		hues, err := logs.InstanceHues(ctx, scope, []string{"web"})
+		require.NoError(t, err)
+		require.Equal(t, map[string]float64{"web": 180}, hues, "a visible instance keeps its position in the full client palette")
 		workerInstances, err := logs.Instances(ctx, logstore.Scope{ProjectID: project.ID, ClientID: workerID})
 		require.NoError(t, err, "the scoped log operation must succeed")
 		require.Equal(t, []string{"other-host"}, workerInstances, "instance names must be limited to the requested client")
@@ -146,6 +149,36 @@ func TestReadLogs(t *testing.T) {
 		require.NoError(t, err, "a foreign anchor lookup is a safe miss")
 		require.False(t, found, "an anchor from another client must not resolve an instance")
 		require.Empty(t, foreign.Rows, "a foreign anchor must never expose log context")
+	})
+
+	t.Run("instance picker pages by day then name and searches across pages", func(t *testing.T) {
+		workerScope := logstore.Scope{ProjectID: project.ID, ClientID: workerID}
+		var rows []logstore.Row
+		for i, name := range []string{"Zulu", "sidecar", "Node-2", "node-1", "", "api_%"} {
+			rows = append(rows, logstore.Row{Scope: workerScope, Instance: name, OccurredAt: base.Add(time.Duration(i+1) * time.Hour)})
+		}
+		rows = append(rows, logstore.Row{Scope: workerScope, Instance: "aardvark", OccurredAt: base.AddDate(0, 0, -1)})
+		_, err := testutils.InsertLogFixtures(ctx, pool, rows)
+		require.NoError(t, err)
+		first, err := logs.InstanceOptions(ctx, workerScope, "", "Unnamed instance", nil)
+		require.NoError(t, err)
+		require.Equal(t, []string{"", "api_%", "node-1", "Node-2", "other-host"}, first.Names)
+		require.NotNil(t, first.Next)
+		_, err = testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{Scope: workerScope, Instance: "Zulu", OccurredAt: base.Add(11 * time.Hour)}})
+		require.NoError(t, err)
+		second, err := logs.InstanceOptions(ctx, workerScope, "", "Unnamed instance", first.Next)
+		require.NoError(t, err)
+		require.Equal(t, []string{"sidecar", "Zulu", "aardvark"}, second.Names)
+		require.Nil(t, second.Next)
+		for term, want := range map[string][]string{"ARD": {"aardvark"}, "unnamed": {""}, "_%": {"api_%"}, "missing": {}} {
+			page, err := logs.InstanceOptions(ctx, workerScope, term, "Unnamed instance", nil)
+			require.NoError(t, err)
+			require.Equal(t, want, page.Names)
+			require.Nil(t, page.Next)
+		}
+		foreign, err := logs.InstanceOptions(ctx, logstore.Scope{ProjectID: uuid.New(), ClientID: workerID}, "", "Unnamed instance", nil)
+		require.NoError(t, err)
+		require.Empty(t, foreign.Names)
 	})
 
 	t.Run("date range excludes logs outside the selected day", func(t *testing.T) {

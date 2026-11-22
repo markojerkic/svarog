@@ -29,58 +29,70 @@ function widestHue(hues) {
   return best;
 }
 
-const observers = new WeakMap();
+const cleanups = new WeakMap();
 
 window.templ.lifecycle.register("#log-scroll-container", {
   init(container) {
-    // The full client list is the set being colored. Even steps around the
-    // wheel keep every pair apart; a short palette folded by list index made
-    // unrelated names identical and put warm hues next to each other.
+    // The server computes positions in the full client palette, but sends
+    // only the colors needed to paint the visible logs, including new rows.
     const offset = hash(container.dataset.logClientId || "") % 360;
-    let names = [];
-    try {
-      const parsed = JSON.parse(container.dataset.logInstances || "[]");
-      if (Array.isArray(parsed)) names = parsed;
-    } catch {
-      names = [];
-    }
-    const seen = new Set();
-    const unique = [];
-    for (const name of names) {
-      if (typeof name === "string" && !seen.has(name)) {
-        seen.add(name);
-        unique.push(name);
-      }
-    }
-    const hues = new Map();
-    const step = unique.length > 0 ? 360 / unique.length : 0;
-    const taken = unique.map((name, index) => {
-      const hue = (offset + index * step) % 360;
-      hues.set(name, hue);
-      return hue;
-    });
-    function colorFor(instance) {
-      if (!hues.has(instance)) {
-        const hue = taken.length === 0 ? (offset + hash(instance)) % 360 : widestHue(taken);
-        hues.set(instance, hue);
-        taken.push(hue);
-      }
-      return paint(hues.get(instance));
-    }
+    const colors = new Map();
+    const taken = new Set();
+    const pending = new Set();
+    const controller = new AbortController();
+    let loading = false;
+
     function paintRow(row) {
-      if (row instanceof Element && row.matches("pre[data-instance-id]")) {
-        row.style.borderLeftColor = colorFor(row.dataset.instanceId);
+      if (!(row instanceof Element) || !row.matches("pre[data-instance-id]")) return;
+      const name = row.dataset.instanceId;
+      if (colors.has(name)) row.style.borderLeftColor = colors.get(name);
+      else pending.add(name);
+    }
+    async function loadColors() {
+      if (loading || !pending.size) return;
+      loading = true;
+      while (pending.size && !controller.signal.aborted) {
+        const names = [...pending].slice(0, 300);
+        let palette = {};
+        try {
+          const response = await fetch(container.dataset.instanceHuesUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(names),
+            signal: controller.signal,
+          });
+          if (response.ok) palette = await response.json();
+        } catch {
+          // The fallback also covers live names not yet found in stored logs.
+        }
+        if (controller.signal.aborted) return;
+        for (const name of names) {
+          let hue = Object.hasOwn(palette, name) ? (offset + palette[name]) % 360 : null;
+          if (hue === null || taken.has(hue)) {
+            hue = taken.size ? widestHue(taken) : (offset + hash(name)) % 360;
+          }
+          colors.set(name, paint(hue));
+          taken.add(hue);
+          pending.delete(name);
+        }
+        container.querySelectorAll("pre[data-instance-id]").forEach(paintRow);
       }
+      loading = false;
     }
     container.querySelectorAll("pre[data-instance-id]").forEach(paintRow);
+    loadColors();
     const observer = new MutationObserver((records) => {
       for (const record of records) record.addedNodes.forEach(paintRow);
+      loadColors();
     });
     observer.observe(container, { childList: true });
-    observers.set(container, observer);
+    cleanups.set(container, () => {
+      controller.abort();
+      observer.disconnect();
+    });
   },
   destroy(container) {
-    observers.get(container)?.disconnect();
-    observers.delete(container);
+    cleanups.get(container)?.();
+    cleanups.delete(container);
   },
 });

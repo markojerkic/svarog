@@ -99,7 +99,59 @@ func (s *Store) Instances(ctx context.Context, scope Scope) ([]string, error) {
 	if instances == nil {
 		return []string{}, nil
 	}
-	return instances, nil
+	names := make([]string, len(instances))
+	for i, instance := range instances {
+		names[i] = instance.InstanceName
+	}
+	return names, nil
+}
+
+// InstanceHues returns only the requested colors, spaced around the color wheel
+// according to the complete client's alphabetical palette, independent of filters.
+func (s *Store) InstanceHues(ctx context.Context, scope Scope, names []string) (map[string]float64, error) {
+	palette := make(map[string]float64, len(names))
+	if len(names) == 0 {
+		return palette, nil
+	}
+	rows, err := s.queries.ListInstances(ctx, sqlc.ListInstancesParams{
+		ProjectID: scope.ProjectID, ClientID: scope.ClientID, VisibleNames: names,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read instance colors: %w", err)
+	}
+	for _, row := range rows {
+		palette[row.InstanceName] = row.Hue
+	}
+	return palette, nil
+}
+
+const instancePageSize = 5
+
+func (s *Store) InstanceOptions(ctx context.Context, scope Scope, term, unnamedLabel string, after *InstanceCursor) (InstanceOptions, error) {
+	params := sqlc.ListInstanceOptionsParams{
+		ClientID: scope.ClientID, ProjectID: scope.ProjectID, PageSize: instancePageSize + 1,
+		Term: term, UnnamedLabel: unnamedLabel,
+	}
+	if after != nil {
+		day, err := time.Parse(time.DateOnly, after.Day)
+		if err != nil {
+			return InstanceOptions{}, err
+		}
+		params.AfterDay, params.AfterName = pgtype.Date{Time: day, Valid: true}, after.Name
+	}
+	rows, err := s.queries.ListInstanceOptions(ctx, params)
+	if err != nil {
+		return InstanceOptions{}, fmt.Errorf("list instance options: %w", err)
+	}
+	page := InstanceOptions{Names: make([]string, min(len(rows), instancePageSize))}
+	for i := range page.Names {
+		page.Names[i] = rows[i].InstanceName
+	}
+	if len(rows) > instancePageSize {
+		last := rows[instancePageSize-1]
+		page.Next = &InstanceCursor{Day: last.LastDay.Time.Format(time.DateOnly), Name: last.InstanceName}
+	}
+	return page, nil
 }
 
 func validateLimit(limit int) error {

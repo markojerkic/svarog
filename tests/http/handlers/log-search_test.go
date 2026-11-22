@@ -23,17 +23,28 @@ import (
 type logSearchStub struct {
 	request       logstore.PageQuery
 	instanceCalls int
+	instanceTerm  string
+	instanceAfter *logstore.InstanceCursor
 	logCalls      int
 	anchorID      int64
 	page          *logstore.Page
 }
 
-func (s *logSearchStub) Instances(_ context.Context, scope logstore.Scope) ([]string, error) {
+func (s *logSearchStub) InstanceOptions(_ context.Context, scope logstore.Scope, term, unnamed string, after *logstore.InstanceCursor) (logstore.InstanceOptions, error) {
 	s.instanceCalls++
+	s.instanceTerm, s.instanceAfter = term, after
 	if scope != s.request.Scope {
-		return nil, fmt.Errorf("instances must use the same scope as the logs")
+		return logstore.InstanceOptions{}, fmt.Errorf("instances must use the same scope as the logs")
 	}
-	return []string{"api-1", "api-2", "api-3"}, nil
+	return logstore.InstanceOptions{Names: []string{"api-1", "api-2", "api-3"}}, nil
+}
+
+func (s *logSearchStub) InstanceHues(_ context.Context, _ logstore.Scope, names []string) (map[string]float64, error) {
+	hues := make(map[string]float64, len(names))
+	for _, name := range names {
+		hues[name] = 120
+	}
+	return hues, nil
 }
 
 func (s *logSearchStub) Page(_ context.Context, request logstore.PageQuery) (logstore.Page, error) {
@@ -50,6 +61,28 @@ func (s *logSearchStub) Around(_ context.Context, scope logstore.Scope, id int64
 		return *s.page, true, nil
 	}
 	return logstore.Page{}, false, nil
+}
+
+func TestInstancePickerRequests(t *testing.T) {
+	e := echo.New()
+	logs := &logSearchStub{request: logstore.PageQuery{Scope: logstore.Scope{ProjectID: uuid.MustParse(projectID), ClientID: uuid.MustParse(clientID)}}}
+	handlers.NewLogsRouter(logs, &projectAccessAuthStub{allowed: true}, &projectAccessProjectsStub{belongs: true},
+		loggedInGroup(e, &auth.LoggedInUser{ID: "user", Role: auth.USER}))
+	path := "/logs/" + projectID + "/" + clientID
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path+"/instances?q=API&afterDay=2026-11-20&afterName=", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"names":["api-1","api-2","api-3"],"next":null}`, rec.Body.String())
+	require.Equal(t, "API", logs.instanceTerm)
+	require.Equal(t, &logstore.InstanceCursor{Day: "2026-11-20", Name: ""}, logs.instanceAfter)
+	require.Zero(t, logs.logCalls)
+
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path+"/instance-hues", strings.NewReader(`["api-3"]`))
+	req.Header.Set("Content-Type", "application/json")
+	e.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"api-3":120}`, rec.Body.String())
 }
 
 func TestLogsPageSearch(t *testing.T) {
@@ -90,7 +123,7 @@ func TestLogsPageSearch(t *testing.T) {
 					require.Zero(t, logs.anchorID, "search must not load a log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "search results must not mount a live connection")
 				} else {
-					require.Equal(t, 1, logs.instanceCalls, "ordinary logs must load the complete client instance list for consistent colors")
+					require.Equal(t, 1, logs.instanceCalls, "ordinary logs must include the first instance picker page")
 					require.Nil(t, logs.request.Search, "whitespace-only queries must use the ordinary log view")
 					require.Equal(t, int64(123), logs.anchorID, "whitespace-only queries must preserve the log anchor")
 					require.NotContains(t, rec.Body.String(), "hx-ws:connect=", "instance-filtered and anchored views must not mount a live connection")
@@ -148,10 +181,8 @@ func TestLogsPageLiveModes(t *testing.T) {
 					require.Zero(t, logs.instanceCalls, "pagination must reuse the mounted view's instance colors without reloading the list")
 					require.NotContains(t, rec.Body.String(), "<header", "pagination fragments must not replace the page header")
 				} else {
-					require.Equal(t, 1, logs.instanceCalls, "every complete log view must load the client's full instance list, regardless of filters")
-					seed := regexp.MustCompile(`data-log-instances="([^"]*)"`).FindStringSubmatch(rec.Body.String())
-					require.Len(t, seed, 2, "every complete view must provide its instance color seed")
-					require.JSONEq(t, `["api-1","api-2","api-3"]`, html.UnescapeString(seed[1]), "the color seed must include instances outside the visible page and selection")
+					require.Equal(t, 1, logs.instanceCalls, "every complete log view must load the first instance picker page, regardless of filters")
+					require.Contains(t, rec.Body.String(), `data-instance-hues-url="`+path+`/instance-hues"`, "colors should be fetched for visible instances only")
 					require.Contains(t, rec.Body.String(), `data-log-client-id="`+clientID+`"`, "the palette seed must identify the authorized client in every log view")
 					require.Equal(t, !tc.live, strings.Contains(rec.Body.String(), `aria-label="Back to live"`), "every non-live page must offer a return to the live view")
 					status := "Not live"

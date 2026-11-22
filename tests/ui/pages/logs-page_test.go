@@ -212,7 +212,7 @@ func TestLogInstanceFilters(t *testing.T) {
 	instance := "api 01 & backup"
 	props := pages.LogsPageProps{
 		ProjectId: "project", ClientId: "client", Search: "error & timeout",
-		Instances: &[]string{instance, ""}, AvailableInstances: []string{instance, "api-02"},
+		Instances: &[]string{instance, ""}, InstanceOptions: logstore.InstanceOptions{Names: []string{instance, "api-02"}},
 		Range: &pages.LogRange{FromDate: "2026-11-01", ToDate: "2026-11-03", Offset: -60},
 	}
 	var output bytes.Buffer
@@ -222,9 +222,8 @@ func TestLogInstanceFilters(t *testing.T) {
 	for _, fragment := range []string{
 		`id="log-instance-form"`, `method="get"`, `hx-target="body"`, `hx-push-url="true"`,
 		`name="search" value="error &amp; timeout"`,
-		`name="instance" value="api 01 &amp; backup" checked`,
-		`name="instance" value="api-02"`,
-		`name="instance" value="" checked`, `Unnamed instance`,
+		`name="instance" value="api 01 &amp; backup" checked`, `type="checkbox" name="instance" value="api-02"`,
+		`type="hidden" name="instance" value=""`, `Unnamed instance`,
 		`name="from" value="2026-11-01"`, `name="to" value="2026-11-03"`, `name="offset" value="-60"`,
 		`Apply filters`, `Clear filters`,
 	} {
