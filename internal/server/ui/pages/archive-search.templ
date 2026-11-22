@@ -95,7 +95,7 @@ templ ArchiveSearch(p ArchiveSearchProps) {
 					</div>
 					@archiveInstanceControl(p, false)
 					<span role="status" class="hidden items-center gap-1.5 text-xs text-muted-foreground group-[.htmx-request]:inline-flex">
-						@icon.LoaderCircle(icon.Props{Class:"size-3.5 animate-spin motion-reduce:animate-none"})
+						@icon.LoaderCircle(icon.Props{Class: "size-3.5 animate-spin motion-reduce:animate-none"})
 						{ i18n.T(ctx, "logs.searching") }
 					</span>
 				</div>
@@ -177,32 +177,33 @@ templ archiveInstanceControl(p ArchiveSearchProps, update bool) {
 					<span class="truncate">@archiveInstanceName(*p.Instance)</span>
 				}
 			}
-			@popover.Content(popover.ContentProps{Align: popover.AlignStart, Class: "w-72 max-w-[calc(100vw-2rem)] p-3"}) {
-				<label class="grid gap-1 text-sm">
-					{ i18n.T(ctx,"logs.instance") }
-					<input
-						id="archive-instance-name"
-						type="text"
-						list="archive-instance-suggestions"
-						placeholder={ i18n.T(ctx, "logs.find_instance") }
-						class="h-8 rounded-md border px-2"
-						if p.Instance != nil {
-							value={ *p.Instance }
-						}
-					/>
-					<datalist id="archive-instance-suggestions"></datalist>
-				</label>
-				@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantGhost, Class: "justify-start", Attributes: templ.Attributes{"data-archive-instance": "unnamed"}}) {
-					{ i18n.T(ctx, "logs.unnamed_instance") }
+			@popover.Content(popover.ContentProps{Align: popover.AlignStart, Class: "w-80 max-w-[calc(100vw-2rem)] gap-2 p-3"}) {
+				@popover.Title(popover.TitleProps{Class: "text-sm font-medium"}) {
+					{ i18n.T(ctx, "logs.instances") }
 				}
-				<div class="flex justify-between gap-2">
-					@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantGhost, Attributes: templ.Attributes{"data-archive-instance": "all"}}) {
-						{ i18n.T(ctx,"logs.all_instances") }
+				if p.Result != nil && len(p.Result.Instances) > 0 {
+					<input id="archive-instance-name" type="search" aria-label={ i18n.T(ctx, "logs.find_instance") } placeholder={ i18n.T(ctx, "logs.find_instance") } class="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"/>
+					<div class="max-h-56 overflow-y-auto overscroll-contain">
+						for _, name := range p.Result.Instances {
+							<button type="button" data-archive-instance value={ name } aria-pressed={ strconv.FormatBool(p.Instance != nil && *p.Instance == name) } class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent aria-pressed:bg-accent">
+								<span class="wrap-anywhere">@archiveInstanceName(name)</span>
+								if p.Instance != nil && *p.Instance == name {
+									@icon.Check(icon.Props{Size: 14, Class: "shrink-0"})
+								}
+							</button>
+						}
+					</div>
+					<p data-archive-no-instances hidden role="status" class="text-xs text-muted-foreground">{ i18n.T(ctx, "logs.no_instances_found") }</p>
+				} else if p.FromUnix == "" {
+					<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.range_required") }</p>
+				} else {
+					<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "logs.no_instances_found") }</p>
+				}
+				if p.Instance != nil {
+					@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantOutline, Attributes: templ.Attributes{"data-archive-all-instances": true}}) {
+						{ i18n.T(ctx, "logs.all_instances") }
 					}
-					@button.Button(button.Props{Size: button.SizeSm, Attributes: templ.Attributes{"data-archive-instance": "apply"}}) {
-						{ i18n.T(ctx,"logs.apply_filters") }
-					}
-				</div>
+				}
 			}
 		}
 	</div>

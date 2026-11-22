@@ -7,7 +7,8 @@ them in a web UI.
 - Live tailing, substring search, date ranges and context around a log line.
 - Scheduled and manual ZIP archiving per client, on disk or in S3-compatible storage.
 - Administrators can search archived logs by time range and message text.
-  Results are paginated, newest first, with up to 200 matches per page.
+  Each page fetches up to 200 matches, starting with the newest. Older pages
+  appear above the existing rows, as in the ordinary log viewer.
   Each request scans at most 128 ZIPs, 256 MiB compressed, 512 MiB expanded and
   8 MiB of result text, with a one-minute scan timeout. If a limit is exceeded or
   a ZIP cannot be verified, no partial results are shown.

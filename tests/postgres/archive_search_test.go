@@ -26,7 +26,7 @@ func TestSearchArchivedRecords(t *testing.T) {
 	}
 	const instance = "web /]\nč"
 	const trace = "Timed OUT\r\n    at Store.Commit()\n\nretry failed"
-	rows := []logstore.Row{row(-1, "worker", "outside"), row(0, instance, trace), row(300, "worker", "upper bound")}
+	rows := []logstore.Row{row(-1, "previous", "outside"), row(0, instance, trace), row(300, "later", "upper bound")}
 	for i := 1; i <= 220; i++ {
 		rows = append(rows, row(i, "worker", "request"))
 	}
@@ -75,11 +75,12 @@ func TestSearchArchivedRecords(t *testing.T) {
 	_, err = service.Context(ctx, scope, continuation, 20)
 	require.ErrorIs(t, err, archive.ErrHitNotFound)
 	filter := ""
-	filtered := archive.SearchQuery{From: query.From, To: query.To, Instance: &filter}
+	filtered := archive.SearchQuery{From: query.From, To: query.To, Instance: &filter, Text: "late", IncludeInstances: true}
 	matches, err := service.Search(ctx, scope, filtered)
 	require.NoError(t, err)
 	require.Equal(t, 1, matches.TotalMatches, "filter before taking the 200 newest")
 	require.Equal(t, "late arrival", matches.Hits[0].Message)
+	require.Equal(t, []string{"", instance, "worker"}, matches.Instances, "the picker covers the whole range regardless of selected instance, text or page")
 
 	_, err = service.Search(ctx, archive.Scope{ProjectID: uuid.New(), ClientID: scope.ClientID}, query)
 	require.ErrorIs(t, err, archive.ErrClientNotFound)

@@ -129,15 +129,12 @@ document.addEventListener("click", (event) => {
     form.requestSubmit();
     return;
   }
-  const instance = event.target.closest("[data-archive-instance]");
+  const instance = event.target.closest("[data-archive-instance], [data-archive-all-instances]");
   if (instance) {
     const form = document.getElementById("archive-search-form");
     const field = form.elements.instance;
-    const name = document.getElementById("archive-instance-name").value;
-    field.disabled =
-      instance.dataset.archiveInstance === "all" ||
-      (instance.dataset.archiveInstance === "apply" && !name);
-    field.value = instance.dataset.archiveInstance === "unnamed" ? "" : name;
+    field.disabled = instance.hasAttribute("data-archive-all-instances");
+    field.value = instance.value;
     window.templ.popover.close("archive-instance-picker");
     form.requestSubmit();
     return;
@@ -160,26 +157,38 @@ document.addEventListener("click", (event) => {
   delete form.dataset.rangePreset;
 });
 
+function filterArchiveInstances(input) {
+  const popup = input.closest("#archive-instance-picker");
+  const query = input.value.trim().toLocaleLowerCase();
+  let matches = 0;
+  for (const option of popup.querySelectorAll("[data-archive-instance]")) {
+    option.hidden = !option.textContent.trim().toLocaleLowerCase().includes(query);
+    if (!option.hidden) matches++;
+  }
+  popup.querySelector("[data-archive-no-instances]").hidden = matches > 0;
+}
+
+document.addEventListener("input", (event) => {
+  if (event.target.id === "archive-instance-name") filterArchiveInstances(event.target);
+});
+
 document.addEventListener("popover-open-change", (event) => {
-  if (!event.detail.open || !event.target.querySelector("#archive-instance-picker")) return;
-  const names = new Set(
-    Array.from(
-      document.querySelectorAll("[data-archive-row] [data-archive-url]"),
-      (b) => b.dataset.instance,
-    ).filter(Boolean),
-  );
-  document.getElementById("archive-instance-suggestions").replaceChildren(
-    ...Array.from(names)
-      .sort()
-      .map((name) => new Option(name, name)),
-  );
+  if (!event.detail.open) return;
+  const input = event.target.querySelector("#archive-instance-name");
+  if (input && input.value) {
+    input.value = "";
+    filterArchiveInstances(input);
+  }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.isComposing || event.target.id !== "archive-instance-name")
     return;
   event.preventDefault();
-  event.target.closest("[role=dialog]").querySelector("[data-archive-instance=apply]").click();
+  event.target
+    .closest("#archive-instance-picker")
+    .querySelector("[data-archive-instance]:not([hidden])")
+    ?.click();
 });
 
 document.addEventListener(

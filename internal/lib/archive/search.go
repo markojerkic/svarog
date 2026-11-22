@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -31,10 +32,11 @@ const (
 )
 
 type SearchQuery struct {
-	From, To    time.Time
-	Text        string
-	Instance    *string // nil: all; empty string: unnamed instance only
-	OlderCursor string
+	From, To         time.Time
+	Text             string
+	Instance         *string // nil: all; empty string: unnamed instance only
+	OlderCursor      string
+	IncludeInstances bool // collect picker options from the range before applying other filters
 }
 
 type SearchHit struct {
@@ -52,6 +54,7 @@ type SearchResult struct {
 	ArchivesScanned int
 	Skipped         int    // matches on previous pages
 	OlderCursor     string // empty when all matches have been returned
+	Instances       []string
 }
 
 func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (SearchResult, error) {
@@ -78,6 +81,9 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 	}
 	cursorKey := searchCursorKey(a.cursorSecret, scope, query, candidates)
 	state := searchScan{query: query, terms: search.Terms, remaining: maxExpanded}
+	if query.IncludeInstances {
+		state.instances = make(map[string]struct{})
+	}
 	if query.OlderCursor != "" {
 		state.after, err = decodeSearchCursor(cursorKey, query.OlderCursor)
 		if err != nil {
@@ -119,10 +125,12 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 	if r := &state.result; r.Skipped+len(r.Hits) < r.TotalMatches {
 		r.OlderCursor = encodeSearchCursor(cursorKey, r.Hits[len(r.Hits)-1])
 	}
+	state.result.Instances = slices.Sorted(maps.Keys(state.instances))
 	return state.result, nil
 }
 
 type searchScan struct {
+	instances  map[string]struct{}
 	query      SearchQuery
 	after      *SearchHit
 	terms      []string
@@ -192,10 +200,13 @@ func compareHits(a, b SearchHit) int {
 }
 
 func (s *searchScan) match(hit SearchHit) error {
-	if s.query.Instance != nil && hit.Instance != *s.query.Instance {
+	if hit.OccurredAt.Before(s.query.From) || !hit.OccurredAt.Before(s.query.To) {
 		return nil
 	}
-	if hit.OccurredAt.Before(s.query.From) || !hit.OccurredAt.Before(s.query.To) {
+	if s.instances != nil {
+		s.instances[hit.Instance] = struct{}{}
+	}
+	if s.query.Instance != nil && hit.Instance != *s.query.Instance {
 		return nil
 	}
 	if len(s.terms) != 0 {

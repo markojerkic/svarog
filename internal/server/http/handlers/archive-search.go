@@ -74,7 +74,10 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 		return render(http.StatusBadRequest)
 	}
 	p.FromUnix, p.ToUnix = strconv.FormatInt(from, 10), strconv.FormatInt(to, 10)
-	query := archive.SearchQuery{From: time.Unix(from, 0).UTC(), To: time.Unix(to, 0).UTC(), Text: p.Text, Instance: p.Instance, OlderCursor: params.Get("older_cursor")}
+	query := archive.SearchQuery{
+		From: time.Unix(from, 0).UTC(), To: time.Unix(to, 0).UTC(),
+		Text: p.Text, Instance: p.Instance, OlderCursor: params.Get("older_cursor"), IncludeInstances: !more,
+	}
 	if more && (query.OlderCursor == "" || len(params["older_cursor"]) != 1) {
 		p.ErrorKey = "archives.search_cursor_invalid"
 		return render(http.StatusBadRequest)
