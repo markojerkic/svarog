@@ -1,5 +1,8 @@
 package dev.jerkic.svarog.demo.springboot;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
@@ -14,6 +17,8 @@ import org.springframework.stereotype.Component;
 public class OrderLogSimulator {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrderLogSimulator.class);
     private static final int OUT_OF_STOCK_PERCENT = 10;
+    private static final int INVENTORY_OFFLINE_PERCENT = 5;
+    private static final int INVALID_STOCK_LEVEL_PERCENT = 5;
     private static final int PAYMENT_TIMEOUT_PERCENT = 15;
     private static final int MAX_PAYMENT_ATTEMPTS = 2;
 
@@ -27,8 +32,13 @@ public class OrderLogSimulator {
         var quantity = random.nextInt(1, 6);
         LOGGER.info("Order received orderId={} product=\"{}\" quantity={}", orderId, product, quantity);
 
-        if (random.nextInt(100) < OUT_OF_STOCK_PERCENT) {
-            LOGGER.warn("Order rejected: out of stock orderId={}", orderId);
+        try {
+            if (availableStock(product) < quantity) {
+                LOGGER.warn("Order rejected: out of stock orderId={}", orderId);
+                return;
+            }
+        } catch (UncheckedIOException error) {
+            LOGGER.error("Order failed: inventory lookup orderId={} product=\"{}\"", orderId, product, error);
             return;
         }
 
@@ -45,6 +55,36 @@ public class OrderLogSimulator {
                 }
             }
         }
+    }
+
+    private int availableStock(String product) {
+        try {
+            return fetchStockLevel();
+        } catch (IOException error) {
+            throw new UncheckedIOException("Could not check availability of " + product, error);
+        }
+    }
+
+    private int fetchStockLevel() throws IOException {
+        try {
+            return Integer.parseInt(readInventoryResponse());
+        } catch (NumberFormatException error) {
+            throw new IOException("Inventory returned a non-numeric stock level", error);
+        } catch (IOException error) {
+            throw new IOException("No stock level received from inventory", error);
+        }
+    }
+
+    private String readInventoryResponse() throws IOException {
+        var random = ThreadLocalRandom.current();
+        var outcome = random.nextInt(100);
+        if (outcome < INVENTORY_OFFLINE_PERCENT) {
+            throw new IOException("Could not open inventory connection", new ConnectException("Connection refused"));
+        }
+        if (outcome < INVENTORY_OFFLINE_PERCENT + INVALID_STOCK_LEVEL_PERCENT) {
+            return "unknown";
+        }
+        return random.nextInt(100) < OUT_OF_STOCK_PERCENT ? "0" : "25";
     }
 
     private void simulatePayment() throws TimeoutException {
