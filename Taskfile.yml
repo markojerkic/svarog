@@ -51,9 +51,12 @@ tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
+      - mkdir -p "$TEMPL_DEV_MODE_ROOT"
       - echo "Dev server http://localhost:{{.PROXY_PORT}} (app :{{.PORT}})"
       - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --proxyport={{.PROXY_PORT}} --cmd="go run ./cmd/{{.CMD | default "server"}}" --open-browser=false
     env:
+      # A separate `templ generate` cleans up watch files in its own temp directory.
+      TEMPL_DEV_MODE_ROOT: "{{.ROOT_DIR}}/.task/templ-{{.PROXY_PORT}}"
       HTTP_SERVER_PORT: "{{.PORT}}"
       SHADCN_TEMPL_DEV: "true"
 
