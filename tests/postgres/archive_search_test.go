@@ -1,8 +1,11 @@
 package postgres_test
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -45,6 +48,14 @@ func TestSearchArchivedRecords(t *testing.T) {
 	require.Len(t, result.Hits, 200)
 	require.Equal(t, "newest", result.Hits[0].Message)
 	require.True(t, result.Hits[199].OccurredAt.Equal(start.Add(22*time.Second)))
+	require.NotEmpty(t, result.OlderCursor)
+	next := query
+	next.OlderCursor = result.OlderCursor
+	last, err := service.Search(ctx, scope, next)
+	require.NoError(t, err)
+	require.Len(t, last.Hits, 23)
+	require.Equal(t, result.TotalMatches, last.TotalMatches)
+	require.Empty(t, last.OlderCursor)
 
 	query.Text = "commit TIMED"
 	result, err = service.Search(ctx, scope, query)
@@ -68,6 +79,8 @@ func TestSearchArchivedRecords(t *testing.T) {
 	require.NoError(t, err)
 	data[len(data)/2] ^= 1
 	require.NoError(t, os.WriteFile(path, data, 0o600))
+	_, err = service.Search(ctx, scope, next)
+	require.ErrorIs(t, err, archive.ErrArchiveUnavailable, "continuations must verify the ZIPs again")
 	result, err = service.Search(ctx, scope, query)
 	require.ErrorIs(t, err, archive.ErrArchiveUnavailable)
 	require.Equal(t, archive.SearchResult{}, result)
@@ -82,4 +95,102 @@ func TestSearchArchivedRecords(t *testing.T) {
 	require.NoError(t, err)
 	_, err = service.Search(ctx, scope, archive.SearchQuery{From: start, To: start.Add(time.Second)})
 	require.ErrorIs(t, err, archive.ErrSearchLimit)
+}
+
+func TestArchiveSearchCursorAcrossTiedRecords(t *testing.T) {
+	ctx := t.Context()
+	pool, service, scope, dir := newArchiveFixture(t, ctx, "ArchivePagination")
+	stamp := time.Date(2020, 3, 1, 12, 0, 0, 123456000, time.UTC)
+	base := archive.SearchQuery{From: stamp.Add(-time.Second), To: stamp.Add(time.Second), Text: "record"}
+	var ids []uuid.UUID
+	for range 2 {
+		var rows []logstore.Row
+		for _, instance := range []string{"web", "worker"} {
+			for seq := range 150 {
+				rows = append(rows, logstore.Row{
+					Scope: logstore.Scope{ClientID: scope.ClientID}, OccurredAt: stamp, Instance: instance,
+					Sequence: int64(seq), Message: fmt.Sprintf("record %d\ntrace", seq),
+				})
+			}
+		}
+		_, err := testutils.InsertLogFixtures(ctx, pool, rows)
+		require.NoError(t, err)
+		job, err := service.Create(ctx, scope)
+		require.NoError(t, err)
+		ids = append(ids, job.Archive.ID)
+	}
+
+	slices.SortFunc(ids, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	var want []archive.SearchHit
+	for _, id := range ids {
+		for _, instance := range []string{"web", "worker"} {
+			for i := range 150 {
+				want = append(want, archive.SearchHit{
+					ArchiveID: id, Entry: instance + "/logs_000000.log", Line: 2*i + 1, OccurredAt: stamp,
+					Instance: instance, Message: fmt.Sprintf("record %d\ntrace", 149-i),
+				})
+			}
+		}
+	}
+	query := base
+	var firstCursor string
+	for offset := 0; offset < len(want); offset += 200 {
+		page, err := service.Search(ctx, scope, query)
+		require.NoError(t, err)
+		require.Equal(t, len(want), page.TotalMatches)
+		require.Equal(t, offset, page.Skipped)
+		require.Equal(t, 2, page.ArchivesScanned)
+		for i := range page.Hits {
+			page.Hits[i].OccurredAt = page.Hits[i].OccurredAt.UTC()
+		}
+		require.Equal(t, want[offset:offset+200], page.Hits)
+		if offset+200 == len(want) {
+			require.Empty(t, page.OlderCursor, "the last full page is final")
+		} else {
+			require.NotEmpty(t, page.OlderCursor)
+		}
+		query.OlderCursor = page.OlderCursor
+		if offset == 0 {
+			firstCursor = page.OlderCursor
+			// A different replica can continue with just the shared secret and ZIPs.
+			service = archive.NewArchiveService(pool, archive.NewDiskStore(dir), "archive-fixture-secret")
+		}
+	}
+	query = base
+	query.OlderCursor = firstCursor
+	assertInvalid := func(q archive.SearchQuery) {
+		t.Helper()
+		r, err := service.Search(ctx, scope, q)
+		require.ErrorIs(t, err, archive.ErrSearchCursor)
+		require.Equal(t, archive.SearchResult{}, r)
+	}
+	at := query
+	at.From = at.From.Add(time.Nanosecond)
+	assertInvalid(at)
+	text := query
+	text.Text = "trace"
+	assertInvalid(text)
+	tampered := query
+	tampered.OlderCursor = "!" + firstCursor
+	assertInvalid(tampered)
+	tampered.OlderCursor = "A" + firstCursor[1:]
+	if tampered.OlderCursor == firstCursor {
+		tampered.OlderCursor = "B" + firstCursor[1:]
+	}
+	assertInvalid(tampered)
+
+	// An overlapping new archive invalidates the cursor even without new matches.
+	_, err := testutils.InsertLogFixtures(ctx, pool, []logstore.Row{{Scope: logstore.Scope{ClientID: scope.ClientID}, OccurredAt: stamp, Message: "late"}})
+	require.NoError(t, err)
+	job, err := service.Create(ctx, scope)
+	require.NoError(t, err)
+	assertInvalid(query)
+	fresh, err := service.Search(ctx, scope, base)
+	require.NoError(t, err)
+	require.Equal(t, len(want), fresh.TotalMatches)
+	// The ID set is unchanged but the recorded ZIP digest differs.
+	_, err = pool.Exec(ctx, `UPDATE archives SET sha256 = $1 WHERE id = $2`, make([]byte, 32), job.Archive.ID)
+	require.NoError(t, err)
+	query.OlderCursor = fresh.OlderCursor
+	assertInvalid(query)
 }

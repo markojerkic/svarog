@@ -86,13 +86,22 @@ func TestSearchArchivedLogs(t *testing.T) {
 			case "too broad":
 				return archive.SearchResult{}, archive.ErrSearchLimit
 			case "timeout retry":
+				switch q.OlderCursor {
+				case "next":
+					return archive.SearchResult{ArchivesScanned: 2, TotalMatches: 202, Hits: []archive.SearchHit{
+						{Message: "last newer"}, {Message: "last older"},
+					}}, nil
+				case "":
+				default:
+					return archive.SearchResult{}, archive.ErrSearchCursor
+				}
 				hits := make([]archive.SearchHit, 200)
 				for i := range hits {
 					hits[i] = archive.SearchHit{ArchiveID: id, Entry: "web/logs_1.log", Line: 201 - i,
 						OccurredAt: from.Add(time.Duration(200-i) * time.Second), Instance: "web", Message: "timeout retry"}
 				}
 				hits[0].Message = long + " timeout retry"
-				return archive.SearchResult{ArchivesScanned: 2, TotalMatches: 205, Hits: hits}, nil
+				return archive.SearchResult{ArchivesScanned: 2, TotalMatches: 202, Hits: hits, OlderCursor: "next"}, nil
 			default:
 				t.Errorf("unexpected query: %q", q.Text)
 				return archive.SearchResult{}, nil
@@ -108,10 +117,10 @@ func TestSearchArchivedLogs(t *testing.T) {
 	result = call(args)
 	require.False(t, result.IsError, "%v", result.Content)
 	out := result.StructuredContent.(map[string]any)
-	require.NotContains(t, out, "older_cursor")
+	require.Equal(t, "next", out["older_cursor"])
 	require.NotContains(t, out, "newer_cursor")
 	require.Equal(t, float64(2), out["archives_scanned"])
-	require.Equal(t, float64(205), out["total_matches"])
+	require.Equal(t, float64(202), out["total_matches"])
 	require.Equal(t, true, out["truncated"])
 	rows := out["rows"].([]any)
 	require.Len(t, rows, 200)
@@ -121,6 +130,22 @@ func TestSearchArchivedLogs(t *testing.T) {
 		"occurred_at": from.UTC().Add(200 * time.Second).Format(time.RFC3339Nano), "instance": "web",
 		"message": long, "truncated": true,
 	}, rows[199])
+
+	args["older_cursor"] = out["older_cursor"]
+	result = call(args)
+	require.False(t, result.IsError)
+	last := result.StructuredContent.(map[string]any)
+	require.Equal(t, out["total_matches"], last["total_matches"])
+	require.NotContains(t, last, "older_cursor")
+	require.NotContains(t, last, "truncated")
+	lastRows := last["rows"].([]any)
+	require.Equal(t, "last older", lastRows[0].(map[string]any)["message"])
+	require.Equal(t, "last newer", lastRows[1].(map[string]any)["message"])
+	args["older_cursor"] = "stale"
+	result = call(args)
+	require.True(t, result.IsError)
+	require.Contains(t, result.Content[0].(*mcp.TextContent).Text, "restart the search")
+	delete(args, "older_cursor")
 
 	args["query"] = "too broad"
 	result = call(args)
@@ -173,6 +198,8 @@ func TestSearchArchivedLogsRejectsBeforeScan(t *testing.T) {
 	t.Run("non-admin with project access", func(t *testing.T) {
 		denied := s
 		denied.user.Role = auth.USER
+		args := maps.Clone(args)
+		args["older_cursor"] = "next"
 		result := archiveSearchCaller(t, denied)(args)
 		require.True(t, result.IsError)
 		require.Contains(t, result.Content[0].(*mcp.TextContent).Text, "only to administrators")

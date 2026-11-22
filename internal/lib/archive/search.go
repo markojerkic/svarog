@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,8 +31,9 @@ const (
 )
 
 type SearchQuery struct {
-	From, To time.Time
-	Text     string
+	From, To    time.Time
+	Text        string
+	OlderCursor string
 }
 
 type SearchHit struct {
@@ -47,6 +49,8 @@ type SearchResult struct {
 	Hits            []SearchHit
 	TotalMatches    int
 	ArchivesScanned int
+	Skipped         int    // matches on previous pages
+	OlderCursor     string // empty when all matches have been returned
 }
 
 func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (SearchResult, error) {
@@ -71,6 +75,14 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 	if err != nil {
 		return SearchResult{}, err
 	}
+	cursorKey := searchCursorKey(a.cursorSecret, scope, query, candidates)
+	state := searchScan{query: query, terms: search.Terms, remaining: maxExpanded}
+	if query.OlderCursor != "" {
+		state.after, err = decodeSearchCursor(cursorKey, query.OlderCursor)
+		if err != nil {
+			return SearchResult{}, err
+		}
+	}
 	if len(candidates) > maxSearchArchives {
 		return SearchResult{}, ErrSearchLimit
 	}
@@ -81,11 +93,19 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 		}
 		compressed += row.SizeBytes.Int64
 	}
-	state := searchScan{query: query, terms: search.Terms, remaining: maxExpanded}
 	for _, row := range candidates {
 		download, err := a.Open(ctx, scope, row.ID)
+		if errors.Is(err, ErrArchiveNotFound) {
+			return SearchResult{}, ErrSearchCursor
+		}
 		if err != nil {
 			return SearchResult{}, err
+		}
+		// The metadata used for the cursor and byte budget must describe
+		// the same ZIP we're about to verify, even across the two reads.
+		if download.Archive.SizeBytes != row.SizeBytes.Int64 || !bytes.Equal(download.Archive.SHA256[:], row.Sha256) {
+			download.Content.Close()
+			return SearchResult{}, ErrSearchCursor
 		}
 		if err := state.scanDownload(ctx, download); err != nil {
 			return SearchResult{}, fmt.Errorf("scan archive %s: %w", row.ID, err)
@@ -95,11 +115,15 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 	if err := ctx.Err(); err != nil {
 		return SearchResult{}, err
 	}
+	if r := &state.result; r.Skipped+len(r.Hits) < r.TotalMatches {
+		r.OlderCursor = encodeSearchCursor(cursorKey, r.Hits[len(r.Hits)-1])
+	}
 	return state.result, nil
 }
 
 type searchScan struct {
 	query      SearchQuery
+	after      *SearchHit
 	terms      []string
 	remaining  uint64 // expanded byte budget across all ZIPs
 	resultSize int
@@ -176,6 +200,10 @@ func (s *searchScan) match(hit SearchHit) error {
 		}
 	}
 	s.result.TotalMatches++
+	if s.after != nil && compareHits(hit, *s.after) <= 0 {
+		s.result.Skipped++
+		return nil
+	}
 	hits := s.result.Hits
 	at, _ := slices.BinarySearchFunc(hits, hit, compareHits)
 	if at == maxHits {

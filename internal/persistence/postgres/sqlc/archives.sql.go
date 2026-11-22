@@ -437,7 +437,7 @@ func (q *Queries) ListReadyArchives(ctx context.Context, arg ListReadyArchivesPa
 }
 
 const listSearchArchives = `-- name: ListSearchArchives :many
-SELECT a.id, a.size_bytes
+SELECT a.id, a.size_bytes, a.sha256
 FROM archives a
 JOIN clients c ON c.id = a.client_id
 WHERE c.project_id = $1 AND a.client_id = $2
@@ -459,6 +459,7 @@ type ListSearchArchivesParams struct {
 type ListSearchArchivesRow struct {
 	ID        uuid.UUID
 	SizeBytes pgtype.Int8
+	Sha256    []byte
 }
 
 func (q *Queries) ListSearchArchives(ctx context.Context, arg ListSearchArchivesParams) ([]ListSearchArchivesRow, error) {
@@ -476,7 +477,7 @@ func (q *Queries) ListSearchArchives(ctx context.Context, arg ListSearchArchives
 	var items []ListSearchArchivesRow
 	for rows.Next() {
 		var i ListSearchArchivesRow
-		if err := rows.Scan(&i.ID, &i.SizeBytes); err != nil {
+		if err := rows.Scan(&i.ID, &i.SizeBytes, &i.Sha256); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

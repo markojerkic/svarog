@@ -126,6 +126,7 @@ document.addEventListener(
     if (form.id === "archive-search-form") {
       if (!form.dataset.fromDay) {
         event.preventDefault();
+        event.stopPropagation();
         const trigger = document.getElementById("archive-range-trigger");
         const warning = document.getElementById("archive-range-error");
         warning.hidden = false;
@@ -147,6 +148,7 @@ document.addEventListener(
       );
       if (!(from < to)) {
         event.preventDefault();
+        event.stopPropagation();
         window.templ.popover.open("archive-range");
         toInput.closest("details").open = true;
         toInput.setCustomValidity(window.svarogI18n("logs.invalid_range"));
@@ -156,8 +158,6 @@ document.addEventListener(
       }
       form.elements.from.value = String(from);
       form.elements.to.value = String(to);
-      form.querySelector("button[type=submit]").disabled = true;
-      form.setAttribute("aria-busy", "true");
       return;
     }
     const preset = form.dataset.rangePreset;
@@ -189,10 +189,3 @@ document.addEventListener(
   },
   true,
 );
-
-window.addEventListener("pageshow", (event) => {
-  const form = document.querySelector("#archive-search-form[aria-busy]");
-  if (!event.persisted || !form) return;
-  form.removeAttribute("aria-busy");
-  form.querySelector("button[type=submit]").disabled = false;
-});

@@ -72,7 +72,8 @@ func registerTools(server *mcp.Server, t *tools) {
 		Name:  "search_archived_logs",
 		Title: "Search archived logs",
 		Description: "Search a client's completed archives for messages in [from, to). Requires the administrator role. " +
-			"Returns total matches and up to the newest 200 matching records, listed from oldest to newest. " +
+			"Returns total matches and up to 200 records per page, listed from oldest to newest. " +
+			"Repeat this search with older_cursor for the next older page. " +
 			"Messages longer than 2000 characters are truncated. Narrow the time range if the scan limit is exceeded.",
 		Annotations: readOnly(),
 	}, t.searchArchivedLogs)

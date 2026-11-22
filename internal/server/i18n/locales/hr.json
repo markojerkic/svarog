@@ -163,7 +163,12 @@
   "archives.search_hint": {
     "other": "Odaberite raspon u svojoj vremenskoj zoni. Za prikaz svih arhiviranih zapisa u tom razdoblju ostavite tekst praznim."
   },
-  "archives.search_text": { "other": "Tekst poruke (neobvezno)" },
+  "archives.search_text": { "other": "Tekst poruke" },
+  "archives.search_older": { "other": "Učitaj starije" },
+  "archives.search_cursor_invalid": {
+    "other": "Arhive su se promijenile ili ova stranica više ne odgovara pretrazi. Ponovite pretragu za prikaz trenutačnih rezultata."
+  },
+  "archives.search_restart": { "other": "Ponovi pretragu" },
   "archives.range_required": { "other": "Za pretragu arhive odaberite raspon datuma." },
   "archives.search_summary": {
     "other": "Broj pretraženih arhiva: {{.Archives}}. Prikazano {{.Shown}} od {{.Total}} pogodaka, od najnovijeg."

@@ -9,4 +9,5 @@ var (
 	ErrNotConfigured      = errors.New("archiving is not configured")
 	ErrArchiveUnavailable = errors.New("archive content is unavailable")
 	ErrSearchLimit        = errors.New("archive search exceeds the scan budget")
+	ErrSearchCursor       = errors.New("archive search cursor is invalid or the archives have changed; restart the search")
 )

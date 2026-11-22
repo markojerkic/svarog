@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -37,17 +38,66 @@ func (archiveAccessProjects) ClientBelongsToProject(context.Context, string, str
 
 type archiveHTTPStub struct {
 	archive.Archiver
-	page     archive.Page
-	download archive.Download
-	openErr  error
-	opened   uuid.UUID
-	closed   bool
-	searches []archive.SearchQuery
+	page         archive.Page
+	download     archive.Download
+	openErr      error
+	opened       uuid.UUID
+	closed       bool
+	searches     []archive.SearchQuery
+	searchResult archive.SearchResult
+	searchErr    error
 }
 
 func (s *archiveHTTPStub) Search(_ context.Context, _ archive.Scope, query archive.SearchQuery) (archive.SearchResult, error) {
 	s.searches = append(s.searches, query)
-	return archive.SearchResult{}, nil
+	return s.searchResult, s.searchErr
+}
+
+func TestArchiveSearchOlderPage(t *testing.T) {
+	stub := &archiveHTTPStub{searchResult: archive.SearchResult{
+		ArchivesScanned: 1, TotalMatches: 201, Hits: []archive.SearchHit{{Message: "first record"}}, OlderCursor: "next",
+	}}
+	server := newArchiveTestServer(t, stub)
+	path := "/logs/" + uuid.NewString() + "/" + uuid.NewString() + "/archives/search"
+	params := url.Values{"from": {"1700000000"}, "to": {"1710000000"}, "text": {"error & timeout"}}
+	get := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), nil)
+		if params.Has("older_cursor") {
+			req.Header.Set("HX-Request", "true")
+		}
+		r := httptest.NewRecorder()
+		server.ServeHTTP(r, req)
+		return r
+	}
+	first := get()
+	require.Equal(t, http.StatusOK, first.Code)
+	params.Set("older_cursor", "next")
+	require.Contains(t, html.UnescapeString(first.Body.String()), `hx-get="`+path+"?"+params.Encode()+`"`)
+	require.Contains(t, first.Body.String(), "Load older")
+	stub.searchResult = archive.SearchResult{
+		ArchivesScanned: 1, TotalMatches: 201, Skipped: 200, Hits: []archive.SearchHit{{Message: "last record"}},
+	}
+	last := get()
+	require.Equal(t, http.StatusOK, last.Code)
+	require.Len(t, stub.searches, 2)
+	require.Equal(t, "next", stub.searches[1].OlderCursor)
+	require.Contains(t, last.Body.String(), "Showing 201 of 201")
+	require.Contains(t, last.Body.String(), "last record")
+	require.NotContains(t, last.Body.String(), "first record")
+	require.NotContains(t, last.Body.String(), `id="archive-search-form"`)
+	require.NotContains(t, last.Body.String(), `id="archive-search-older"`)
+	stub.searchErr = archive.ErrArchiveUnavailable
+	retry := get()
+	require.Equal(t, http.StatusServiceUnavailable, retry.Code)
+	require.Contains(t, retry.Header().Get("HX-Trigger"), "could not be read or verified")
+	stub.searchErr = archive.ErrSearchCursor
+	stale := get()
+	require.Equal(t, http.StatusConflict, stale.Code)
+	require.Contains(t, stale.Body.String(), "Restart search")
+	params.Del("older_cursor")
+	require.Contains(t, html.UnescapeString(stale.Body.String()), `href="`+path+"?"+params.Encode()+`"`)
+	require.NotContains(t, stale.Body.String(), "first record")
+	require.NotContains(t, stale.Body.String(), "older_cursor")
 }
 
 func (s *archiveHTTPStub) GetPolicy(context.Context, archive.Scope) (archive.Policy, error) {
@@ -102,11 +152,19 @@ func TestArchiveSearchFromURL(t *testing.T) {
 
 	params.Set("from", "1774738800")
 	params.Set("to", "1774821600")
-	for range 2 {
-		response = get(params)
+	for _, requestType := range []string{"partial", "full"} {
+		req := httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), nil)
+		req.Header.Set("HX-Request", "true")
+		req.Header.Set("HX-Request-Type", requestType)
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, req)
 		require.Equal(t, http.StatusOK, response.Code)
 		require.Contains(t, response.Body.String(), `id="archive-results"`)
-		require.Contains(t, response.Body.String(), `value="error &amp; timeout"`)
+		if requestType == "partial" {
+			require.NotContains(t, response.Body.String(), `id="archive-search-form"`)
+		} else {
+			require.Contains(t, response.Body.String(), `value="error &amp; timeout"`)
+		}
 	}
 	require.Len(t, stub.searches, 2)
 	require.Equal(t, stub.searches[0], stub.searches[1])

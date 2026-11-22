@@ -142,7 +142,7 @@ func (a *App) Run() (runErr error) {
 		return fmt.Errorf("configure archive storage: %w", err)
 	}
 	projectsService := projects.NewPostgresProjectsService(postgresPool, archiveStore)
-	archiver := archive.NewArchiveService(postgresPool, archiveStore)
+	archiver := archive.NewArchiveService(postgresPool, archiveStore, env.SessionSecret)
 	oauthService, archiveLinks, err := newMCPAuth(env.PublicURL, env.SessionSecret, postgresPool)
 	if err != nil {
 		return fmt.Errorf("configure MCP authorization: %w", err)

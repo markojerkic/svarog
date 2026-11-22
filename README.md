@@ -6,10 +6,8 @@ them in a web UI.
 - Projects with clients, each sending logs from one or more named instances.
 - Live tailing, substring search, date ranges and context around a log line.
 - Scheduled and manual ZIP archiving per client, on disk or in S3-compatible storage.
-- On-demand search of archived logs: open **Archiving → Search archived logs** as
-  an administrator, choose a local time range and optionally enter message text.
-  The end time is exclusive. Search verifies the matching ZIPs and returns the
-  newest 200 matches and the total count, without importing records into PostgreSQL.
+- Administrators can search archived logs by time range and message text.
+  Results are paginated, newest first, with up to 200 matches per page.
   Each request scans at most 128 ZIPs, 256 MiB compressed, 512 MiB expanded and
   8 MiB of result text, with a one-minute scan timeout. If a limit is exceeded or
   a ZIP cannot be verified, no partial results are shown.

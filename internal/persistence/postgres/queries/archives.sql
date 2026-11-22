@@ -160,7 +160,7 @@ WHERE c.project_id = sqlc.arg(project_id)
   AND a.status = 'ready';
 
 -- name: ListSearchArchives :many
-SELECT a.id, a.size_bytes
+SELECT a.id, a.size_bytes, a.sha256
 FROM archives a
 JOIN clients c ON c.id = a.client_id
 WHERE c.project_id = sqlc.arg(project_id) AND a.client_id = sqlc.arg(client_id)

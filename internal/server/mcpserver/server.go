@@ -26,7 +26,7 @@ const instructions = `Svarog stores log lines from clients grouped into projects
 Start with list_projects to find project and client IDs. search_logs finds unarchived lines; every line it returns has a link.
 get_log_context takes a link (or IDs) and returns the surrounding lines of the same instance.
 Results list lines from oldest to newest. For unarchived lines, pass older_cursor or newer_cursor to get_log_page to move through history.
-Archive tools are for administrators only. Use search_archived_logs to search completed archives by time range. Its rows have ZIP entry and line locations instead of log links or cursors.
+Archive tools are for administrators only. Use search_archived_logs to search completed archives by time range. Its rows have ZIP entry and line locations instead of log links. Pass its older_cursor back to search_archived_logs with the same filters for the next older page.
 Use list_archives for archive metadata and get_archive_download_link when the ZIP itself is needed.`
 
 const (

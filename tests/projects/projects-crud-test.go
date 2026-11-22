@@ -209,7 +209,7 @@ func (p *ProjectsSuite) TestDeleteProject_RemovesClientsLogsAndArchives() {
 
 	dir := t.TempDir()
 	disk := archive.NewDiskStore(dir)
-	archiver := archive.NewArchiveService(p.PostgresPool, disk)
+	archiver := archive.NewArchiveService(p.PostgresPool, disk, "")
 	scope := archive.Scope{ProjectID: project.ID, ClientID: apiID}
 	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
 	require.NoError(t, archiver.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable archiving so deletion has a ZIP to remove")

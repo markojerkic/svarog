@@ -67,7 +67,10 @@ document.addEventListener("dialog-open-change", (event) => {
 
 document.addEventListener("htmx:before:response", (event) => {
   const { sourceElement, response } = event.detail.ctx;
-  if (sourceElement.matches("[data-log-page]") && !sourceElement.isConnected) {
+  if (
+    sourceElement.matches("[data-log-page], #archive-search-older") &&
+    !sourceElement.isConnected
+  ) {
     event.preventDefault();
     return;
   }
@@ -94,7 +97,7 @@ document.addEventListener("htmx:error", (event) => {
   const { ctx, error } = event.detail;
   if (
     ctx.sourceElement.matches(
-      "#log-search-form, [data-log-instance-form], #log-range-form, #log-time-range-form, [data-log-instance-filter], [data-log-context], [data-log-page]",
+      "#log-search-form, [data-log-instance-form], #log-range-form, #log-time-range-form, [data-log-instance-filter], [data-log-context], [data-log-page], #archive-search-form, #archive-search-older",
     ) &&
     error.name !== "AbortError"
   ) {

@@ -36,7 +36,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	apiID := clientByName(t, project, "api")
 	workerID := clientByName(t, project, "worker")
 	dir := t.TempDir()
-	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(dir))
+	var service archive.Archiver = archive.NewArchiveService(pool, archive.NewDiskStore(dir), "")
 	scope := archive.Scope{ProjectID: project.ID, ClientID: apiID}
 	old := time.Now().Add(-14 * 24 * time.Hour).UTC().Truncate(time.Microsecond)
 	recent := time.Now().UTC().Truncate(time.Microsecond)
@@ -91,7 +91,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	})
 
 	t.Run("missing directory and missing policy", func(t *testing.T) {
-		unconfigured := archive.NewArchiveService(pool, nil)
+		unconfigured := archive.NewArchiveService(pool, nil, "")
 		_, err := unconfigured.Create(ctx, scope)
 		require.ErrorIs(t, err, archive.ErrNotConfigured, "the job refuses to write without ARCHIVE_DIR")
 		result, err := service.Create(ctx, archive.Scope{ProjectID: project.ID, ClientID: workerID})
@@ -145,7 +145,7 @@ func TestCreateArchiveForClient(t *testing.T) {
 	t.Run("write failure preserves logs for retry", func(t *testing.T) {
 		failureScope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "write-failure")}
 		failureDir := t.TempDir()
-		failureService := archive.NewArchiveService(pool, archive.NewDiskStore(failureDir))
+		failureService := archive.NewArchiveService(pool, archive.NewDiskStore(failureDir), "")
 		require.NoError(t, failureService.SetPolicy(ctx, failureScope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the write-failure client's archive policy")
 		insertArchiveLog(t, ctx, pool, failureScope, "retained")
 		blocked := filepath.Join(failureDir, failureScope.ClientID.String())
@@ -245,7 +245,7 @@ func newArchiveFixture(t *testing.T, ctx context.Context, name string) (*pgxpool
 	require.NoError(t, err, "create the archive fixture's project and client")
 	dir := t.TempDir()
 	scope := archive.Scope{ProjectID: project.ID, ClientID: clientByName(t, project, "api")}
-	service := archive.NewArchiveService(pool, archive.NewDiskStore(dir))
+	service := archive.NewArchiveService(pool, archive.NewDiskStore(dir), "archive-fixture-secret")
 	require.NoError(t, service.SetPolicy(ctx, scope, archive.Policy{Enabled: true, ArchiveAfterWeeks: 1}), "enable the fixture's archive policy")
 	return pool, service, scope, dir
 }

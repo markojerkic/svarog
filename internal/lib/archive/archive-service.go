@@ -2,6 +2,7 @@ package archive
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
@@ -14,16 +15,21 @@ import (
 )
 
 type Service struct {
-	pool  *pgxpool.Pool
-	store Store
+	pool         *pgxpool.Pool
+	store        Store
+	cursorSecret string
 }
 
 var _ Archiver = (*Service)(nil)
 
 // NewArchiveService uses store for archive content. A nil store permits metadata
 // reads and policy disabling, but not enabling, creating or opening archives.
-func NewArchiveService(pool *pgxpool.Pool, store Store) *Service {
-	return &Service{pool: pool, store: store}
+// Replicas must share cursorSecret to continue each other's archive searches.
+func NewArchiveService(pool *pgxpool.Pool, store Store, cursorSecret string) *Service {
+	if cursorSecret == "" {
+		cursorSecret = rand.Text()
+	}
+	return &Service{pool: pool, store: store, cursorSecret: cursorSecret}
 }
 
 func (a *Service) GetPolicy(ctx context.Context, scope Scope) (Policy, error) {
