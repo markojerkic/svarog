@@ -93,6 +93,8 @@
   "logs.clear_search": { "other": "Clear search" },
   "logs.filters": { "other": "Filters" },
   "logs.tools": { "other": "Tools" },
+  "logs.display": { "other": "View" },
+  "logs.instances": { "other": "Instances" },
   "logs.all_instances": { "other": "All instances" },
   "logs.instance": { "other": "Instance" },
   "logs.show_time": { "other": "Show time" },
