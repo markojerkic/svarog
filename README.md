@@ -320,15 +320,19 @@ Canceling the context passed to `Setup` also starts shutdown.
 
 ## Development
 
-Requires Go 1.27.3+, Bun 1.4.3, Task and Docker. `task dev` uses the
-repository's development `.env` and `nats-server.conf`; do not reuse their
+Requires Go 1.27.3+, Bun 1.4.3, Task and Docker. Both modes use the development
+`.env`; the external broker also uses `nats-server.conf`. Do not reuse their
 credentials in production.
 
 ```bash
 bun install --frozen-lockfile
-task dev   # PostgreSQL, NATS and the server with hot reload on http://localhost:7331
-task       # Build both server images and the client image tagged :local
+task dev           # PostgreSQL in Docker, embedded NATS, hot reload at http://localhost:7331
+task dev:external  # Same hot reload, with PostgreSQL and NATS in Docker
+task               # Build both server images and the client image tagged :local
 ```
+
+Both brokers use `localhost:4222`. `task dev` stops the development NATS
+container to free that port and stores embedded JetStream data in `tmp/nats`.
 
 Use `task build` for the external-NATS binary (`/tmp/svarog-server`) or
 `task build CMD=server-embedded` for the embedded binary (`/tmp/svarog-server-embedded`).

@@ -52,7 +52,7 @@ tasks:
     desc: Run templ with integrated server and hot reload
     cmds:
       - echo "Dev server http://localhost:{{.PROXY_PORT}} (app :{{.PORT}})"
-      - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --proxyport={{.PROXY_PORT}} --cmd="go run ./cmd/server" --open-browser=false
+      - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --proxyport={{.PROXY_PORT}} --cmd="go run ./cmd/{{.CMD | default "server"}}" --open-browser=false
     env:
       HTTP_SERVER_PORT: "{{.PORT}}"
       SHADCN_TEMPL_DEV: "true"
@@ -70,11 +70,32 @@ tasks:
       PROXY_PORT: "{{.PROXY_PORT}}"
 
   dev:
-    desc: Start development server with hot reload
+    desc: Start development server with embedded NATS and hot reload
+    cmds:
+      - docker compose --env-file .env -f docker-compose.dev.yml up -d --wait svarog-postgres
+      - docker compose --env-file .env -f docker-compose.dev.yml stop nats
+      - task: dev:watch
+        vars:
+          CMD: server-embedded
+
+  dev:external:
+    desc: Start development server with external NATS and hot reload
     deps:
       - db
     cmds:
-      - task --parallel templ tailwind ui:scripts reload-assets PORT={{.PORT}} PROXY_PORT={{.PROXY_PORT}}
+      - task: dev:watch
+        vars:
+          CMD: server
+
+  dev:watch:
+    internal: true
+    deps:
+      - task: templ
+        vars:
+          CMD: "{{.CMD}}"
+      - tailwind
+      - ui:scripts
+      - reload-assets
 
   build:
     desc: Build assets and a server binary (CMD=server or CMD=server-embedded)
