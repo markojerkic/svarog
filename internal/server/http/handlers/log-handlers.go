@@ -265,6 +265,11 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
+	if cookie, err := c.Cookie(pages.LogWrapLinesCookie); err == nil {
+		if wrap, err := strconv.ParseBool(cookie.Value); err == nil {
+			props.WrapLines = &wrap
+		}
+	}
 	props.ClientName = self.logClientName(c.Request().Context(), params.ProjectId, params.ClientId)
 	props.AvailableInstances, err = self.logReader.Instances(ctx, query.Scope)
 	if err != nil {

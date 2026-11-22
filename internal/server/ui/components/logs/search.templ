@@ -22,17 +22,17 @@ templ SearchTrigger(search string) {
 		}
 		@button.Button(button.Props{
 			ID:         "log-search-trigger",
-			Variant:    button.VariantSecondary,
+			Variant:    button.VariantGhost,
 			Size:       button.SizeSm,
-			Class:      "max-w-[min(68vw,20rem)] gap-2 max-md:px-2",
+			Class:      "min-w-0 flex-1 justify-start gap-2",
 			Attributes: attributes,
 		}) {
 			@icon.Search(icon.Props{Class: "size-3.5"})
 			if search != "" {
-				<span class="truncate max-md:sr-only">{ search }</span>
+				<span class="truncate">{ search }</span>
 			} else {
-				<span class="max-md:sr-only">{ i18n.T(ctx, "common.search") }</span>
-				<kbd class="hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
+				<span class="truncate">{ i18n.T(ctx, "logs.search_placeholder") }</span>
+				<kbd class="ml-auto hidden rounded border bg-background px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline-block">Ctrl K</kbd>
 			}
 		}
 		if search != "" {

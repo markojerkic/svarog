@@ -89,7 +89,10 @@ function setLiveState(container, state) {
   if (state === "reconnecting") return;
 
   const status = document.getElementById("log-live-status");
-  if (status) status.textContent = status.dataset[`${state}Label`];
+  if (status) {
+    status.textContent = status.dataset[`${state}Label`];
+    status.dataset.state = state;
+  }
 
   if (!stoppedLiveStates.has(state)) return;
   const notice = document.getElementById("log-live-notice");

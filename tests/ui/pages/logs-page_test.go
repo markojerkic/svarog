@@ -58,7 +58,7 @@ func TestLogSearchForm(t *testing.T) {
 	}
 }
 
-func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
+func TestLogSearchIsOnlyInTheLogsWorkspace(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		page   templ.Component
@@ -89,10 +89,8 @@ func TestLogSearchIsOnlyInTheLogsPageHeader(t *testing.T) {
 				if strings.Contains(html, `id="filter-instance-button"`) {
 					t.Fatal("Instance filtering must use a navigation link rather than the old hidden button")
 				}
-				headerEnd := strings.Index(html, "</header>")
-				trigger := strings.Index(html, `id="log-search-trigger"`)
-				if headerEnd < 0 || trigger > headerEnd {
-					t.Fatal("Search trigger must render in the existing header, not a new toolbar")
+				if strings.Count(html, `id="log-search-trigger"`) != 1 || strings.Count(html, `id="log-search-dialog"`) != 1 {
+					t.Fatal("The search shortcut must have a single trigger and dialog on desktop and mobile")
 				}
 			}
 		})

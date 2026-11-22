@@ -8,13 +8,13 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/label"
 import "github.com/markojerkic/svarog/internal/server/ui/components/sheet"
+import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 import "github.com/markojerkic/svarog/internal/server/ui/shadcnutil"
 
 templ Trigger(projectID, clientID string) {
-	@button.Button(button.Props{
+	@sidebar.MenuButton(sidebar.MenuButtonProps{
 		ID:      "log-archive-trigger",
-		Variant: button.VariantOutline,
-		Size:    button.SizeSm,
+		Tooltip: i18n.T(ctx, "archives.title"),
 		Attributes: utils.MergeAttributes(sheet.TriggerFor("log-archive-sheet"), templ.Attributes{
 			"hx-get":     ArchivePanelURL(projectID, clientID),
 			"hx-target":  "#log-archive-panel",
@@ -24,8 +24,8 @@ templ Trigger(projectID, clientID string) {
 			"title":      i18n.T(ctx, "archives.title"),
 		}),
 	}) {
-		@icon.Archive(icon.Props{Class: "size-3.5"})
-		<span class="hidden lg:inline">{ i18n.T(ctx, "archives.title") }</span>
+		@icon.Archive(icon.Props{Class: "size-4"})
+		<span>{ i18n.T(ctx, "archives.title") }</span>
 	}
 }
 
