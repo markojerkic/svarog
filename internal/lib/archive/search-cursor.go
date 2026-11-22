@@ -31,6 +31,13 @@ func searchCursorKey(secret string, scope Scope, q SearchQuery, candidates []sql
 		mac.Write(row.ID[:])
 		mac.Write(row.Sha256)
 	}
+	if q.Instance != nil {
+		mac.Write([]byte("instance\x00"))
+		mac.Write(binary.BigEndian.AppendUint32(nil, uint32(len(*q.Instance))))
+		mac.Write([]byte(*q.Instance))
+	} else {
+		mac.Write([]byte("all\x00"))
+	}
 	mac.Write([]byte(q.Text))
 	return mac.Sum(nil)
 }

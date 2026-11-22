@@ -164,6 +164,22 @@
     "other": "Odaberite raspon u svojoj vremenskoj zoni. Za prikaz svih arhiviranih zapisa u tom razdoblju ostavite tekst praznim."
   },
   "archives.search_text": { "other": "Tekst poruke" },
+  "archives.context": { "other": "Kontekst arhivskog zapisa" },
+  "archives.anchor": { "other": "Odabrani zapis" },
+  "archives.back_results": { "other": "Natrag na pretragu arhive" },
+  "archives.neighbours": { "other": "Zapisi prije i poslije" },
+  "archives.context_summary": {
+    "other": "Starijih zapisa: {{.Older}} · Novijih zapisa: {{.Newer}}. Zapisi iste instance u ovoj arhivi poredani su od najstarijeg do najnovijeg."
+  },
+  "archives.context_edge": { "other": "Dosegnuta je granica zapisa ove instance u arhivi." },
+  "archives.download_context": { "other": "Preuzmi kontekst (.log)" },
+  "archives.download_default_context": { "other": "Preuzmi kontekst (±20 zapisa)" },
+  "archives.download_zip": { "other": "Preuzmi cijelu arhivu (.zip)" },
+  "archives.hit_missing": { "other": "Odabrani zapis nije pronađen u ovoj arhivi." },
+  "archives.context_limit": {
+    "other": "Kontekst je prevelik za prikaz. Pokušajte s manje susjednih zapisa ili preuzmite cijelu arhivu."
+  },
+  "archives.line_copied": { "other": "Zapis je kopiran u međuspremnik." },
   "archives.search_older": { "other": "Učitaj starije" },
   "archives.search_cursor_invalid": {
     "other": "Arhive su se promijenile ili ova stranica više ne odgovara pretrazi. Ponovite pretragu za prikaz trenutačnih rezultata."

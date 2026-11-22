@@ -29,6 +29,8 @@ type Archiver interface {
 	List(ctx context.Context, scope Scope, query ListQuery) (Page, error)
 	// Search scans completed ZIPs overlapping [From, To). An error never returns partial results.
 	Search(ctx context.Context, scope Scope, query SearchQuery) (SearchResult, error)
+	// Context returns chronological neighbours of one record in its instance and ZIP.
+	Context(ctx context.Context, scope Scope, ref HitRef, lines int) (HitContext, error)
 	// Get returns a completed archive's description without opening its content.
 	Get(ctx context.Context, scope Scope, archiveID uuid.UUID) (Archive, error)
 	// Open returns completed archive content. The caller must close it and

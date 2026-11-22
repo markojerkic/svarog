@@ -1,0 +1,95 @@
+package pages
+
+import "fmt"
+import "net/url"
+import "strconv"
+import "time"
+import "github.com/markojerkic/svarog/internal/lib/archive"
+import "github.com/markojerkic/svarog/internal/server/i18n"
+import "github.com/markojerkic/svarog/internal/server/ui/components/button"
+import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
+
+type ArchiveContextProps struct {
+	Window                  archive.HitContext
+	Ref                     archive.HitRef
+	Lines                   int
+	ArchivePath, SearchPath string
+	BackParams              url.Values
+}
+
+func (p ArchiveContextProps) contextURL(lines int, download bool) string {
+	path := p.ArchivePath + "/context"
+	q := url.Values{"entry": {p.Ref.Entry}, "line": {strconv.Itoa(p.Ref.Line)}, "lines": {strconv.Itoa(lines)}}
+	if download {
+		path += "/download"
+	} else {
+		for k, v := range p.BackParams {
+			q[k] = v
+		}
+	}
+	return path + "?" + q.Encode()
+}
+
+templ ArchiveContext(p ArchiveContextProps) {
+	{{
+		w := p.Window
+		hit := w.Rows[w.Anchor]
+		back := p.SearchPath
+		if len(p.BackParams) > 0 {
+			back += "?" + p.BackParams.Encode()
+		}
+	}}
+	@AdminLayout(AdminLayoutProps{Title: i18n.T(ctx, "archives.context"), CurrentPath: p.SearchPath}) {
+		<div class="space-y-5">
+			<a class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" href={ templ.SafeURL(back) }>
+				@icon.ArrowLeft(icon.Props{Class: "size-4"})
+				{ i18n.T(ctx, "archives.back_results") }
+			</a>
+			<div class="space-y-1">
+				<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "archives.context") }</h1>
+				<p class="break-all text-sm text-muted-foreground">{ w.Archive.FileName }</p>
+			</div>
+			<section class="space-y-2 rounded-lg border-l-4 border-primary bg-muted/60 px-4 py-3">
+				<div class="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+					<strong class="text-foreground">{ i18n.T(ctx, "archives.anchor") }</strong>
+					<span class="break-all">@archiveInstanceName(hit.Instance)</span>
+					<time data-archive-time="full" datetime={ hit.OccurredAt.Format(time.RFC3339Nano) }>{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
+				</div>
+				<pre class="whitespace-pre-wrap break-all font-mono text-sm">{ hit.Message }</pre>
+			</section>
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="flex flex-wrap items-center gap-2 text-sm">
+					<span>{ i18n.T(ctx, "archives.neighbours") }</span>
+					for _, n := range []int{5, 20, 50, 100} {
+						<a href={ templ.SafeURL(p.contextURL(n, false)) } hx-swap="innerHTML show:none" class="rounded-md border px-2 py-1 text-xs tabular-nums hover:bg-accent aria-[current=true]:border-primary aria-[current=true]:bg-primary aria-[current=true]:text-primary-foreground" aria-current={ strconv.FormatBool(n == p.Lines) }>{ fmt.Sprintf("±%d", n) }</a>
+					}
+				</div>
+				@button.Button(button.Props{Href: p.contextURL(p.Lines, true), Variant: button.VariantOutline, Attributes: templ.Attributes{"hx-boost": "false", "download": true}}) {
+					@icon.Download(icon.Props{Size: 15})
+					{ i18n.T(ctx, "archives.download_context") }
+				}
+			</div>
+			<div class="space-y-2">
+				<p class="text-sm text-muted-foreground">{ i18n.Format(ctx, i18n.Message{ID:"archives.context_summary", Data:map[string]any{"Older":w.Anchor,"Newer":len(w.Rows)-w.Anchor-1}}) }</p>
+				<ol class="divide-y rounded-xl border bg-card">
+					for index, row := range w.Rows {
+						<li
+							class="grid gap-x-3 gap-y-1 border-l-2 border-transparent px-3 py-2 text-xs sm:grid-cols-[3rem_7rem_1fr] aria-[current=true]:border-primary aria-[current=true]:bg-muted"
+							if index == w.Anchor {
+								aria-current="true"
+								aria-label={ i18n.T(ctx, "archives.anchor") }
+							}
+						>
+							<span class="font-mono tabular-nums text-muted-foreground">{ fmt.Sprintf("%+d", index-w.Anchor) }</span>
+							<time data-archive-time="short" class="tabular-nums text-muted-foreground" datetime={ row.OccurredAt.Format(time.RFC3339Nano) } title={ row.OccurredAt.UTC().Format(time.RFC3339Nano) }>{ row.OccurredAt.UTC().Format("15:04:05.000 UTC") }</time>
+							<pre class="min-w-0 whitespace-pre-wrap break-all font-mono">{ row.Message }</pre>
+						</li>
+					}
+				</ol>
+				if w.OlderEdge || w.NewerEdge {
+					<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "archives.context_edge") }</p>
+				}
+			</div>
+		</div>
+	}
+}

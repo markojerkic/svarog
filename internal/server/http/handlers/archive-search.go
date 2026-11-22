@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/markojerkic/svarog/internal/lib/archive"
+	"github.com/markojerkic/svarog/internal/lib/logevent"
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/server/http/htmx"
 	"github.com/markojerkic/svarog/internal/server/i18n"
@@ -32,6 +33,13 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 		ProjectID: scope.ProjectID.String(),
 		ClientID:  scope.ClientID.String(),
 		Text:      params.Get("text"),
+	}
+	if params.Has("instance") {
+		instance := params.Get("instance")
+		if len(params["instance"]) != 1 || logevent.ValidateInstanceID(instance) != nil {
+			return archiveStatus(c, http.StatusBadRequest, i18n.T(ctx, "logs.invalid_instances"))
+		}
+		p.Instance = &instance
 	}
 	render := func(status int) error {
 		c.Response().Header().Set("Cache-Control", "private, no-store")
@@ -65,7 +73,7 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 		return render(http.StatusBadRequest)
 	}
 	p.FromUnix, p.ToUnix = strconv.FormatInt(from, 10), strconv.FormatInt(to, 10)
-	query := archive.SearchQuery{From: time.Unix(from, 0).UTC(), To: time.Unix(to, 0).UTC(), Text: p.Text, OlderCursor: params.Get("older_cursor")}
+	query := archive.SearchQuery{From: time.Unix(from, 0).UTC(), To: time.Unix(to, 0).UTC(), Text: p.Text, Instance: p.Instance, OlderCursor: params.Get("older_cursor")}
 	if more && (query.OlderCursor == "" || len(params["older_cursor"]) != 1) {
 		p.ErrorKey = "archives.search_cursor_invalid"
 		return render(http.StatusBadRequest)

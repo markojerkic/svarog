@@ -17,11 +17,14 @@ const observers = new WeakMap();
 
 // The form takes local dates. Keep archive results in that same zone, with the
 // precise UTC instant available on hover and as the no-JS fallback.
-window.templ.lifecycle.register('section[aria-labelledby="archive-results"] time[datetime]', {
+window.templ.lifecycle.register("time[data-archive-time]", {
   init(time) {
     const date = new Date(time.dateTime);
-    time.title = time.textContent.trim();
-    time.textContent = `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
+    time.title ||= time.textContent.trim();
+    time.textContent =
+      time.dataset.archiveTime === "short"
+        ? timeFormatter.format(date)
+        : `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
   },
 });
 

@@ -33,6 +33,7 @@ const (
 type SearchQuery struct {
 	From, To    time.Time
 	Text        string
+	Instance    *string // nil: all; empty string: unnamed instance only
 	OlderCursor string
 }
 
@@ -107,7 +108,7 @@ func (a *Service) Search(ctx context.Context, scope Scope, query SearchQuery) (S
 			download.Content.Close()
 			return SearchResult{}, ErrSearchCursor
 		}
-		if err := state.scanDownload(ctx, download); err != nil {
+		if err := scanDownload(ctx, download, &state.remaining, state.match); err != nil {
 			return SearchResult{}, fmt.Errorf("scan archive %s: %w", row.ID, err)
 		}
 		state.result.ArchivesScanned++
@@ -130,8 +131,11 @@ type searchScan struct {
 	result     SearchResult
 }
 
-func (s *searchScan) scanDownload(ctx context.Context, d Download) error {
+func scanDownload(ctx context.Context, d Download, remaining *uint64, visit func(SearchHit) error) error {
 	defer d.Content.Close()
+	if d.Archive.SizeBytes > maxCompressed {
+		return ErrSearchLimit
+	}
 	file, err := os.CreateTemp("", "svarog-search-*.zip")
 	if err != nil {
 		return err
@@ -155,11 +159,11 @@ func (s *searchScan) scanDownload(ctx context.Context, d Download) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if entry.UncompressedSize64 > s.remaining {
+		if entry.UncompressedSize64 > *remaining {
 			return ErrSearchLimit
 		}
-		s.remaining -= entry.UncompressedSize64
-		read, err := scanLogEntry(ctx, entry, d.Archive.ID, s.match)
+		*remaining -= entry.UncompressedSize64
+		read, err := scanLogEntry(ctx, entry, d.Archive.ID, visit)
 		if err != nil {
 			return err
 		}
@@ -188,6 +192,9 @@ func compareHits(a, b SearchHit) int {
 }
 
 func (s *searchScan) match(hit SearchHit) error {
+	if s.query.Instance != nil && hit.Instance != *s.query.Instance {
+		return nil
+	}
 	if hit.OccurredAt.Before(s.query.From) || !hit.OccurredAt.Before(s.query.To) {
 		return nil
 	}

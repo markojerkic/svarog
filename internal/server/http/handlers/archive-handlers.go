@@ -55,6 +55,8 @@ func NewArchiveRouter(
 	group.GET("/list", router.listArchives)
 	group.GET("/search", router.searchArchives)
 	group.GET("/:archiveId", router.downloadArchive)
+	group.GET("/:archiveId/context", router.archiveHitContext)
+	group.GET("/:archiveId/context/download", router.archiveHitContext)
 	return router
 }
 

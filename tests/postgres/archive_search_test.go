@@ -64,6 +64,22 @@ func TestSearchArchivedRecords(t *testing.T) {
 	require.Equal(t, trace, result.Hits[0].Message)
 	require.Equal(t, instance, result.Hits[0].Instance)
 	require.Equal(t, first, result.Hits[0].ArchiveID)
+	hit := result.Hits[0]
+	ref := archive.HitRef{ArchiveID: first, Entry: hit.Entry, Line: hit.Line}
+	window, err := service.Context(ctx, scope, ref, 20)
+	require.NoError(t, err)
+	require.Len(t, window.Rows, 1, "adjacent records from other instances must not appear")
+	require.Equal(t, trace, window.Rows[window.Anchor].Message)
+	continuation := ref
+	continuation.Line++
+	_, err = service.Context(ctx, scope, continuation, 20)
+	require.ErrorIs(t, err, archive.ErrHitNotFound)
+	filter := ""
+	filtered := archive.SearchQuery{From: query.From, To: query.To, Instance: &filter}
+	matches, err := service.Search(ctx, scope, filtered)
+	require.NoError(t, err)
+	require.Equal(t, 1, matches.TotalMatches, "filter before taking the 200 newest")
+	require.Equal(t, "late arrival", matches.Hits[0].Message)
 
 	_, err = service.Search(ctx, archive.Scope{ProjectID: uuid.New(), ClientID: scope.ClientID}, query)
 	require.ErrorIs(t, err, archive.ErrClientNotFound)
@@ -84,6 +100,9 @@ func TestSearchArchivedRecords(t *testing.T) {
 	result, err = service.Search(ctx, scope, query)
 	require.ErrorIs(t, err, archive.ErrArchiveUnavailable)
 	require.Equal(t, archive.SearchResult{}, result)
+	window, err = service.Context(ctx, scope, ref, 5)
+	require.ErrorIs(t, err, archive.ErrArchiveUnavailable)
+	require.Empty(t, window.Rows)
 	query.From, query.To = start.Add(time.Hour), start.Add(2*time.Hour)
 	result, err = service.Search(ctx, scope, query)
 	require.NoError(t, err, "non-overlapping corrupt archives are not opened")

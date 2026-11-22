@@ -2,6 +2,7 @@ package pages
 
 import "time"
 import "net/url"
+import "strconv"
 import "github.com/markojerkic/svarog/internal/lib/archive"
 import "github.com/markojerkic/svarog/internal/lib/logsearch"
 import "github.com/markojerkic/svarog/internal/server/i18n"
@@ -16,6 +17,7 @@ type ArchiveSearchProps struct {
 	ProjectID, ClientID string
 	FromUnix, ToUnix    string
 	Text                string
+	Instance            *string
 	Query               logsearch.Query
 	ErrorKey            string
 	Result              *archive.SearchResult
@@ -23,6 +25,9 @@ type ArchiveSearchProps struct {
 
 func (p ArchiveSearchProps) searchURL(cursor string) string {
 	params := url.Values{"from": {p.FromUnix}, "to": {p.ToUnix}, "text": {p.Text}}
+	if p.Instance != nil {
+		params.Set("instance", *p.Instance)
+	}
 	if cursor != "" {
 		params.Set("older_cursor", cursor)
 	}
@@ -56,6 +61,9 @@ templ ArchiveSearch(p ArchiveSearchProps) {
 			>
 				<input type="hidden" name="from" value={ p.FromUnix }/>
 				<input type="hidden" name="to" value={ p.ToUnix }/>
+				if p.Instance != nil {
+					<input type="hidden" name="instance" value={ *p.Instance }/>
+				}
 				<div class="grid gap-2 text-sm font-medium">
 					<label for="archive-range-trigger">{ i18n.T(ctx, "logs.date_range") }</label>
 					@logRangePopover("archive-range", i18n.T(ctx, "common.select_date"), popover.AlignStart, button.SizeDefault) {
@@ -92,11 +100,24 @@ templ ArchiveSearch(p ArchiveSearchProps) {
 			<div id="archive-search-results">
 				@ArchiveSearchResults(p)
 			</div>
+			@archiveHitMenu()
 		</div>
 	}
 }
 
 templ ArchiveSearchResults(p ArchiveSearchProps) {
+	if p.Instance != nil {
+		{{
+			all := p
+			all.Instance = nil
+		}}
+		<a href={ templ.SafeURL(all.searchURL("")) } hx-swap="innerHTML show:none" class="mb-3 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted" title={ i18n.T(ctx, "logs.clear_instance_filters") }>
+			@icon.Funnel(icon.Props{Size: 13})
+			<span>{ i18n.T(ctx, "logs.instance") }: @archiveInstanceName(*p.Instance)</span>
+			@icon.X(icon.Props{Size: 13})
+			<span class="sr-only">{ i18n.T(ctx, "logs.clear_instance_filters") }</span>
+		</a>
+	}
 	if p.ErrorKey != "" {
 		<p role="alert" class="rounded-lg border border-destructive/40 p-4 text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
 	} else if p.Result != nil {
@@ -144,15 +165,21 @@ templ ArchiveSearchMore(p ArchiveSearchProps) {
 
 templ archiveSearchRows(p ArchiveSearchProps) {
 	for _, hit := range p.Result.Hits {
-		<li class="space-y-1 px-4 py-3">
+		<li class="group relative space-y-1 py-3 pr-12 pl-4" data-archive-row>
+			@button.Button(button.Props{
+				Variant: button.VariantGhost, Size: button.SizeIconSm, Class: "absolute right-2 top-2 text-muted-foreground hover:text-foreground",
+				Attributes: templ.Attributes{
+					"aria-label": i18n.T(ctx, "logs.line_actions"), "popovertarget": "archive-hit-menu",
+					"data-archive-url": archives.ArchiveDownloadURL(p.ProjectID, p.ClientID, hit.ArchiveID.String()),
+					"data-entry":       hit.Entry, "data-line": strconv.Itoa(hit.Line), "data-instance": hit.Instance,
+				},
+			}) {
+				@icon.EllipsisVertical(icon.Props{Size: 16})
+			}
 			<div class="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-				<time datetime={ hit.OccurredAt.Format(time.RFC3339Nano) } class="tabular-nums">{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
+				<time data-archive-time="full" datetime={ hit.OccurredAt.Format(time.RFC3339Nano) } class="tabular-nums">{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
 				<span class="break-all font-medium text-foreground">
-					if hit.Instance == "" {
-						{ i18n.T(ctx, "logs.unnamed_instance") }
-					} else {
-						{ hit.Instance }
-					}
+					@archiveInstanceName(hit.Instance)
 				</span>
 			</div>
 			<pre class="whitespace-pre-wrap break-all font-mono text-sm leading-6">@logs.LogLineText(hit.Message, p.Query)</pre>
@@ -171,4 +198,44 @@ templ archiveSearchRows(p ArchiveSearchProps) {
 			}
 		</li>
 	}
+}
+
+templ archiveInstanceName(name string) {
+	if name == "" {
+		{ i18n.T(ctx, "logs.unnamed_instance") }
+	} else {
+		{ name }
+	}
+}
+
+templ archiveHitMenu() {
+	{{ item := "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none" }}
+	<div popover="auto" id="archive-hit-menu" class="fixed inset-auto m-0 w-max max-w-[calc(100vw-1rem)] rounded-lg border bg-popover p-1 text-popover-foreground shadow-md" aria-label={ i18n.T(ctx, "logs.line_actions") }>
+		<a data-action="context" class={ item } hx-boost="true">
+			@icon.ListTree(icon.Props{Size: 15})
+			{ i18n.T(ctx, "logs.open_context") }
+		</a>
+		<a data-action="instance" class={ item } hx-boost="true" hx-swap="innerHTML show:none">
+			@icon.Funnel(icon.Props{Size: 15})
+			{ i18n.T(ctx, "logs.only_this_instance") }
+		</a>
+		<hr class="my-1 border-border"/>
+		<a data-action="download" class={ item } hx-boost="false" download>
+			@icon.FileText(icon.Props{Size: 15})
+			{ i18n.T(ctx, "archives.download_default_context") }
+		</a>
+		<a data-action="zip" class={ item } hx-boost="false" download>
+			@icon.Archive(icon.Props{Size: 15})
+			{ i18n.T(ctx, "archives.download_zip") }
+		</a>
+		<hr class="my-1 border-border"/>
+		<button type="button" data-action="copy" class={ item }>
+			@icon.Copy(icon.Props{Size: 15})
+			{ i18n.T(ctx, "logs.copy_line") }
+		</button>
+		<button type="button" data-action="link" class={ item }>
+			@icon.Link(icon.Props{Size: 15})
+			{ i18n.T(ctx, "logs.copy_link") }
+		</button>
+	</div>
 }
