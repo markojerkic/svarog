@@ -35,6 +35,10 @@ func (a *ArchiveRouter) archiveHitContext(c *echo.Context) error {
 		return archiveStatus(c, http.StatusNotFound, i18n.T(ctx, "archives.not_found"))
 	}
 	params := c.Request().URL.Query()
+	direction := params.Get("direction")
+	if direction != "" && direction != "forward" && direction != "backward" {
+		return archiveStatus(c, http.StatusBadRequest, i18n.T(ctx, "request.invalid_parameters"))
+	}
 	line, err := strconv.Atoi(params.Get("line"))
 	if err != nil || line < 1 || params.Get("entry") == "" {
 		return archiveStatus(c, http.StatusBadRequest, i18n.T(ctx, "request.invalid_parameters"))
@@ -77,8 +81,12 @@ func (a *ArchiveRouter) archiveHitContext(c *echo.Context) error {
 		}
 	}
 	path := archives.ArchiveDownloadURL(project, client, id.String())
-	return utils.Render(c, http.StatusOK, pages.ArchiveContext(pages.ArchiveContextProps{
-		Window: window, Ref: ref, Lines: lines, ArchivePath: path, BackParams: back,
+	props := pages.ArchiveContextProps{
+		Window: window, Ref: ref, Lines: lines, ArchivePath: path, BackParams: back, ProjectID: project, ClientID: client, Display: logDisplayOptions(c),
 		SearchPath: archives.ArchivePanelURL(project, client) + "/search",
-	}))
+	}
+	if direction != "" && c.Request().Header.Get("HX-Request-Type") == "partial" {
+		return utils.Render(c, http.StatusOK, pages.ArchiveContextLines(props, direction))
+	}
+	return utils.Render(c, http.StatusOK, pages.ArchiveContext(props))
 }

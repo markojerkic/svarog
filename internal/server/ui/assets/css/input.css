@@ -174,7 +174,7 @@
   --log-context-border: #41668c;
 }
 
-[data-log-anchor] [data-log-menu-trigger] {
+[data-log-anchor] :is([data-log-menu-trigger], [data-archive-url]) {
   background-color: var(--log-context-bg);
 }
 
@@ -251,7 +251,7 @@
     overflow-x: auto;
   }
 
-  #log-scroll-container > pre[data-timestamp] [data-log-menu-trigger] {
+  #log-scroll-container > pre[data-timestamp] :is([data-log-menu-trigger], [data-archive-url]) {
     position: static;
     grid-column: 2;
     grid-row: 1;

@@ -166,23 +166,14 @@ templ ArchiveSearchMore(p ArchiveSearchProps) {
 templ archiveSearchRows(p ArchiveSearchProps) {
 	for _, hit := range p.Result.Hits {
 		<li class="group relative space-y-1 py-3 pr-12 pl-4" data-archive-row>
-			@button.Button(button.Props{
-				Variant: button.VariantGhost, Size: button.SizeIconSm, Class: "absolute right-2 top-2 text-muted-foreground hover:text-foreground",
-				Attributes: templ.Attributes{
-					"aria-label": i18n.T(ctx, "logs.line_actions"), "popovertarget": "archive-hit-menu",
-					"data-archive-url": archives.ArchiveDownloadURL(p.ProjectID, p.ClientID, hit.ArchiveID.String()),
-					"data-entry":       hit.Entry, "data-line": strconv.Itoa(hit.Line), "data-instance": hit.Instance,
-				},
-			}) {
-				@icon.EllipsisVertical(icon.Props{Size: 16})
-			}
+			@archiveActionTrigger(archives.ArchiveDownloadURL(p.ProjectID, p.ClientID, hit.ArchiveID.String()), hit, "absolute right-2 top-2 text-muted-foreground hover:text-foreground")
 			<div class="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
 				<time data-archive-time="full" datetime={ hit.OccurredAt.Format(time.RFC3339Nano) } class="tabular-nums">{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
 				<span class="break-all font-medium text-foreground">
 					@archiveInstanceName(hit.Instance)
 				</span>
 			</div>
-			<pre class="whitespace-pre-wrap break-all font-mono text-sm leading-6">@logs.LogLineText(hit.Message, p.Query)</pre>
+			<pre data-log-message class="whitespace-pre-wrap break-all font-mono text-sm leading-6">@logs.LogLineText(hit.Message, p.Query)</pre>
 		</li>
 	}
 	if p.Result.OlderCursor != "" {
@@ -200,6 +191,18 @@ templ archiveSearchRows(p ArchiveSearchProps) {
 	}
 }
 
+templ archiveActionTrigger(archiveURL string, hit archive.SearchHit, class string) {
+	@button.Button(button.Props{
+		Variant: button.VariantGhost, Size: button.SizeIconXs, Class: class,
+		Attributes: templ.Attributes{
+			"aria-label": i18n.T(ctx, "logs.line_actions"), "popovertarget": "archive-hit-menu",
+			"data-archive-url": archiveURL, "data-entry": hit.Entry, "data-line": strconv.Itoa(hit.Line), "data-instance": hit.Instance,
+		},
+	}) {
+		@icon.EllipsisVertical(icon.Props{Size: 16})
+	}
+}
+
 templ archiveInstanceName(name string) {
 	if name == "" {
 		{ i18n.T(ctx, "logs.unnamed_instance") }
@@ -208,9 +211,17 @@ templ archiveInstanceName(name string) {
 	}
 }
 
-templ archiveHitMenu() {
+templ archiveHitMenu(attributes ...templ.Attributes) {
 	{{ item := "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none" }}
-	<div popover="auto" id="archive-hit-menu" class="fixed inset-auto m-0 w-max max-w-[calc(100vw-1rem)] rounded-lg border bg-popover p-1 text-popover-foreground shadow-md" aria-label={ i18n.T(ctx, "logs.line_actions") }>
+	<div
+		popover="auto"
+		id="archive-hit-menu"
+		class="fixed inset-auto m-0 w-max max-w-[calc(100vw-1rem)] rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+		aria-label={ i18n.T(ctx, "logs.line_actions") }
+		if len(attributes) > 0 {
+			{ attributes[0]... }
+		}
+	>
 		<a data-action="context" class={ item } hx-boost="true">
 			@icon.ListTree(icon.Props{Size: 15})
 			{ i18n.T(ctx, "logs.open_context") }

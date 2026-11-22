@@ -165,15 +165,10 @@
   },
   "archives.search_text": { "other": "Tekst poruke" },
   "archives.context": { "other": "Kontekst arhivskog zapisa" },
-  "archives.anchor": { "other": "Odabrani zapis" },
-  "archives.back_results": { "other": "Natrag na pretragu arhive" },
-  "archives.neighbours": { "other": "Zapisi prije i poslije" },
-  "archives.context_summary": {
-    "other": "Starijih zapisa: {{.Older}} · Novijih zapisa: {{.Newer}}. Zapisi iste instance u ovoj arhivi poredani su od najstarijeg do najnovijeg."
+  "archives.download_neighbours": {
+    "other": "Preuzmi odabrani zapis i do {{.Lines}} zapisa prije i poslije njega."
   },
-  "archives.context_edge": { "other": "Dosegnuta je granica zapisa ove instance u arhivi." },
-  "archives.download_context": { "other": "Preuzmi kontekst (.log)" },
-  "archives.download_default_context": { "other": "Preuzmi kontekst (±20 zapisa)" },
+  "archives.download_default_context": { "other": "Preuzmi kontekst (.log)" },
   "archives.download_zip": { "other": "Preuzmi cijelu arhivu (.zip)" },
   "archives.hit_missing": { "other": "Odabrani zapis nije pronađen u ovoj arhivi." },
   "archives.context_limit": {

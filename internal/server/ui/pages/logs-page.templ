@@ -35,15 +35,19 @@ type LogsPageProps struct {
 	InstanceOptions logstore.InstanceOptions
 	ReturnSearch    string
 	ReturnInstances *[]string
-	ShowTime        bool
-	ShowInstance    bool
-	WrapLines       *bool
+	LogDisplayOptions
+}
+
+type LogDisplayOptions struct {
+	ShowTime     bool
+	ShowInstance bool
+	WrapLines    *bool
 }
 
 const LogColumnsCookie = "svarog_log_columns"
 const LogWrapLinesCookie = "svarog_log_wrap_lines"
 
-func (p LogsPageProps) wrapLines(mobile bool) bool {
+func (p LogDisplayOptions) wrapLines(mobile bool) bool {
 	if p.WrapLines == nil {
 		return mobile
 	}
@@ -95,7 +99,7 @@ templ LogsPage(props LogsPageProps) {
 				<div class="log-mode">@logMode(props)</div>
 			</header>
 			<div class="log-preferences">
-				@logDisplay(props)
+				@logDisplay(props.LogDisplayOptions)
 				@components.LanguageSwitcher()
 			</div>
 			<section class="log-filters" aria-label={ i18n.T(ctx, "logs.filters") }>
@@ -127,18 +131,7 @@ templ LogsPage(props LogsPageProps) {
 						@LogPageLoader(props, nil, "backward", "logs.load_older")
 					</template>
 				}
-				<div
-					class="flex min-h-0 flex-1 flex-col-reverse overflow-auto rounded-xl border bg-card p-2 font-mono text-[13px] leading-6"
-					id="log-scroll-container"
-					data-instance-hues-url={ fmt.Sprintf("/logs/%s/%s/instance-hues", props.ProjectId, props.ClientId) }
-					data-log-client-id={ props.ClientId }
-					data-show-time?={ props.ShowTime }
-					data-show-instance?={ props.ShowInstance }
-					if props.WrapLines != nil {
-						data-wrap-lines={ strconv.FormatBool(*props.WrapLines) }
-					}
-					data-log-live?={ props.IsLive() }
-				>
+				@logStream(props.LogDisplayOptions, props.ProjectId, props.ClientId, props.IsLive()) {
 					@LogPageLines(props)
 					if len(props.LogPage.Rows) == 0 {
 						if props.Search != "" {
@@ -154,7 +147,7 @@ templ LogsPage(props LogsPageProps) {
 							</div>
 						}
 					}
-				</div>
+				}
 			</div>
 		</section>
 		@logs.SharedLogMenu()
@@ -163,17 +156,23 @@ templ LogsPage(props LogsPageProps) {
 			@archives.SettingsSheet()
 		}
 	}
-	<script type="text/javascript">
-		(function positionLogs() {
-			const logsContainer = document.getElementById("log-scroll-container");
-			const anchor = logsContainer.querySelector("[data-log-anchor]");
-			if (anchor) {
-				anchor.scrollIntoView({ block: "center", inline: "nearest" });
-			} else {
-				logsContainer.scrollTop = 0;
-			}
-		})();
-	</script>
+}
+
+templ logStream(display LogDisplayOptions, projectID, clientID string, live bool) {
+	<div
+		class="flex min-h-0 flex-1 flex-col-reverse overflow-auto rounded-xl border bg-card p-2 font-mono text-[13px] leading-6"
+		id="log-scroll-container"
+		data-instance-hues-url={ fmt.Sprintf("/logs/%s/%s/instance-hues", projectID, clientID) }
+		data-log-client-id={ clientID }
+		data-show-time?={ display.ShowTime }
+		data-show-instance?={ display.ShowInstance }
+		if display.WrapLines != nil {
+			data-wrap-lines={ strconv.FormatBool(*display.WrapLines) }
+		}
+		data-log-live?={ live }
+	>
+		{ children... }
+	</div>
 }
 
 templ logViewMenuItem(option string, pressed bool, label string) {
@@ -572,7 +571,7 @@ templ instanceOption(name string, checked bool) {
 	</label>
 }
 
-templ logDisplay(props LogsPageProps) {
+templ logDisplay(props LogDisplayOptions) {
 	@popover.Popover(popover.Props{ID: "log-display"}) {
 		@button.Button(button.Props{
 			Variant: button.VariantOutline,
@@ -675,12 +674,16 @@ templ LogPageLines(props LogsPageProps) {
 }
 
 templ LogPageLoader(props LogsPageProps, cursor *logstore.Cursor, direction, label string) {
+	@logPageControl(props.ToPath(props.Instances, cursor, direction, props.Search), direction, label, "body:abort")
+}
+
+templ logPageControl(path, direction, label, sync string) {
 	<div
 		data-log-page={ direction }
-		hx-get={ props.ToPath(props.Instances, cursor, direction, props.Search) }
-		hx-swap="outerHTML"
+		hx-get={ path }
+		hx-swap="outerHTML show:none"
 		hx-trigger="intersect once root:#log-scroll-container rootMargin:160px, click"
-		hx-sync="body:abort"
+		hx-sync={ sync }
 		hx-disable="find button"
 		hx-push-url="false"
 		class="flex shrink-0 justify-center py-1"

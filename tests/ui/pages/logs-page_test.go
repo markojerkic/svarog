@@ -12,10 +12,32 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/markojerkic/svarog/internal/lib/archive"
 	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/components/logs"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 )
+
+func TestArchiveContextPagesExcludeBoundaryAndOppositeSide(t *testing.T) {
+	p := pages.ArchiveContextProps{Window: archive.HitContext{
+		Anchor: 1,
+		Rows: []archive.SearchHit{
+			{Entry: "web/logs_000001.log", Line: 1, Message: "older-only"},
+			{Entry: "web/logs_000000.log", Line: 3, Message: "boundary-only"},
+			{Entry: "web/logs_000000.log", Line: 1, Message: "newer-only"},
+		},
+	}}
+	for direction, want := range map[string]string{"backward": "older-only", "forward": "newer-only"} {
+		var buf bytes.Buffer
+		if err := pages.ArchiveContextLines(p, direction).Render(t.Context(), &buf); err != nil {
+			t.Fatal(err)
+		}
+		s := buf.String()
+		if strings.Count(s, "data-timestamp=") != 1 || !strings.Contains(s, want) || strings.Contains(s, "data-log-anchor") {
+			t.Fatalf("%s page must contain only its new neighbour, without a second anchor", direction)
+		}
+	}
+}
 
 func TestLogColumns(t *testing.T) {
 	for _, tc := range []struct {

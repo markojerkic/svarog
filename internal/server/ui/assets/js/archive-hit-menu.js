@@ -8,7 +8,7 @@ function openActions(button, point) {
   menu.hidePopover();
   if (wasOpen && !point) return;
   trigger = button;
-  const search = new URL(location.href);
+  const search = new URL(menu.dataset.searchUrl || location.href, location.origin);
   search.searchParams.delete("older_cursor");
   const context = new URL(button.dataset.archiveUrl + "/context", location.origin);
   context.searchParams.set("entry", button.dataset.entry);
@@ -19,6 +19,10 @@ function openActions(button, point) {
   for (const name of ["from", "to", "text", "instance"]) {
     if (search.searchParams.has(name))
       context.searchParams.set(name, search.searchParams.get(name));
+  }
+  if (!search.searchParams.has("from") && menu.dataset.archiveStart) {
+    search.searchParams.set("from", menu.dataset.archiveStart);
+    search.searchParams.set("to", menu.dataset.archiveEnd);
   }
   search.searchParams.set("instance", button.dataset.instance);
   const urls = { context, instance: search, download, zip: button.dataset.archiveUrl };
@@ -50,7 +54,9 @@ document.addEventListener("click", async (event) => {
   try {
     const link = item.dataset.action === "link";
     await navigator.clipboard.writeText(
-      link ? menu.dataset.permalink : trigger.closest("li").querySelector("pre").textContent,
+      link
+        ? menu.dataset.permalink
+        : trigger.closest("[data-archive-row]").querySelector("[data-log-message]").textContent,
     );
     showToast(window.svarogI18n(link ? "logs.link_copied" : "archives.line_copied"));
   } catch {

@@ -237,22 +237,16 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if logPage.AnchorInstance != nil {
 		params.Instances = &[]string{*logPage.AnchorInstance}
 	}
-	showTime, showInstance := true, true
-	cookie, cookieErr := c.Cookie(pages.LogColumnsCookie)
-	if cookieErr == nil {
-		showTime, showInstance = pages.LogColumns(cookie.Value)
-	}
 	props := pages.LogsPageProps{
-		LogPage:      logPage,
-		IsLastPage:   isLastPage,
-		Range:        logRange,
-		ClientId:     params.ClientId,
-		ProjectId:    params.ProjectId,
-		Search:       params.Search,
-		ShowTime:     showTime,
-		ShowInstance: showInstance,
-		Instances:    params.Instances,
-		LogLineId:    params.LogLineId,
+		LogPage:           logPage,
+		IsLastPage:        isLastPage,
+		Range:             logRange,
+		ClientId:          params.ClientId,
+		ProjectId:         params.ProjectId,
+		Search:            params.Search,
+		LogDisplayOptions: logDisplayOptions(c),
+		Instances:         params.Instances,
+		LogLineId:         params.LogLineId,
 	}
 
 	if params.LogLineId != nil && strings.TrimSpace(params.ReturnSearch) != "" {
@@ -266,17 +260,25 @@ func (self *LogsRouter) logsByClientHandler(c *echo.Context) error {
 	if isHx && nextCursor != nil && c.Request().Header.Get("HX-Request-Type") != "full" {
 		return utils.Render(c, http.StatusOK, pages.LogPageLines(props))
 	}
-	if cookie, err := c.Cookie(pages.LogWrapLinesCookie); err == nil {
-		if wrap, err := strconv.ParseBool(cookie.Value); err == nil {
-			props.WrapLines = &wrap
-		}
-	}
 	props.ClientName = self.logClientName(c.Request().Context(), params.ProjectId, params.ClientId)
 	props.InstanceOptions, err = self.logReader.InstanceOptions(ctx, query.Scope, "", i18n.T(ctx, "logs.unnamed_instance"), nil)
 	if err != nil {
 		return err
 	}
 	return utils.Render(c, http.StatusOK, pages.LogsPage(props))
+}
+
+func logDisplayOptions(c *echo.Context) pages.LogDisplayOptions {
+	display := pages.LogDisplayOptions{ShowTime: true, ShowInstance: true}
+	if cookie, err := c.Cookie(pages.LogColumnsCookie); err == nil {
+		display.ShowTime, display.ShowInstance = pages.LogColumns(cookie.Value)
+	}
+	if cookie, err := c.Cookie(pages.LogWrapLinesCookie); err == nil {
+		if wrap, err := strconv.ParseBool(cookie.Value); err == nil {
+			display.WrapLines = &wrap
+		}
+	}
+	return display
 }
 
 func (self *LogsRouter) instanceHues(c *echo.Context) error {

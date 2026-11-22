@@ -21,10 +21,7 @@ window.templ.lifecycle.register("time[data-archive-time]", {
   init(time) {
     const date = new Date(time.dateTime);
     time.title ||= time.textContent.trim();
-    time.textContent =
-      time.dataset.archiveTime === "short"
-        ? timeFormatter.format(date)
-        : `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
+    time.textContent = `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
   },
 });
 
@@ -40,6 +37,16 @@ function formatLogRow(row) {
 window.templ.lifecycle.register("#log-scroll-container", {
   init(container) {
     container.querySelectorAll("pre[data-timestamp]").forEach(formatLogRow);
+    const anchor = container.querySelector("[data-log-anchor]");
+    if (anchor) {
+      // Center within the log viewport, without scrolling the surrounding page.
+      requestAnimationFrame(() => {
+        if (!anchor.isConnected) return;
+        const row = anchor.getBoundingClientRect();
+        const view = container.getBoundingClientRect();
+        container.scrollTop += row.top - view.top + (row.height - view.height) / 2;
+      });
+    }
     const observer = new MutationObserver((records) => {
       for (const record of records) record.addedNodes.forEach(formatLogRow);
     });

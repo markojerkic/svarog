@@ -25,34 +25,14 @@ templ LogLineText(text string, search logsearch.Query) {
 }
 
 templ LogLine(props LogLineProps) {
-	<pre
-		class="group flex min-w-full w-max items-center border-l-4 pl-3 text-foreground hover:bg-muted/50"
-		data-timestamp={ props.Row.OccurredAt.UnixNano() }
-		data-sequence={ props.Row.Sequence }
-		data-log-id={ strconv.FormatInt(props.Row.ID, 10) }
-		data-instance-id={ props.Row.Instance }
-		if props.IsContext {
-			data-log-anchor="true"
-			aria-current="true"
-		}
-	>
-		<div data-log-meta class="contents">
-			<time
-				data-log-time
-				class="mr-3 shrink-0 text-muted-foreground tabular-nums"
-				datetime={ props.Row.OccurredAt.UTC().Format(time.RFC3339Nano) }
-			></time>
-			<span data-log-instance class="mr-3 max-w-36 shrink-0 truncate text-muted-foreground" title={ props.Row.Instance }>
-				{ props.Row.Instance }
-			</span>
-		</div>
-		<span data-log-message class="flex-1">
-			@LogLineText(props.Row.Message, props.Search)
-		</span>
+	@RecordLine(props.Row.OccurredAt, props.Row.Instance, props.Row.Message, props.Search, props.IsContext, templ.Attributes{
+		"data-sequence": strconv.FormatInt(props.Row.Sequence, 10),
+		"data-log-id":   strconv.FormatInt(props.Row.ID, 10),
+	}) {
 		@button.Button(button.Props{
 			Variant: button.VariantGhost,
 			Size:    button.SizeIconXs,
-			Class:   "sticky right-0 ml-3 bg-card opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+			Class:   RowActionClass,
 			Attributes: templ.Attributes{
 				"aria-labelledby":       "log-line-actions-label",
 				"data-log-menu-trigger": "true",
@@ -63,6 +43,36 @@ templ LogLine(props LogLineProps) {
 		}) {
 			@icon.EllipsisVertical()
 		}
+	}
+}
+
+const RowActionClass = "sticky right-0 ml-3 bg-card opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+
+templ RecordLine(at time.Time, instance, message string, search logsearch.Query, anchor bool, attrs templ.Attributes) {
+	<pre
+		class="group flex min-w-full w-max items-center border-l-4 pl-3 text-foreground hover:bg-muted/50"
+		data-timestamp={ at.UnixNano() }
+		data-instance-id={ instance }
+		{ attrs... }
+		if anchor {
+			data-log-anchor="true"
+			aria-current="true"
+		}
+	>
+		<div data-log-meta class="contents">
+			<time
+				data-log-time
+				class="mr-3 shrink-0 text-muted-foreground tabular-nums"
+				datetime={ at.UTC().Format(time.RFC3339Nano) }
+			></time>
+			<span data-log-instance class="mr-3 max-w-36 shrink-0 truncate text-muted-foreground" title={ instance }>
+				{ instance }
+			</span>
+		</div>
+		<span data-log-message class="flex-1">
+			@LogLineText(message, search)
+		</span>
+		{ children... }
 	</pre>
 }
 

@@ -163,17 +163,10 @@
   },
   "archives.search_text": { "other": "Message text" },
   "archives.context": { "other": "Archived log context" },
-  "archives.anchor": { "other": "Selected record" },
-  "archives.back_results": { "other": "Back to archive search" },
-  "archives.neighbours": { "other": "Records before and after" },
-  "archives.context_summary": {
-    "other": "Older records: {{.Older}} · Newer records: {{.Newer}}. Showing only this instance in this archive, oldest first."
+  "archives.download_neighbours": {
+    "other": "Download the selected record and up to {{.Lines}} records on each side."
   },
-  "archives.context_edge": {
-    "other": "The window reaches the edge of this instance’s records in this archive."
-  },
-  "archives.download_context": { "other": "Download context (.log)" },
-  "archives.download_default_context": { "other": "Download context (±20 records)" },
+  "archives.download_default_context": { "other": "Download context (.log)" },
   "archives.download_zip": { "other": "Download entire archive (.zip)" },
   "archives.hit_missing": { "other": "The selected record was not found in this archive." },
   "archives.context_limit": {
