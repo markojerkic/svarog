@@ -9,13 +9,15 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/input"
 import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
+import "github.com/markojerkic/svarog/internal/server/ui/components/popover"
 
 type ArchiveSearchProps struct {
-	ProjectID, ClientID      string
-	FromLocal, ToLocal, Text string
-	Query                    logsearch.Query
-	ErrorKey                 string
-	Result                   *archive.SearchResult
+	ProjectID, ClientID string
+	FromUnix, ToUnix    string
+	Text                string
+	Query               logsearch.Query
+	ErrorKey            string
+	Result              *archive.SearchResult
 }
 
 templ ArchiveSearch(p ArchiveSearchProps) {
@@ -30,27 +32,43 @@ templ ArchiveSearch(p ArchiveSearchProps) {
 				<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "archives.search") }</h1>
 				<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.search_hint") }</p>
 			</div>
-			<form id="archive-search-form" method="post" action={ templ.SafeURL(archives.ArchivePanelURL(p.ProjectID, p.ClientID) + "/search") } hx-boost="false" class="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4">
-				<input type="hidden" name="fromAt"/>
-				<input type="hidden" name="toAt"/>
-				<label class="grid grow gap-2 text-sm font-medium sm:grow-0">
-					{ i18n.T(ctx, "logs.time_from") }
-					@input.Input(input.Props{Type: "datetime-local", Name: "fromLocal", Value: p.FromLocal, Required: true, Attributes: templ.Attributes{"data-log-time-from": "", "step": "1"}})
-				</label>
-				<label class="grid grow gap-2 text-sm font-medium sm:grow-0">
-					{ i18n.T(ctx, "logs.time_to") }
-					@input.Input(input.Props{Type: "datetime-local", Name: "toLocal", Value: p.ToLocal, Required: true, Attributes: templ.Attributes{"data-log-time-to": "", "step": "1"}})
-				</label>
-				<label class="grid grow gap-2 text-sm font-medium">
+			<form id="archive-search-form" method="get" action={ templ.SafeURL(archives.ArchivePanelURL(p.ProjectID, p.ClientID) + "/search") } hx-boost="false" class="group grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-end">
+				<input type="hidden" name="from" value={ p.FromUnix }/>
+				<input type="hidden" name="to" value={ p.ToUnix }/>
+				<div class="grid gap-2 text-sm font-medium">
+					<label for="archive-range-trigger">{ i18n.T(ctx, "logs.date_range") }</label>
+					@logRangePopover("archive-range", i18n.T(ctx, "common.select_date"), popover.AlignStart, button.SizeDefault) {
+						<details class="text-sm">
+							<summary class="cursor-pointer">{ i18n.T(ctx, "logs.precise_range") }</summary>
+							<div class="mt-2 flex flex-wrap gap-2">
+								<label>
+									{ i18n.T(ctx, "logs.time_from") }
+									@input.Input(input.Props{Type: "time", ID: "archive-from-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
+								</label>
+								<label>
+									{ i18n.T(ctx, "logs.time_to") }
+									@input.Input(input.Props{Type: "time", ID: "archive-to-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
+								</label>
+							</div>
+						</details>
+						@logRangeCalendar("", "")
+						@button.Button(button.Props{Type: button.TypeButton, Size: button.SizeSm, Class: "self-end", Attributes: templ.Attributes{"data-archive-range-done": true}}) {
+							{ i18n.T(ctx, "logs.apply_dates") }
+						}
+					}
+				</div>
+				<label class="grid gap-2 text-sm font-medium">
 					{ i18n.T(ctx, "archives.search_text") }
 					@input.Input(input.Props{Type: "search", Name: "text", Value: p.Text, Placeholder: i18n.T(ctx, "logs.search_placeholder"), Attributes: templ.Attributes{"maxlength": archive.MaxSearchText}})
 				</label>
 				@button.Button(button.Props{Type: button.TypeSubmit}) {
 					@icon.Search(icon.Props{Class: "size-4"})
-					{ i18n.T(ctx, "logs.run_search") }
+					<span class="group-aria-busy:hidden">{ i18n.T(ctx, "logs.run_search") }</span>
+					<span class="hidden group-aria-busy:inline">{ i18n.T(ctx, "logs.searching") }</span>
 				}
+				<p id="archive-range-error" role="alert" hidden?={ p.ErrorKey != "archives.range_required" } class="text-sm text-destructive sm:col-span-full">{ i18n.T(ctx, "archives.range_required") }</p>
 			</form>
-			if p.ErrorKey != "" {
+			if p.ErrorKey != "" && p.ErrorKey != "archives.range_required" {
 				<p role="alert" class="rounded-lg border border-destructive/40 p-4 text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
 			} else if p.Result != nil {
 				<section class="space-y-3" aria-labelledby="archive-results">

@@ -23,21 +23,21 @@ import "github.com/markojerkic/svarog/internal/server/ui/components"
 import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 
 type LogsPageProps struct {
-	LogPage            logstore.Page
-	IsLastPage         bool
-	Range              *LogRange
-	ClientId           string
-	ProjectId          string
-	ClientName         string
-	Instances          *[]string
-	Search             string
-	LogLineId          *string
-	InstanceOptions    logstore.InstanceOptions
-	ReturnSearch       string
-	ReturnInstances    *[]string
-	ShowTime           bool
-	ShowInstance       bool
-	WrapLines          *bool
+	LogPage         logstore.Page
+	IsLastPage      bool
+	Range           *LogRange
+	ClientId        string
+	ProjectId       string
+	ClientName      string
+	Instances       *[]string
+	Search          string
+	LogLineId       *string
+	InstanceOptions logstore.InstanceOptions
+	ReturnSearch    string
+	ReturnInstances *[]string
+	ShowTime        bool
+	ShowInstance    bool
+	WrapLines       *bool
 }
 
 const LogColumnsCookie = "svarog_log_columns"
@@ -327,114 +327,123 @@ func logRangeLabel(ctx context.Context, r *LogRange) string {
 	if r.FromDate == "" {
 		return r.From.UTC().Format("02 Jan 15:04") + " – " + r.To.UTC().Format("02 Jan 15:04") + " UTC"
 	}
-	if r.FromDate == r.ToDate {
-		return formatLogDate(ctx, r.FromDate)
+	return logDateRangeLabel(ctx, r.FromDate, r.ToDate)
+}
+
+func logDateRangeLabel(ctx context.Context, from, to string) string {
+	if from == "" {
+		return i18n.T(ctx, "logs.date_range")
 	}
-	return formatLogDate(ctx, r.FromDate) + " – " + formatLogDate(ctx, r.ToDate)
+	if to == "" || from == to {
+		return formatLogDate(ctx, from)
+	}
+	return formatLogDate(ctx, from) + " – " + formatLogDate(ctx, to)
 }
 
 templ LogRangeFilter(props LogsPageProps) {
 	{{
 		label := logRangeLabel(ctx, props.Range)
-		selected := calendar.DateRange{}
-		fromValue, toValue := "", ""
 		timeQuery := props.Range.Query()
-		if props.Range != nil {
-			from, fromErr := time.Parse("2006-01-02", props.Range.FromDate)
-			to, toErr := time.Parse("2006-01-02", props.Range.ToDate)
-			if fromErr == nil && toErr == nil {
-				selected = calendar.DateRange{From: from, To: to}
-			}
-			fromValue = props.Range.FromDate
-			toValue = props.Range.ToDate
-		}
 		action := fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId)
 		cleared := props
 		cleared.Range = nil
 		clearPath := cleared.ToPath(props.Instances, nil, "", props.Search)
 	}}
-	@popover.Popover(popover.Props{ID: "log-range"}) {
+	@logRangePopover("log-range", label, popover.AlignEnd, button.SizeSm) {
+		<form
+			id="log-time-range-form"
+			method="get"
+			action={ templ.SafeURL(action) }
+			hx-get={ action }
+			hx-target="body"
+			hx-swap="innerHTML"
+			hx-push-url="true"
+			hx-sync="body:replace"
+			class="space-y-2 border-b pb-2"
+		>
+			@QueryFilterFields(props)
+			<input type="hidden" name="fromAt" value={ timeQuery.Get("fromAt") }/>
+			<input type="hidden" name="toAt" value={ timeQuery.Get("toAt") }/>
+			<div class="flex flex-wrap gap-1">
+				@LogRangePreset("15", i18n.T(ctx, "logs.last_15_minutes"))
+				@LogRangePreset("60", i18n.T(ctx, "logs.last_hour"))
+				@LogRangePreset("today", i18n.T(ctx, "logs.today"))
+			</div>
+			<details class="text-sm">
+				<summary class="cursor-pointer">{ i18n.T(ctx, "logs.precise_range") }</summary>
+				<div class="mt-2 flex flex-col gap-2">
+					<label>{ i18n.T(ctx, "logs.time_from") } <input type="datetime-local" step="1" data-log-time-from class="block w-full rounded-md border p-1"/></label>
+					<label>{ i18n.T(ctx, "logs.time_to") } <input type="datetime-local" step="1" data-log-time-to class="block w-full rounded-md border p-1"/></label>
+					@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm, Class: "self-end"}) {
+						{ i18n.T(ctx, "logs.apply_range") }
+					}
+				</div>
+			</details>
+		</form>
+		<form
+			id="log-range-form"
+			method="get"
+			action={ templ.SafeURL(action) }
+			hx-get={ action }
+			hx-target="body"
+			hx-swap="innerHTML"
+			hx-push-url="true"
+			hx-sync="body:replace"
+			class="space-y-2"
+		>
+			@QueryFilterFields(props)
+			<input type="hidden" name="offset" value="0"/>
+			<input type="hidden" name="from" value={ timeQuery.Get("from") }/>
+			<input type="hidden" name="to" value={ timeQuery.Get("to") }/>
+			@logRangeCalendar(timeQuery.Get("from"), timeQuery.Get("to"))
+			<div class="flex items-center justify-end gap-2">
+				if props.Range != nil {
+					<a href={ templ.SafeURL(clearPath) } class="text-sm text-muted-foreground hover:text-foreground" hx-target="body" hx-swap="innerHTML">{ i18n.T(ctx, "logs.clear_range") }</a>
+				}
+				@button.Button(button.Props{
+					Type:       button.TypeSubmit,
+					Variant:    button.VariantDefault,
+					Size:       button.SizeSm,
+					Attributes: templ.Attributes{"disabled": timeQuery.Get("from") == ""},
+				}) {
+					{ i18n.T(ctx, "logs.apply_dates") }
+				}
+			</div>
+		</form>
+	}
+}
+
+templ logRangePopover(id, label string, align popover.Align, size button.Size) {
+	@popover.Popover(popover.Props{ID: id}) {
 		@button.Button(button.Props{
 			Variant: button.VariantGhost,
-			Size:    button.SizeSm,
+			Size:    size,
 			Class:   "gap-1.5 max-md:px-2",
 			Attributes: utils.MergeAttributes(popover.Trigger(ctx), templ.Attributes{
-				"aria-label": label,
-				"title":      i18n.T(ctx, "logs.date_range"),
+				"title": i18n.T(ctx, "logs.date_range"),
 			}),
 		}) {
 			@icon.Calendar(icon.Props{Class: "size-3.5"})
 			<span class="min-w-0 truncate">{ label }</span>
 		}
-		@popover.Content(popover.ContentProps{Align: popover.AlignEnd, Class: "max-h-[65dvh] w-auto max-w-[calc(100vw-2rem)] overflow-auto p-3"}) {
-			<form
-				id="log-time-range-form"
-				method="get"
-				action={ templ.SafeURL(action) }
-				hx-get={ action }
-				hx-target="body"
-				hx-swap="innerHTML"
-				hx-push-url="true"
-				hx-sync="body:replace"
-				class="space-y-2 border-b pb-2"
-			>
-				@QueryFilterFields(props)
-				<input type="hidden" name="fromAt" value={ timeQuery.Get("fromAt") }/>
-				<input type="hidden" name="toAt" value={ timeQuery.Get("toAt") }/>
-				<div class="flex flex-wrap gap-1">
-					@LogRangePreset("15", i18n.T(ctx, "logs.last_15_minutes"))
-					@LogRangePreset("60", i18n.T(ctx, "logs.last_hour"))
-					@LogRangePreset("today", i18n.T(ctx, "logs.today"))
-				</div>
-				<details class="text-sm">
-					<summary class="cursor-pointer">{ i18n.T(ctx, "logs.precise_range") }</summary>
-					<div class="mt-2 flex flex-col gap-2">
-						<label>{ i18n.T(ctx, "logs.time_from") } <input type="datetime-local" step="1" data-log-time-from class="block w-full rounded-md border p-1"/></label>
-						<label>{ i18n.T(ctx, "logs.time_to") } <input type="datetime-local" step="1" data-log-time-to class="block w-full rounded-md border p-1"/></label>
-						@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeSm, Class: "self-end"}) {
-							{ i18n.T(ctx, "logs.apply_range") }
-						}
-					</div>
-				</details>
-			</form>
-			<form
-				id="log-range-form"
-				method="get"
-				action={ templ.SafeURL(action) }
-				hx-get={ action }
-				hx-target="body"
-				hx-swap="innerHTML"
-				hx-push-url="true"
-				hx-sync="body:replace"
-				class="space-y-2"
-			>
-				@QueryFilterFields(props)
-				<input type="hidden" name="from" value={ fromValue }/>
-				<input type="hidden" name="to" value={ toValue }/>
-				<input type="hidden" name="offset" value="0"/>
-				@calendar.Calendar(calendar.Props{
-					ID:           "log-range-calendar",
-					Mode:         calendar.ModeRange,
-					Locale:       i18n.Locale(ctx),
-					Selected:     selected,
-					DefaultMonth: selected.From,
-				})
-				<div class="flex items-center justify-end gap-2">
-					if props.Range != nil {
-						<a href={ templ.SafeURL(clearPath) } class="text-sm text-muted-foreground hover:text-foreground" hx-target="body" hx-swap="innerHTML">{ i18n.T(ctx, "logs.clear_range") }</a>
-					}
-					@button.Button(button.Props{
-						Type:       button.TypeSubmit,
-						Variant:    button.VariantDefault,
-						Size:       button.SizeSm,
-						Attributes: templ.Attributes{"disabled": fromValue == ""},
-					}) {
-						{ i18n.T(ctx, "logs.apply_dates") }
-					}
-				</div>
-			</form>
+		@popover.Content(popover.ContentProps{Align: align, Class: "max-h-[65dvh] w-auto max-w-[calc(100vw-2rem)] overflow-auto p-3"}) {
+			{ children... }
 		}
 	}
+}
+
+templ logRangeCalendar(fromDate, toDate string) {
+	{{
+		from, _ := time.Parse(time.DateOnly, fromDate)
+		to, _ := time.Parse(time.DateOnly, toDate)
+	}}
+	@calendar.Calendar(calendar.Props{
+		ID:           "log-range-calendar",
+		Mode:         calendar.ModeRange,
+		Locale:       i18n.Locale(ctx),
+		Selected:     calendar.DateRange{From: from, To: to},
+		DefaultMonth: from,
+	})
 }
 
 templ QueryFilterFields(props LogsPageProps) {

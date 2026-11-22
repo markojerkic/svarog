@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -24,32 +25,31 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 		return archiveStatus(c, http.StatusBadRequest, i18n.T(ctx, "auth.invalid_ids"))
 	}
 
+	params := req.URL.Query()
 	p := pages.ArchiveSearchProps{
 		ProjectID: scope.ProjectID.String(),
 		ClientID:  scope.ClientID.String(),
+		Text:      params.Get("text"),
 	}
-	if req.Method == http.MethodGet {
+	if !params.Has("from") && !params.Has("to") && !params.Has("text") {
 		return utils.Render(c, http.StatusOK, pages.ArchiveSearch(p))
 	}
-
-	req.Body = http.MaxBytesReader(c.Response(), req.Body, 8<<10)
-	if err := req.ParseForm(); err != nil {
-		return archiveStatus(c, http.StatusBadRequest, i18n.T(ctx, "request.invalid_parameters"))
+	if params.Get("from") == "" || params.Get("to") == "" {
+		p.ErrorKey = "archives.range_required"
+		return utils.Render(c, http.StatusBadRequest, pages.ArchiveSearch(p))
 	}
-
-	p.FromLocal = req.PostForm.Get("fromLocal")
-	p.ToLocal = req.PostForm.Get("toLocal")
-	p.Text = req.PostForm.Get("text")
-
-	from, fromErr := time.Parse(time.RFC3339Nano, req.PostForm.Get("fromAt"))
-	to, toErr := time.Parse(time.RFC3339Nano, req.PostForm.Get("toAt"))
-	if fromErr != nil || toErr != nil || !to.After(from) {
+	from, fromErr := strconv.ParseInt(params.Get("from"), 10, 64)
+	to, toErr := strconv.ParseInt(params.Get("to"), 10, 64)
+	// The calendar accepts four-digit years. This also rejects millisecond timestamps.
+	limit := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+	if fromErr != nil || toErr != nil || from >= to || from < (time.Time{}).Unix() || to >= limit {
 		p.ErrorKey = "logs.invalid_range"
 		return utils.Render(c, http.StatusBadRequest, pages.ArchiveSearch(p))
 	}
-
+	p.FromUnix, p.ToUnix = strconv.FormatInt(from, 10), strconv.FormatInt(to, 10)
+	query := archive.SearchQuery{From: time.Unix(from, 0).UTC(), To: time.Unix(to, 0).UTC(), Text: p.Text}
 	status := http.StatusOK
-	result, err := a.archiver.Search(ctx, scope, archive.SearchQuery{From: from, To: to, Text: p.Text})
+	result, err := a.archiver.Search(ctx, scope, query)
 	switch {
 	case err == nil:
 		p.Result = &result

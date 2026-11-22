@@ -164,6 +164,7 @@
     "other": "Odaberite raspon u svojoj vremenskoj zoni. Za prikaz svih arhiviranih zapisa u tom razdoblju ostavite tekst praznim."
   },
   "archives.search_text": { "other": "Tekst poruke (neobvezno)" },
+  "archives.range_required": { "other": "Za pretragu arhive odaberite raspon datuma." },
   "archives.search_summary": {
     "other": "Broj pretraženih arhiva: {{.Archives}}. Prikazano {{.Shown}} od {{.Total}} pogodaka, od najnovijeg."
   },

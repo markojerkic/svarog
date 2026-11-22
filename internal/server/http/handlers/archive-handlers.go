@@ -54,7 +54,6 @@ func NewArchiveRouter(
 	group.POST("/create", router.createArchive)
 	group.GET("/list", router.listArchives)
 	group.GET("/search", router.searchArchives)
-	group.POST("/search", router.searchArchives)
 	group.GET("/:archiveId", router.downloadArchive)
 	return router
 }

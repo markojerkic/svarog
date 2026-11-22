@@ -162,6 +162,7 @@
     "other": "Choose a time range in your local time zone. Leave the text blank to browse all archived logs in that range."
   },
   "archives.search_text": { "other": "Message text (optional)" },
+  "archives.range_required": { "other": "Select a date range to search the archive." },
   "archives.search_summary": {
     "other": "Archives searched: {{.Archives}}. Showing {{.Shown}} of {{.Total}} matches, newest first."
   },

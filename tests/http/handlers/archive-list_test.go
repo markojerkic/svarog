@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,12 @@ type archiveHTTPStub struct {
 	openErr  error
 	opened   uuid.UUID
 	closed   bool
+	searches []archive.SearchQuery
+}
+
+func (s *archiveHTTPStub) Search(_ context.Context, _ archive.Scope, query archive.SearchQuery) (archive.SearchResult, error) {
+	s.searches = append(s.searches, query)
+	return archive.SearchResult{}, nil
 }
 
 func (s *archiveHTTPStub) GetPolicy(context.Context, archive.Scope) (archive.Policy, error) {
@@ -74,6 +81,45 @@ func newArchiveTestServer(t *testing.T, archiver archive.Archiver) *echo.Echo {
 	})
 	handlers.NewArchiveRouter(archiver, true, archiveAccessAuth{}, archiveAccessProjects{}, root)
 	return e
+}
+
+func TestArchiveSearchFromURL(t *testing.T) {
+	stub := &archiveHTTPStub{}
+	server := newArchiveTestServer(t, stub)
+	path := "/logs/" + uuid.NewString() + "/" + uuid.NewString() + "/archives/search"
+	get := func(query url.Values) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path+"?"+query.Encode(), nil))
+		return response
+	}
+
+	require.Equal(t, http.StatusOK, get(nil).Code)
+	params := url.Values{"text": {"error & timeout"}}
+	response := get(params)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Contains(t, response.Body.String(), "Select a date range to search the archive.")
+	require.Empty(t, stub.searches)
+
+	params.Set("from", "1774738800")
+	params.Set("to", "1774821600")
+	for range 2 {
+		response = get(params)
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Contains(t, response.Body.String(), `id="archive-results"`)
+		require.Contains(t, response.Body.String(), `value="error &amp; timeout"`)
+	}
+	require.Len(t, stub.searches, 2)
+	require.Equal(t, stub.searches[0], stub.searches[1])
+	require.Equal(t, "2026-03-28T23:00:00Z", stub.searches[0].From.UTC().Format(time.RFC3339))
+	require.Equal(t, "2026-03-29T22:00:00Z", stub.searches[0].To.UTC().Format(time.RFC3339))
+	require.Equal(t, params.Get("text"), stub.searches[0].Text)
+
+	params.Set("to", params.Get("from"))
+	response = get(params)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	params.Set("to", "not-a-timestamp")
+	require.Equal(t, http.StatusBadRequest, get(params).Code)
+	require.Len(t, stub.searches, 2)
 }
 
 func TestArchiveDownloadStreamsOnlyTheRequestedArchive(t *testing.T) {
