@@ -3,6 +3,10 @@ const logRowKeys = new WeakMap();
 const logRowBytes = new WeakMap();
 const maxLiveRows = 2000;
 const maxLiveBytes = 4 * 1024 * 1024;
+const stoppedLiveStates = new Set(["paused", "memory", "disconnected", "resync"]);
+// Application close codes sent by WsConnection when the server stops a viewer.
+const wsRefreshRequired = 4001;
+const wsViewerQueueFull = 4002;
 
 document.addEventListener("htmx:before:swap", function (evt) {
   const ctx = evt.detail.ctx;
@@ -35,50 +39,70 @@ document.addEventListener("htmx:before:settle", function (evt) {
   const elements = Array.from(newContent).filter((node) => node.nodeType === Node.ELEMENT_NODE);
   if (elements.some((node) => node.hasAttribute("data-log-resync"))) {
     elements.forEach((node) => node.remove());
-    stopLiveLogs(container);
+    setLiveState(container, "resync");
     return;
   }
   const incoming = elements.filter((node) => node.matches("pre[data-timestamp]"));
   incoming.forEach((row) => row.remove());
-  if (container.dataset.liveStale === "true") return;
+  if (stoppedLiveStates.has(container.dataset.liveState)) return;
   mergeLogRows(incoming, container);
 });
 
 document.addEventListener("htmx:ws:after:connection", function (evt) {
   const container = evt.target.closest?.("#log-scroll-container[data-log-live]");
-  if (container && container.dataset.liveStale !== "true") setLiveStatus("live");
+  if (container) setLiveState(container, "live");
 });
 
 document.addEventListener("click", function (evt) {
   if (!evt.target.closest("[data-log-pause]")) return;
   const container = document.querySelector("#log-scroll-container[data-log-live]");
-  if (container) stopLiveLogs(container, "paused");
+  if (container) setLiveState(container, "paused");
 });
 
 document.addEventListener("htmx:ws:close", function (evt) {
-  if (evt.detail.reason === "removed") return;
+  const { reason, code, connection } = evt.detail;
+  if (reason !== "closed") return;
   const container = evt.target.closest?.("#log-scroll-container[data-log-live]");
-  if (container) stopLiveLogs(container);
+  if (!container) return;
+  if (code === wsViewerQueueFull) {
+    setLiveState(container, "memory");
+    return;
+  }
+  if (code === wsRefreshRequired) {
+    setLiveState(container, "resync");
+    return;
+  }
+  const { reconnect, reconnectCodes, reconnectMaxAttempts } = connection.config;
+  const retrying =
+    reconnect && reconnectCodes.includes(code) && connection.attempt < reconnectMaxAttempts;
+  setLiveState(container, retrying ? "reconnecting" : "disconnected");
 });
 
-function setLiveStatus(state) {
+function setLiveState(container, state) {
+  if (
+    !container.hasAttribute("data-log-live") ||
+    stoppedLiveStates.has(container.dataset.liveState)
+  )
+    return;
+  if (container.dataset.liveState === state) return;
+  container.dataset.liveState = state;
+  if (state === "reconnecting") return;
+
   const status = document.getElementById("log-live-status");
   if (status) {
     status.textContent = status.dataset[`${state}Label`];
     status.dataset.state = state;
   }
-}
 
-function stopLiveLogs(container, state = "stale") {
-  if (!container.hasAttribute("data-log-live") || container.dataset.liveStale === "true") return;
-  container.dataset.liveStale = "true";
-  setLiveStatus(state);
+  if (!stoppedLiveStates.has(state)) return;
+  const notice = document.getElementById("log-live-notice");
+  if (notice) {
+    const message = notice.querySelector("p");
+    if (message) message.textContent = message.dataset[state] || "";
+    notice.hidden = false;
+  }
   const pauseButton = document.querySelector("[data-log-pause]");
   if (pauseButton) pauseButton.hidden = true;
-  const notice = document.getElementById(
-    state === "paused" ? "log-paused-notice" : "log-live-notice",
-  );
-  if (notice) notice.hidden = false;
   const connection = container.querySelector("[data-log-stream]");
   if (connection) {
     window.htmx.swap({ sourceElement: connection, target: connection, swap: "delete", text: "" });
@@ -133,7 +157,7 @@ function mergeLogRows(incoming, container) {
   const atLatest = Math.abs(container.scrollTop) < 32;
   const bytes = live ? [...existing, ...rows].reduce((sum, row) => sum + rowBytes(row), 0) : 0;
   if (live && !atLatest && (existing.length + rows.length > maxLiveRows || bytes > maxLiveBytes)) {
-    stopLiveLogs(container);
+    setLiveState(container, "memory");
     return;
   }
 

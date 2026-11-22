@@ -132,7 +132,10 @@ test.describe("Log Sorting Logic", () => {
         "style",
         "display:flex;flex-direction:column-reverse;overflow:auto;height:120px",
       );
-      container.insertAdjacentHTML("beforebegin", '<div id="log-live-notice" hidden>Refresh</div>');
+      container.insertAdjacentHTML(
+        "beforebegin",
+        '<div id="log-live-notice" hidden><p data-memory="Paused at memory limit"></p></div>',
+      );
       container.innerHTML = "<div data-log-stream></div>";
     });
     await sendRows(page, 1, 2000);
@@ -143,8 +146,11 @@ test.describe("Log Sorting Logic", () => {
     await expect(page.locator("#log-scroll-container > pre")).toHaveCount(2000);
     await expect(page.locator('pre[data-log-id="1"]')).toBeAttached();
     await expect(page.locator('pre[data-log-id="2100"]')).toHaveCount(0);
+    await expect(page.locator("#log-live-notice")).toHaveText("Paused at memory limit");
     await expect(page.locator("#log-live-notice")).toBeVisible();
     await expect(page.locator("[data-log-stream]")).toHaveCount(0);
+    await sendRows(page, 2101, 1); // An in-flight batch must not restart a paused view.
+    await expect(page.locator("#log-scroll-container > pre")).toHaveCount(2000);
   });
 });
 

@@ -37,6 +37,9 @@ const (
 	wsWriteTimeout = 10 * time.Second
 	wsPongTimeout  = 60 * time.Second
 	wsPingInterval = 30 * time.Second
+	// A new socket alone cannot repair this view. Unlike 1013 this is not retryable.
+	wsCloseRefreshRequired = 4001
+	wsCloseViewerQueueFull = 4002
 )
 
 func (self *WsConnection) closeSubscription() {
@@ -53,8 +56,12 @@ func (self *WsConnection) writePipe() {
 		renderedLogLine, err := self.lines.Next(self.ctx)
 		if err != nil {
 			if errors.Is(err, live.ErrLiveResync) {
+				code, reason := wsCloseRefreshRequired, "live view requires refresh"
+				if errors.Is(err, live.ErrViewerQueueFull) {
+					code, reason = wsCloseViewerQueueFull, "live viewer queue full"
+				}
 				self.wsConnection.WriteControl(gorillaWs.CloseMessage,
-					gorillaWs.FormatCloseMessage(gorillaWs.CloseTryAgainLater, "live view requires refresh"),
+					gorillaWs.FormatCloseMessage(code, reason),
 					time.Now().Add(wsWriteTimeout))
 			}
 			return
@@ -122,15 +129,20 @@ func (self *WsRouter) connectionHandler(c *echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
-	if err != nil {
-		return err
+	if !gorillaWs.IsWebSocketUpgrade(c.Request()) {
+		return c.NoContent(http.StatusBadRequest)
 	}
+	// Only report a successful handshake once the subscription is ready.
+	// A broker outage must not reset the browser's reconnect backoff on every attempt.
 	subscription, err := self.liveLogs.Open(c.Request().Context(), logstore.Scope{ProjectID: projectID, ClientID: clientID}, selector)
 	if err != nil {
-		conn.Close()
 		slog.Error("Could not subscribe to live logs", "error", err)
-		return nil // the HTTP connection has already been upgraded
+		return c.NoContent(http.StatusServiceUnavailable)
+	}
+	conn, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		subscription.Close()
+		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 

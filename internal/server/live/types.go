@@ -5,6 +5,7 @@ package live
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/markojerkic/svarog/internal/lib/logevent"
@@ -25,6 +26,7 @@ const (
 
 var (
 	ErrLiveResync      = errors.New("live log view requires a fresh snapshot")
+	ErrViewerQueueFull = fmt.Errorf("live viewer queue full: %w", ErrLiveResync)
 	ErrInvalidSelector = errors.New("invalid live log instance selection")
 	ErrClosed          = errors.New("live logs are closed")
 )
