@@ -93,25 +93,11 @@ templ LogsPage(props LogsPageProps) {
 	}
 	@adminShell(AdminLayoutProps{Title: title, CurrentPath: fmt.Sprintf("/logs/%s/%s", props.ProjectId, props.ClientId), AdminAction: archives.Trigger(props.ProjectId, props.ClientId)}) {
 		<section class="log-workspace">
-			<header class="log-identity">
-				@sidebar.Trigger()
-				<h1 title={ title }>{ title }</h1>
-				<div class="log-mode">@logMode(props)</div>
-			</header>
-			<div class="log-preferences">
-				@logDisplay(props.LogDisplayOptions)
-				@components.LanguageSwitcher()
-			</div>
+			@logWorkspaceHeader(title, props.LogDisplayOptions) {
+				@logMode(props)
+			}
 			<section class="log-filters" aria-label={ i18n.T(ctx, "logs.filters") }>
-				<button type="button" class="log-panel-toggle" aria-expanded="false" aria-controls="log-filter-fields">
-					@icon.ListFilter(icon.Props{Size: 16})
-					<span>{ i18n.T(ctx, "logs.filters") }</span>
-					if filters := props.activeFilterLabels(ctx); len(filters) > 0 {
-						<span class="log-count">{ strconv.Itoa(len(filters)) }</span>
-						<span class="log-filter-summary">{ strings.Join(filters, " · ") }</span>
-					}
-					@icon.ChevronDown(icon.Props{Size: 14})
-				</button>
+				@logFilterToggle(props.activeFilterLabels(ctx))
 				<div id="log-filter-fields">
 					@logFilterControls(props)
 				</div>
@@ -156,6 +142,43 @@ templ LogsPage(props LogsPageProps) {
 			@archives.SettingsSheet()
 		}
 	}
+}
+
+templ logWorkspaceHeader(title string, display LogDisplayOptions) {
+	<header class="log-identity">
+		@sidebar.Trigger()
+		<h1 title={ title }>{ title }</h1>
+		<div class="log-mode">{ children... }
+</div>
+	</header>
+	<div class="log-preferences">
+		@logDisplay(display)
+		@components.LanguageSwitcher()
+	</div>
+}
+
+templ logFilterToggle(filters []string) {
+	<button type="button" class="log-panel-toggle" aria-expanded="false" aria-controls="log-filter-fields">
+		@icon.ListFilter(icon.Props{Size: 16})
+		<span>{ i18n.T(ctx, "logs.filters") }</span>
+		@logFilterSummary(filters, false)
+		@icon.ChevronDown(icon.Props{Size: 14})
+	</button>
+}
+
+templ logFilterSummary(filters []string, update bool) {
+	<span
+		id="log-filter-summary"
+		class="contents"
+		if update {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		if len(filters) > 0 {
+			<span class="log-count">{ strconv.Itoa(len(filters)) }</span>
+			<span class="log-filter-summary">{ strings.Join(filters, " · ") }</span>
+		}
+	</span>
 }
 
 templ logStream(display LogDisplayOptions, projectID, clientID string, live bool) {

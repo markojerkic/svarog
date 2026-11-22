@@ -1,6 +1,6 @@
 package pages
 
-import "time"
+import "context"
 import "net/url"
 import "strconv"
 import "github.com/markojerkic/svarog/internal/lib/archive"
@@ -21,6 +21,7 @@ type ArchiveSearchProps struct {
 	Query               logsearch.Query
 	ErrorKey            string
 	Result              *archive.SearchResult
+	Display             LogDisplayOptions
 }
 
 func (p ArchiveSearchProps) searchURL(cursor string) string {
@@ -36,16 +37,14 @@ func (p ArchiveSearchProps) searchURL(cursor string) string {
 
 templ ArchiveSearch(p ArchiveSearchProps) {
 	{{ logPath := "/logs/" + p.ProjectID + "/" + p.ClientID }}
-	@AdminLayout(AdminLayoutProps{Title: i18n.T(ctx, "archives.search"), CurrentPath: logPath}) {
-		<div class="space-y-6">
-			<div class="space-y-3">
-				<a class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" href={ templ.SafeURL(logPath) }>
-					@icon.ArrowLeft(icon.Props{Class: "size-4"})
+	@adminShell(AdminLayoutProps{Title: i18n.T(ctx, "archives.search"), CurrentPath: logPath, AdminAction: archives.Trigger(p.ProjectID, p.ClientID)}) {
+		<section class="log-workspace">
+			@logWorkspaceHeader(i18n.T(ctx, "archives.search"), p.Display) {
+				@button.Button(button.Props{Href: logPath, Variant: button.VariantGhost, Size: button.SizeSm}) {
+					@icon.Radio(icon.Props{Class: "size-3.5"})
 					{ i18n.T(ctx, "logs.back_to_live") }
-				</a>
-				<h1 class="text-2xl font-semibold tracking-tight">{ i18n.T(ctx, "archives.search") }</h1>
-				<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.search_hint") }</p>
-			</div>
+				}
+			}
 			<form
 				id="archive-search-form"
 				method="get"
@@ -55,87 +54,190 @@ templ ArchiveSearch(p ArchiveSearchProps) {
 				hx-swap="innerHTML show:none"
 				hx-push-url="true"
 				hx-sync="this:replace"
-				hx-disable="find button[type='submit']"
+				hx-disable="#log-search-dialog button[type='submit'], [data-archive-range-done]"
 				hx-indicator:append="this"
-				class="group grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-end"
+				class="log-filters group"
+				aria-label={ i18n.T(ctx, "logs.filters") }
 			>
 				<input type="hidden" name="from" value={ p.FromUnix }/>
 				<input type="hidden" name="to" value={ p.ToUnix }/>
-				if p.Instance != nil {
-					<input type="hidden" name="instance" value={ *p.Instance }/>
-				}
-				<div class="grid gap-2 text-sm font-medium">
-					<label for="archive-range-trigger">{ i18n.T(ctx, "logs.date_range") }</label>
-					@logRangePopover("archive-range", i18n.T(ctx, "common.select_date"), popover.AlignStart, button.SizeDefault) {
-						<details class="text-sm">
-							<summary class="cursor-pointer">{ i18n.T(ctx, "logs.precise_range") }</summary>
-							<div class="mt-2 flex flex-wrap gap-2">
-								<label>
-									{ i18n.T(ctx, "logs.time_from") }
-									@input.Input(input.Props{Type: "time", ID: "archive-from-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
-								</label>
-								<label>
-									{ i18n.T(ctx, "logs.time_to") }
-									@input.Input(input.Props{Type: "time", ID: "archive-to-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
-								</label>
-							</div>
-						</details>
-						@logRangeCalendar("", "")
-						@button.Button(button.Props{Type: button.TypeButton, Size: button.SizeSm, Class: "self-end", Attributes: templ.Attributes{"data-archive-range-done": true}}) {
-							{ i18n.T(ctx, "logs.apply_dates") }
-						}
-					}
+				@logFilterToggle(p.filterLabels(ctx))
+				<div id="log-filter-fields">
+					@archiveQueryControl(p, false)
+					<div class="log-filter-field">
+						<span class="log-field-label">{ i18n.T(ctx, "logs.date_range") }</span>
+						<div class="log-field-control">
+							@logRangePopover("archive-range", i18n.T(ctx, "logs.date_range"), popover.AlignStart, button.SizeSm) {
+								<div class="flex flex-wrap gap-1">
+									@LogRangePreset("15", i18n.T(ctx, "logs.last_15_minutes"))
+									@LogRangePreset("60", i18n.T(ctx, "logs.last_hour"))
+									@LogRangePreset("today", i18n.T(ctx, "logs.today"))
+								</div>
+								<details class="text-sm">
+									<summary class="cursor-pointer">{ i18n.T(ctx, "logs.precise_range") }</summary>
+									<div class="mt-2 flex flex-wrap gap-2">
+										<label>
+											{ i18n.T(ctx, "logs.time_from") }
+											@input.Input(input.Props{Type: "time", ID: "archive-from-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
+										</label>
+										<label>
+											{ i18n.T(ctx, "logs.time_to") }
+											@input.Input(input.Props{Type: "time", ID: "archive-to-time", Form: "archive-search-form", Attributes: templ.Attributes{"step": "1"}})
+										</label>
+									</div>
+								</details>
+								@logRangeCalendar("", "")
+								@button.Button(button.Props{Type: button.TypeButton, Size: button.SizeSm, Class: "self-end", Attributes: templ.Attributes{"data-archive-range-done": true}}) {
+									{ i18n.T(ctx, "logs.apply_dates") }
+								}
+							}
+						</div>
+					</div>
+					@archiveInstanceControl(p, false)
+					<span role="status" class="hidden items-center gap-1.5 text-xs text-muted-foreground group-[.htmx-request]:inline-flex">
+						@icon.LoaderCircle(icon.Props{Class:"size-3.5 animate-spin motion-reduce:animate-none"})
+						{ i18n.T(ctx, "logs.searching") }
+					</span>
 				</div>
-				<label class="grid gap-2 text-sm font-medium">
-					{ i18n.T(ctx, "archives.search_text") }
-					@input.Input(input.Props{Type: "search", Name: "text", Value: p.Text, Placeholder: i18n.T(ctx, "logs.search_placeholder"), Attributes: templ.Attributes{"maxlength": archive.MaxSearchText}})
-				</label>
-				@button.Button(button.Props{Type: button.TypeSubmit}) {
-					@icon.Search(icon.Props{Class: "size-4"})
-					<span class="group-[.htmx-request]:hidden">{ i18n.T(ctx, "logs.run_search") }</span>
-					<span class="hidden group-[.htmx-request]:inline">{ i18n.T(ctx, "logs.searching") }</span>
-				}
-				<p id="archive-range-error" role="alert" hidden class="text-sm text-destructive sm:col-span-full">{ i18n.T(ctx, "archives.range_required") }</p>
+				<p id="archive-range-error" role="alert" hidden class="mt-2 text-sm text-destructive">{ i18n.T(ctx, "archives.range_required") }</p>
 			</form>
-			<div id="archive-search-results">
-				@ArchiveSearchResults(p)
+			<div id="logs-container" class="flex h-full min-h-0 flex-col">
+				<div id="archive-search-results" class="flex min-h-0 flex-1 flex-col gap-2">
+					@ArchiveSearchResults(p)
+				</div>
 			</div>
-			@archiveHitMenu()
-		</div>
+		</section>
+		@logs.SearchDialogShell() {
+			<div class="flex items-center gap-4 px-4 sm:px-5">
+				@logs.SearchBox("archive-search-form", "text", p.Text, templ.Attributes{"maxlength": archive.MaxSearchText})
+			</div>
+		}
+		@archives.SettingsSheet()
+		@archiveHitMenu()
 	}
 }
 
-templ ArchiveSearchResults(p ArchiveSearchProps) {
-	if p.Instance != nil {
-		{{
-			all := p
-			all.Instance = nil
-		}}
-		<a href={ templ.SafeURL(all.searchURL("")) } hx-swap="innerHTML show:none" class="mb-3 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted" title={ i18n.T(ctx, "logs.clear_instance_filters") }>
-			@icon.Funnel(icon.Props{Size: 13})
-			<span>{ i18n.T(ctx, "logs.instance") }: @archiveInstanceName(*p.Instance)</span>
-			@icon.X(icon.Props{Size: 13})
-			<span class="sr-only">{ i18n.T(ctx, "logs.clear_instance_filters") }</span>
-		</a>
+func (p ArchiveSearchProps) filterLabels(ctx context.Context) []string {
+	var labels []string
+	if p.Text != "" {
+		labels = append(labels, p.Text)
 	}
-	if p.ErrorKey != "" {
-		<p role="alert" class="rounded-lg border border-destructive/40 p-4 text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
-	} else if p.Result != nil {
-		<section class="space-y-3" aria-labelledby="archive-results">
-			<h2 id="archive-results" class="font-semibold">{ i18n.T(ctx, "logs.search_results") }</h2>
-			if p.Result.ArchivesScanned == 0 {
-				<p class="text-sm text-muted-foreground">{ i18n.T(ctx, "archives.search_no_archives") }</p>
-			} else {
-				@archiveSearchSummary(p.Result, false)
-				if len(p.Result.Hits) == 0 {
-					<p class="text-sm">{ i18n.T(ctx, "logs.no_results") }</p>
+	if p.FromUnix != "" {
+		labels = append(labels, i18n.T(ctx, "logs.date_range"))
+	}
+	if p.Instance != nil {
+		labels = append(labels, logInstanceLabel(ctx, *p.Instance))
+	}
+	return labels
+}
+
+templ archiveQueryControl(p ArchiveSearchProps, update bool) {
+	<div
+		id="archive-query-control"
+		class="log-filter-field log-search-field"
+		if update {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		<span class="log-field-label">{ i18n.T(ctx, "logs.search") }</span>
+		<div class="log-field-control">
+			@logs.SearchTrigger(p.Text)
+			if p.Text != "" {
+				<button type="button" class="log-clear" data-archive-clear-text aria-label={ i18n.T(ctx, "logs.clear_search") }>
+					@icon.X(icon.Props{Size: 13})
+				</button>
+			}
+		</div>
+	</div>
+}
+
+templ archiveInstanceControl(p ArchiveSearchProps, update bool) {
+	<div
+		id="archive-instance-control"
+		class="log-filter-field"
+		if update {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		<input
+			type="hidden"
+			name="instance"
+			disabled?={ p.Instance == nil }
+			if p.Instance != nil {
+				value={ *p.Instance }
+			}
+		/>
+		<span class="log-field-label">{ i18n.T(ctx, "logs.instances") }</span>
+		@popover.Popover(popover.Props{ID: "archive-instance-picker"}) {
+			@button.Button(button.Props{Variant: button.VariantOutline, Size: button.SizeSm, Class: "max-w-full", Attributes: popover.Trigger(ctx)}) {
+				@icon.Server(icon.Props{Class: "size-3.5"})
+				if p.Instance == nil {
+					{ i18n.T(ctx,"logs.all_instances") }
 				} else {
-					<ol class="divide-y rounded-xl border bg-card">
-						@archiveSearchRows(p)
-					</ol>
+					<span class="truncate">@archiveInstanceName(*p.Instance)</span>
 				}
 			}
-		</section>
+			@popover.Content(popover.ContentProps{Align: popover.AlignStart, Class: "w-72 max-w-[calc(100vw-2rem)] p-3"}) {
+				<label class="grid gap-1 text-sm">
+					{ i18n.T(ctx,"logs.instance") }
+					<input
+						id="archive-instance-name"
+						type="text"
+						list="archive-instance-suggestions"
+						placeholder={ i18n.T(ctx, "logs.find_instance") }
+						class="h-8 rounded-md border px-2"
+						if p.Instance != nil {
+							value={ *p.Instance }
+						}
+					/>
+					<datalist id="archive-instance-suggestions"></datalist>
+				</label>
+				@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantGhost, Class: "justify-start", Attributes: templ.Attributes{"data-archive-instance": "unnamed"}}) {
+					{ i18n.T(ctx, "logs.unnamed_instance") }
+				}
+				<div class="flex justify-between gap-2">
+					@button.Button(button.Props{Size: button.SizeSm, Variant: button.VariantGhost, Attributes: templ.Attributes{"data-archive-instance": "all"}}) {
+						{ i18n.T(ctx,"logs.all_instances") }
+					}
+					@button.Button(button.Props{Size: button.SizeSm, Attributes: templ.Attributes{"data-archive-instance": "apply"}}) {
+						{ i18n.T(ctx,"logs.apply_filters") }
+					}
+				</div>
+			}
+		}
+	</div>
+}
+
+templ ArchiveSearchResponse(p ArchiveSearchProps) {
+	@archiveQueryControl(p, true)
+	@archiveInstanceControl(p, true)
+	@logFilterSummary(p.filterLabels(ctx), true)
+	@ArchiveSearchResults(p)
+}
+
+templ ArchiveSearchResults(p ArchiveSearchProps) {
+	if p.ErrorKey != "" {
+		<p role="alert" class="rounded-lg border border-destructive/40 p-4 text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
+	} else {
+		<h2 id="archive-results" class="sr-only">{ i18n.T(ctx, "logs.search_results") }</h2>
+		if p.Result != nil && p.Result.ArchivesScanned > 0 {
+			@archiveSearchSummary(p.Result, false)
+		}
+		@logStream(p.Display, p.ProjectID, p.ClientID, false) {
+			if p.Result == nil || len(p.Result.Hits) == 0 {
+				<div class="m-auto px-4 py-12 text-center font-sans text-sm text-muted-foreground" role="status">
+					if p.Result == nil {
+						{ i18n.T(ctx,"archives.search_hint") }
+					} else if p.Result.ArchivesScanned == 0 {
+						{ i18n.T(ctx,"archives.search_no_archives") }
+					} else {
+						{ i18n.T(ctx,"logs.no_results") }
+					}
+				</div>
+			} else {
+				@archiveSearchRows(p)
+			}
+		}
 	}
 }
 
@@ -153,10 +255,10 @@ templ archiveSearchSummary(result *archive.SearchResult, update bool) {
 // A continuation replaces only the pager at the end of the list.
 templ ArchiveSearchMore(p ArchiveSearchProps) {
 	if p.ErrorKey != "" {
-		<li class="space-y-1 px-4 py-3">
+		<div class="space-y-1 px-4 py-3 font-sans">
 			<p role="alert" class="text-sm">{ i18n.T(ctx, p.ErrorKey) }</p>
 			<a href={ templ.SafeURL(p.searchURL("")) } hx-boost="true" hx-target="body" class="text-sm underline">{ i18n.T(ctx, "archives.search_restart") }</a>
-		</li>
+		</div>
 	} else {
 		@archiveSearchSummary(p.Result, true)
 		@archiveSearchRows(p)
@@ -165,29 +267,22 @@ templ ArchiveSearchMore(p ArchiveSearchProps) {
 
 templ archiveSearchRows(p ArchiveSearchProps) {
 	for _, hit := range p.Result.Hits {
-		<li class="group relative space-y-1 py-3 pr-12 pl-4" data-archive-row>
-			@archiveActionTrigger(archives.ArchiveDownloadURL(p.ProjectID, p.ClientID, hit.ArchiveID.String()), hit, "absolute right-2 top-2 text-muted-foreground hover:text-foreground")
-			<div class="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-				<time data-archive-time="full" datetime={ hit.OccurredAt.Format(time.RFC3339Nano) } class="tabular-nums">{ hit.OccurredAt.UTC().Format("2006-01-02 15:04:05.999999 UTC") }</time>
-				<span class="break-all font-medium text-foreground">
-					@archiveInstanceName(hit.Instance)
-				</span>
-			</div>
-			<pre data-log-message class="whitespace-pre-wrap break-all font-mono text-sm leading-6">@logs.LogLineText(hit.Message, p.Query)</pre>
-		</li>
+		@logs.RecordLine(hit.OccurredAt, hit.Instance, hit.Message, p.Query, false, templ.Attributes{"data-archive-row": true}) {
+			@archiveActionTrigger(archives.ArchiveDownloadURL(p.ProjectID, p.ClientID, hit.ArchiveID.String()), hit, logs.RowActionClass)
+		}
 	}
 	if p.Result.OlderCursor != "" {
-		<li class="px-4 py-3">
+		<div class="flex shrink-0 justify-center py-1 font-sans" data-archive-search-page data-log-page="backward">
 			@button.Button(button.Props{
 				ID: "archive-search-older", Type: button.TypeButton, Variant: button.VariantOutline,
 				Attributes: templ.Attributes{
-					"hx-get": p.searchURL(p.Result.OlderCursor), "hx-target": "closest li", "hx-swap": "outerHTML",
+					"hx-get": p.searchURL(p.Result.OlderCursor), "hx-target": "closest [data-archive-search-page]", "hx-swap": "outerHTML show:none",
 					"hx-sync": "#archive-search-form:drop", "hx-disable": "this",
 				},
 			}) {
 				{ i18n.T(ctx, "archives.search_older") }
 			}
-		</li>
+		</div>
 	}
 }
 

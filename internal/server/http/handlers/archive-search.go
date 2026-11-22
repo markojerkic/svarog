@@ -33,6 +33,7 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 		ProjectID: scope.ProjectID.String(),
 		ClientID:  scope.ClientID.String(),
 		Text:      params.Get("text"),
+		Display:   logDisplayOptions(c),
 	}
 	if params.Has("instance") {
 		instance := params.Get("instance")
@@ -53,7 +54,7 @@ func (a *ArchiveRouter) searchArchives(c *echo.Context) error {
 			if status >= 500 {
 				return archiveStatus(c, status, i18n.T(ctx, p.ErrorKey))
 			}
-			return utils.Render(c, status, pages.ArchiveSearchResults(p))
+			return utils.Render(c, status, pages.ArchiveSearchResponse(p))
 		}
 		return utils.Render(c, status, pages.ArchiveSearch(p))
 	}

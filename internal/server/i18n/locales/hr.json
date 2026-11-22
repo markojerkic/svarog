@@ -182,7 +182,7 @@
   "archives.search_restart": { "other": "Ponovi pretragu" },
   "archives.range_required": { "other": "Za pretragu arhive odaberite raspon datuma." },
   "archives.search_summary": {
-    "other": "Broj pretraženih arhiva: {{.Archives}}. Prikazano {{.Shown}} od {{.Total}} pogodaka, od najnovijeg."
+    "other": "Broj pretraženih arhiva: {{.Archives}}. Prikazano {{.Shown}} od {{.Total}} pogodaka."
   },
   "archives.search_no_archives": {
     "other": "Nema arhiva za odabrano razdoblje. Odaberite drugi raspon."

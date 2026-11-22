@@ -15,22 +15,13 @@ const timeFormatter = new Intl.DateTimeFormat(locale, {
 });
 const observers = new WeakMap();
 
-// The form takes local dates. Keep archive results in that same zone, with the
-// precise UTC instant available on hover and as the no-JS fallback.
-window.templ.lifecycle.register("time[data-archive-time]", {
-  init(time) {
-    const date = new Date(time.dateTime);
-    time.title ||= time.textContent.trim();
-    time.textContent = `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
-  },
-});
-
 function formatLogRow(row) {
   if (!(row instanceof Element) || !row.matches("pre[data-timestamp]")) return;
   const time = row.querySelector("[data-log-time]");
   if (!time || time.textContent.trim()) return;
-  const date = new Date(Number(row.dataset.timestamp.slice(0, -6)));
+  const date = new Date(time.dateTime);
   if (Number.isNaN(date.getTime())) return;
+  time.title = time.dateTime;
   time.textContent = `${dateFormatter.format(date)} ${timeFormatter.format(date)}`;
 }
 

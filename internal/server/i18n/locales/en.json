@@ -180,7 +180,7 @@
   "archives.search_restart": { "other": "Restart search" },
   "archives.range_required": { "other": "Select a date range to search the archive." },
   "archives.search_summary": {
-    "other": "Archives searched: {{.Archives}}. Showing {{.Shown}} of {{.Total}} matches, newest first."
+    "other": "Archives searched: {{.Archives}}. Showing {{.Shown}} of {{.Total}} matches."
   },
   "archives.search_no_archives": {
     "other": "No archives cover this time range. Choose a different range."

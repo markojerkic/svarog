@@ -5,11 +5,9 @@ import "strconv"
 import "github.com/markojerkic/svarog/internal/lib/archive"
 import "github.com/markojerkic/svarog/internal/lib/logsearch"
 import "github.com/markojerkic/svarog/internal/server/i18n"
-import "github.com/markojerkic/svarog/internal/server/ui/components"
 import "github.com/markojerkic/svarog/internal/server/ui/components/button"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/logs"
-import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 
 type ArchiveContextProps struct {
 	Window                  archive.HitContext
@@ -37,20 +35,12 @@ templ ArchiveContext(p ArchiveContextProps) {
 	}}
 	@adminShell(AdminLayoutProps{Title: title, CurrentPath: p.SearchPath}) {
 		<section class="log-workspace">
-			<header class="log-identity">
-				@sidebar.Trigger()
-				<h1 title={ p.Window.Archive.FileName }>{ title }</h1>
-				<div class="log-mode">
-					@button.Button(button.Props{Href: back, Variant: button.VariantOutline, Size: button.SizeSm}) {
-						@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
-						{ i18n.T(ctx, "logs.back_to_results") }
-					}
-				</div>
-			</header>
-			<div class="log-preferences">
-				@logDisplay(p.Display)
-				@components.LanguageSwitcher()
-			</div>
+			@logWorkspaceHeader(title, p.Display) {
+				@button.Button(button.Props{Href: back, Variant: button.VariantOutline, Size: button.SizeSm}) {
+					@icon.ArrowLeft(icon.Props{Class: "size-3.5"})
+					{ i18n.T(ctx, "logs.back_to_results") }
+				}
+			}
 			<div class="log-filters flex flex-wrap items-center justify-between gap-2">
 				<span class="min-w-0 truncate text-sm" title={ p.Window.Rows[p.Window.Anchor].Instance }>
 					@archiveInstanceName(p.Window.Rows[p.Window.Anchor].Instance)

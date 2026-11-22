@@ -57,11 +57,12 @@ document.addEventListener("focusin", (event) => {
 
 document.addEventListener("dialog-open-change", (event) => {
   if (event.target.id !== "log-search-dialog") return;
+  const input = event.target.querySelector("#log-search-input");
   if (event.detail.open) {
-    const input = event.target.querySelector("input[name='search']");
     input.value = input.defaultValue;
-  } else {
-    window.htmx.trigger(document.getElementById("log-search-form"), "htmx:abort");
+  } else if (input.form) {
+    input.value = input.defaultValue;
+    window.htmx.trigger(input.form, "htmx:abort");
   }
 });
 

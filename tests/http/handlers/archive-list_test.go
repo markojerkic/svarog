@@ -71,6 +71,8 @@ func TestArchiveSearchOlderPage(t *testing.T) {
 	}
 	first := get()
 	require.Equal(t, http.StatusOK, first.Code)
+	require.Contains(t, first.Body.String(), `id="log-scroll-container"`)
+	require.Contains(t, first.Body.String(), `id="log-search-dialog"`)
 	params.Set("older_cursor", "next")
 	require.Contains(t, html.UnescapeString(first.Body.String()), `hx-get="`+path+"?"+params.Encode()+`"`)
 	require.Contains(t, first.Body.String(), "Load older")
@@ -83,6 +85,9 @@ func TestArchiveSearchOlderPage(t *testing.T) {
 	require.Equal(t, "next", stub.searches[1].OlderCursor)
 	require.Contains(t, last.Body.String(), "Showing 201 of 201")
 	require.Contains(t, last.Body.String(), "last record")
+	require.Contains(t, last.Body.String(), "data-log-message", "continuations use the shared log row")
+	require.Contains(t, last.Body.String(), "data-archive-url", "archive actions must work on newly loaded rows")
+	require.NotContains(t, last.Body.String(), "data-log-menu-trigger", "archive records are not live log IDs")
 	require.NotContains(t, last.Body.String(), "first record")
 	require.NotContains(t, last.Body.String(), `id="archive-search-form"`)
 	require.NotContains(t, last.Body.String(), `id="archive-search-older"`)

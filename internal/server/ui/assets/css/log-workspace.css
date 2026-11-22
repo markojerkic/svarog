@@ -93,7 +93,7 @@
   background: var(--background);
   border-radius: var(--radius-md);
 }
-.log-field-control > button {
+.log-field-control > button:not(.log-clear) {
   min-width: 0;
   flex: 1;
   justify-content: start;
