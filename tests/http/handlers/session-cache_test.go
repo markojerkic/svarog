@@ -51,6 +51,27 @@ func TestPrivateHTMLIsNotStored(t *testing.T) {
 	require.Equal(t, "private, no-store", response.Header().Get("Cache-Control"), "Private HTML must not be stored, so Back cannot restore logs or admin chrome from the cache")
 }
 
+func TestHomeRendersSavedSidebarStateBeforeJavaScript(t *testing.T) {
+	e := echo.New()
+	handlers.NewHomeHandler(loggedInGroup(e, &auth.LoggedInUser{Role: auth.USER}), nil)
+
+	for _, tc := range []struct{ cookie, state, mode string }{
+		{"false", "collapsed", "icon"},
+		{"true", "expanded", ""},
+		{"", "expanded", ""},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		if tc.cookie != "" {
+			req.AddCookie(&http.Cookie{Name: "sidebar_state", Value: tc.cookie})
+		}
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Contains(t, rec.Body.String(), `data-state="`+tc.state+`" data-collapsible="`+tc.mode+`"`)
+	}
+}
+
 func TestNoStoreDoesNotOverrideHandlerCacheControl(t *testing.T) {
 	e := echo.New()
 	e.GET("/download", func(c *echo.Context) error {

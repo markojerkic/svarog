@@ -10,6 +10,7 @@ import "github.com/markojerkic/svarog/internal/server/ui/components/sidebar"
 import "github.com/markojerkic/svarog/internal/server/ui/components/icon"
 import "github.com/markojerkic/svarog/internal/server/ui/components/tagsinput"
 import "github.com/markojerkic/svarog/internal/server/ui/components/toast"
+import "github.com/markojerkic/svarog/internal/server/ui/utils"
 import "github.com/markojerkic/svarog/internal/lib/auth"
 
 type BaseProps struct {
@@ -94,7 +95,7 @@ func isActivePath(currentPath, menuPath string) bool {
 
 templ adminShell(props AdminLayoutProps) {
 	@BaseLayout(BaseProps{Title: props.Title}) {
-		@sidebar.Provider() {
+		@sidebar.Provider(sidebar.ProviderProps{DisableDefaultOpen: utils.SidebarCollapsed(ctx)}) {
 			@sidebar.Sidebar(sidebar.Props{
 				Collapsible: sidebar.CollapsibleIcon,
 				Variant:     sidebar.VariantInset,

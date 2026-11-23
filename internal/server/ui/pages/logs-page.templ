@@ -464,6 +464,7 @@ templ logRangeCalendar(fromDate, toDate string) {
 	}}
 	@calendar.Calendar(calendar.Props{
 		ID:           "log-range-calendar",
+		Class:        "w-full p-0",
 		Mode:         calendar.ModeRange,
 		Locale:       i18n.Locale(ctx),
 		Selected:     calendar.DateRange{From: from, To: to},

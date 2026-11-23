@@ -59,7 +59,28 @@
     }
   }
 
-  window.templ.lifecycle.register(WRAPPER, { init: place });
+  function setDesktopCollapsed(wrapper, collapsed) {
+    wrapper.setAttribute("data-state", collapsed ? "collapsed" : "expanded");
+    // The mode is present only while collapsed so icon/offcanvas selectors apply.
+    wrapper.setAttribute(
+      "data-collapsible",
+      collapsed ? wrapper.getAttribute("data-templ-collapsible") : "",
+    );
+  }
+
+  window.templ.lifecycle.register(WRAPPER, {
+    init(sidebar) {
+      const prefix = SIDEBAR_COOKIE_NAME + "=";
+      const savedOpen = document.cookie
+        .split(/;\s*/)
+        .find((entry) => entry.startsWith(prefix))
+        ?.slice(prefix.length);
+      if (savedOpen === "false" || savedOpen === "true") {
+        setDesktopCollapsed(sidebar, savedOpen === "false");
+      }
+      place(sidebar);
+    },
+  });
   window.addEventListener("resize", () => document.querySelectorAll(WRAPPER).forEach(place));
 
   // SidebarMenuButton's TooltipContent: hidden={state !== "collapsed" ||
@@ -88,15 +109,10 @@
 
     const wrapper = wrapperFor(sidebarId);
     if (!wrapper) return;
-    const mode = wrapper.getAttribute("data-templ-collapsible");
-    if (mode === "none") return;
+    if (wrapper.getAttribute("data-templ-collapsible") === "none") return;
 
     const collapsed = wrapper.getAttribute("data-state") !== "collapsed";
-    wrapper.setAttribute("data-state", collapsed ? "collapsed" : "expanded");
-    // Like shadcn, data-collapsible carries the mode only while collapsed,
-    // so icon/offcanvas selectors need no extra state check.
-    wrapper.setAttribute("data-collapsible", collapsed ? mode : "");
-
+    setDesktopCollapsed(wrapper, collapsed);
     syncTooltips(sidebarId);
 
     document.cookie =
