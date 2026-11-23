@@ -148,8 +148,9 @@ templ logWorkspaceHeader(title string, display LogDisplayOptions, archiveTrigger
 	<header class="log-identity">
 		@sidebar.Trigger()
 		<h1 title={ title }>{ title }</h1>
-		<div class="log-mode">{ children... }
-</div>
+		<div class="log-mode">
+			{ children... }
+		</div>
 	</header>
 	<div class="log-preferences">
 		if archiveTrigger != nil && auth.IsAdmin(ctx) {
@@ -262,6 +263,14 @@ templ logMode(props LogsPageProps) {
 		}) {
 			@icon.Pause(icon.Props{Class: "size-3.5"})
 			<span>{ i18n.T(ctx, "logs.pause") }</span>
+		}
+		@button.Button(button.Props{
+			Variant: button.VariantOutline, Size: button.SizeSm,
+			Class:      "relative max-md:after:absolute max-md:after:-inset-y-2 max-md:after:inset-x-0",
+			Attributes: templ.Attributes{"data-log-jump-latest": true, "hidden": true, "aria-controls": "log-scroll-container"},
+		}) {
+			@icon.ArrowDownToLine(icon.Props{Size: 14})
+			{ i18n.T(ctx, "logs.jump_to_latest") }
 		}
 	}
 	if !props.IsLive() {

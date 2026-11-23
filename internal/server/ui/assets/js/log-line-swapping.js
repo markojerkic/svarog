@@ -8,6 +8,26 @@ const stoppedLiveStates = new Set(["paused", "memory", "disconnected", "resync"]
 const wsRefreshRequired = 4001;
 const wsViewerQueueFull = 4002;
 
+function atLatestLog(container) {
+  // In a column-reverse stream, zero is the bottom and older rows are negative.
+  return container.scrollTop >= -1;
+}
+
+function updateJumpToLatest(container) {
+  const button = document.querySelector("[data-log-jump-latest]");
+  if (button)
+    button.hidden = stoppedLiveStates.has(container.dataset.liveState) || atLatestLog(container);
+}
+
+document.addEventListener(
+  "scroll",
+  function (evt) {
+    if (evt.target.matches?.("#log-scroll-container[data-log-live]"))
+      updateJumpToLatest(evt.target);
+  },
+  { capture: true, passive: true },
+);
+
 document.addEventListener("htmx:before:swap", function (evt) {
   const ctx = evt.detail.ctx;
   const loader = ctx.sourceElement?.closest("[data-log-page]");
@@ -54,9 +74,15 @@ document.addEventListener("htmx:ws:after:connection", function (evt) {
 });
 
 document.addEventListener("click", function (evt) {
-  if (!evt.target.closest("[data-log-pause]")) return;
+  const action = evt.target.closest("[data-log-pause], [data-log-jump-latest]");
+  if (!action) return;
   const container = document.querySelector("#log-scroll-container[data-log-live]");
-  if (container) setLiveState(container, "paused");
+  if (!container) return;
+  if (action.hasAttribute("data-log-jump-latest")) {
+    container.scrollTop = 0;
+  } else {
+    setLiveState(container, "paused");
+  }
 });
 
 document.addEventListener("htmx:ws:close", function (evt) {
@@ -95,6 +121,7 @@ function setLiveState(container, state) {
   }
 
   if (!stoppedLiveStates.has(state)) return;
+  updateJumpToLatest(container);
   const notice = document.getElementById("log-live-notice");
   if (notice) {
     const message = notice.querySelector("p");
@@ -154,7 +181,7 @@ function mergeLogRows(incoming, container) {
   if (!rows.length) return;
 
   const live = container.hasAttribute("data-log-live");
-  const atLatest = Math.abs(container.scrollTop) < 32;
+  const atLatest = atLatestLog(container);
   const bytes = live ? [...existing, ...rows].reduce((sum, row) => sum + rowBytes(row), 0) : 0;
   if (live && !atLatest && (existing.length + rows.length > maxLiveRows || bytes > maxLiveBytes)) {
     setLiveState(container, "memory");
@@ -164,7 +191,10 @@ function mergeLogRows(incoming, container) {
   const bounds = container.getBoundingClientRect();
   const anchor = atLatest
     ? null
-    : existing.find((row) => row.getBoundingClientRect().bottom > bounds.top);
+    : existing.find((row) => {
+        const rect = row.getBoundingClientRect();
+        return rect.top < bounds.bottom && rect.bottom > bounds.top;
+      });
   const anchorTop = anchor?.getBoundingClientRect().top;
   const tail = olderLoader || container.querySelector("[data-log-stream]");
   let index = 0;
@@ -183,8 +213,10 @@ function mergeLogRows(incoming, container) {
   container.insertBefore(fragment, previousTarget || null);
   container.querySelector("[data-log-empty]")?.remove();
 
-  if (live && atLatest) trimLiveRows(container, bytes);
-  if (anchor?.isConnected) {
+  if (live && atLatest) {
+    trimLiveRows(container, bytes);
+    container.scrollTop = 0;
+  } else if (anchor?.isConnected) {
     container.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
   }
 }

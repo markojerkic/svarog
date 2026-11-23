@@ -83,6 +83,7 @@
   "logs.not_live": { "other": "Not live" },
   "logs.context": { "other": "Line context" },
   "logs.back_to_live": { "other": "Back to live" },
+  "logs.jump_to_latest": { "other": "Jump to latest" },
   "logs.search": { "other": "Search logs" },
   "logs.search_placeholder": { "other": "Search logs…" },
   "logs.searching": { "other": "Searching" },
