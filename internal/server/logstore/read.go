@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/markojerkic/svarog/internal/persistence/postgres/sqlc"
 )
 
@@ -202,7 +203,9 @@ func (s *Store) pageRows(ctx context.Context, query PageQuery) ([]Row, error) {
 	after, through := pageKeyBounds(query)
 	projectID, clientID, limit := query.Scope.ProjectID, query.Scope.ClientID, int32(query.Limit)
 	switch {
-	case query.Search == nil && query.Instances == nil:
+	case query.Search != nil:
+		return s.searchPage(ctx, query, after, through)
+	case query.Instances == nil:
 		params := sqlc.ListLogsOlderParams{
 			ProjectID: projectID, ClientID: clientID, PageSize: limit,
 			AfterAt: after.at, AfterSequence: after.sequence, AfterID: after.id,
@@ -212,7 +215,7 @@ func (s *Store) pageRows(ctx context.Context, query PageQuery) ([]Row, error) {
 			return readRows(s.queries.ListLogsNewer(ctx, sqlc.ListLogsNewerParams(params)))
 		}
 		return readRows(s.queries.ListLogsOlder(ctx, params))
-	case query.Search == nil:
+	default:
 		params := sqlc.ListLogsOlderByInstancesParams{
 			ProjectID: projectID, ClientID: clientID, PageSize: limit,
 			Instances: query.Instances,
@@ -223,30 +226,43 @@ func (s *Store) pageRows(ctx context.Context, query PageQuery) ([]Row, error) {
 			return readRows(s.queries.ListLogsNewerByInstances(ctx, sqlc.ListLogsNewerByInstancesParams(params)))
 		}
 		return readRows(s.queries.ListLogsOlderByInstances(ctx, params))
-	case query.Instances == nil:
-		params := sqlc.SearchLogsOlderParams{
-			ProjectID: projectID, ClientID: clientID, PageSize: limit,
+	}
+}
+
+func (s *Store) searchPage(ctx context.Context, query PageQuery, after, through logReadKey) ([]Row, error) {
+	params := sqlc.SearchLogsParams{
+		ProjectID: query.Scope.ProjectID, ClientID: query.Scope.ClientID, PageSize: int32(query.Limit),
+		AfterAt: after.at, AfterSequence: after.sequence, AfterID: after.id,
+		ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
+		PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
+		Instances: query.Instances, Probe: query.Range == nil, Newer: query.Newer != nil,
+	}
+	search := sqlc.New(searchQueryDB{DBTX: s.pool})
+	rows, err := readRows(search.SearchLogs(ctx, params))
+	if err != nil || !params.Probe || len(rows) == query.Limit {
+		return rows, err
+	}
+
+	// A partial probe cannot rule out later matches. Read the whole page from
+	// one snapshot, including any rows that matched in the probe.
+	var hits []sqlc.SearchLogHitsRow
+	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		// The client and trigram bitmaps can exceed the default 4 MB.
+		_, err := tx.Exec(ctx, "SET LOCAL work_mem = '32MB'")
+		if err != nil {
+			return err
+		}
+		search := sqlc.New(searchQueryDB{DBTX: tx})
+		hits, err = search.SearchLogHits(ctx, sqlc.SearchLogHitsParams{
+			ProjectID: params.ProjectID, ClientID: params.ClientID, PageSize: params.PageSize,
 			AfterAt: after.at, AfterSequence: after.sequence, AfterID: after.id,
 			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
-			PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
-		}
-		if query.Newer != nil {
-			return readRows(s.search.SearchLogsNewer(ctx, sqlc.SearchLogsNewerParams(params)))
-		}
-		return readRows(s.search.SearchLogsOlder(ctx, params))
-	default:
-		params := sqlc.SearchLogsOlderByInstancesParams{
-			ProjectID: projectID, ClientID: clientID, PageSize: limit,
-			Instances: query.Instances,
-			AfterAt:   after.at, AfterSequence: after.sequence, AfterID: after.id,
-			ThroughAt: through.at, ThroughSequence: through.sequence, ThroughID: through.id,
-			PrimaryPattern: query.Search.PrimaryPattern, RemainingPatterns: query.Search.RemainingPatterns,
-		}
-		if query.Newer != nil {
-			return readRows(s.search.SearchLogsNewerByInstances(ctx, sqlc.SearchLogsNewerByInstancesParams(params)))
-		}
-		return readRows(s.search.SearchLogsOlderByInstances(ctx, params))
-	}
+			PrimaryPattern: params.PrimaryPattern, RemainingPatterns: params.RemainingPatterns,
+			Instances: params.Instances, Newer: params.Newer,
+		})
+		return err
+	})
+	return readRows(hits, err)
 }
 
 type logReadKey struct {

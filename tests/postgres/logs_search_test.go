@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/markojerkic/svarog/internal/lib/logsearch"
 	"github.com/markojerkic/svarog/internal/lib/projects"
 	"github.com/markojerkic/svarog/internal/server/logstore"
 	"github.com/markojerkic/svarog/internal/server/ui/pages"
 	"github.com/markojerkic/svarog/tests/testutils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSearchLogs(t *testing.T) {
@@ -60,6 +61,14 @@ func TestSearchLogs(t *testing.T) {
 		require.Nil(t, lastPage.Older, "a partial page must not offer another older page")
 	})
 
+	t.Run("a time range limits matches", func(t *testing.T) {
+		window := &logstore.TimeRange{From: base.Add(15 * time.Second), To: base.Add(time.Minute)}
+		page := mustPage(t, ctx, logs, logstore.PageQuery{
+			Scope: scope, Search: parsedSearch(t, "connection"), Range: window, Limit: 10,
+		})
+		require.Equal(t, []string{"connection timeout"}, messages(page.Rows), "a bounded search must ignore matches outside the window")
+	})
+
 	t.Run("both words are required and other clients stay hidden", func(t *testing.T) {
 		found := mustSearch(t, ctx, logs, "connection refused", scope, nil, 10, nil, nil)
 		require.Equal(t, []string{"older connection refused"}, messages(found), "search requires every word and ignores another client's match")
@@ -104,6 +113,38 @@ func TestSearchLogs(t *testing.T) {
 			ID:         needles[0].ID,
 		}, nil)
 		require.Equal(t, []string{"needle low"}, messages(withID), "cursor id returns the other row with the same timestamp and sequence")
+	})
+
+	t.Run("sparse matches across pages in both directions", func(t *testing.T) {
+		// All rows tie on time and sequence. Only their IDs distinguish them.
+		at := base.Add(24 * time.Hour)
+		fixtures := make([]logstore.Row, 40)
+		for i := range fixtures {
+			fixtures[i] = logstore.Row{Scope: scope, Instance: "web", OccurredAt: at, Message: "unrelated"}
+		}
+		for _, i := range []int{0, 1, 20, 39} {
+			fixtures[i].Message = "sparse match"
+		}
+		fixtures[38].Message, fixtures[38].Instance = "sparse match", "worker"
+		fixtures[37].Message = "sparse only"
+		ids, err := testutils.InsertLogFixtures(ctx, pool, fixtures)
+		require.NoError(t, err)
+
+		query := logstore.PageQuery{Scope: scope, Search: parsedSearch(t, "sparse match"), Instances: []string{"web"}, Limit: 2}
+		first := mustPage(t, ctx, logs, query)
+		require.Len(t, first.Rows, 2)
+		require.Equal(t, []int64{ids[39], ids[20]}, []int64{first.Rows[0].ID, first.Rows[1].ID})
+		require.NotNil(t, first.Older)
+		query.Older = first.Older
+		second := mustPage(t, ctx, logs, query)
+		require.Len(t, second.Rows, 2)
+		require.Equal(t, []int64{ids[1], ids[0]}, []int64{second.Rows[0].ID, second.Rows[1].ID})
+
+		query.Older = nil
+		query.Newer = &logstore.Cursor{OccurredAt: at, ID: ids[0]}
+		forward := mustPage(t, ctx, logs, query)
+		require.Len(t, forward.Rows, 2)
+		require.Equal(t, []int64{ids[20], ids[1]}, []int64{forward.Rows[0].ID, forward.Rows[1].ID})
 	})
 
 	t.Run("pagination links preserve microseconds and tied rows", func(t *testing.T) {
